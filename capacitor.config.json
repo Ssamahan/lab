@@ -7,8 +7,9 @@
     "cleartext": true
   },
   "android": {
-    "backgroundColor": "#0B1C3D",
-    "allowMixedContent": true
+    "backgroundColor": "#00000000",
+    "allowMixedContent": true,
+    "edgeToEdgeEnabled": true
   },
   "plugins": {
     "SplashScreen": {
@@ -16,6 +17,11 @@
       "backgroundColor": "#F7F8FC",
       "androidScaleType": "CENTER_CROP",
       "showSpinner": false
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "LIGHT",
+      "backgroundColor": "#00000000"
     }
   }
 }

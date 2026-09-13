@@ -492,10 +492,10 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
 @keyframes glowPulse { 0%,100%{box-shadow:0 0 0 0 rgba(201,168,76,0.0), 0 0 24px rgba(201,168,76,0.22)} 50%{box-shadow:0 0 0 12px rgba(201,168,76,0.12), 0 0 36px rgba(201,168,76,0.34)} }
 @keyframes goldRun { 0%{transform:translateX(-130%)} 50%{transform:translateX(20%)} 100%{transform:translateX(280%)} }
 @keyframes barShimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
-@keyframes pipetteDraw { 0%{stroke-dashoffset: 1000} 100%{stroke-dashoffset:0} }
+@keyframes pipetteDraw { 0%{stroke-dashoffset:1000} 100%{stroke-dashoffset:0} }
 .boot-logo-wrap{position:relative; width:110px; height:110px; display:flex; align-items:center; justify-content:center; background:#ffffff; border-radius:24px; border:1px solid #e6e9f1; box-shadow:0 8px 32px rgba(11,28,61,0.12), 0 0 0 1px rgba(201,168,76,0.18); animation:bootLogoIn 0.9s cubic-bezier(.2,.8,.2,1) forwards, glowPulse 2.2s ease-in-out infinite 0.9s}
 .boot-logo-wrap svg{width:88px; height:88px; overflow:visible; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.08))}
-.pipette-path{stroke-dasharray: 1000; stroke-dashoffset:1000; animation:pipetteDraw 2.2s cubic-bezier(.4,0,.2,1) forwards}
+.pipette-path{stroke-dasharray:1000; stroke-dashoffset:1000; animation:pipetteDraw 2.2s cubic-bezier(.4,0,.2,1) forwards}
 .pipette-path.gold{stroke:#C9A84C}
 .pipette-path.navy{stroke:#0B1C3D}
 .pipette-path.delay-1{animation-delay:0.1s}
@@ -507,14 +507,13 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
 <div class="boot-logo-wrap">
 <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path class="pipette-path navy delay-1" d="M52 12 L76 12" stroke-width="3.8"/>
-    <path class="pipette-path navy delay-1" d="M56 12 L56 28" stroke-width="3.2"/>
-    <path class="pipette-path navy delay-1" d="M72 12 L72 28" stroke-width="3.2"/>
-    <path class="pipette-path navy delay-2" d="M40 28 C40 22, 46 22, 50 22 L78 22 C84 22, 88 22, 88 28 L88 82 C88 88, 84 90, 78 90 L50 90 C44 90, 40 88, 40 82 Z" stroke-width="3.4"/>
-    <rect class="pipette-path gold delay-3" x="56" y="44" width="16" height="22" rx="8" stroke-width="2.4" fill="none"/>
-    <path class="pipette-path navy delay-4" d="M50 90 L78 90 L75 102 L53 102 Z" stroke-width="3.2"/>
-    <path class="pipette-path navy delay-4" d="M55 102 L73 102 L69 122 L59 122 Z" stroke-width="3.2"/>
-    <path class="pipette-path navy delay-5" d="M59 122 L69 122 L67 128 L61 128 Z" stroke-width="2.8"/>
+    <!-- Edge-traced from attached minipcr pipette image -->
+    <path class="pipette-path navy delay-1" d="M 49.57 14.65 L 46.75 16.60 L 49.79 27.45 L 43.50 33.52 L 58.47 69.97 L 68.23 80.59 L 81.03 111.18 L 83.63 113.57 L 84.07 109.44 L 73.22 69.10 L 60.64 30.49 L 63.02 25.50 L 70.83 26.80 L 63.67 22.46 L 57.60 23.76 L 54.78 20.94 L 53.26 14.43 Z" stroke-width="2.8" fill="none"/>
+    <!-- Yellow accents: top plunger + side button (from original) -->
+    <path class="pipette-path gold delay-2" d="M 53 14 L 62 14 L 62 18 L 53 18 Z" stroke-width="2.2" fill="#C9A84C" stroke="#C9A84C"/>
+    <path class="pipette-path gold delay-3" d="M 46 40 L 52 40 L 56 54 L 50 54 Z" stroke-width="2.2" fill="#C9A84C" stroke="#C9A84C"/>
+    <!-- Volume window -->
+    <rect class="pipette-path gold delay-3" x="58" y="48" width="14" height="20" rx="7" stroke-width="2.0" fill="none"/>
   </g>
 </svg>
 </div>
@@ -613,40 +612,77 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
   </div>
 </div>
 
-<nav id="bottomNav" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:35; background:rgba(255,255,255,0.92); backdrop-filter:blur(20px) saturate(160%); border-top:1px solid var(--edge); padding:6px 8px calc(6px + env(safe-area-inset-bottom)); box-shadow:0 -4px 24px rgba(11,28,61,0.06)">
-  <div style="display:flex; justify-content:space-around; align-items:center; max-width:600px; margin:0 auto">
-    <button class="bnav-item" data-tab="dash" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
-      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>Dash
+
+<nav id="bottomNav" class="beeper-bottom" style="position:fixed; bottom:0; left:0; right:0; z-index:45; background:rgba(255,255,255,0.72); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); border-top:1px solid rgba(230,233,241,0.8); border-radius:24px 24px 0 0; padding:0 0 calc(8px + env(safe-area-inset-bottom)); box-shadow:0 -8px 32px rgba(11,28,61,0.12), 0 0 0 1px rgba(201,168,76,0.12); transform:translateY(100%); transition:transform 0.4s cubic-bezier(.4,0,.2,1), height 0.4s cubic-bezier(.4,0,.2,1); will-change:transform; max-height:85dvh; overflow:hidden; display:flex; flex-direction:column">
+  <div class="bnav-handle" id="bnavHandle" style="width:100%; display:flex; justify-content:center; padding:10px 0 6px; cursor:grab; touch-action:none"><span style="width:36px; height:4px; border-radius:99px; background:rgba(11,28,61,0.18); display:block"></span></div>
+  <!-- Collapsed: 3 main icons Dashboard, Working Plan, EQA -->
+  <div id="bnavCollapsed" style="display:flex; justify-content:space-around; align-items:center; max-width:600px; margin:0 auto; width:100%; padding:6px 8px 8px; flex:none">
+    <button class="bnav-item" data-tab="dash" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 6px; border-radius:16px; color:var(--muted); font-weight:800; font-size:10.5px; letter-spacing:.2px; transition:all 200ms ease">
+      <span style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--bg2); border:1px solid var(--edge)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>Dashboard
     </button>
-    <button class="bnav-item" data-tab="samples" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
-      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/></svg></span>Samples
+    <button class="bnav-item" data-tab="roster" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 6px; border-radius:16px; color:var(--muted); font-weight:800; font-size:10.5px; letter-spacing:.2px; transition:all 200ms ease">
+      <span style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--bg2); border:1px solid var(--edge)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4V2M16 4V2M8 14h4M8 17h4"/></svg></span>Plan
     </button>
-    <button class="bnav-item" data-tab="stock" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
-      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></span>Stock
+    <button class="bnav-item" data-tab="eqa" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 6px; border-radius:16px; color:var(--muted); font-weight:800; font-size:10.5px; letter-spacing:.2px; transition:all 200ms ease">
+      <span style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--bg2); border:1px solid var(--edge)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></span>EQA
     </button>
-    <button class="bnav-item" data-tab="roster" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
-      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4V2M16 4V2M8 14h4M8 17h4"/></svg></span>Plan
+    <button class="bnav-item" id="bnavMoreBtn" style="flex:0 0 56px; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 6px; border-radius:16px; color:var(--muted); font-weight:800; font-size:10.5px">
+      <span style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--gold-soft); border:1px solid var(--gold-strong); color:var(--gold)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></span>More
     </button>
-    <button class="bnav-item" data-tab="training" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
-      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>Train
-    </button>
+  </div>
+  <!-- Expanded: Beeper-style module list -->
+  <div id="bnavExpanded" style="display:none; flex:1; overflow-y:auto; padding:12px 16px calc(16px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling:touch">
+    <div style="max-width:600px; margin:0 auto; width:100%">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px">
+        <h3 style="font-size:15px; font-weight:900; color:var(--text); letter-spacing:-.2px">Lab Systems — Modules</h3>
+        <span class="hint" style="font-size:11px">Beeper-style • swipe down to close</span>
+      </div>
+      <div class="beeper-list" style="display:grid; gap:10px">
+        <!-- Beeper-style rows will be injected by JS -->
+      </div>
+      <div style="margin-top:16px; padding:12px; background:var(--bg2); border-radius:12px; border:1px solid var(--edge)">
+        <div style="font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px">Screen Fit</div>
+        <div id="screenFitInfo" style="font-size:11px; color:var(--faint); line-height:1.5">Reading screen size...</div>
+      </div>
+    </div>
   </div>
 </nav>
 <div class="toasts" id="toasts"></div>
 <style>
+#bottomNav.beeper-bottom { will-change: transform; }
 #bottomNav .bnav-item.active { background:var(--gold-soft); color:var(--primary); border:1px solid var(--gold-strong); box-shadow:var(--shadow-gold); }
-[data-theme="dark"] #bottomNav { background:rgba(0,0,0,0.92); border-top-color:#222; }
+#bottomNav .bnav-item.active span { background:var(--gold-soft) !important; border-color:var(--gold-strong) !important; color:var(--gold) !important; }
+[data-theme="dark"] #bottomNav.beeper-bottom { background:rgba(0,0,0,0.72); border-top-color:rgba(42,42,42,0.8); box-shadow:0 -8px 32px rgba(0,0,0,0.64), 0 0 0 1px rgba(201,168,76,0.12); }
 [data-theme="dark"] #bottomNav .bnav-item { color:#a0a0a0; }
+[data-theme="dark"] #bottomNav .bnav-item span { background:#1a1a1a !important; border-color:#2a2a2a !important; }
 [data-theme="dark"] #bottomNav .bnav-item.active { background:rgba(201,168,76,0.18); color:var(--gold); }
+[data-theme="dark"] #bottomNav .bnav-handle span { background:rgba(160,160,160,0.28) !important; }
+#bottomNav.show { transform:translateY(0) !important; }
+#bottomNav.expanded { height:75dvh; transform:translateY(0) !important; }
+#bottomNav.expanded #bnavCollapsed { display:none !important; }
+#bottomNav.expanded #bnavExpanded { display:block !important; }
+.beeper-row { display:flex; align-items:center; gap:14px; padding:14px 14px; background:var(--surface); border:1px solid var(--edge); border-radius:14px; transition:all 200ms ease; cursor:pointer; box-shadow:0 1px 3px rgba(11,28,61,0.04) }
+.beeper-row:hover { transform:translateY(-1px); box-shadow:var(--shadow-hover); border-color:var(--gold-strong); background:var(--surface-hover) }
+.beeper-row.active { background:var(--gold-soft); border-color:var(--gold-strong); box-shadow:var(--shadow-gold) }
+.beeper-row .beeper-ic { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:var(--bg2); border:1px solid var(--edge); color:var(--muted); flex:none; transition:all 200ms ease }
+.beeper-row.active .beeper-ic { background:var(--gold-soft); border-color:var(--gold-strong); color:var(--gold) }
+.beeper-row .beeper-title { font-size:14px; font-weight:800; color:var(--text); line-height:1.2 }
+.beeper-row .beeper-sub { font-size:11.5px; color:var(--muted); font-weight:500; margin-top:2px }
+.beeper-row .beeper-badge { margin-left:auto; background:var(--gold); color:#0B1C3D; font-size:10px; font-weight:900; border-radius:99px; padding:3px 9px; letter-spacing:.3px }
 @media(max-width:980px){
-  #bottomNav { display:block !important; }
-  main { padding-bottom:84px !important; }
+  #bottomNav { display:flex !important; }
+  main { padding-bottom:calc(100px + env(safe-area-inset-bottom)) !important; min-height:100dvh; }
   #sidebar { display:none !important; }
+  body { min-height:100dvh; min-height:100svh; }
+  #topbar { padding-top:calc(8px + env(safe-area-inset-top)); height:calc(var(--topbar-h) + env(safe-area-inset-top)); background:rgba(255,255,255,0.72); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); }
+  [data-theme="dark"] #topbar { background:rgba(0,0,0,0.72); }
+  #app { min-height:100dvh; }
 }
 @media(min-width:981px){
   #bottomNav { display:none !important; }
 }
 </style>
+
 
 <div id="modal-root"></div>
 
@@ -6860,6 +6896,243 @@ Q3 2024 | HIV | Score:95% | Pass"></textarea>
     saveDB(); closeModal(); toast(' Imported '+count+' PT history records'); renderEQA();
   };
 }
+
+
+// ===== BEEMER-STYLE BOTTOM SHEET + FULL IMMERSION + SCREEN FIT =====
+function updateScreenFit(){
+  try{
+    const w=window.innerWidth, h=window.innerHeight;
+    const sw=screen.width, sh=screen.height;
+    const dpr=window.devicePixelRatio||1;
+    const isMobile = w<=980;
+    const tier = (typeof getScreenTier==='function')?getScreenTier():'lg';
+    // Set CSS variables for immersive fit
+    document.documentElement.style.setProperty('--vw', w+'px');
+    document.documentElement.style.setProperty('--vh', h+'px');
+    document.documentElement.style.setProperty('--dvh', (window.visualViewport?window.visualViewport.height:h)+'px');
+    document.documentElement.style.setProperty('--screen-w', sw+'px');
+    document.documentElement.style.setProperty('--screen-h', sh+'px');
+    // Update screenFitInfo in bottom sheet
+    const infoEl=document.getElementById('screenFitInfo');
+    if(infoEl){
+      infoEl.innerHTML=`Viewport: ${w}×${h} (tier ${tier}) • Screen: ${sw}×${sh} • DPR ${dpr} • Mobile ${isMobile?'yes':'no'}<br>Fit: 100dvh + safe-area-inset • Immersive blur behind battery icons`;
+    }
+    // Ensure main fits all Android phones: use 100dvh, 100svh fallback
+    try{
+      const main=document.querySelector('main');
+      if(main && isMobile){
+        main.style.minHeight='calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom))';
+      }
+    }catch(e){}
+  }catch(e){ console.warn('updateScreenFit', e.message); }
+}
+
+function initBeeperBottom(){
+  try{
+    const bnav=document.getElementById('bottomNav');
+    const handle=document.getElementById('bnavHandle');
+    const collapsed=document.getElementById('bnavCollapsed');
+    const expanded=document.getElementById('bnavExpanded');
+    const moreBtn=document.getElementById('bnavMoreBtn');
+    if(!bnav) return;
+
+    // Beeper-style module list
+    const modules = [
+      {id:'dash', title:'Dashboard', sub:'Lab Command Center overview', icon:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'},
+      {id:'roster', title:'Working Plan', sub:'Monthly plan · unit roster + Night Shift last row', icon:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4V2M16 4V2M8 14h4M8 17h4"/>'},
+      {id:'eqa', title:'EQA / PT Scores', sub:'Proficiency testing · quarters Q1 Jul-Sep', icon:'<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>'},
+      {id:'samples', title:'Referred Samples', sub:'Register · track · manifest', icon:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/>'},
+      {id:'stock', title:'Stock & Supplies', sub:'Consumables · batches · distribution', icon:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>'},
+      {id:'training', title:'Training Roster', sub:'FIFO queue · registry · history', icon:'<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'},
+      {id:'revenue', title:'Training Revenue', sub:'Expenses · income · balance (Admin only)', icon:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/>'},
+      {id:'leave', title:'Leave & Timeline', sub:'Planner · records · timeline', icon:'<path d="M4 19l5-5 4 4 7-8"/><path d="M20 6v5h-5"/>'},
+      {id:'staff', title:'Staff & Settings', sub:'Registry · branding · data (Admin only)', icon:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>'}
+    ];
+
+    function renderBeeperList(){
+      const listEl=document.querySelector('#bnavExpanded .beeper-list');
+      if(!listEl) return;
+      const curTab = (typeof UI!=='undefined' && UI.tab) ? UI.tab : 'dash';
+      listEl.innerHTML = modules.map(m=>{
+        const isActive = m.id===curTab;
+        const isAdminOnly = (m.id==='revenue'||m.id==='staff');
+        const hidden = isAdminOnly && (typeof isViewer==='function' && isViewer()) ? 'style="display:none"' : '';
+        return `<div class="beeper-row ${isActive?'active':''}" data-tab="${m.id}" ${hidden}>
+          <div class="beeper-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${m.icon}</svg></div>
+          <div style="flex:1; min-width:0"><div class="beeper-title">${m.title}</div><div class="beeper-sub">${m.sub}</div></div>
+          ${isActive?'<div class="beeper-badge">Active</div>':''}
+        </div>`;
+      }).join('');
+      listEl.querySelectorAll('.beeper-row').forEach(row=>{
+        row.onclick=()=>{
+          const tab=row.dataset.tab;
+          if(tab){
+            if(typeof setTab==='function') setTab(tab);
+            // Collapse to show 3 icons after selection
+            bnav.classList.remove('expanded');
+            setTimeout(()=>{ bnav.classList.add('show'); },100);
+          }
+        };
+      });
+    }
+
+    renderBeeperList();
+    // Re-render when tab changes
+    const origSetTab = window.setTab;
+    if(origSetTab){
+      window.setTab = function(tab,silent){
+        const res=origSetTab(tab,silent);
+        renderBeeperList();
+        return res;
+      };
+    }
+
+    let startY=0, currentY=0, isDragging=false;
+    let state='hidden'; // hidden, collapsed, expanded
+
+    function showCollapsed(){
+      bnav.classList.add('show');
+      bnav.classList.remove('expanded');
+      state='collapsed';
+    }
+    function showExpanded(){
+      bnav.classList.add('show','expanded');
+      state='expanded';
+      renderBeeperList();
+      updateScreenFit();
+    }
+    function hide(){
+      bnav.classList.remove('show','expanded');
+      state='hidden';
+    }
+
+    // Expose for global
+    window.bnavShowCollapsed=showCollapsed;
+    window.bnavShowExpanded=showExpanded;
+    window.bnavHide=hide;
+
+    // Slide up gesture: detect swipe up from bottom 100px
+    let touchStartY=0, touchStartX=0, touchStartTime=0;
+    document.addEventListener('touchstart', e=>{
+      if(e.touches.length!==1) return;
+      touchStartY=e.touches[0].clientY;
+      touchStartX=e.touches[0].clientX;
+      touchStartTime=Date.now();
+      // If touch starts near bottom 120px, prepare to show
+      const h=window.innerHeight;
+      if(h - touchStartY < 120){
+        // Potential slide up
+      }
+    }, {passive:true});
+
+    document.addEventListener('touchend', e=>{
+      if(!e.changedTouches || e.changedTouches.length!==1) return;
+      const endY=e.changedTouches[0].clientY;
+      const endX=e.changedTouches[0].clientX;
+      const dy=touchStartY - endY;
+      const dx=Math.abs(touchStartX - endX);
+      const dt=Date.now()-touchStartTime;
+      const h=window.innerHeight;
+      // Slide up from bottom: dy > 50, dx < 80, started near bottom
+      if(h - touchStartY < 140 && dy > 50 && dx < 100 && dt < 600){
+        if(state==='hidden'){
+          showCollapsed();
+        } else if(state==='collapsed'){
+          showExpanded();
+        }
+      }
+      // Slide down to hide: dy < -50, started in bottomNav
+      if(state!=='hidden' && dy < -60 && dx < 120){
+        // Check if touch started inside bottomNav
+        const bnavRect=bnav.getBoundingClientRect();
+        if(touchStartY >= bnavRect.top){
+          if(state==='expanded' && dy < -30){
+            // First collapse
+            showCollapsed();
+          } else {
+            hide();
+          }
+        }
+      }
+    }, {passive:true});
+
+    // Handle drag on handle
+    handle.addEventListener('touchstart', e=>{
+      isDragging=true;
+      startY=e.touches[0].clientY;
+      bnav.style.transition='none';
+    }, {passive:true});
+    handle.addEventListener('touchmove', e=>{
+      if(!isDragging) return;
+      currentY=e.touches[0].clientY;
+      const dy=startY - currentY;
+      // Visual feedback
+      if(state==='collapsed' && dy>0){
+        // Dragging up to expand
+        bnav.style.transform=`translateY(${-dy*0.3}px)`;
+      } else if(state==='expanded' && dy<0){
+        bnav.style.transform=`translateY(${-dy*0.3}px)`;
+      }
+    }, {passive:true});
+    handle.addEventListener('touchend', e=>{
+      if(!isDragging) return;
+      isDragging=false;
+      bnav.style.transition='';
+      bnav.style.transform='';
+      const dy=startY - currentY;
+      if(state==='collapsed' && dy>60){
+        showExpanded();
+      } else if(state==='expanded' && dy<-60){
+        showCollapsed();
+      } else if(state==='hidden' && dy>40){
+        showCollapsed();
+      }
+    }, {passive:true});
+
+    // More button expands
+    if(moreBtn){
+      moreBtn.onclick=()=>{
+        if(state==='collapsed') showExpanded();
+        else if(state==='expanded') showCollapsed();
+        else showCollapsed();
+      };
+    }
+
+    // Click outside to hide when expanded? Keep collapsed visible
+    document.addEventListener('click', e=>{
+      if(state==='expanded'){
+        if(!bnav.contains(e.target)){
+          showCollapsed();
+        }
+      }
+    });
+
+    // Auto-show collapsed on mobile after 1.5s (Beeper-style hint)
+    setTimeout(()=>{
+      if(window.innerWidth<=980 && state==='hidden'){
+        showCollapsed();
+        // Auto-hide after 3s hint then user can slide up again
+        setTimeout(()=>{ if(state==='collapsed') hide(); }, 3000);
+      }
+    }, 1500);
+
+    // Also show on scroll up near bottom
+    let lastScrollY=window.scrollY;
+    window.addEventListener('scroll', ()=>{
+      const cur=window.scrollY;
+      if(cur < lastScrollY - 10 && window.innerHeight + cur >= document.body.offsetHeight - 200){
+        if(state==='hidden' && window.innerWidth<=980) showCollapsed();
+      }
+      lastScrollY=cur;
+    }, {passive:true});
+  }catch(e){ console.warn('initBeeperBottom', e.message); }
+}
+
+// Call on boot
+try{ window.addEventListener('load', ()=>{ setTimeout(()=>{ updateScreenFit(); initBeeperBottom(); }, 600); }); }catch(e){}
+try{ window.addEventListener('resize', ()=>{ updateScreenFit(); }); }catch(e){}
+try{ window.addEventListener('orientationchange', ()=>{ setTimeout(updateScreenFit, 300); }); }catch(e){}
+
 
 function boot(){
   try{ DB=loadDB(); }catch(e){ console.error('loadDB:',e); showBootError('loadDB: '+(e&&e.message||e)); DB=buildSeed(); }

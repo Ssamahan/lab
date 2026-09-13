@@ -1,12 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512">
-  <rect width="128" height="128" rx="28" fill="#ffffff"/>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M52 12 L76 12" stroke="#0B1C3D" stroke-width="3.8"/>
-    <path d="M56 12 L56 28 M72 12 L72 28" stroke="#0B1C3D" stroke-width="3.2"/>
-    <path d="M40 28 C40 22, 46 22, 50 22 L78 22 C84 22, 88 22, 88 28 L88 82 C88 88, 84 90, 78 90 L50 90 C44 90, 40 88, 40 82 Z" stroke="#0B1C3D" stroke-width="3.4"/>
-    <rect x="56" y="44" width="16" height="22" rx="8" stroke="#C9A84C" stroke-width="2.4"/>
-    <path d="M50 90 L78 90 L75 102 L53 102 Z" stroke="#0B1C3D" stroke-width="3.2"/>
-    <path d="M55 102 L73 102 L69 122 L59 122 Z" stroke="#0B1C3D" stroke-width="3.2"/>
-    <path d="M59 122 L69 122 L67 128 L61 128 Z" stroke="#0B1C3D" stroke-width="2.8"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<style>
+  @media (prefers-color-scheme: dark) {
+    .stroke { stroke: #ffffff; }
+    .fill { fill: #0B1C3D; }
+  }
+  @media (prefers-color-scheme: light) {
+    .stroke { stroke: #0B1C3D; }
+    .fill { fill: #ffffff; }
+  }
+</style>
+<rect width="128" height="128" rx="24" fill="#ffffff"/>
+<path d="M 49.57 14.65 L 46.75 16.60 L 49.79 27.45 L 43.50 33.52 L 58.47 69.97 L 68.23 80.59 L 81.03 111.18 L 83.63 113.57 L 84.07 109.44 L 73.22 69.10 L 60.64 30.49 L 63.02 25.50 L 70.83 26.80 L 63.67 22.46 L 57.60 23.76 L 54.78 20.94 L 53.26 14.43 Z" fill="#ffffff" stroke="#0B1C3D" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round" class="stroke fill"/>
+<path d="M 48.49 38.73 L 46.97 39.81 L 50.23 49.79 L 52.18 48.92 L 48.92 38.95 Z" fill="#C9A84C" />
+<path d="M 53.05 14.65 L 52.61 14.22 L 50.88 14.43 L 50.44 14.87 L 49.57 14.87 L 47.62 15.74 L 46.97 16.60 L 47.84 17.25 L 48.06 18.56 L 50.88 17.25 L 53.05 16.82 L 52.61 15.52 Z" fill="#C9A84C" />
 </svg>
