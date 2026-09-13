@@ -1179,12 +1179,12 @@ function svgDonut(items,opts){ if(!items||!items.length) return '<div class="emp
 
 
 
-function svgBar(data,opts){ // extra luxury vertical bars - rounded, gradient, glow - theme aware
+function svgBar(data,opts){ // extra luxury vertical bars - no overlapping, 4-6 words + dots, premium, theme-aware
   opts=opts||{};
   const tier=getScreenTier();
   const w = tier==='xs' ? 380 : tier==='sm' ? 540 : (opts.w||700);
-  const h = tier==='xs' ? 220 : tier==='sm' ? 240 : (opts.h||260);
-  const pad = tier==='xs' ? {l:44,r:14,t:30,b:48} : tier==='sm' ? {l:50,r:16,t:32,b:50} : {l:56,r:20,t:36,b:54};
+  const h = tier==='xs' ? 260 : tier==='sm' ? 280 : (opts.h||320);
+  const pad = tier==='xs' ? {l:44,r:14,t:30,b:78} : tier==='sm' ? {l:50,r:16,t:32,b:84} : {l:56,r:20,t:36,b:96};
   const fs = chartFontScale(w);
   const vals=data.map(d=>d.value).concat(0);
   const max=Math.max(...vals,1), min=Math.min(...vals,0); const range=(max-min)||1;
@@ -1214,12 +1214,29 @@ function svgBar(data,opts){ // extra luxury vertical bars - rounded, gradient, g
       <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(vh,3).toFixed(1)}" rx="12" ry="12" fill="url(#${grad})" style="filter:drop-shadow(0 4px 12px rgba(11,28,61,0.12))${isGold?'; filter:drop-shadow(0 0 0 1px rgba(201,168,76,0.22)) drop-shadow(0 6px 20px rgba(201,168,76,0.22))':''}"><title>${esc(d.label)}: ${d.value}</title></rect>
       <line x1="${(x+4).toFixed(1)}" y1="${(y+3).toFixed(1)}" x2="${(x+bw-4).toFixed(1)}" y2="${(y+3).toFixed(1)}" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-linecap="round"/>
     </g>`;
-    bars+=`<text x="${(x+bw/2).toFixed(1)}" y="${(y-12).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs,12)}" font-weight="900" fill="var(--text)" style="paint-order:stroke; stroke:var(--surface); stroke-width:4px; stroke-linejoin:round; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.08))">${d.value}</text>`;
-    if(opts.labels!==false){
-      const lab = String(d.label).slice(0, tier==='xs'?9:15);
-      labels+=`<text x="${(x+bw/2).toFixed(1)}" y="${(h-12).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" fill="var(--muted)" font-weight="700">${esc(lab)}</text>`;
-    }
+    bars+=`<text x="${(x+bw/2).toFixed(1)}" y="${(y-12).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs,12)}" font-weight="900" fill="var(--text)" style="paint-order:stroke; stroke:var(--surface); stroke-width:4px; stroke-linejoin:round">${d.value}</text>`;
   });
+
+  const minLabelSpace = tier==='xs' ? 56 : 78;
+  const showEvery = Math.max(1, Math.ceil(n * minLabelSpace / iw));
+  const rotate = n>6 || showEvery>1;
+  if(opts.labels!==false){
+    data.forEach((d,i)=>{
+      if(i%showEvery!==0 && i!==n-1) return;
+      let lab = String(d.label||'');
+      let words = lab.split(/\s+/).filter(w=>w);
+      if(words.length>6) lab = words.slice(0,4).join(' ') + '…';
+      else if(words.length>4 && lab.length>22) lab = words.slice(0,5).join(' ') + '…';
+      else if(lab.length>20) lab = lab.slice(0,18) + '…';
+      const x = pad.l + i*(bw+gap) + bw/2;
+      const y = h-14;
+      if(rotate){
+        labels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="end" transform="rotate(-32 ${x.toFixed(1)} ${y.toFixed(1)})" font-size="${Math.max(fs-1,11)}" fill="var(--muted)" font-weight="700">${esc(lab)}</text>`;
+      } else {
+        labels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" fill="var(--muted)" font-weight="700">${esc(lab)}</text>`;
+      }
+    });
+  }
 
   let gl='';
   gl+=`<line x1="${pad.l}" y1="${y0v.toFixed(1)}" x2="${w-pad.r}" y2="${y0v.toFixed(1)}" stroke="var(--edge-strong)" stroke-width="1.4"/>`;
