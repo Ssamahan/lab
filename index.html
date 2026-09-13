@@ -6920,6 +6920,33 @@ Q3 2024 | HIV | Score:95% | Pass"></textarea>
 
 
 
+
+function updateScreenFit(){
+  try{
+    const w=window.innerWidth, h=window.innerHeight;
+    const sw=screen.width, sh=screen.height;
+    const dpr=window.devicePixelRatio||1;
+    const isMobile = w<=980;
+    const tier = (typeof getScreenTier==='function')?getScreenTier():'lg';
+    document.documentElement.style.setProperty('--vw', w+'px');
+    document.documentElement.style.setProperty('--vh', h+'px');
+    document.documentElement.style.setProperty('--dvh', (window.visualViewport?window.visualViewport.height:h)+'px');
+    document.documentElement.style.setProperty('--screen-w', sw+'px');
+    document.documentElement.style.setProperty('--screen-h', sh+'px');
+    const infoEl=document.getElementById('screenFitInfo');
+    if(infoEl){
+      infoEl.innerHTML=`Viewport: ${w}×${h} (tier ${tier}) • Screen: ${sw}×${sh} • DPR ${dpr} • Mobile ${isMobile?'yes':'no'}<br>Fit: 100dvh + safe-area-inset • Immersive blur`;
+    }
+    try{
+      const main=document.querySelector('main');
+      if(main && isMobile){
+        main.style.minHeight='calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom))';
+      }
+    }catch(e){}
+  }catch(e){ console.warn('updateScreenFit', e.message); }
+}
+
+
 function initBeeperBottom(){
   try{
     const bnav=document.getElementById('bottomNav');
