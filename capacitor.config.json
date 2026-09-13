@@ -1,6 +1,6 @@
 {
   "appId": "rw.gov.ruli.lab",
-  "appName": "Ruli Lab",
+  "appName": "Lab Systems",
   "webDir": ".",
   "bundledWebRuntime": false,
   "server": {

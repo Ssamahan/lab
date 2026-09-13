@@ -1,4 +1,4 @@
-name: Build APK - Ruli Lab Systems v4
+name: Build APK - Lab Systems Systems v4
 
 on:
   push:
@@ -62,14 +62,14 @@ jobs:
       - name: Rename APKs
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Ruli-Lab-v4-debug.apk || true
-          cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/Ruli-Lab-v4-release-unsigned.apk || true
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Lab-Systems-v4-debug.apk || true
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/Lab-Systems-v4-release-unsigned.apk || true
           ls -lh dist/
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Ruli-Lab-APK
+          name: Lab-Systems-APK
           path: dist/*.apk
           retention-days: 30
 
@@ -85,7 +85,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v4.0-latest
-          name: Ruli Lab v4.0 - Latest APK
+          name: Lab Systems v4.0 - Latest APK
           body: |
             **Ruli District Hospital - Lab Systems v4 (Premium Command Center)**
             - Gold blood drop from micropipette logo
@@ -96,7 +96,7 @@ jobs:
             - APK built via Capacitor WebView wrapper loading https://ssamahan.github.io/ruli-lab-roster/
             
             **Install:**
-            - Download `Ruli-Lab-v4-debug.apk` below → allow unknown sources → install
+            - Download `Lab-Systems-v4-debug.apk` below → allow unknown sources → install
             
             **Live Web:** https://ssamahan.github.io/ruli-lab-roster/
           files: dist/*.apk

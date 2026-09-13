@@ -1,7 +1,7 @@
 {
-  "name": "Ruli District Hospital - Lab Systems v4",
-  "short_name": "Ruli Lab",
-  "description": "Laboratory Command Center - Working Plan, Roster, Samples, Stock, Training, EQA - Ruli District Hospital",
+  "name": "Lab Systems",
+  "short_name": "Lab Systems",
+  "description": "Lab Systems - Laboratory Command Center - Ruli District Hospital",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "any",
@@ -58,28 +58,47 @@
       "purpose": "any"
     }
   ],
-  "categories": ["medical", "productivity", "health"],
+  "categories": [
+    "medical",
+    "productivity",
+    "health"
+  ],
   "shortcuts": [
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "Lab Command Center overview",
       "url": "./index.html#dash",
-      "icons": [{ "src": "assets/favicon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "assets/favicon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Working Plan",
       "short_name": "Working Plan",
       "description": "Monthly working plan",
       "url": "./index.html#roster",
-      "icons": [{ "src": "assets/favicon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "assets/favicon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Referred Samples",
       "short_name": "Samples",
       "description": "Referred samples & manifests",
       "url": "./index.html#samples",
-      "icons": [{ "src": "assets/favicon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "assets/favicon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

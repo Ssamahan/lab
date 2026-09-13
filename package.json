@@ -1,7 +1,7 @@
 {
-  "name": "ruli-lab-roster",
+  "name": "lab-systems",
   "version": "4.0.0",
-  "description": "Ruli District Hospital Laboratory Smart Roster - APK via Capacitor",
+  "description": "Lab Systems - Ruli District Hospital Laboratory",
   "main": "index.html",
   "scripts": {
     "build": "echo 'Single-file app, no build needed'",
@@ -12,7 +12,13 @@
     "apk:debug": "cd android && ./gradlew assembleDebug",
     "apk:release": "cd android && ./gradlew assembleRelease"
   },
-  "keywords": ["ruli", "lab", "roster", "hospital", "rwanda"],
+  "keywords": [
+    "ruli",
+    "lab",
+    "roster",
+    "hospital",
+    "rwanda"
+  ],
   "author": "Kelvin SAMAHANI <smhnklvn@gmail.com>",
   "license": "MIT",
   "devDependencies": {

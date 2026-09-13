@@ -1,4 +1,4 @@
-# 📱 Ruli Lab Systems v4 — APK Version (Android) — Publish on GitHub
+# 📱 Lab Systems v4 — APK Version (Android) — Publish on GitHub
 
 Your web app is now a **PWA** (manifest.json + sw.js) + **Capacitor Android wrapper** → generates APK that loads your live GitHub Pages link.
 
@@ -21,7 +21,7 @@ I added `.github/workflows/build-apk.yml` that builds APK on every push to `main
 **To trigger:**
 - Just push `index.html` or any file to `main` (already done)
 - Go to **GitHub → Actions tab → Build APK** → see build logs
-- After ~5-8 min, go to **Releases → v4.0-latest → Assets → Download `Ruli-Lab-v4-debug.apk`**
+- After ~5-8 min, go to **Releases → v4.0-latest → Assets → Download `Lab-Systems-v4-debug.apk`**
 - Share that APK link with staff — install on Android (allow unknown sources)
 
 **To create a versioned release:**
@@ -53,7 +53,7 @@ npx cap open android
 ```json
 {
   "appId": "rw.gov.ruli.lab",
-  "appName": "Ruli Lab",
+  "appName": "Lab Systems",
   "webDir": ".",
   "server": { "url": "https://ssamahan.github.io/ruli-lab-roster/", "cleartext": true },
   "android": { "backgroundColor": "#0B1C3D" }
@@ -71,7 +71,7 @@ Create minimal Android Studio project:
 **AndroidManifest.xml:**
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
-<application android:icon="@drawable/ic_launcher" android:label="Ruli Lab">
+<application android:icon="@drawable/ic_launcher" android:label="Lab Systems">
   <activity android:name=".MainActivity" android:exported="true">
     <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
   </activity>
@@ -111,7 +111,7 @@ Build → APK.
 
 If you build locally:
 
-1. GitHub → Releases → Draft new release → Tag `v4.0.0` → Title `Ruli Lab v4.0 - APK`
+1. GitHub → Releases → Draft new release → Tag `v4.0.0` → Title `Lab Systems v4.0 - APK`
 2. Upload `app-debug.apk` (or release) as binary
 3. Description:
 ```
@@ -122,7 +122,7 @@ Ruli District Hospital - Lab Systems v4
 - EmailJS real OTP
 Live: https://ssamahan.github.io/ruli-lab-roster/
 ```
-4. Publish release → get shareable link `https://github.com/Ssamahan/ruli-lab-roster/releases/download/v4.0.0/Ruli-Lab-v4-debug.apk`
+4. Publish release → get shareable link `https://github.com/Ssamahan/ruli-lab-roster/releases/download/v4.0.0/Lab-Systems-v4-debug.apk`
 
 ---
 
