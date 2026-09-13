@@ -1,5 +1,5 @@
-/* Lab Systems v4.6 - Fix hamburger + web/apk split + cache bust */
-const CACHE_NAME = 'lab-systems-v4.6-web-apk-split-2026-09-13';
+/* Lab Systems v4.7 - Fix extra arrow, hamburger, module errors, web vs apk split */
+const CACHE_NAME = 'lab-systems-v4.7-liquid-glass-fix-2026-09-13';
 const ASSETS = [
   './',
   './index.html',
