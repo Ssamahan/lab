@@ -1,8 +1,7 @@
 {
   "appId": "rw.gov.ruli.lab",
   "appName": "Lab Systems",
-  "webDir": ".",
-  "bundledWebRuntime": false,
+  "webDir": "www",
   "server": {
     "url": "https://ssamahan.github.io/ruli-lab-roster/",
     "cleartext": true
