@@ -267,6 +267,16 @@ table.wp{border-collapse:separate; border-spacing:0; background:var(--surface); 
 .mtl .ev .dot{width:14px; height:14px; border-radius:50%; border:3px solid var(--surface); box-shadow:0 2px 8px rgba(0,0,0,0.18)}
 .mtl .ev .lbl{position:absolute; top:20px; transform:translateX(-50%); background:var(--surface); border:1px solid var(--edge); border-radius:8px; padding:3px 9px; font-size:10px; font-weight:700; color:var(--muted); white-space:nowrap; box-shadow:var(--shadow)}
 
+
+/* Fix charts squeeze on small phones - one chart per row */
+@media(max-width:640px){
+  .grid, .g-auto, .g-2, .g-3, .g-4 { grid-template-columns:1fr !important; gap:14px !important; }
+  .chart-box { padding:6px 2px 10px !important; }
+  .chart-box svg { width:100% !important; height:auto !important; min-height:200px; }
+  .card { padding:14px !important; }
+  .kpi .k-val { font-size:26px !important; }
+}
+
 /* ===== CHARTS - premium readable ===== */
 .chart-box{width:100%; overflow-x:auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:8px 4px 12px; background:var(--surface); border-radius:12px; border:1px solid var(--edge); transition:all 250ms ease}
 .chart-box svg{width:100%; height:auto; display:block; max-width:100%; overflow:visible}
@@ -673,11 +683,22 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
   #bottomNav { display:flex !important; }
   main { padding-bottom:calc(100px + env(safe-area-inset-bottom)) !important; min-height:100dvh; }
   #sidebar { display:none !important; }
+  #hamburger { display:none !important; } /* Remove hamburger on app per request */
   body { min-height:100dvh; min-height:100svh; }
   #topbar { padding-top:calc(8px + env(safe-area-inset-top)); height:calc(var(--topbar-h) + env(safe-area-inset-top)); background:rgba(255,255,255,0.72); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); }
   [data-theme="dark"] #topbar { background:rgba(0,0,0,0.72); }
   #app { min-height:100dvh; }
+  /* Force single column on small phones for charts - fix squeeze */
+  .grid.g-2, .grid.g-3, .grid.g-4, .grid.g-auto, .g-auto, .g-2, .g-3, .g-4 { grid-template-columns:1fr !important; }
+  .chart-box { min-height:220px; }
+  .card { padding:16px !important; }
 }
+@media(max-width:640px){
+  .grid.g-2, .grid.g-3, .grid.g-4, .g-auto { grid-template-columns:1fr !important; gap:12px !important; }
+  .chart-box svg { max-height:320px !important; }
+  .kpi { min-height:96px !important; }
+}
+
 @media(min-width:981px){
   #bottomNav { display:none !important; }
 }
@@ -6898,34 +6919,6 @@ Q3 2024 | HIV | Score:95% | Pass"></textarea>
 }
 
 
-// ===== BEEMER-STYLE BOTTOM SHEET + FULL IMMERSION + SCREEN FIT =====
-function updateScreenFit(){
-  try{
-    const w=window.innerWidth, h=window.innerHeight;
-    const sw=screen.width, sh=screen.height;
-    const dpr=window.devicePixelRatio||1;
-    const isMobile = w<=980;
-    const tier = (typeof getScreenTier==='function')?getScreenTier():'lg';
-    // Set CSS variables for immersive fit
-    document.documentElement.style.setProperty('--vw', w+'px');
-    document.documentElement.style.setProperty('--vh', h+'px');
-    document.documentElement.style.setProperty('--dvh', (window.visualViewport?window.visualViewport.height:h)+'px');
-    document.documentElement.style.setProperty('--screen-w', sw+'px');
-    document.documentElement.style.setProperty('--screen-h', sh+'px');
-    // Update screenFitInfo in bottom sheet
-    const infoEl=document.getElementById('screenFitInfo');
-    if(infoEl){
-      infoEl.innerHTML=`Viewport: ${w}×${h} (tier ${tier}) • Screen: ${sw}×${sh} • DPR ${dpr} • Mobile ${isMobile?'yes':'no'}<br>Fit: 100dvh + safe-area-inset • Immersive blur behind battery icons`;
-    }
-    // Ensure main fits all Android phones: use 100dvh, 100svh fallback
-    try{
-      const main=document.querySelector('main');
-      if(main && isMobile){
-        main.style.minHeight='calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - env(safe-area-inset-bottom))';
-      }
-    }catch(e){}
-  }catch(e){ console.warn('updateScreenFit', e.message); }
-}
 
 function initBeeperBottom(){
   try{
@@ -6936,17 +6929,16 @@ function initBeeperBottom(){
     const moreBtn=document.getElementById('bnavMoreBtn');
     if(!bnav) return;
 
-    // Beeper-style module list
     const modules = [
-      {id:'dash', title:'Dashboard', sub:'Lab Command Center overview', icon:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'},
-      {id:'roster', title:'Working Plan', sub:'Monthly plan · unit roster + Night Shift last row', icon:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4V2M16 4V2M8 14h4M8 17h4"/>'},
-      {id:'eqa', title:'EQA / PT Scores', sub:'Proficiency testing · quarters Q1 Jul-Sep', icon:'<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>'},
-      {id:'samples', title:'Referred Samples', sub:'Register · track · manifest', icon:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/>'},
-      {id:'stock', title:'Stock & Supplies', sub:'Consumables · batches · distribution', icon:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>'},
-      {id:'training', title:'Training Roster', sub:'FIFO queue · registry · history', icon:'<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'},
-      {id:'revenue', title:'Training Revenue', sub:'Expenses · income · balance (Admin only)', icon:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/>'},
-      {id:'leave', title:'Leave & Timeline', sub:'Planner · records · timeline', icon:'<path d="M4 19l5-5 4 4 7-8"/><path d="M20 6v5h-5"/>'},
-      {id:'staff', title:'Staff & Settings', sub:'Registry · branding · data (Admin only)', icon:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>'}
+      {id:'dash', title:'Dashboard', sub:'Lab Command Center', icon:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'},
+      {id:'roster', title:'Working Plan', sub:'Monthly + Weekly Roster', icon:'<rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 4V2M16 4V2M8 14h4M8 17h4"/>'},
+      {id:'eqa', title:'EQA / PT Scores', sub:'Proficiency testing', icon:'<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>'},
+      {id:'samples', title:'Referred Samples', sub:'Register · manifest', icon:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/>'},
+      {id:'stock', title:'Stock & Supplies', sub:'Consumables · batches', icon:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>'},
+      {id:'training', title:'Training Roster', sub:'FIFO queue · history', icon:'<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'},
+      {id:'revenue', title:'Training Revenue', sub:'Expenses · balance', icon:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/>'},
+      {id:'leave', title:'Leave & Timeline', sub:'Planner · records', icon:'<path d="M4 19l5-5 4 4 7-8"/><path d="M20 6v5h-5"/>'},
+      {id:'staff', title:'Staff & Settings', sub:'Registry · data', icon:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>'}
     ];
 
     function renderBeeperList(){
@@ -6966,18 +6958,16 @@ function initBeeperBottom(){
       listEl.querySelectorAll('.beeper-row').forEach(row=>{
         row.onclick=()=>{
           const tab=row.dataset.tab;
-          if(tab){
-            if(typeof setTab==='function') setTab(tab);
-            // Collapse to show 3 icons after selection
+          if(tab && typeof setTab==='function'){
+            setTab(tab);
             bnav.classList.remove('expanded');
-            setTimeout(()=>{ bnav.classList.add('show'); },100);
+            setTimeout(()=>{ bnav.classList.add('show'); },80);
           }
         };
       });
     }
 
     renderBeeperList();
-    // Re-render when tab changes
     const origSetTab = window.setTab;
     if(origSetTab){
       window.setTab = function(tab,silent){
@@ -6987,41 +6977,47 @@ function initBeeperBottom(){
       };
     }
 
-    let startY=0, currentY=0, isDragging=false;
-    let state='hidden'; // hidden, collapsed, expanded
+    let state='peek'; // peek (handle visible), collapsed (3 icons), expanded
+    function showPeek(){ bnav.classList.remove('show','expanded'); bnav.style.transform='translateY(calc(100% - 32px))'; state='peek'; }
+    function showCollapsed(){ bnav.classList.add('show'); bnav.classList.remove('expanded'); bnav.style.transform='translateY(0)'; state='collapsed'; }
+    function showExpanded(){ bnav.classList.add('show','expanded'); bnav.style.transform='translateY(0)'; state='expanded'; renderBeeperList(); updateScreenFit(); }
+    function hide(){ bnav.classList.remove('show','expanded'); bnav.style.transform='translateY(100%)'; state='hidden'; }
 
-    function showCollapsed(){
-      bnav.classList.add('show');
-      bnav.classList.remove('expanded');
-      state='collapsed';
-    }
-    function showExpanded(){
-      bnav.classList.add('show','expanded');
-      state='expanded';
-      renderBeeperList();
-      updateScreenFit();
-    }
-    function hide(){
-      bnav.classList.remove('show','expanded');
-      state='hidden';
-    }
-
-    // Expose for global
     window.bnavShowCollapsed=showCollapsed;
     window.bnavShowExpanded=showExpanded;
     window.bnavHide=hide;
+    window.bnavShowPeek=showPeek;
 
-    // Slide up gesture: detect swipe up from bottom 100px
-    let touchStartY=0, touchStartX=0, touchStartTime=0;
+    // Always show peek handle (32px) so user can swipe anytime
+    showPeek();
+
+    // IMPROVED swipe detection - show on EVERY single swipe up
+    let touchStartY=0, touchStartX=0, touchStartTime=0, startInBnav=false;
     document.addEventListener('touchstart', e=>{
       if(e.touches.length!==1) return;
       touchStartY=e.touches[0].clientY;
       touchStartX=e.touches[0].clientX;
       touchStartTime=Date.now();
-      // If touch starts near bottom 120px, prepare to show
-      const h=window.innerHeight;
-      if(h - touchStartY < 120){
-        // Potential slide up
+      const bnavRect=bnav.getBoundingClientRect();
+      startInBnav = touchStartY >= bnavRect.top && touchStartY <= window.innerHeight;
+    }, {passive:true});
+
+    document.addEventListener('touchmove', e=>{
+      if(e.touches.length!==1) return;
+      const curY=e.touches[0].clientY;
+      const dy=touchStartY - curY;
+      // If swiping up near bottom or inside bnav, give visual feedback
+      if(dy>10 && (window.innerHeight - touchStartY < 220 || startInBnav)){
+        if(state==='peek' || state==='hidden'){
+          // Pull up to show collapsed
+          const pull = Math.min(dy, 120);
+          bnav.style.transition='none';
+          bnav.style.transform=`translateY(calc(100% - 32px - ${pull}px))`;
+        } else if(state==='collapsed' && dy>10){
+          const pull = Math.min(dy, 160);
+          bnav.style.transition='none';
+          bnav.style.transform=`translateY(${-pull*0.4}px)`;
+        }
       }
     }, {passive:true});
 
@@ -7032,101 +7028,103 @@ function initBeeperBottom(){
       const dy=touchStartY - endY;
       const dx=Math.abs(touchStartX - endX);
       const dt=Date.now()-touchStartTime;
-      const h=window.innerHeight;
-      // Slide up from bottom: dy > 50, dx < 80, started near bottom
-      if(h - touchStartY < 140 && dy > 50 && dx < 100 && dt < 600){
-        if(state==='hidden'){
-          showCollapsed();
-        } else if(state==='collapsed'){
-          showExpanded();
-        }
-      }
-      // Slide down to hide: dy < -50, started in bottomNav
-      if(state!=='hidden' && dy < -60 && dx < 120){
-        // Check if touch started inside bottomNav
-        const bnavRect=bnav.getBoundingClientRect();
-        if(touchStartY >= bnavRect.top){
-          if(state==='expanded' && dy < -30){
-            // First collapse
+      bnav.style.transition='';
+      // Reset transform before state change
+      // Every single swipe up shows navigation
+      if(dy>35 && dx<140 && dt<800){
+        if(window.innerHeight - touchStartY < 250 || startInBnav || dy>50){
+          if(state==='hidden' || state==='peek'){
             showCollapsed();
-          } else {
-            hide();
+          } else if(state==='collapsed'){
+            showExpanded();
+          }
+          // Prevent page scroll
+          e.preventDefault&&e.preventDefault();
+        }
+      } else if(dy<-45 && dx<140){
+        if(startInBnav){
+          if(state==='expanded'){
+            showCollapsed();
+          } else if(state==='collapsed'){
+            showPeek();
           }
         }
+      } else {
+        // Snap back
+        if(state==='peek') showPeek();
+        else if(state==='collapsed') showCollapsed();
+        else if(state==='expanded') showExpanded();
       }
-    }, {passive:true});
+    }, {passive:false});
 
-    // Handle drag on handle
-    handle.addEventListener('touchstart', e=>{
-      isDragging=true;
-      startY=e.touches[0].clientY;
-      bnav.style.transition='none';
-    }, {passive:true});
-    handle.addEventListener('touchmove', e=>{
-      if(!isDragging) return;
-      currentY=e.touches[0].clientY;
-      const dy=startY - currentY;
-      // Visual feedback
-      if(state==='collapsed' && dy>0){
-        // Dragging up to expand
-        bnav.style.transform=`translateY(${-dy*0.3}px)`;
-      } else if(state==='expanded' && dy<0){
-        bnav.style.transform=`translateY(${-dy*0.3}px)`;
-      }
-    }, {passive:true});
-    handle.addEventListener('touchend', e=>{
-      if(!isDragging) return;
-      isDragging=false;
-      bnav.style.transition='';
-      bnav.style.transform='';
-      const dy=startY - currentY;
-      if(state==='collapsed' && dy>60){
-        showExpanded();
-      } else if(state==='expanded' && dy<-60){
-        showCollapsed();
-      } else if(state==='hidden' && dy>40){
-        showCollapsed();
-      }
-    }, {passive:true});
+    // Handle drag
+    let isDragging=false, startY=0, curY=0;
+    if(handle){
+      handle.addEventListener('touchstart', e=>{ isDragging=true; startY=e.touches[0].clientY; bnav.style.transition='none'; }, {passive:true});
+      handle.addEventListener('touchmove', e=>{
+        if(!isDragging) return;
+        curY=e.touches[0].clientY;
+        const dy=startY - curY;
+        if(state==='peek' && dy>0){
+          bnav.style.transform=`translateY(calc(100% - 32px - ${Math.min(dy,120)}px))`;
+        } else if(state==='collapsed' && dy>0){
+          bnav.style.transform=`translateY(${-Math.min(dy,160)*0.5}px)`;
+        } else if(state==='expanded' && dy<0){
+          bnav.style.transform=`translateY(${Math.min(-dy,200)*0.5}px)`;
+        } else if(state==='collapsed' && dy<0){
+          bnav.style.transform=`translateY(calc(0px + ${Math.min(-dy,100)}px))`;
+        }
+      }, {passive:true});
+      handle.addEventListener('touchend', e=>{
+        if(!isDragging) return;
+        isDragging=false;
+        bnav.style.transition='';
+        const dy=startY - curY;
+        if(state==='peek' && dy>40) showCollapsed();
+        else if(state==='collapsed' && dy>60) showExpanded();
+        else if(state==='collapsed' && dy<-40) showPeek();
+        else if(state==='expanded' && dy<-60) showCollapsed();
+        else {
+          if(state==='peek') showPeek();
+          else if(state==='collapsed') showCollapsed();
+          else if(state==='expanded') showExpanded();
+        }
+      }, {passive:true});
+    }
 
-    // More button expands
     if(moreBtn){
       moreBtn.onclick=()=>{
-        if(state==='collapsed') showExpanded();
+        if(state==='peek' || state==='hidden') showCollapsed();
+        else if(state==='collapsed') showExpanded();
         else if(state==='expanded') showCollapsed();
-        else showCollapsed();
       };
     }
 
-    // Click outside to hide when expanded? Keep collapsed visible
+    // Tap handle to toggle
+    if(handle){
+      handle.onclick=()=>{
+        if(state==='peek') showCollapsed();
+        else if(state==='collapsed') showExpanded();
+        else if(state==='expanded') showCollapsed();
+      };
+    }
+
+    // Click outside to peek when expanded
     document.addEventListener('click', e=>{
-      if(state==='expanded'){
-        if(!bnav.contains(e.target)){
-          showCollapsed();
-        }
+      if(state==='expanded' && !bnav.contains(e.target)){
+        showCollapsed();
       }
     });
 
-    // Auto-show collapsed on mobile after 1.5s (Beeper-style hint)
-    setTimeout(()=>{
-      if(window.innerWidth<=980 && state==='hidden'){
-        showCollapsed();
-        // Auto-hide after 3s hint then user can slide up again
-        setTimeout(()=>{ if(state==='collapsed') hide(); }, 3000);
+    // Also show on every swipe up via wheel? For testing on desktop, show on scroll up at bottom
+    window.addEventListener('wheel', e=>{
+      if(e.deltaY< -30 && window.innerHeight + window.scrollY >= document.body.offsetHeight - 100){
+        if(state==='peek' || state==='hidden') showCollapsed();
       }
-    }, 1500);
-
-    // Also show on scroll up near bottom
-    let lastScrollY=window.scrollY;
-    window.addEventListener('scroll', ()=>{
-      const cur=window.scrollY;
-      if(cur < lastScrollY - 10 && window.innerHeight + cur >= document.body.offsetHeight - 200){
-        if(state==='hidden' && window.innerWidth<=980) showCollapsed();
-      }
-      lastScrollY=cur;
     }, {passive:true});
   }catch(e){ console.warn('initBeeperBottom', e.message); }
 }
+
 
 // Call on boot
 try{ window.addEventListener('load', ()=>{ setTimeout(()=>{ updateScreenFit(); initBeeperBottom(); }, 600); }); }catch(e){}
