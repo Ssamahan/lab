@@ -5899,15 +5899,21 @@ function getFirebaseConfig(){
     const raw=localStorage.getItem(FIREBASE_KEY);
     if(raw){
       const cfg=JSON.parse(raw);
-      // If user has config, ensure path and enabled defaults
+      // Migrate old name ruli-lab-roster to lab (user request: fireball with old name)
+      if(cfg.databaseURL && cfg.databaseURL.includes('ruli-lab-roster')){
+        cfg.databaseURL=cfg.databaseURL.replace('ruli-lab-roster','lab');
+      }
+      if(cfg.path && cfg.path.includes('ruli-lab-roster')){
+        cfg.path=cfg.path.replace('ruli-lab-roster','lab');
+      }
       if(!cfg.path) cfg.path='lab/v1';
       if(cfg.enabled==null) cfg.enabled=true;
+      // Save migrated
+      try{ localStorage.setItem(FIREBASE_KEY, JSON.stringify(cfg)); }catch(e){}
       return cfg;
     }
   }catch(e){}
-  // Default live config for Ruli - auto live instantly using your project lab DB (free, no apiKey needed via REST)
-  // User created project lab, DB exists at https://lab-default-rtdb.firebaseio.com
-  // This makes EQA on phone appear on PC instantly without manual paste
+  // Default live config - lab/v1 (renamed from ruli-lab-roster/v1)
   return {enabled:true, databaseURL:'https://lab-default-rtdb.firebaseio.com', path:'lab/v1', apiKey:'', authDomain:'', projectId:'lab'};
 }
 function saveFirebaseConfig(cfg){
