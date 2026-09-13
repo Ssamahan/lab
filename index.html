@@ -6687,27 +6687,26 @@ Q3 2024 | HIV | Score:95% | Pass"></textarea>
 
 function detectPlatform(){
   try{
-    const isCapacitor = !!(window.Capacitor && (window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() || window.Capacitor.getPlatform && window.Capacitor.getPlatform()!=='web'));
-    const isWebView = /wv|Capacitor|Lab Systems/i.test(navigator.userAgent);
-    const isAndroidApp = isCapacitor || isWebView || window.location.protocol==='file:' || localStorage.getItem('labSystems.isAPK')==='1';
-    // Also check if running from Android assets
-    const isAPK = isAndroidApp;
+    const hasCapacitor = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform==='function' && window.Capacitor.isNativePlatform());
+    const platform = (window.Capacitor && window.Capacitor.getPlatform) ? window.Capacitor.getPlatform() : 'web';
+    const isFile = window.location.protocol==='file:' || window.location.protocol==='capacitor:';
+    const isAPK = hasCapacitor || platform!=='web' || isFile;
     document.body.classList.toggle('is-apk', isAPK);
     document.body.classList.toggle('is-web', !isAPK);
-    // For APK, enable full immersion
-    if(isAPK){
-      document.documentElement.style.setProperty('--is-apk','1');
-      // Hide hamburger, sidebar for APK, show bottomNav liquid glass
-      try{ localStorage.setItem('labSystems.isAPK','1'); }catch(e){}
-    } else {
-      document.documentElement.style.setProperty('--is-apk','0');
-    }
+    document.documentElement.style.setProperty('--is-apk', isAPK?'1':'0');
+    try{
+      if(!isAPK && localStorage.getItem('labSystems.isAPK')){
+        localStorage.removeItem('labSystems.isAPK');
+      }
+    }catch(e){}
     return isAPK;
   }catch(e){
     document.body.classList.add('is-web');
+    document.body.classList.remove('is-apk');
     return false;
   }
 }
+
 
 
 function updateScreenFit(){

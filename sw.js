@@ -1,5 +1,5 @@
-/* Ruli Lab Systems v4 - Service Worker - offline-first + live Firebase fallback */
-const CACHE_NAME = 'lab-systems-v4-2026-09-13-pipette';
+/* Lab Systems v4.6 - Fix hamburger + web/apk split + cache bust */
+const CACHE_NAME = 'lab-systems-v4.6-web-apk-split-2026-09-13';
 const ASSETS = [
   './',
   './index.html',
@@ -19,7 +19,6 @@ self.addEventListener('install', (e) => {
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS).catch((err) => {
         console.warn('SW cache addAll failed', err.message);
-        // Try individual
         return Promise.allSettled(ASSETS.map(u => cache.add(u).catch(()=>{})));
       });
     })
@@ -38,16 +37,13 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // For Firebase and EmailJS and Google APIs, go network only
   if(url.hostname.includes('firebase') || url.hostname.includes('emailjs') || url.hostname.includes('googleapis') || url.hostname.includes('qrserver') || url.hostname.includes('gstatic')){
-    return; // network only
+    return;
   }
-  // For index.html and assets, cache-first with network fallback
   e.respondWith(
     caches.match(e.request).then((cached) => {
       if(cached) return cached;
       return fetch(e.request).then((res) => {
-        // Cache successful GETs
         if(e.request.method==='GET' && res.ok){
           const clone=res.clone();
           caches.open(CACHE_NAME).then(c=>c.put(e.request, clone)).catch(()=>{});
