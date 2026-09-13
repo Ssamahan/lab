@@ -1,0 +1,85 @@
+{
+  "name": "Ruli District Hospital - Lab Systems v4",
+  "short_name": "Ruli Lab",
+  "description": "Laboratory Command Center - Working Plan, Roster, Samples, Stock, Training, EQA - Ruli District Hospital",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F7F8FC",
+  "theme_color": "#0B1C3D",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "assets/favicon-16.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/favicon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/favicon-64.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/favicon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/logo-square.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["medical", "productivity", "health"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Lab Command Center overview",
+      "url": "./index.html#dash",
+      "icons": [{ "src": "assets/favicon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Working Plan",
+      "short_name": "Working Plan",
+      "description": "Monthly working plan",
+      "url": "./index.html#roster",
+      "icons": [{ "src": "assets/favicon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Referred Samples",
+      "short_name": "Samples",
+      "description": "Referred samples & manifests",
+      "url": "./index.html#samples",
+      "icons": [{ "src": "assets/favicon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "appId": "rw.gov.ruli.lab",
+  "appName": "Ruli Lab",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://ssamahan.github.io/ruli-lab-roster/",
+    "cleartext": true
+  },
+  "android": {
+    "backgroundColor": "#0B1C3D",
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2200,
+      "backgroundColor": "#F7F8FC",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
+  }
+}
