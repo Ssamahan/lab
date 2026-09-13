@@ -3950,9 +3950,16 @@ function autoAssignUnits(wk,days,ro,body){
       if(!pick){ for(const cand of others){ if(used[cand.name]) continue; pick=cand; break; } }
       if(pick){ used[pick.name]=true; g.forEach(u=>{ ass[u]=pick.name; }); }
     });
-    // Kelvin (when included) fills the first open service
+    // Kelvin intervention: when two staff available on weekdays day shift, add me on Biochemistry, Serology & TB per manager request
     if(kelvinIn && !used[kelvinIn.name]){
-      for(const u of ['Biochemistry','Serology','TB/Molecular','Parasitology','Hematology','Phlebotomy']){ if(!ass[u]){ ass[u]=kelvinIn.name; used[kelvinIn.name]=true; break; } }
+      if(avail.length===2 && !isWeekend(d)){
+        // Two staff available on weekdays -> Kelvin intervenes on Biochemistry, Serology & TB (shared room)
+        ['Biochemistry','Serology','TB/Molecular'].forEach(u=>{ ass[u]=kelvinIn.name; });
+        used[kelvinIn.name]=true;
+      }else{
+        // When <=2 staff total (weekend or other), fill first open service
+        for(const u of ['Biochemistry','Serology','TB/Molecular','Parasitology','Hematology','Phlebotomy']){ if(!ass[u]){ ass[u]=kelvinIn.name; used[kelvinIn.name]=true; break; } }
+      }
     }
     // Biochem & Serology stay together when shared
     if(ass['Biochemistry'] && !ass['Serology']) ass['Serology']=ass['Biochemistry'];
