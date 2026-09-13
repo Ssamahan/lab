@@ -1,6 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5e6a3"/><stop offset="100%" stop-color="#C9A84C"/></linearGradient></defs>
-  <rect width="64" height="64" rx="14" fill="#0B1C3D"/>
-  <path d="M28 12 L36 12 L34 28 L30 28 Z" fill="#fff" opacity="0.95"/>
-  <path d="M32 30 C32 30, 20 42, 20 50 C20 57, 26 62, 32 62 C38 62, 44 57, 44 50 C44 42, 32 30, 32 30 Z" fill="url(#g)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect width="128" height="128" rx="28" fill="#ffffff"/>
+  <g fill="none" stroke="#0B1C3D" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.4">
+    <path d="M52 12 L76 12"/>
+    <path d="M56 12 L56 28 M72 12 L72 28"/>
+    <path d="M40 28 L88 28 L88 82 C88 88, 84 90, 78 90 L50 90 C44 90, 40 88, 40 82 Z"/>
+    <path d="M50 90 L78 90 L75 102 L53 102 Z"/>
+    <path d="M55 102 L73 102 L69 122 L59 122 Z"/>
+    <path d="M59 122 L67 128 L61 128" />
+  </g>
+  <rect x="56" y="44" width="16" height="22" rx="8" fill="none" stroke="#C9A84C" stroke-width="2.4"/>
 </svg>

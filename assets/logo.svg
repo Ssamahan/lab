@@ -1,35 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <defs>
-    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f5e6a3"/>
-      <stop offset="45%" stop-color="#C9A84C"/>
-      <stop offset="100%" stop-color="#b8963f"/>
-    </linearGradient>
-    <radialGradient id="goldGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#C9A84C" stop-opacity="0.45"/>
-      <stop offset="100%" stop-color="#C9A84C" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <!-- Micropipette - deep navy #0B1C3D -->
-  <g fill="#0B1C3D" stroke="#0B1C3D" stroke-linejoin="round">
-    <!-- Top plunger -->
-    <rect x="52" y="8" width="24" height="10" rx="5" fill="#0B1C3D"/>
-    <rect x="58" y="18" width="12" height="18" rx="2" fill="#0B1C3D"/>
-    <!-- Body -->
-    <path d="M38 32 C38 28, 42 26, 48 26 L76 26 C82 26, 86 28, 86 32 L86 78 C86 82, 82 84, 76 84 L48 84 C42 84, 38 82, 38 78 Z" fill="#0B1C3D"/>
-    <!-- Window -->
-    <rect x="58" y="44" width="12" height="22" rx="6" fill="#fff" opacity="0.9"/>
-    <!-- Tip holder -->
-    <path d="M52 84 L76 84 L74 96 L54 96 Z" fill="#0B1C3D"/>
-    <!-- Tip -->
-    <path d="M56 96 L72 96 L68 118 L60 118 Z" fill="#0B1C3D"/>
-    <path d="M60 118 L68 118 L66 124 L62 124 Z" fill="#0B1C3D"/>
-  </g>
-  <!-- Gold drop glow -->
-  <circle cx="64" cy="92" r="22" fill="url(#goldGlow)" opacity="0.9"/>
-  <!-- Gold blood drop - falling from tip -->
-  <g id="goldDrop">
-    <path d="M64 78 C64 78, 48 96, 48 106 C48 115, 55 122, 64 122 C73 122, 80 115, 80 106 C80 96, 64 78, 64 78 Z" fill="url(#goldGrad)" stroke="#fff" stroke-width="1.2" stroke-opacity="0.9"/>
-    <ellipse cx="56" cy="100" rx="4" ry="7" fill="rgba(255,255,255,0.65)" transform="rotate(-18 56 100)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512">
+  <rect width="128" height="128" rx="28" fill="#ffffff"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 12 L76 12" stroke="#0B1C3D" stroke-width="3.8"/>
+    <path d="M56 12 L56 28 M72 12 L72 28" stroke="#0B1C3D" stroke-width="3.2"/>
+    <path d="M40 28 C40 22, 46 22, 50 22 L78 22 C84 22, 88 22, 88 28 L88 82 C88 88, 84 90, 78 90 L50 90 C44 90, 40 88, 40 82 Z" stroke="#0B1C3D" stroke-width="3.4"/>
+    <rect x="56" y="44" width="16" height="22" rx="8" stroke="#C9A84C" stroke-width="2.4"/>
+    <path d="M50 90 L78 90 L75 102 L53 102 Z" stroke="#0B1C3D" stroke-width="3.2"/>
+    <path d="M55 102 L73 102 L69 122 L59 122 Z" stroke="#0B1C3D" stroke-width="3.2"/>
+    <path d="M59 122 L69 122 L67 128 L61 128 Z" stroke="#0B1C3D" stroke-width="2.8"/>
   </g>
 </svg>

@@ -1,4 +1,4 @@
-name: Build APK - Lab Systems Systems v4
+name: Build APK - Lab Systems v4
 
 on:
   push:
@@ -45,6 +45,9 @@ jobs:
           mkdir -p android/app/src/main/res/drawable
           cp -f assets/favicon-192.png android/app/src/main/res/drawable/ic_launcher.png || true
           cp -f assets/favicon-512.png android/app/src/main/res/drawable/ic_launcher_round.png || true
+          # Premium splash and colors
+          mkdir -p android/app/src/main/res/values
+          echo '<resources><color name="colorPrimary">#0B1C3D</color><color name="colorPrimaryDark">#000000</color><color name="colorAccent">#C9A84C</color><color name="colorBackground">#F7F8FC</color><color name="splashBackground">#F7F8FC</color></resources>' > android/app/src/main/res/values/colors.xml || true
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew || true
@@ -88,16 +91,17 @@ jobs:
           name: Lab Systems v4.0 - Latest APK
           body: |
             **Ruli District Hospital - Lab Systems v4 (Premium Command Center)**
-            - Gold blood drop from micropipette logo
+            - Premium micropipette edge line drawing logo - Apple-style animation (no gold drop)
             - Working Plan + Weekly Unit Roster premium exports (Trebuchet MS, centered, gold lines)
             - Dashboard + Training Revenue + EQA/PT Scores premium charts (no overlapping)
             - Admin login + Email OTP + TOTP Authenticator App
-            - Live Firebase sync (phone ↔ PC) + EmailJS real OTP
-            - APK built via Capacitor WebView wrapper loading https://ssamahan.github.io/ruli-lab-roster/
+            - Live Firebase sync (phone ↔ PC) + EmailJS real OTP - path lab/v1
+            - APK built via Capacitor WebView wrapper loading https://ssamahan.github.io/lab/
+            - Native look: bottom nav, splash, black night mode #000000
             
             **Install:**
             - Download `Lab-Systems-v4-debug.apk` below → allow unknown sources → install
             
-            **Live Web:** https://ssamahan.github.io/ruli-lab-roster/
+            **Live Web:** https://ssamahan.github.io/lab/
           files: dist/*.apk
           prerelease: false

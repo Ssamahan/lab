@@ -1,5 +1,5 @@
 /* Ruli Lab Systems v4 - Service Worker - offline-first + live Firebase fallback */
-const CACHE_NAME = 'ruli-lab-v4-2026-09-13';
+const CACHE_NAME = 'lab-systems-v4-2026-09-13-pipette';
 const ASSETS = [
   './',
   './index.html',

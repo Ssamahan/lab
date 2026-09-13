@@ -3,7 +3,7 @@
   "appName": "Lab Systems",
   "webDir": "www",
   "server": {
-    "url": "https://ssamahan.github.io/ruli-lab-roster/",
+    "url": "https://ssamahan.github.io/lab/",
     "cleartext": true
   },
   "android": {
