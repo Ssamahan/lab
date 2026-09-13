@@ -3828,7 +3828,7 @@ body.viewer-mode #btnAuth {
   w.document.close(); setTimeout(()=>{ w.focus(); w.print(); },300);
 }
 /* ---------------- WEEKLY UNIT ROSTER ---------------- */
-const UNITS=['Reception','Phlebotomy','Hematology','Biochemistry','Serology','Parasitology','TB/Molecular'];
+const UNITS=['Reception','Phlebotomy','Hematology','Biochemistry','Serology','Parasitology','TB/Molecular','Night Shift']; // Night shift last row per request
 function renderUnitRoster(body){
   if(!UI.unitWeek){ const d=new Date(todayISO()+'T12:00:00'); d.setDate(d.getDate()-dayOfWeek(todayISO())); UI.unitWeek=d.toISOString().slice(0,10); }
   const wk=UI.unitWeek; const days=[0,1,2,3,4,5,6].map(i=>addDays(wk,i));
@@ -3845,11 +3845,33 @@ function renderUnitRoster(body){
   <div class="wp-wrap"><table class="wp"><thead><tr><td class="corner">Unit / Day</td>
   ${days.map(d=>`<td class="dow-cell" style="padding:4px 10px;min-width:110px">${DOWL[dayOfWeek(d)]} ${fmtDate(d).slice(0,6)}<br><small>${d.slice(0,10)}</small></td>`).join('')}
   </tr></thead><tbody>
-  ${UNITS.map(u=>`<tr><td class="name-cell" style="position:static">${esc(u)}${u==='Biochemistry'||u==='Serology'?' <span class="hint">(shared)</span>':''}${u==='Hematology'?' <span class="hint">(requisition Mon)</span>':''}</td>
-    ${days.map((d,i)=>{ const cur=(ro.assignments[d]||{})[u]||'';
-      return `<td style="padding:4px;min-width:110px"><select data-u="${u}" data-d="${d}" style="width:100%;font-size:12px">
-      <option value="">—</option>${activeStaff().map(s=>`<option ${cur===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select></td>`; }).join('')}
-  </tr>`).join('')}
+  ${UNITS.map(u=>{
+    const isNight = u==='Night Shift';
+    return `<tr><td class="name-cell" style="position:static; ${isNight?'background:#0B1C3D; color:#C9A84C; font-weight:900':''}">${esc(u)}${u==='Biochemistry'||u==='Serology'?' <span class="hint">(shared)</span>':''}${u==='Hematology'?' <span class="hint">(requisition Mon)</span>':''}${isNight?' <span class="hint" style="color:#C9A84C">(last row)</span>':''}</td>
+    ${days.map((d,i)=>{
+      if(isNight){
+        // Night shift row - show who's on night shift from working plan (not selectable, premium)
+        const key=d.slice(0,7);
+        const p=(DB.workingPlans[key]||{}).primary;
+        let nightNm='';
+        if(p){
+          const di=p.dates.indexOf(d);
+          if(di>=0){
+            const nightStaff=p.staff.filter(r=>{ const c=(r.codes||[])[di]; return c==='N'||c==='DN'; }).map(r=>r.name);
+            nightNm=nightStaff.join(', ');
+          }
+        }
+        // Fallback to roster assignments
+        if(!nightNm) nightNm=(ro.assignments[d]||{})[u]||'';
+        return `<td style="padding:8px; min-width:110px; text-align:center; background:#0B1C3D; color:#C9A84C; font-weight:800; font-size:12px">${esc(nightNm)}</td>`;
+      }else{
+        const cur=(ro.assignments[d]||{})[u]||'';
+        // For weekend, show one name day shift all services as per request - if weekend and only one day assignment, show it
+        return `<td style="padding:4px;min-width:110px"><select data-u="${u}" data-d="${d}" style="width:100%;font-size:12px">
+        <option value="">—</option>${activeStaff().map(s=>`<option ${cur===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select></td>`;
+      }
+    }).join('')}
+  </tr>`; }).join('')}
   </tbody></table></div>`;
   $('#uwWeek').onchange=e=>{ UI.unitWeek=e.target.value; renderUnitRoster(body); };
   $('#uwAuto').onclick=()=>autoAssignUnits(wk,days,ro,body);
@@ -3945,7 +3967,7 @@ function printUnitRoster(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}};
   const w=window.open('','_blank'); if(!w) return;
   const s=DB.settings;
-  const allUnits=[...UNITS, 'Night Shift'];
+  const allUnits=UNITS; // Night Shift already in UNITS per request
   let h=`<div style="text-align:center; border-bottom:3px solid #C9A84C; padding-bottom:10px; margin-bottom:14px; font-family:'Trebuchet MS', sans-serif">
     <h2 style="margin:0; font-size:20px; color:#0B1C3D; font-weight:900">${s.hospital}</h2>
     <div style="font-size:12px; color:#0B1C3D; font-weight:700">${s.dept} · ${s.email} · ${s.phone}</div>
@@ -3990,7 +4012,7 @@ function printUnitRoster(wk){
 function exportUnitRosterPNG(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}}; const s=DB.settings;
   const W=1600; const scale=2;
-  const allUnits = [...UNITS, 'Night Shift']; // Night shift last row per request
+  const allUnits=UNITS; // Night Shift already in UNITS
   const rowH=38, hdrH=46, headH=90;
   const tableH=hdrH+allUnits.length*rowH;
   const H=headH+tableH+120;
@@ -4081,7 +4103,7 @@ function exportUnitRosterPNG(wk){
 }
 function exportUnitRosterPDF(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}}; const s=DB.settings;
-  const allUnits=[...UNITS, 'Night Shift'];
+  const allUnits=UNITS; // Night Shift already in UNITS per request
   const d=new PDF.Doc(); const W=842, H=595;
   d.addPage(W,H);
   const nameW=120; const colW=Math.floor((W-36-nameW)/8);
