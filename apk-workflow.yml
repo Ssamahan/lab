@@ -1,0 +1,103 @@
+name: Build APK - Ruli Lab Systems v4
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Install Capacitor CLI
+        run: |
+          npm install
+          npx cap --version
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Add Android platform (Capacitor)
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android || true
+          fi
+          npx cap copy android || true
+          mkdir -p android/app/src/main/res/drawable
+          cp -f assets/favicon-192.png android/app/src/main/res/drawable/ic_launcher.png || true
+          cp -f assets/favicon-512.png android/app/src/main/res/drawable/ic_launcher_round.png || true
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew || true
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon -x lint || ./gradlew assembleDebug --no-daemon
+
+      - name: Build Release APK (unsigned)
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon -x lint || true
+
+      - name: Rename APKs
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Ruli-Lab-v4-debug.apk || true
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk dist/Ruli-Lab-v4-release-unsigned.apk || true
+          ls -lh dist/
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ruli-Lab-APK
+          path: dist/*.apk
+          retention-days: 30
+
+      - name: Create GitHub Release with APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.apk
+          generate_release_notes: true
+
+      - name: Create Latest Release (on main push)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v4.0-latest
+          name: Ruli Lab v4.0 - Latest APK
+          body: |
+            **Ruli District Hospital - Lab Systems v4 (Premium Command Center)**
+            - Gold blood drop from micropipette logo
+            - Working Plan + Weekly Unit Roster premium exports (Trebuchet MS, centered, gold lines)
+            - Dashboard + Training Revenue + EQA/PT Scores premium charts (no overlapping)
+            - Admin login + Email OTP + TOTP Authenticator App
+            - Live Firebase sync (phone ↔ PC) + EmailJS real OTP
+            - APK built via Capacitor WebView wrapper loading https://ssamahan.github.io/ruli-lab-roster/
+            
+            **Install:**
+            - Download `Ruli-Lab-v4-debug.apk` below → allow unknown sources → install
+            
+            **Live Web:** https://ssamahan.github.io/ruli-lab-roster/
+          files: dist/*.apk
+          prerelease: false
