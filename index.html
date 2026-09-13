@@ -3945,42 +3945,205 @@ function printUnitRoster(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}};
   const w=window.open('','_blank'); if(!w) return;
   const s=DB.settings;
-  let h=`<div style="border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px">
-    <h2 style="margin:0;text-align:left">${s.hospital} — Weekly Unit Roster</h2>
-    <div style="font-size:11px;color:#333;text-align:left">Week of ${fmtDate(wk)}</div></div>
-    <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%"><tr><th style="background:#eee;text-align:left">Unit</th>`;
-  [0,1,2,3,4,5,6].forEach(i=>{ const d=addDays(wk,i); h+=`<th>${DOWL[dayOfWeek(d)]} ${d}</th>`; });
-  h+=`</tr>`;
-  UNITS.forEach(u=>{ h+=`<tr><td><b>${u}</b></td>`; [0,1,2,3,4,5,6].forEach(i=>{ const d=addDays(wk,i); h+=`<td align="center">${esc((ro.assignments[d]||{})[u]||'')}</td>`; }); h+=`</tr>`; });
-  h+=`</table>`;
-  w.document.write(`<!DOCTYPE html><html><head><title>Unit Roster ${wk}</title></head><body>${h}</body></html>`);
+  const allUnits=[...UNITS, 'Night Shift'];
+  let h=`<div style="text-align:center; border-bottom:3px solid #C9A84C; padding-bottom:10px; margin-bottom:14px; font-family:'Trebuchet MS', sans-serif">
+    <h2 style="margin:0; font-size:20px; color:#0B1C3D; font-weight:900">${s.hospital}</h2>
+    <div style="font-size:12px; color:#0B1C3D; font-weight:700">${s.dept} · ${s.email} · ${s.phone}</div>
+    <div style="font-size:14px; font-weight:800; color:#0B1C3D; margin-top:8px">Weekly Unit Roster — Week of ${fmtDate(wk)}</div>
+  </div>
+  <div style="border:1px solid #e6e9f1; border-radius:12px; overflow:hidden">
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse; width:100%; font-family:'Trebuchet MS', sans-serif; font-size:11px">
+    <thead>
+      <tr>
+        <th style="background:#0B1C3D; color:#fff; text-align:left; padding:8px 12px; min-width:160px">Unit / Day</th>`; 
+  [0,1,2,3,4,5,6].forEach(i=>{ const d=addDays(wk,i); const isWknd=isWeekend(d); h+=`<th style="background:${isWknd?'#fdf3d7':'#F7F8FC'}; color:#000; text-align:center; padding:6px 4px; border:1px solid #e6e9f1">${DOWL[dayOfWeek(d)]}<br><small>${d.slice(8,10)}</small></th>`; });
+  h+=`</tr></thead><tbody>`;
+  allUnits.forEach(u=>{
+    const isNight=u==='Night Shift';
+    h+=`<tr><td style="background:${isNight?'#0B1C3D':'#fff'}; color:${isNight?'#C9A84C':'#000'}; font-weight:700; padding:8px 12px; border:1px solid #e6e9f1; text-align:left">${u}</td>`;
+    [0,1,2,3,4,5,6].forEach(i=>{
+      const d=addDays(wk,i);
+      let nm='';
+      if(isNight){
+        const key=d.slice(0,7);
+        const p=(DB.workingPlans[key]||{}).primary;
+        if(p){
+          const di=p.dates.indexOf(d);
+          if(di>=0){
+            const nightStaff=p.staff.filter(r=>{ const c=(r.codes||[])[di]; return c==='N'||c==='DN'; }).map(r=>r.name);
+            nm=nightStaff.join(', ');
+          }
+        }
+      }else{
+        nm=(ro.assignments[d]||{})[u]||'';
+      }
+      h+=`<td style="text-align:center; padding:8px 4px; background:${isNight?'#0B1C3D':'#fff'}; color:${isNight?'#C9A84C':'#000'}; border:1px solid #e6e9f1; font-weight:700">${esc(nm)}</td>`;
+    });
+    h+=`</tr>`;
+  });
+  h+=`</tbody></table></div>`;
+  // Gold top/bottom lines for table already via header border, add footer
+  h+=`<div style="border-top:1.2px solid #C9A84C; margin-top:16px; padding-top:8px; font-size:10px; color:#000; font-family:'Trebuchet MS'">Week of ${fmtDate(wk)} · Generated ${todayISO()}</div>`;
+  w.document.write(`<!DOCTYPE html><html><head><title>Unit Roster ${wk}</title><style>@page{size:A4 landscape;margin:10mm} body{font-family:'Trebuchet MS', sans-serif; margin:0; color:#000}</style></head><body>${h}</body></html>`);
   w.document.close(); setTimeout(()=>{ w.focus(); w.print(); },300);
 }
 function exportUnitRosterPNG(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}}; const s=DB.settings;
-  const W=1400; const rowH=52; const headH=120;
-  const H=headH+(UNITS.length+1)*rowH+40;
-  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
-  g.fillStyle='#fff'; g.fillRect(0,0,W,H);
-  // minimal, left-aligned, B&W heading
-  g.fillStyle='#000'; g.textAlign='left'; g.textBaseline='alphabetic';
-  g.font='bold 26px Georgia'; g.fillText(s.hospital+' — Weekly Unit Roster', 30, 52);
-  g.fillStyle='#444'; g.font='15px Arial'; g.fillText('Week of '+fmtDate(wk), 30, 78);
-  g.strokeStyle='#000'; g.lineWidth=2; g.beginPath(); g.moveTo(30,96); g.lineTo(W-30,96); g.stroke();
-  const colW=(W-60)/8; let y=headH;
-  const heads=['Unit',...['Mon','Tue','Wed','Thu','Fri','Sat','Sun']];
-  g.font='bold 12px Arial';
-  heads.forEach((hd,i)=>{ g.fillStyle='#e8e8e8'; g.fillRect(30+i*colW, y, colW, rowH);
-    g.fillStyle='#000'; g.textAlign=(i===0)?'left':'center'; g.textBaseline='middle'; g.fillText(hd, (i===0)?38:(30+i*colW+colW/2), y+rowH/2); });
-  UNITS.forEach((u,ri)=>{
-    y=headH+(ri+1)*rowH;
-    g.fillStyle=(ri%2)?'#f4f4f4':'#fff'; g.fillRect(30,y,W-60,rowH);
-    g.fillStyle='#000'; g.textAlign='left'; g.font='bold 12px Arial'; g.fillText(u, 38, y+rowH/2+4);
-    g.font='11px Arial'; g.textAlign='center';
-    [0,1,2,3,4,5,6].forEach(i=>{ const d=addDays(wk,i); const nm=(ro.assignments[d]||{})[u]||''; g.fillText(nm, 30+(i+1)*colW+colW/2, y+rowH/2+4); });
-    g.strokeStyle='#ccc'; g.lineWidth=0.6; g.strokeRect(30,y,W-60,rowH);
+  const W=1600; const scale=2;
+  const allUnits = [...UNITS, 'Night Shift']; // Night shift last row per request
+  const rowH=38, hdrH=46, headH=90;
+  const tableH=hdrH+allUnits.length*rowH;
+  const H=headH+tableH+120;
+  const cv=document.createElement('canvas'); cv.width=W*scale; cv.height=H*scale; const g=cv.getContext('2d'); g.scale(scale,scale);
+  g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
+  let y=20;
+  // Premium header like working plan - light, black, gold line, Trebuchet MS, centered
+  const logo=DB.settings.logo ? null : null; // logo loaded via imgOr not needed for unit roster premium
+  g.fillStyle='#000000'; g.font='900 24px Trebuchet MS'; g.textAlign='center'; g.fillText(s.hospital, W/2, y+22);
+  g.font='700 13px Trebuchet MS'; g.fillText(s.dept+' · '+s.email+' · '+s.phone, W/2, y+42);
+  g.strokeStyle='#C9A84C'; g.lineWidth=3; g.beginPath(); g.moveTo(28,y+58); g.lineTo(W-28,y+58); g.stroke();
+  y+=70;
+  g.fillStyle='#000000'; g.font='800 16px Trebuchet MS'; g.textAlign='center'; g.fillText('Weekly Unit Roster — Week of '+fmtDate(wk), W/2, y+12);
+  y+=30;
+  let x0=24, y0=y;
+  const colW=(W-48-180)/8; const nameW=180;
+  const drawCell=(x,y,w,h,fill,text,tcolor)=>{
+    g.fillStyle=fill; g.fillRect(x,y,w,h);
+    if(text){
+      g.fillStyle=tcolor||'#000'; g.textAlign='center'; g.textBaseline='middle'; g.font='700 11px Trebuchet MS';
+      g.fillText(text, x+w/2, y+h/2+1);
+    }
+    g.strokeStyle='#e6e9f1'; g.lineWidth=0.6; g.strokeRect(x,y,w,h);
+  };
+  // Header Days
+  drawCell(x0,y0,nameW,22,'#0B1C3D','','#fff');
+  g.fillStyle='#fff'; g.textAlign='left'; g.textBaseline='middle'; g.font='800 11px Trebuchet MS'; g.fillText('Unit / Day', x0+12, y0+11);
+  const days=[0,1,2,3,4,5,6].map(i=>addDays(wk,i));
+  days.forEach((d,i)=>{
+    const dow=DOWL[dayOfWeek(d)]; const isWknd=isWeekend(d);
+    const fill=isWknd?'#fdf3d7':'#F7F8FC';
+    drawCell(x0+nameW+i*colW, y0, colW, 22, fill, dow, '#000');
   });
+  // Header Dates row
+  drawCell(x0,y0+22,nameW,24,'#F7F8FC','','#000');
+  g.fillStyle='#000'; g.textAlign='left'; g.textBaseline='middle'; g.font='700 11px Trebuchet MS'; g.fillText('Date', x0+12, y0+34);
+  days.forEach((d,i)=>{
+    const c={holiday:holidayName(d), weekend:isWeekend(d)};
+    const fill=c.holiday?'#fbd0d0':(c.weekend?'#f9e9cb':'#eef1f6');
+    drawCell(x0+nameW+i*colW, y0+22, colW, 24, fill, d.slice(8,10), '#000');
+  });
+  // Gold top line for table
+  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0+nameW+8*colW, y0); g.stroke(); g.restore();
+  // Body
+  allUnits.forEach((u,ri)=>{
+    const yy=y0+hdrH+ri*rowH;
+    const isNight = u==='Night Shift';
+    g.fillStyle=isNight?'#0B1C3D':(ri%2?'#fbfcff':'#ffffff'); g.fillRect(x0,yy,nameW,rowH);
+    g.fillStyle=isNight?'#C9A84C':'#000'; g.textAlign='left'; g.textBaseline='middle'; g.font=isNight?'800 11px Trebuchet MS':'700 11px Trebuchet MS'; g.fillText(u, x0+12, yy+rowH/2+1);
+    days.forEach((d,di)=>{
+      const isWknd=isWeekend(d);
+      let nm='';
+      if(isNight){
+        // Night shift row - show who's on night shift from working plan
+        const key=d.slice(0,7);
+        const p=(DB.workingPlans[key]||{}).primary;
+        if(p){
+          const di2=p.dates.indexOf(d);
+          if(di2>=0){
+            const nightStaff=p.staff.filter((r,idx)=>{ const code=(r.codes||[])[di2]; return code==='N'||code==='DN'; }).map(r=>r.name);
+            nm=nightStaff.join(', ');
+          }
+        }
+        // Fallback to unit roster assignments if no working plan
+        if(!nm) nm=(ro.assignments[d]||{})['Night Shift']||'';
+      }else{
+        nm=(ro.assignments[d]||{})[u]||'';
+        // For weekend, if day shift person works all services, show same name in all units (as per request)
+        if(isWknd && !nm){
+          // Check if any assignment for that day exists (day shift works all services)
+          const dayAssignments = Object.values(ro.assignments[d]||{}).filter(v=>v);
+          // If only one day person for weekend, use it
+          if(dayAssignments.length===1) nm=dayAssignments[0];
+        }
+      }
+      const fill=isNight?'#0B1C3D':(isWknd?'#fef9ec':'#ffffff');
+      const tcol=isNight?'#C9A84C':'#000';
+      drawCell(x0+nameW+di*colW, yy, colW, rowH, fill, nm, tcol);
+    });
+  });
+  // Gold bottom line for table
+  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x0, y0+hdrH+allUnits.length*rowH); g.lineTo(x0+nameW+8*colW, y0+hdrH+allUnits.length*rowH); g.stroke(); g.restore();
+  // Footer
+  let fy=H-40;
+  g.strokeStyle='#C9A84C'; g.lineWidth=1.2; g.beginPath(); g.moveTo(24,fy-12); g.lineTo(W-24,fy-12); g.stroke();
+  g.fillStyle='#000'; g.font='700 10px Trebuchet MS'; g.textAlign='left'; g.fillText('Week of '+fmtDate(wk)+' · Generated '+todayISO(), 24, fy+4);
   cv.toBlob(b=>download(b,'Unit-Roster-'+wk+'.png'));
+}
+function exportUnitRosterPDF(wk){
+  const ro=DB.unitRosters[wk]||{assignments:{}}; const s=DB.settings;
+  const allUnits=[...UNITS, 'Night Shift'];
+  const d=new PDF.Doc(); const W=842, H=595;
+  d.addPage(W,H);
+  const nameW=120; const colW=Math.floor((W-36-nameW)/8);
+  const rowH=20, hdrH=44;
+  let y=20;
+  d.text(s.hospital, W/2, y+4, {size:14, bold:true, color:'0 0 0 rg', align:'center'});
+  d.text(s.dept+' · '+s.email+' · '+s.phone, W/2, y+18, {size:9, color:'0 0 0 rg', align:'center'});
+  d.line(24,y+28,W-24,y+28,{width:2,color:'#C9A84C'});
+  y+=36;
+  d.text('Weekly Unit Roster — Week of '+fmtDate(wk), W/2, y+6, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
+  y+=24;
+  const y0=y;
+  const days=[0,1,2,3,4,5,6].map(i=>addDays(wk,i));
+  // Header
+  for(let i=0;i<8;i++){
+    const x=24+(i===0?nameW:0)+(i>0?(i-1)*colW+nameW:0);
+    const w=i===0?nameW:colW;
+    if(i===0){
+      d.rect(24,y0,nameW,22,{fill:'#0B1C3D'});
+      d.text('Unit / Day',26,y0+6,{size:8,bold:true,color:'1 1 1 rg'});
+      d.rect(24,y0+22,nameW,24,{fill:'#F7F8FC'});
+      d.text('Date',26,y0+28,{size:8,bold:true,color:'0 0 0 rg'});
+    }else{
+      const dd=days[i-1];
+      const isWknd=isWeekend(dd);
+      d.rect(24+nameW+(i-1)*colW,y0,colW,22,{fill:isWknd?'#fdf3d7':'#F7F8FC'});
+      d.text(DOWL[dayOfWeek(dd)],24+nameW+(i-1)*colW+colW/2,y0+6,{size:7,bold:true,color:'0 0 0 rg', align:'center'});
+      d.rect(24+nameW+(i-1)*colW,y0+22,colW,24,{fill:isWknd?'#f9e9cb':'#eef1f6'});
+      d.text(dd.slice(8,10),24+nameW+(i-1)*colW+colW/2,y0+30,{size:8,bold:true,color:'0 0 0 rg', align:'center'});
+    }
+  }
+  // Gold top
+  d.line(24,y0,24+nameW+8*colW,y0,{width:2.5,color:'#C9A84C'});
+  // Body
+  allUnits.forEach((u,ri)=>{
+    const yy=y0+hdrH+ri*rowH;
+    const isNight=u==='Night Shift';
+    d.rect(24,yy,nameW,rowH,{fill:isNight?'#0B1C3D':(ri%2?'#fbfcff':'#ffffff')});
+    d.text(u,26,yy+6,{size:8,bold:true,color:isNight?'0.79 0.66 0.29 rg':'0 0 0 rg'});
+    days.forEach((dd,di)=>{
+      let nm='';
+      if(isNight){
+        const key=dd.slice(0,7);
+        const p=(DB.workingPlans[key]||{}).primary;
+        if(p){
+          const di2=p.dates.indexOf(dd);
+          if(di2>=0){
+            const nightStaff=p.staff.filter((r)=>{ const code=(r.codes||[])[di2]; return code==='N'||code==='DN'; }).map(r=>r.name);
+            nm=nightStaff.join(', ');
+          }
+        }
+      }else{
+        nm=(ro.assignments[dd]||{})[u]||'';
+      }
+      d.rect(24+nameW+di*colW,yy,colW,rowH,{fill:isNight?'#0B1C3D':'#ffffff'});
+      if(nm) d.text(nm.slice(0,20),24+nameW+di*colW+colW/2,yy+6,{size:7,bold:true,color:isNight?'0.79 0.66 0.29 rg':'0 0 0 rg', align:'center'});
+      d.rectBorder(24+nameW+di*colW,yy,colW,rowH,{width:0.3,color:'#d4d9e6'});
+    });
+  });
+  // Gold bottom
+  d.line(24,y0+hdrH+allUnits.length*rowH,24+nameW+8*colW,y0+hdrH+allUnits.length*rowH,{width:2.5,color:'#C9A84C'});
+  download(new Blob([d.save()],{type:'application/pdf'}),'Unit-Roster-'+wk+'.pdf');
 }
 /* ---------------- OFF-DAY WISHES ---------------- */
 function renderWishes(body){
