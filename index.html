@@ -594,7 +594,41 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
   </div>
 </div>
 
+<nav id="bottomNav" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:35; background:rgba(255,255,255,0.92); backdrop-filter:blur(20px) saturate(160%); border-top:1px solid var(--edge); padding:6px 8px calc(6px + env(safe-area-inset-bottom)); box-shadow:0 -4px 24px rgba(11,28,61,0.06)">
+  <div style="display:flex; justify-content:space-around; align-items:center; max-width:600px; margin:0 auto">
+    <button class="bnav-item" data-tab="dash" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
+      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>Dash
+    </button>
+    <button class="bnav-item" data-tab="samples" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
+      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/></svg></span>Samples
+    </button>
+    <button class="bnav-item" data-tab="stock" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
+      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></span>Stock
+    </button>
+    <button class="bnav-item" data-tab="roster" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
+      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4V2M16 4V2M8 14h4M8 17h4"/></svg></span>Plan
+    </button>
+    <button class="bnav-item" data-tab="training" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; color:var(--muted); font-weight:700; font-size:10px">
+      <span style="width:24px; height:24px; display:flex; align-items:center; justify-content:center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>Train
+    </button>
+  </div>
+</nav>
 <div class="toasts" id="toasts"></div>
+<style>
+#bottomNav .bnav-item.active { background:var(--gold-soft); color:var(--primary); border:1px solid var(--gold-strong); box-shadow:var(--shadow-gold); }
+[data-theme="dark"] #bottomNav { background:rgba(0,0,0,0.92); border-top-color:#222; }
+[data-theme="dark"] #bottomNav .bnav-item { color:#a0a0a0; }
+[data-theme="dark"] #bottomNav .bnav-item.active { background:rgba(201,168,76,0.18); color:var(--gold); }
+@media(max-width:980px){
+  #bottomNav { display:block !important; }
+  main { padding-bottom:84px !important; }
+  #sidebar { display:none !important; }
+}
+@media(min-width:981px){
+  #bottomNav { display:none !important; }
+}
+</style>
+
 <div id="modal-root"></div>
 
 <script>
@@ -5590,6 +5624,7 @@ function setTab(tab,silent){
     if(!silent) location.hash = tab;
   }catch(e){}
   $$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  $$('#bottomNav .bnav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   $$('.module').forEach(m=>m.classList.remove('active'));
   const mod=$('#mod-'+tab); if(mod) mod.classList.add('active');
   const [tt,ts]=TAB_META[tab]; const t1=$('#topTitle'), t2=$('#topSub'); if(t1) t1.textContent=(tt||'').trim(); if(t2) t2.textContent=(ts||'').trim();
@@ -5610,6 +5645,13 @@ function wireNav(){
   const nav=$('#nav');
   nav.addEventListener('click',e=>{ const b=e.target.closest('.nav-item'); if(!b) return;
     setTab(b.dataset.tab); closeSidebar(); });
+  const bottomNav=document.getElementById('bottomNav');
+  if(bottomNav){
+    bottomNav.addEventListener('click',e=>{
+      const b=e.target.closest('.bnav-item'); if(!b) return;
+      setTab(b.dataset.tab);
+    });
+  }
   $('#hamburger').addEventListener('click',e=>{ e.stopPropagation();
     const isMobile = window.innerWidth<=980;
     if(isMobile){ $('#sidebar').classList.toggle('open'); }
