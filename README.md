@@ -1,7 +1,7 @@
 # 🧪 Ruli District Hospital — Lab Systems v4 (Premium Command Center)
 
 ![Logo](assets/logo-square.png)
-**Logo:** Gold blood drop #C9A84C falling from micropipette deep navy #0B1C3D — premium luxury, favicon in tab, animated boot (dropFall + glowPulse)
+**Logo:** Premium micropipette edge line drawing — Apple-style animation (pipetteDraw stroke-dasharray), deep navy #0B1C3D + soft gold #C9A84C window accent, no drop — favicon in tab, boot animation draws pipette edges
 
 **🔗 Live App:** https://ssamahan.github.io/lab/
 **📂 Repo:** https://github.com/Ssamahan/lab
@@ -169,7 +169,7 @@ Ruli District Hospital — Laboratory Department — rulidhlab@gmail.com — 078
 ### 🏥 Multi-Lab — Move to Other Hospital
 - **Current Lab:** Ruli District Hospital
 - **When you move to other hospital as Lab Manager:** Staff & Settings → Data & Backup → Lab Management → Enter new hospital name → Archive Ruli & Create New Lab
-- Archives previous DB to Ruli Lab (localStorage `labSystems.archives.v1` + cloud + JSON backup) → new lab starts empty with your gold pipette logo
+- Archives previous DB to Ruli Lab (localStorage `labSystems.archives.v1` + cloud + JSON backup) → new lab starts empty with your premium pipette line drawing logo
 - Switch back anytime via View Archives → Restore
 
 ### 🛠 Recent Fixes
