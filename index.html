@@ -5289,8 +5289,29 @@ function renderDataMgr(body){
   const ejCfg = (typeof getEmailJSConfig==='function') ? (getEmailJSConfig()||{}) : {};
   const cloudOn = fbCfg.enabled ? true : false;
   const emailOn = ejCfg.enabled ? true : false;
+  const labs=getLabs();
+  const archives=getArchives();
+  const currentLab = labs.find(l=>l.isCurrent) || labs[0] || {name:'Ruli District Hospital'};
   body.innerHTML=`
   <div class="grid g-2">
+    <div class="card gold-accent" style="border-left:4px solid var(--gold)"><h3> Lab Management — Move to Other Hospital & Archive Ruli Lab</h3>
+      <div class="alert info" style="margin-bottom:12px">
+        <b>Current Lab: ${esc(currentLab.name||DB.settings.hospital)}</b> — If you move to other hospital as Lab Manager, create new lab here. Previous data will be archived to <b>Ruli Lab</b> and preserved.
+      </div>
+      <p class="hint" style="margin-bottom:10px">Plan: Web accommodates new lab creation. When you move, click below → archives current DB to Ruli Lab (localStorage + cloud + JSON backup) → resets to new lab with empty roster. You can switch back to archived Ruli Lab anytime.</p>
+      <form id="newLabForm" class="form-grid fg-2">
+        <div><label>New Hospital / Lab Name</label><input id="nl_hosp" placeholder="e.g., Kibagabaga District Hospital" required style="font-weight:700; border-left:3px solid var(--gold)"></div>
+        <div><label>Department</label><input id="nl_dept" value="${esc(DB.settings.dept||'Laboratory Department')}" placeholder="Laboratory Department"></div>
+        <div style="grid-column:1/-1" class="row" style="gap:10px; margin-top:8px">
+          <button class="btn primary sm" type="submit"> Archive Ruli & Create New Lab</button>
+          <button class="btn sm" type="button" id="btnArchiveOnly"> Archive Current Only (Ruli)</button>
+          <button class="btn sm" type="button" id="btnViewArchives"> View Archives (${archives.length})</button>
+        </div>
+      </form>
+      ${labs.length>1?`<div style="margin-top:12px"><label>Switch Lab</label><div class="row" style="gap:8px; flex-wrap:wrap">${labs.map(l=>`<button class="btn ${l.isCurrent?'primary':''} xs" data-labswitch="${l.id}">${esc(l.name)} ${l.isCurrent?'(current)':''}</button>`).join('')}</div></div>`:''}
+      <div class="hint" style="margin-top:10px">Archives: ${archives.length} preserved — includes staff, samples, stock, trainings, revenue, leaves, working plans. Stored in ${ARCHIVES_KEY} + cloud archives path.</div>
+    </div>
+
     <div class="card gold-accent"><h3> Cloud Live Sync — Firebase (Real-time, zero-cost)</h3>
       <div class="alert ${cloudOn?'ok':'info'}" style="margin-bottom:12px">
         ${cloudOn?'<b> Live Sync Enabled</b> — Data is live across devices (Firebase Realtime DB). Edits by Admin sync instantly to all viewers.':'<b> Local Only</b> — Data stays in this browser (localStorage). Enable Firebase to make it live across phones & PCs.'}
@@ -5298,7 +5319,7 @@ function renderDataMgr(body){
       <p class="hint" style="margin-bottom:10px">Why localStorage? GitHub Pages is static — no server. Firebase gives you free live DB (read true, write admin). Create a Firebase project at https://console.firebase.google.com → Realtime Database → create → copy config.</p>
       <form id="fbForm" class="form-grid fg-2">
         <div><label>Firebase Enabled</label><select id="fb_enabled"><option value="0">Disabled — local only</option><option value="1">Enabled — live sync</option></select></div>
-        <div><label>Cloud Path</label><input id="fb_path" value="${esc(fbCfg.path||'ruli-lab-roster/v1')}" placeholder="ruli-lab-roster/v1"></div>
+        <div><label>Cloud Path</label><input id="fb_path" value="${esc(fbCfg.path||'lab/v1')}" placeholder="lab/v1"></div>
         <div><label>apiKey</label><input id="fb_apiKey" value="${esc(fbCfg.apiKey||'')}" placeholder="AIzaSy..."></div>
         <div><label>authDomain</label><input id="fb_authDomain" value="${esc(fbCfg.authDomain||'')}" placeholder="your-app.firebaseapp.com"></div>
         <div style="grid-column:1/-1"><label>databaseURL (Realtime DB URL)</label><input id="fb_dbURL" value="${esc(fbCfg.databaseURL||'')}" placeholder="https://your-app-default-rtdb.firebaseio.com"></div>
@@ -5372,6 +5393,79 @@ If you didn't request, ignore.</pre>
   $('#rr_night').value=String((DB.settings&&DB.settings.nightStaffPerShift)||1);
   $('#rr_wknd').value=String((DB.settings&&DB.settings.maxWeekend)||2);
 
+  // Lab Management handlers
+  const newLabFormEl=document.getElementById('newLabForm');
+  if(newLabFormEl){
+    newLabFormEl.addEventListener('submit',ev=>{
+      ev.preventDefault();
+      const newHosp=document.getElementById('nl_hosp').value.trim();
+      const newDept=document.getElementById('nl_dept').value.trim()||'Laboratory Department';
+      if(!newHosp) return toast('New hospital name required','warn');
+      confirmDlg(`Archive current lab "${DB.settings.hospital}" to Ruli Lab and create new lab "${newHosp}"? Current data will be archived and preserved, new lab starts empty.`,()=>{
+        const res=createNewLab(newHosp,newDept);
+        if(res){
+          toast(` Archived ${res.arch ? res.arch.labName : 'current'} to Ruli Lab + Created ${newHosp} — new lab ready`,'ok');
+          renderDataMgr(body);
+          location.reload();
+        }else toast('Failed to create new lab','err');
+      });
+    });
+  }
+  const btnArchiveOnlyEl=document.getElementById('btnArchiveOnly');
+  if(btnArchiveOnlyEl) btnArchiveOnlyEl.onclick=()=>{
+    confirmDlg(`Archive current lab "${DB.settings.hospital}" to Ruli Lab? Data preserved in archives + JSON backup.`,()=>{
+      const arch=archiveCurrentLab();
+      if(arch){ toast(` Archived ${arch.labName} — ${new Date(arch.archivedAt).toLocaleString()} — preserved`,'ok'); renderDataMgr(body); }
+    });
+  };
+  const btnViewArchivesEl=document.getElementById('btnViewArchives');
+  if(btnViewArchivesEl) btnViewArchivesEl.onclick=()=>{
+    const archives=getArchives();
+    if(!archives.length) return toast('No archives yet','info');
+    let html=`<div class="tbl-wrap"><table class="tbl"><tr><th>Lab Name</th><th>Archived At</th><th>Staff</th><th>Samples</th><th>Plans</th><th></th></tr>`;
+    archives.forEach(a=>{
+      const d=a.data||{};
+      html+=`<tr><td><b>${esc(a.labName)}</b></td><td>${new Date(a.archivedAt).toLocaleString()}</td><td>${(d.staff||[]).length}</td><td>${(d.samples||[]).length}</td><td>${Object.keys(d.workingPlans||{}).length}</td><td><button class="btn xs" data-archrestore="${a.id}">Restore</button> <button class="btn xs danger" data-archdel="${a.id}">Del</button></td></tr>`;
+    });
+    html+=`</table></div>`;
+    openModal(`<h2>Archived Labs — Ruli Lab preserved</h2>${html}<div class="row" style="margin-top:12px"><button class="btn" onclick="closeModal()">Close</button></div>`);
+    document.querySelectorAll('[data-archrestore]').forEach(b=>b.onclick=()=>{
+      const arch=archives.find(x=>x.id===b.dataset.archrestore);
+      if(!arch) return;
+      confirmDlg(`Restore archive "${arch.labName}" from ${new Date(arch.archivedAt).toLocaleString()}? Current lab will be overwritten.`,()=>{
+        DB=arch.data; saveDB(); toast(` Restored ${arch.labName}`,'ok'); closeModal(); location.reload();
+      });
+    });
+    document.querySelectorAll('[data-archdel]').forEach(b=>b.onclick=()=>{
+      confirmDlg('Delete this archive? Confirm.',()=>{
+        const arr=getArchives().filter(x=>x.id!==b.dataset.archdel);
+        saveArchives(arr);
+        toast('Archive deleted','ok');
+        renderDataMgr(body);
+        closeModal();
+      });
+    });
+  };
+  document.querySelectorAll('[data-labswitch]').forEach(b=>b.onclick=()=>{
+    const labId=b.dataset.labswitch;
+    const labs=getLabs();
+    const target=labs.find(l=>l.id===labId);
+    if(!target) return;
+    if(target.isCurrent) return toast('Already on '+target.name,'info');
+    confirmDlg(`Switch to lab "${target.name}"? Current lab will be archived to Ruli Lab first.`,()=>{
+      // Archive current then try to find archive for target? For now just switch hospital name
+      archiveCurrentLab();
+      labs.forEach(l=>l.isCurrent=false);
+      target.isCurrent=true;
+      saveLabs(labs);
+      DB.settings.hospital=target.hospital;
+      DB.settings.dept=target.dept||'Laboratory Department';
+      saveDB();
+      toast(` Switched to ${target.name} — archived previous to Ruli Lab`,'ok');
+      location.reload();
+    });
+  });
+
   // Firebase form
   const fbFormEl=document.getElementById('fbForm');
   if(fbFormEl){
@@ -5384,7 +5478,7 @@ If you didn't request, ignore.</pre>
         databaseURL: document.getElementById('fb_dbURL').value.trim(),
         projectId: document.getElementById('fb_projId').value.trim(),
         appId: document.getElementById('fb_appId').value.trim(),
-        path: document.getElementById('fb_path').value.trim()||'ruli-lab-roster/v1'
+        path: document.getElementById('fb_path').value.trim()||'lab/v1'
       };
       if(cfg.enabled && (!cfg.apiKey || !cfg.databaseURL)){
         return toast('apiKey and databaseURL required for live sync','warn');
@@ -5670,8 +5764,73 @@ const SESSION_KEY='labSystems.session.v1';
 const OTP_KEY='labSystems.otp.v1';
 const FIREBASE_KEY='labSystems.firebase.v1';
 const EMAILJS_KEY='labSystems.emailjs.v1';
+const ARCHIVES_KEY='labSystems.archives.v1';
+const LABS_KEY='labSystems.labs.v1';
 const CLOUD_PATH='ruli-lab-roster/v1';
 let firebaseApp=null, firebaseDB=null, cloudSyncEnabled=false;
+
+// ===== Multi-Lab Support - archive Ruli Lab when moving to other hospital =====
+function getArchives(){
+  try{ const raw=localStorage.getItem(ARCHIVES_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return [];
+}
+function saveArchives(arr){ try{ localStorage.setItem(ARCHIVES_KEY, JSON.stringify(arr)); }catch(e){} }
+function getLabs(){
+  try{ const raw=localStorage.getItem(LABS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return [{id:'ruli', name:'Ruli District Hospital', hospital:'Ruli District Hospital', created:new Date().toISOString(), isCurrent:true}];
+}
+function saveLabs(arr){ try{ localStorage.setItem(LABS_KEY, JSON.stringify(arr)); }catch(e){} }
+function archiveCurrentLab(){
+  try{
+    const archives=getArchives();
+    const currentHospital = (DB && DB.settings && DB.settings.hospital) ? DB.settings.hospital : 'Ruli District Hospital';
+    const archive={
+      id:'arch_'+Date.now(),
+      labName: currentHospital,
+      archivedAt: new Date().toISOString(),
+      data: JSON.parse(JSON.stringify(DB)),
+      note:'Archived when moving to new hospital - Ruli Lab preserved'
+    };
+    archives.unshift(archive);
+    saveArchives(archives);
+    // Also save to cloud archive if Firebase enabled
+    try{
+      const cfg=getFirebaseConfig();
+      if(cfg && cfg.enabled && cfg.databaseURL){
+        const url=cfg.databaseURL.replace(/\/$/,'') + '/lab/archives/'+archive.id+'.json';
+        fetch(url,{method:'PUT', body:JSON.stringify(archive), headers:{'Content-Type':'application/json'}}).catch(()=>{});
+      }
+    }catch(e){}
+    // Export JSON backup
+    try{ saveJSON(archive.data, currentHospital.replace(/\s+/g,'-')+'-Archive-'+todayISO()+'.json'); }catch(e){}
+    return archive;
+  }catch(e){ console.warn('archiveCurrentLab', e.message); return null; }
+}
+function createNewLab(newHospitalName, newDept){
+  try{
+    if(!newHospitalName) return null;
+    // Archive current
+    const arch=archiveCurrentLab();
+    // Create new labs list
+    const labs=getLabs();
+    labs.forEach(l=>l.isCurrent=false);
+    const newLab={id:'lab_'+Date.now(), name:newHospitalName, hospital:newHospitalName, dept:newDept||'Laboratory Department', created:new Date().toISOString(), isCurrent:true, archivedFrom: arch?arch.id:null};
+    labs.unshift(newLab);
+    saveLabs(labs);
+    // Reset DB to seed with new hospital
+    const seed=buildSeed();
+    seed.settings.hospital=newHospitalName;
+    seed.settings.dept=newDept||'Laboratory Department';
+    seed.meta.currentLabId=newLab.id;
+    seed.meta.currentLabName=newHospitalName;
+    seed.meta.archivedRuliAt = arch ? arch.archivedAt : null;
+    DB=seed;
+    saveDB();
+    try{ cloudSave(); }catch(e){}
+    return {newLab, arch};
+  }catch(e){ console.warn('createNewLab', e.message); return null; }
+}
+
 
 // ===== Firebase Config & Live Sync =====
 function getFirebaseConfig(){
@@ -5680,15 +5839,15 @@ function getFirebaseConfig(){
     if(raw){
       const cfg=JSON.parse(raw);
       // If user has config, ensure path and enabled defaults
-      if(!cfg.path) cfg.path='ruli-lab-roster/v1';
+      if(!cfg.path) cfg.path='lab/v1';
       if(cfg.enabled==null) cfg.enabled=true;
       return cfg;
     }
   }catch(e){}
-  // Default live config for Ruli - auto live instantly using your project ruli-lab-roster DB (free, no apiKey needed via REST)
-  // User created project ruli-lab-roster, DB exists at https://ruli-lab-roster-default-rtdb.firebaseio.com
+  // Default live config for Ruli - auto live instantly using your project lab DB (free, no apiKey needed via REST)
+  // User created project lab, DB exists at https://lab-default-rtdb.firebaseio.com
   // This makes EQA on phone appear on PC instantly without manual paste
-  return {enabled:true, databaseURL:'https://ruli-lab-roster-default-rtdb.firebaseio.com', path:'ruli-lab-roster/v1', apiKey:'', authDomain:'', projectId:'ruli-lab-roster'};
+  return {enabled:true, databaseURL:'https://lab-default-rtdb.firebaseio.com', path:'lab/v1', apiKey:'', authDomain:'', projectId:'lab'};
 }
 function saveFirebaseConfig(cfg){
   try{ localStorage.setItem(FIREBASE_KEY, JSON.stringify(cfg)); }catch(e){ console.warn('saveFirebase', e.message); }

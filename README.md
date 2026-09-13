@@ -3,8 +3,8 @@
 ![Logo](assets/logo-square.png)
 **Logo:** Gold blood drop #C9A84C falling from micropipette deep navy #0B1C3D — premium luxury, favicon in tab, animated boot (dropFall + glowPulse)
 
-**🔗 Live App:** https://ssamahan.github.io/ruli-lab-roster/
-**📂 Repo:** https://github.com/Ssamahan/ruli-lab-roster
+**🔗 Live App:** https://ssamahan.github.io/lab/
+**📂 Repo:** https://github.com/Ssamahan/lab
 
 Premium, luxurious, professional laboratory command-center — single-file HTML app (`index.html`), zero-cost, works on phone & PC, offline-first (localStorage) + optional live Firebase Realtime DB (free) + EmailJS real OTP email (free) — zero-cost.
 
@@ -123,7 +123,7 @@ Verified by **Dr. Judson B. MUMBERE** (Clinical Director) | Approved by **Jean d
 
 ### 📱 Usage
 
-- Open https://ssamahan.github.io/ruli-lab-roster/ → Viewer mode read-only by default (👁️ Viewer — read-only chip)
+- Open https://ssamahan.github.io/lab/ → Viewer mode read-only by default (👁️ Viewer — read-only chip)
 - **Admin Login:** Top header 🔐 Admin Login → Private access (password + OTP + Reset via Email) — contact Lab Manager
 - After login: 🔓 Admin: private chip, editing enabled, all generate/edit buttons active
 - **Tab Preservation:** Refresh stays on same module (Training Revenue, EQA, etc.) via hash + localStorage `labSystems.lastTab.v1`
@@ -150,7 +150,7 @@ git commit -m "Update"
 git push origin main
 ```
 
-GitHub Pages: Settings → Pages → Source Deploy from branch → Branch main / (root) → Save → https://ssamahan.github.io/ruli-lab-roster/
+GitHub Pages: Settings → Pages → Source Deploy from branch → Branch main / (root) → Save → https://ssamahan.github.io/lab/
 
 ---
 
@@ -165,6 +165,12 @@ High-end hospital laboratory command center — refined, modern, trustworthy, pr
 Lab Manager: Kelvin SAMAHANI — registered Admin email — 0787055121
 Ruli District Hospital — Laboratory Department — rulidhlab@gmail.com — 0787-055-121
 
+
+### 🏥 Multi-Lab — Move to Other Hospital
+- **Current Lab:** Ruli District Hospital
+- **When you move to other hospital as Lab Manager:** Staff & Settings → Data & Backup → Lab Management → Enter new hospital name → Archive Ruli & Create New Lab
+- Archives previous DB to Ruli Lab (localStorage `labSystems.archives.v1` + cloud + JSON backup) → new lab starts empty with your gold pipette logo
+- Switch back anytime via View Archives → Restore
 
 ### 🛠 Recent Fixes
 - Fix x-axis black text unreadable in night mode: charts now theme-aware var(--text) var(--muted) var(--surface) instead of hardcoded #000000
