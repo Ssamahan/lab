@@ -1,5 +1,5 @@
-/* Lab Systems v4.8 - Onboarding 30 days + web/apk split + liquid glass */
-const CACHE_NAME = 'lab-systems-v4.8-onboarding-2026-09-20';
+/* Lab Systems v4.9 - Web original + APK split + onboarding + roster <3 staff */
+const CACHE_NAME = 'lab-systems-v4.9-web-apk-onboarding-2026-09-20';
 const ASSETS = [
   './',
   './index.html',

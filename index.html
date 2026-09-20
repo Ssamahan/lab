@@ -677,6 +677,22 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
   body.is-web #sidebar { display:flex !important; transform:none !important; }
 }
 </style>
+<style>
+/* v4.9: Web original look preserved, APK liquid glass - fix button looks as app & web at same */
+#bottomNav { display:none !important; }
+body.is-apk #bottomNav { display:flex !important; }
+body.is-web #bottomNav { display:none !important; }
+body.is-web #sidebar { display:flex !important; }
+body.is-apk #sidebar { display:none !important; }
+body.is-web #hamburger { display:none; }
+@media(max-width:980px){
+  body.is-web #hamburger { display:flex !important; }
+  body.is-apk #hamburger { display:none !important; }
+  body.is-web #sidebar { transform:translateX(-108%); }
+  body.is-web #sidebar.open { transform:translateX(0) !important; }
+}
+</style>
+
 
 
 <div id="modal-root"></div>
@@ -4036,7 +4052,7 @@ function autoAssignUnits(wk,days,ro,body){
     });
     const beatrice=avail.find(s=>/Beatrice/i.test(s.name));
     const kelvin=avail.find(s=>/Kelvin/i.test(s.name));
-    const kelvinIn = avail.length<=2 ? kelvin : null; // Kelvin only as 3rd person when <=2 staff
+    const kelvinIn = (others.length < 3 || avail.length < 4) ? kelvin : null; // Kelvin appears if less than three staff per manager request
     const others=avail.filter(s=>s!==beatrice && s!==kelvin);
     const ass={};
     if(beatrice){
@@ -4081,9 +4097,9 @@ function autoAssignUnits(wk,days,ro,body){
       if(!pick){ for(const cand of others){ if(used[cand.name]) continue; pick=cand; break; } }
       if(pick){ used[pick.name]=true; g.forEach(u=>{ if(!ass[u]) ass[u]=pick.name; }); }
     });
-    // Kelvin intervention: when two staff available on weekdays day shift, add me on Biochemistry, Serology & TB per manager request
+    // Kelvin intervention: when less than three staff available (<3) on weekdays, add me on Biochemistry, Serology & TB per manager request
     if(kelvinIn && !used[kelvinIn.name]){
-      if(avail.length===2 && !isWeekend(d)){
+      if((others.length < 3 || avail.length < 4) && !isWeekend(d)){
         // Two staff available on weekdays -> Kelvin intervenes on Biochemistry, Serology & TB (shared room)
         ['Biochemistry','Serology','TB/Molecular'].forEach(u=>{ ass[u]=kelvinIn.name; });
         used[kelvinIn.name]=true;
@@ -6983,6 +6999,15 @@ Q3 2024 | HIV | Score:95% | Pass"></textarea>
 
 function detectPlatform(){
   try{
+    const host = (window.location.hostname||'').toLowerCase();
+    // Web always on github.io - keep original look
+    if(host.includes('github.io')){
+      document.body.classList.add('is-web');
+      document.body.classList.remove('is-apk');
+      document.documentElement.style.setProperty('--is-apk','0');
+      try{ localStorage.removeItem('labSystems.isAPK'); }catch(e){}
+      return false;
+    }
     const hasCapacitor = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform==='function' && window.Capacitor.isNativePlatform());
     const platform = (window.Capacitor && window.Capacitor.getPlatform) ? window.Capacitor.getPlatform() : 'web';
     const isFile = window.location.protocol==='file:' || window.location.protocol==='capacitor:';
@@ -6998,6 +7023,7 @@ function detectPlatform(){
     return false;
   }
 }
+
 function updateScreenFit(){
   try{
     const w=window.innerWidth, h=window.innerHeight;
