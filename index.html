@@ -3701,7 +3701,7 @@ function openCellEditor(si,iso,key){
     for(let k=di;k<=to;k++) stored.staff[si].codes[k]=code;
     saveDB(); closeModal(); renderWpBody(); toast(n+' consecutive '+code+' set'); };
   openModal(`<h2> ${esc(name)} — ${fmtDate(iso)}</h2>
-  <div class="alert info" style="margin-bottom:12px">Block shifts: pick consecutive nights/days/OFFs, or single below. Goal: maximize weekday day shifts, only one weekend staff when Aurelie present.</div>
+  <div class="alert info" style="margin-bottom:12px">Block shifts: pick consecutive nights/days/OFFs, or single below. Goal: maximize weekday day shifts, only one weekend staff when Aurelie present. <b>Onboarding:</b> New staff = Day shifts Mon-Fri only (no weekends/holidays) for 30 working days, no nights till 30d over, then rotates like others.</div>
   <div class="row" style="gap:8px;margin-bottom:10px">
     <button class="btn" id="ce_2N">2 nights</button>
     <button class="btn" id="ce_3N">3 nights</button>
@@ -3943,7 +3943,7 @@ function renderUnitRoster(body){
     <button class="btn" id="uwPng"> Save as PNG</button>
     <button class="btn" id="uwPrint"> Print / Save as PDF</button>
     <span class="spacer"></span><span class="chip">${UNITS.length} units</span></div>
-  <div class="alert info" style="margin-bottom:14px">Units: Reception · Phlebotomy · Hematology · Biochemistry · Serology · Parasitology · TB/Molecular. <b>Biochemistry &amp; Serology share one room</b> — always the same staff. <b>Beatrice</b> is posted to a single service unless specified. Limited staff → 3 people: [Phlebotomy+Hematology+Parasitology] · [Biochemistry+Serology] · [Reception+TB]; 2 people: same groups shared evenly, worked as a group. Monday reagents &amp; consumables requisition is auto-assigned to the Hematology staff.</div>
+  <div class="alert info" style="margin-bottom:14px">Units: Reception · Phlebotomy · Hematology · Biochemistry · Serology · Parasitology · TB/Molecular. <b>Biochemistry &amp; Serology share one room</b> — always the same staff. <b>Beatrice</b> is posted to a single service unless specified. <b>New staff onboarding (30 working days):</b> Day shifts Mon-Fri only (no weekends/holidays), no nights till 30d over, Week1 Phlebotomy+Hematology, Week2 Biochemistry+Serology, Week3 Parasitology+TB, Week4 solo rotation to prepare independence. Limited staff → 3 people: [Phlebotomy+Hematology+Parasitology] · [Biochemistry+Serology] · [Reception+TB]; 2 people: same groups shared evenly. Monday requisition auto to Hematology staff.</div>
   <div class="wp-wrap"><table class="wp"><thead><tr><td class="corner">Unit / Day</td>
   ${days.map(d=>`<td class="dow-cell" style="padding:4px 10px;min-width:110px">${DOWL[dayOfWeek(d)]} ${fmtDate(d).slice(0,6)}<br><small>${d.slice(0,10)}</small></td>`).join('')}
   </tr></thead><tbody>
@@ -4022,9 +4022,18 @@ function autoAssignUnits(wk,days,ro,body){
   ro.assignments={};
   days.forEach((d,di)=>{
     const planWorkers=staffWorkingOn(wk,d);
-    const avail=planWorkers
+    let avail=planWorkers
       ? allActive.filter(s=>planWorkers.includes(s.name))
       : allActive.filter(s=>!onLeaveNames.includes(s.name));
+    // Onboarding filter: new staff in first 30d only works weekdays non-holiday (already in working plan, but double-check)
+    const hsetForOnboard={}; (DB.holidays||[]).forEach(h=>{ hsetForOnboard[h.date]=true; });
+    avail=avail.filter(s=>{
+      if(isNewStaffInOnboarding(s, d, hsetForOnboard)){
+        // During onboarding, no weekends/holidays
+        if(isWeekend(d) || hsetForOnboard[d]) return false;
+      }
+      return true;
+    });
     const beatrice=avail.find(s=>/Beatrice/i.test(s.name));
     const kelvin=avail.find(s=>/Kelvin/i.test(s.name));
     const kelvinIn = avail.length<=2 ? kelvin : null; // Kelvin only as 3rd person when <=2 staff
@@ -4046,11 +4055,31 @@ function autoAssignUnits(wk,days,ro,body){
     if(di%2){ if(dd) pool.push(dd); if(jp) pool.push(jp); }
     else { if(jp) pool.push(jp); if(dd) pool.push(dd); }
     others.forEach(s=>{ if(s!==jp&&s!==dd) pool.push(s); });
+    // Onboarding rotation: check for new staff in first 4 weeks and assign specific services
+    const onboardingStaff = avail.filter(s=>isNewStaffInOnboarding(s, d, hsetForOnboard));
+    onboardingStaff.forEach(os=>{
+      const wkNum = onboardingWeek(os.joinDate, d, hsetForOnboard);
+      const services = onboardingServiceForWeek(wkNum);
+      if(services.length){
+        if(services[0]==='solo'){
+          // 4th week: work alone in services to prepare independence - rotate solo per day
+          const soloServices = ['Reception','Phlebotomy','Hematology','Biochemistry','Serology','Parasitology','TB/Molecular'];
+          const idx = (onboardingWorkingDayCount(os.joinDate, d, hsetForOnboard)-22) % soloServices.length;
+          const soloUnit = soloServices[Math.max(0,idx)];
+          ass[soloUnit]=os.name;
+          used[os.name]=true;
+        } else {
+          services.forEach(u=>{ ass[u]=os.name; });
+          used[os.name]=true;
+        }
+      }
+    });
+
     groups.forEach(g=>{
       let pick=null;
       for(const cand of pool){ if(used[cand.name]) continue; pick=cand; break; }
       if(!pick){ for(const cand of others){ if(used[cand.name]) continue; pick=cand; break; } }
-      if(pick){ used[pick.name]=true; g.forEach(u=>{ ass[u]=pick.name; }); }
+      if(pick){ used[pick.name]=true; g.forEach(u=>{ if(!ass[u]) ass[u]=pick.name; }); }
     });
     // Kelvin intervention: when two staff available on weekdays day shift, add me on Biochemistry, Serology & TB per manager request
     if(kelvinIn && !used[kelvinIn.name]){
@@ -4389,6 +4418,68 @@ function planDatesForKey(key){
   while(d.getDate()<=7){ out.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
   return out; }
 function isWknd(iso){ const d=new Date(iso+'T12:00:00').getDay(); return d===0||d===6; }
+
+// ===== NEW STAFF ONBOARDING - 30 days work days only, no holidays/weekends, nights after 30 days, 4-week rotation =====
+function isNewStaffInOnboarding(stMember, dateISO, holidaysSet){
+  if(!stMember || !stMember.joinDate) return false;
+  const join=stMember.joinDate;
+  if(dateISO < join) return false;
+  const calDays = (typeof daysBetween==='function') ? daysBetween(join, dateISO) : 0;
+  if(calDays>=90) return false; // beyond 90 cal days definitely not onboarding
+  // Count working days from join to date inclusive, excluding weekends and holidays
+  let count=0;
+  try{
+    let d=new Date(join+'T12:00:00');
+    const end=new Date(dateISO+'T12:00:00');
+    const hset=holidaysSet||{};
+    while(d<=end){
+      const iso=d.toISOString().slice(0,10);
+      const dow=d.getDay();
+      const isWknd = dow===0 || dow===6;
+      const isHol = !!hset[iso];
+      if(!isWknd && !isHol) count++;
+      if(count>30) return false;
+      d.setDate(d.getDate()+1);
+    }
+  }catch(e){ return calDays<42; }
+  return count>0 && count<=30;
+}
+function onboardingWorkingDayCount(joinDate, dateISO, holidaysSet){
+  if(!joinDate || dateISO < joinDate) return 0;
+  let count=0;
+  try{
+    let d=new Date(joinDate+'T12:00:00');
+    const end=new Date(dateISO+'T12:00:00');
+    const hset=holidaysSet||{};
+    while(d<=end){
+      const iso=d.toISOString().slice(0,10);
+      const dow=d.getDay();
+      const isWknd = dow===0 || dow===6;
+      const isHol = !!hset[iso];
+      if(!isWknd && !isHol) count++;
+      d.setDate(d.getDate()+1);
+    }
+  }catch(e){}
+  return count;
+}
+function onboardingWeek(joinDate, dateISO, holidaysSet){
+  const wd=onboardingWorkingDayCount(joinDate, dateISO, holidaysSet);
+  if(wd<=0) return 0;
+  if(wd<=7) return 1;
+  if(wd<=14) return 2;
+  if(wd<=21) return 3;
+  if(wd<=30) return 4;
+  return 0;
+}
+function onboardingServiceForWeek(weekNum){
+  if(weekNum===1) return ['Phlebotomy','Hematology'];
+  if(weekNum===2) return ['Biochemistry','Serology'];
+  if(weekNum===3) return ['Parasitology','TB/Molecular'];
+  if(weekNum===4) return ['solo']; // work alone in services
+  return [];
+}
+
+
 function computePlan(input){
   const {staff, leaves, absences, offWishes, holidays, key, history, nightPer} = input;
   // Ruli-specific night counters for fairness
@@ -4413,7 +4504,7 @@ function computePlan(input){
   staff.forEach(s=>{ nightBal[s.id]=history&&history.nightCount&&history.nightCount[s.id]||0;
     dayBal[s.id]=history&&history.dayCount&&history.dayCount[s.id]||0; lastNight[s.id]=-99; nightNow[s.id]=0; restUntil[s.id]=-1; });
   const monthStart=key+'-01';
-  const nightOK=si=>{ const st=staff[si]; if(st.nightPref==='no') return false; if(st.maxNights!=null&&st.maxNights<=0) return false; if(st.joinDate&&daysBetween(st.joinDate,monthStart)<30) return false; return true; };
+  const nightOK=(si, iso)=>{ const st=staff[si]; if(st.nightPref==='no') return false; if(st.maxNights!=null&&st.maxNights<=0) return false; if(st.joinDate){ if(isNewStaffInOnboarding(st, iso||monthStart, hset)) return false; if(daysBetween(st.joinDate, iso||monthStart)<30) return false; } return true; };
   const isManager=si=>staff[si].pattern==='manager';
   const assignedN=new Array(D).fill(false);
   const dayCovered=new Array(D).fill(false);
@@ -4468,7 +4559,7 @@ function computePlan(input){
     let cands=[];
     for(let si=0; si<N; si++){
       if(!avail[si][di] || codes[si][di]) continue;
-      if(!nightOK(si)) continue;
+      if(!nightOK(si, iso)) continue;
       if(di>0 && codes[si][di-1]==='N') continue; // already in a block
       if(di < restUntil[si]) continue; // still in post-night rest window
       cands.push(si); }
@@ -4552,7 +4643,7 @@ function computePlan(input){
     if((nightPer||1)>=2){
       for(let k=0;k<len;k++){ const d2=di+k;
         let cand2=null;
-        for(let si2=0; si2<N; si2++){ if(si2===s||!avail[si2][d2]||codes[si2][d2]) continue; if(!nightOK(si2)) continue; if(d2<restUntil[si2]) continue; cand2=si2; break; }
+        for(let si2=0; si2<N; si2++){ if(si2===s||!avail[si2][d2]||codes[si2][d2]) continue; if(!nightOK(si2, dates[d2])) continue; if(d2<restUntil[si2]) continue; cand2=si2; break; }
         if(cand2!=null){ codes[cand2][d2]='N'; nightNow[staff[cand2].id]++; restUntil[staff[cand2].id]=Math.min(D,d2+2); }
       }
     }
@@ -4636,10 +4727,12 @@ function computePlan(input){
 
     if(!wknd&&!hol){
       // weekday: everyone available works D, but enforce no 7-day work
+      // Onboarding: new staff works D only (no holidays/weekends already handled), entitled to work days till 30d over
       let any=false;
       for(let si=0; si<N; si++){
         if(!codes[si][di]&&avail[si][di]){
           if(wouldWork7(si, di)) { codes[si][di]='OFF'; continue; }
+          // If in onboarding, only D (already), but ensure not on holidays/weekends (already wknd&&hol false)
           codes[si][di]='D'; any=true;
         }
       }
@@ -4654,6 +4747,7 @@ function computePlan(input){
       if(!avail[si][di]||codes[si][di]) continue;
       if(isManager(si)) continue;
       if(/NGEZEKURE/.test(staff[si].name)) continue; // Beatrice no weekends
+      if(isNewStaffInOnboarding(staff[si], dates[di], hset)) continue; // New staff no weekends/holidays during 30d onboarding
       if(wouldWork7(si, di)) continue;
       cands.push(si);
     }
@@ -5055,7 +5149,7 @@ function openStaffForm(id){
       <p class="hint">e.g. Aurelie works Day+Night every weekend, paused during her annual leave.</p></div>
     <div><label>Weekend-only worker</label><select id="sf_wkonly"><option value="0">No — works weekdays too</option><option value="1">Yes — rests Mon-Fri, works weekends</option></select>
       <p class="hint">Aurelie rests Monday-Friday and works only Sat & Sun (Day+Night).</p></div>
-    <div><label>Join date</label><input type="date" id="sf_join" value="${(s?s.joinDate:undefined)||todayISO()}"></div>
+    <div><label>Join date</label><input type="date" id="sf_join" value="${(s?s.joinDate:undefined)||todayISO()}"><div class="hint">New staff = 30 working days onboarding: Mon-Fri D only, no weekends/holidays, no nights, Week1 Phlebotomy+Hematology, Week2 Biochemistry+Serology, Week3 Parasitology+TB, Week4 solo</div></div>
     <div><label>Status</label><select id="sf_status"><option value="active">Active</option><option value="exited">Exited</option></select></div>
     <div id="sf_exitWrap"><label>Exit date</label><input type="date" id="sf_exit" value="${(s?s.exitDate:undefined)||''}"></div>
     <div style="grid-column:1/-1"><label>Notes</label><input id="sf_note" value="${esc((s?s.note:undefined)||'')}"></div>

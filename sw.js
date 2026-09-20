@@ -1,5 +1,5 @@
-/* Lab Systems v4.7 - Fix extra arrow, hamburger, module errors, web vs apk split */
-const CACHE_NAME = 'lab-systems-v4.7-liquid-glass-fix-2026-09-13';
+/* Lab Systems v4.8 - Onboarding 30 days + web/apk split + liquid glass */
+const CACHE_NAME = 'lab-systems-v4.8-onboarding-2026-09-20';
 const ASSETS = [
   './',
   './index.html',
