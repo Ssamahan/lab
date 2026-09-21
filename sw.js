@@ -1,5 +1,5 @@
-/* Lab Systems v4.9 - Web original + APK split + onboarding + roster <3 staff */
-const CACHE_NAME = 'lab-systems-v4.9-web-apk-onboarding-2026-09-20';
+/* Lab Systems v4.10 - Fix web button + roster <3 + extra arrow + module errors */
+const CACHE_NAME = 'lab-systems-v4.10-web-apk-fix-2026-09-21';
 const ASSETS = [
   './',
   './index.html',

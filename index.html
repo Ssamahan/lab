@@ -484,7 +484,7 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
 
 </style>
 </head>
-<body>
+<body><script>try{ localStorage.removeItem('labSystems.isAPK'); if('caches' in window){ caches.keys().then(keys=>keys.forEach(k=>{ if(k.includes('ruli-lab') || k.includes('pipette') || k.includes('v4-2026') || k.includes('v4.6') || k.includes('v4.7') || k.includes('v4.8') || k.includes('v4.9')){ caches.delete(k); } })); } }catch(e){}</script>
 <noscript><div style="padding:20px;font-family:sans-serif;text-align:center;color:#8f2b30">JavaScript is disabled — Lab Systems needs JavaScript to run. Enable it and reload.</div></noscript>
 <div id="bootSplash" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#F7F8FC;font-family:'Space Grotesk',Segoe UI,Tahoma,Arial,sans-serif;color:#0B1C3D;transition:opacity .5s ease">
 <style>
@@ -2658,7 +2658,7 @@ function commitSampleId(testName){
 }
 function genSampleId(testName){ return peekSampleId(testName); }
 function renderSamples(){
-  const el=$('#mod-samples');
+  const el=$('#mod-samples'); if(!el) return;
   el.innerHTML=`
   <div class="section-title"> Referred Sample Management <small>Ruli District Hospital · Laboratory Department</small></div>
   <div class="tabs" id="smTabs">
@@ -2938,7 +2938,7 @@ function viewManifest(manId){
 /* ================= STOCK & SUPPLIES ================= */
 'use strict';
 function renderStock(){
-  const el=$('#mod-stock');
+  const el=$('#mod-stock'); if(!el) return;
   el.innerHTML=`
   <div class="section-title"> Stock &amp; Supplies <small>consumables, batches &amp; health-center distribution</small></div>
   <div class="tabs" id="stTabs">
@@ -3145,7 +3145,7 @@ function addConsumable(id){
 const COMMON_ORG=['Rwanda Biomedical Centre (RBC)','CDC','RMS','Global Fund (GF)','WHO','University of Rwanda (UR)','Africa CDC','PHAMALAB','Roche Diagnostics','Ruli DH'];
 const COMMON_PLACE=['Kigali City','Musanze District','Bugesera District','Rwamagana District','Ngororero District','Gakenke District','Ruli Hospital','Fatima Hotel Musanze','Legacy Hotel Kigali','Huye District','Gicumbi District'];
 function renderTraining(){
-  const el=$('#mod-training');
+  const el=$('#mod-training'); if(!el) return;
   el.innerHTML=`
   <div class="section-title"> Lab Training Roster <small>Ruli District Hospital · Laboratory Department</small></div>
   <div class="tabs" id="trTabs">
@@ -4160,7 +4160,7 @@ function printUnitRoster(wk){
   h+=`</tbody></table></div>`;
   // Gold top/bottom lines for table already via header border, add footer
   h+=`<div style="border-top:1.2px solid #C9A84C; margin-top:16px; padding-top:8px; font-size:10px; color:#000; font-family:'Trebuchet MS'">Week of ${fmtDate(wk)} · Generated ${todayISO()}</div>`;
-  w.document.write(`<!DOCTYPE html><html><head><title>Unit Roster ${wk}</title><style>@page{size:A4 landscape;margin:10mm} body{font-family:'Trebuchet MS', sans-serif; margin:0; color:#000}</style></head><body>${h}</body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><title>Unit Roster ${wk}</title><style>@page{size:A4 landscape;margin:10mm} body{font-family:'Trebuchet MS', sans-serif; margin:0; color:#000}${h}</body></html>`);
   w.document.close(); setTimeout(()=>{ w.focus(); w.print(); },300);
 }
 function exportUnitRosterPNG(wk){
@@ -4879,7 +4879,7 @@ function historyBalances(key){
 /* ================= LEAVE & TIMELINE ================= */
 'use strict';
 function renderLeave(){
-  const el=$('#mod-leave');
+  const el=$('#mod-leave'); if(!el) return;
   el.innerHTML=`
   <div class="section-title"> Leave &amp; Absence <small>planner · records · master timeline</small></div>
   <div class="tabs" id="lvTabs">
@@ -4888,12 +4888,12 @@ function renderLeave(){
     <button class="tab" data-lv="hol">Public Holidays</button>
     <button class="tab" data-lv="abs">Absences</button>
   </div><div id="lvBody"></div>`;
-  $('#lvTabs').onclick=e=>{ const b=e.target.closest('.tab'); if(!b) return;
+  const lvt=$('#lvTabs'); if(lvt) lvt.onclick=e=>{ const b=e.target.closest('.tab'); if(!b) return;
     $$('#lvTabs .tab').forEach(t=>t.classList.toggle('active',t===b)); UI.lvTab=b.dataset.lv; renderLvBody(); };
   UI.lvTab=UI.lvTab||'plan'; renderLvBody();
 }
 function renderLvBody(){
-  const body=$('#lvBody');
+  const body=$('#lvBody'); if(!body) return;
   if(UI.lvTab==='rec') return renderLvRecords(body);
   if(UI.lvTab==='hol') return renderHolidays(body);
   if(UI.lvTab==='abs') return renderAbsences(body);
@@ -5799,7 +5799,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-  $('#sideFoot').innerHTML='<span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded &amp; running</span><br>Lab Systems v4.0 · Local data · auto-saved · <b>'+st+'</b> active staff<br><span id="saveState" style="color:var(--green)">● saved</span>';
+  const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded &amp; running</span><br>Lab Systems v4.0 · Local data · auto-saved · <b>'+st+'</b> active staff<br><span id="saveState" style="color:var(--green)">● saved</span>';
 }
 function wireNav(){
   const nav=$('#nav');
@@ -5812,7 +5812,7 @@ function wireNav(){
       setTab(b.dataset.tab);
     });
   }
-  $('#hamburger').addEventListener('click',e=>{ e.stopPropagation();
+  const hb=$('#hamburger'); if(hb) hb.addEventListener('click',e=>{ e.stopPropagation();
     const isMobile = window.innerWidth<=980;
     if(isMobile){ $('#sidebar').classList.toggle('open'); }
     else{
