@@ -1,5 +1,5 @@
-/* Lab Systems v4.10 - Fix web button + roster <3 + extra arrow + module errors */
-const CACHE_NAME = 'lab-systems-v4.10-web-apk-fix-2026-09-21';
+/* Lab Systems v4.11 - Fix others before initialization + roster <3 */
+const CACHE_NAME = 'lab-systems-v4.11-roster-fix-2026-09-22';
 const ASSETS = [
   './',
   './index.html',

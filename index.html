@@ -4052,8 +4052,8 @@ function autoAssignUnits(wk,days,ro,body){
     });
     const beatrice=avail.find(s=>/Beatrice/i.test(s.name));
     const kelvin=avail.find(s=>/Kelvin/i.test(s.name));
-    const kelvinIn = (others.length < 3 || avail.length < 4) ? kelvin : null; // Kelvin appears if less than three staff per manager request
     const others=avail.filter(s=>s!==beatrice && s!==kelvin);
+    const kelvinIn = (others.length < 3 || avail.length < 4) ? kelvin : null; // Kelvin appears if less than three staff per manager request
     const ass={};
     if(beatrice){
       ass['Reception']=beatrice.name;
