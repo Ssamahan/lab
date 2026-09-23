@@ -1,5 +1,5 @@
-/* Lab Systems v4.11 - Fix others before initialization + roster <3 */
-const CACHE_NAME = 'lab-systems-v4.11-roster-fix-2026-09-22';
+/* Lab Systems v4.12 - Editable leaves + onboarding + roster <3 */
+const CACHE_NAME = 'lab-systems-v4.12-editable-leaves-2026-09-23';
 const ASSETS = [
   './',
   './index.html',

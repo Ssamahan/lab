@@ -4927,22 +4927,16 @@ function renderLvPlan(body){
         <span class="hint">The working plan instantly re-adapts on next Generate.</span></div>
     </form></div>
   <div class="card" style="margin-bottom:16px"><h3> Returning Soon — who is out now and when they are back</h3>
-    ${returning.length?`<div class="grid g-2">${returning.map(l=>{ const st=staffById(l.staffId); const back=daysBetween(today,l.to);
-      return `<div class="list-row" style="margin:0"><span class="avatar" style="background:${staffColor(l.staffId)}">${esc(((st?st.name:undefined)||'?').split(' ').map(w=>w[0]).slice(0,2).join(''))}</span>
-      <div class="grow"><div class="t">${esc(st?st.name:'?')}</div><div class="s">${LEAVE_NAMES[l.type]} · since ${fmtDate(l.from)}</div></div>
-      <span class="tag ${back<=3?'red':'amber'}">${back} days until back</span></div>`; }).join('')}</div>`
+    ${returning.length?'<div class="grid g-2">'+returning.map(l=>{ const st=staffById(l.staffId); const back=daysBetween(today,l.to);
+      return '<div class="list-row" style="margin:0"><span class="avatar" style="background:'+staffColor(l.staffId)+'">'+esc(((st?st.name:undefined)||'?').split(' ').map(w=>w[0]).slice(0,2).join(''))+'</span><div class="grow"><div class="t">'+esc(st?st.name:'?')+'</div><div class="s">'+LEAVE_NAMES[l.type]+' · since '+fmtDate(l.from)+' → back '+fmtDate(l.backOn||addDays(l.to,1))+'</div></div><span class="tag '+(back<=3?'red':'amber')+'">'+back+' days until back</span><button class="btn xs" onclick="openLeaveEdit(\''+l.id+'\')" style="margin-left:8px">Edit</button></div>'; }).join('')+'</div>'
     :'<div class="empty">No one away right now.</div>'}</div>
   <div class="card" style="margin-bottom:16px"><h3> This Year's Leave — ${fy} only</h3>
     ${thisYear.length?`<div class="tbl-wrap"><table class="tbl"><tr><th>Staff</th><th>Type</th><th>From</th><th>To</th><th>Back on</th><th>Days</th><th>Status</th><th>Note</th></tr>
-    ${thisYear.map(l=>`<tr><td>${esc(staffName(l.staffId))}</td><td><span class="tag ${l.type==='AL'?'amber':l.type==='W'?'teal':l.type==='ML'?'red':'blue'}">${esc(LEAVE_NAMES[l.type]||l.type)}</span></td>
-    <td>${fmtDate(l.from)}</td><td>${fmtDate(l.to)}</td><td>${fmtDate(l.backOn)}</td><td class="num">${daysBetween(l.from,l.to)+1}</td>
-    <td><span class="tag ${l.status==='Completed'?'green':'blue'}">${esc(l.status)}</span></td><td class="hint">${esc(l.note||'')}</td></tr>`).join('')}</table></div>`
+    ${thisYear.map(l=>'<tr><td>'+esc(staffName(l.staffId))+'</td><td><span class="tag '+(l.type==='AL'?'amber':l.type==='W'?'teal':l.type==='ML'?'red':'blue')+'">'+esc(LEAVE_NAMES[l.type]||l.type)+'</span></td><td>'+fmtDate(l.from)+'</td><td>'+fmtDate(l.to)+'</td><td>'+fmtDate(l.backOn)+'</td><td class="num">'+(daysBetween(l.from,l.to)+1)+'</td><td><span class="tag '+(l.status==='Completed'?'green':'blue')+'">'+esc(l.status)+'</span></td><td class="hint">'+esc(l.note||'')+'</td><td><button class="btn xs" onclick="openLeaveEdit(\''+l.id+'\')">Edit</button> <button class="btn xs danger" onclick="confirmDlg(\'Delete leave '+staffName(l.staffId)+' '+l.from+'→'+l.to+'?\', function(){ DB.leaves=DB.leaves.filter(x=>x.id!==\''+l.id+'\'); saveDB(); renderLvBody(); });">Del</button></td></tr>').join('')}</table></div>`
     :'<div class="empty">No leave recorded for '+fy+' yet.</div>'}</div>
   <div class="card" style="margin-bottom:16px"><h3> Past Leave Timeline — full history, completed marked </h3>
     <div class="tbl-wrap"><table class="tbl"><tr><th>Staff</th><th>Type</th><th>From</th><th>To</th><th>Back on</th><th>Note</th><th>Status</th></tr>
-    ${DB.leaves.slice().sort((a,b)=>b.from.localeCompare(a.from)).map(l=>`<tr><td>${esc(staffName(l.staffId))}</td><td>${esc(LEAVE_NAMES[l.type]||l.type)}</td>
-    <td>${fmtDate(l.from)}</td><td>${fmtDate(l.to)}</td><td>${fmtDate(l.backOn)}</td><td class="hint">${esc(l.note||'')}</td>
-    <td>${l.to<today?'<span class="tag green"> Completed</span>':`<span class="tag blue">${esc(l.status)}</span>`}</td></tr>`).join('')}</table></div></div>`;
+    ${DB.leaves.slice().sort((a,b)=>b.from.localeCompare(a.from)).map(l=>'<tr><td>'+esc(staffName(l.staffId))+'</td><td>'+esc(LEAVE_NAMES[l.type]||l.type)+'</td><td>'+fmtDate(l.from)+'</td><td>'+fmtDate(l.to)+'</td><td>'+fmtDate(l.backOn)+'</td><td class="hint">'+esc(l.note||'')+'</td><td>'+(l.to<today?'<span class="tag green"> Completed</span>':'<span class="tag blue">'+esc(l.status)+'</span>')+'</td><td><button class="btn xs" onclick="openLeaveEdit(\''+l.id+'\')">Edit</button> <button class="btn xs danger" onclick="confirmDlg(\'Delete '+staffName(l.staffId)+' '+l.from+'?\', function(){ DB.leaves=DB.leaves.filter(x=>x.id!==\''+l.id+'\'); saveDB(); renderLvBody(); });">Del</button></td></tr>').join('')}</table></div></div>`;
   const lvAuto=()=>{ const st=DB.staff.find(s=>s.name===$('#lv_staff').value);
     if($('#lv_type').value==='AL'&&$('#lv_from').value&&st){
       const end=autoLeaveEnd($('#lv_from').value, st.contract, 'AL'); if(end) $('#lv_to').value=end; } };
