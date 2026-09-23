@@ -4907,6 +4907,36 @@ function autoLeaveEnd(start, contract, type){
   while(n<18){ const dw=d.getDay(); if(dw!==0&&dw!==6) n++; if(n<18) d.setDate(d.getDate()+1); }
   return d.toISOString().slice(0,10);
 }
+function calcLeaveEnd(startISO, days, contract, type){
+  if(!startISO || !days) return '';
+  days=parseInt(days)||0; if(days<=0) return '';
+  if(type!=='AL'){
+    return addDays(startISO, days-1);
+  }
+  if(contract==='contractual'){
+    // Working days Mon-Fri only
+    let d=new Date(startISO+'T12:00:00');
+    let counted=0;
+    while(counted < days){
+      const dw=d.getDay();
+      if(dw!==0 && dw!==6) counted++;
+      if(counted < days) d.setDate(d.getDate()+1);
+    }
+    return d.toISOString().slice(0,10);
+  } else {
+    return addDays(startISO, days-1);
+  }
+}
+function getLeaveBalanceForStaff(staffId, fy){
+  const leaves=(DB.leaves||[]).filter(l=>l.staffId===staffId && l.type==='AL' && l.fy===fy && l.status!=='Ended' && l.status!=='Completed');
+  const totalDays=leaves.reduce((sum,l)=>sum+daysBetween(l.from,l.to)+1,0);
+  const installments=leaves.length;
+  const st=staffById(staffId);
+  const entitlement = st && st.contract==='contractual' ? 18 : 30;
+  const remaining = Math.max(0, entitlement - totalDays);
+  return {entitlement, used:totalDays, remaining, installments, leaves};
+}
+
 function renderLvPlan(body){
   const today=todayISO();
   const mergedForDisplay = (typeof mergeConsecutiveLeaves==='function') ? mergeConsecutiveLeaves(DB.leaves) : DB.leaves;
@@ -4921,7 +4951,9 @@ function renderLvPlan(body){
       <div><label>Staff</label><select id="lv_staff">${DB.staff.filter(s=>s.status==='active').map(s=>`<option>${esc(s.name)}</option>`).join('')}</select></div>
       <div><label>Type</label><select id="lv_type"><option value="AL">Annual leave</option><option value="ML">Maternity leave</option><option value="SL">Sick / Medical leave</option><option value="CL">Other authorized leave</option><option value="TR">Training</option><option value="W">Wedding day</option></select></div>
       <div><label>Start date</label><input type="date" id="lv_from" value="${today}" required></div>
-      <div><label>End date <span class="hint">auto-fills for AL</span></label><input type="date" id="lv_to" value="${today}" required></div>
+      <div><label>Number of days <span class="hint">auto-calc end, min 10, max 3 installments</span></label><input type="number" id="lv_days" min="1" max="30" value="15" style="border-left:3px solid var(--gold); font-weight:800"></div>
+      <div><label>End date <span class="hint">auto-fills from days</span></label><input type="date" id="lv_to" value="${today}" required></div>
+      <div id="lv_balance_info" style="grid-column:1/-1"></div>
       <div style="grid-column:1/-1"><label>Note</label><input id="lv_note" placeholder="e.g. part 2 of 2, carry-over from previous FY…"></div>
       <div style="grid-column:1/-1" class="row"><button class="btn primary" type="submit"> Add &amp; re-plan</button>
         <span class="hint">The working plan instantly re-adapts on next Generate.</span></div>
@@ -4937,16 +4969,55 @@ function renderLvPlan(body){
   <div class="card" style="margin-bottom:16px"><h3> Past Leave Timeline — full history, completed marked </h3>
     <div class="tbl-wrap"><table class="tbl"><tr><th>Staff</th><th>Type</th><th>From</th><th>To</th><th>Back on</th><th>Note</th><th>Status</th></tr>
     ${DB.leaves.slice().sort((a,b)=>b.from.localeCompare(a.from)).map(l=>'<tr><td>'+esc(staffName(l.staffId))+'</td><td>'+esc(LEAVE_NAMES[l.type]||l.type)+'</td><td>'+fmtDate(l.from)+'</td><td>'+fmtDate(l.to)+'</td><td>'+fmtDate(l.backOn)+'</td><td class="hint">'+esc(l.note||'')+'</td><td>'+(l.to<today?'<span class="tag green"> Completed</span>':'<span class="tag blue">'+esc(l.status)+'</span>')+'</td><td><button class="btn xs" onclick="openLeaveEdit(\''+l.id+'\')">Edit</button> <button class="btn xs danger" onclick="confirmDlg(\'Delete '+staffName(l.staffId)+' '+l.from+'?\', function(){ DB.leaves=DB.leaves.filter(x=>x.id!==\''+l.id+'\'); saveDB(); renderLvBody(); });">Del</button></td></tr>').join('')}</table></div></div>`;
-  const lvAuto=()=>{ const st=DB.staff.find(s=>s.name===$('#lv_staff').value);
-    if($('#lv_type').value==='AL'&&$('#lv_from').value&&st){
-      const end=autoLeaveEnd($('#lv_from').value, st.contract, 'AL'); if(end) $('#lv_to').value=end; } };
+  const lvAuto=()=>{
+    const st=DB.staff.find(s=>s.name===$('#lv_staff').value);
+    const type=$('#lv_type').value;
+    const from=$('#lv_from').value;
+    const daysEl=$('#lv_days');
+    const toEl=$('#lv_to');
+    const balEl=$('#lv_balance_info');
+    if(!st || !from) return;
+    // Auto-calc end from days if days present
+    if(daysEl && daysEl.value && type==='AL'){
+      const end=calcLeaveEnd(from, daysEl.value, st.contract, type);
+      if(end) toEl.value=end;
+    } else if(type==='AL' && from){
+      const end=autoLeaveEnd(from, st.contract, 'AL');
+      if(end) toEl.value=end;
+      if(daysEl) daysEl.value=daysBetween(from, toEl.value)+1;
+    }
+    // Show balance info per FY with installments rule
+    if(balEl){
+      const fy=fyOf(from);
+      const bal=getLeaveBalanceForStaff(st.id, fy);
+      const curDays = daysEl && daysEl.value ? parseInt(daysEl.value) : (toEl.value ? daysBetween(from,toEl.value)+1 : 0);
+      const wouldBeUsed = bal.used + curDays;
+      const wouldBeInst = bal.installments + 1;
+      let warn='';
+      if(type==='AL'){
+        if(curDays>0 && curDays<10) warn+='<span class="tag red" style="margin-left:8px">Min 10 days per installment</span>';
+        if(wouldBeInst>3) warn+='<span class="tag red" style="margin-left:8px">Max 3 installments (already '+bal.installments+')</span>';
+        if(wouldBeUsed>bal.entitlement) warn+='<span class="tag red" style="margin-left:8px">Exceeds entitlement '+bal.entitlement+'d (would be '+wouldBeUsed+'d)</span>';
+      }
+      balEl.innerHTML='<div class="alert '+(warn?'warn':'info')+'" style="margin-top:8px"><b>'+esc(st.name)+' — FY '+fy+' — '+bal.entitlement+'d entitlement</b> · Used '+bal.used+'d in '+bal.installments+' installment(s) · Remaining '+bal.remaining+'d · This installment '+curDays+'d (e.g. Patrick 15d first installment 2026/27)'+warn+'</div>';
+    }
+  };
   $('#lv_from').onchange=lvAuto; $('#lv_type').onchange=lvAuto; $('#lv_staff').onchange=lvAuto;
+  const lvDaysEl=$('#lv_days');
+  if(lvDaysEl) lvDaysEl.oninput=lvAuto;
+  lvAuto();
   $('#lvForm').addEventListener('submit',ev=>{ ev.preventDefault();
     const st=DB.staff.find(s=>s.name===$('#lv_staff').value); const from=$('#lv_from').value, to=$('#lv_to').value;
     if(to<from) return toast('End date before start','err');
     const type=$('#lv_type').value;
     // Rule: impossible to have two staff in annual leave at same time
+    const daysInput = $('#lv_days') ? parseInt($('#lv_days').value) : daysBetween(from,to)+1;
     if(type==='AL'){
+      if(daysInput<10) return toast('Min 10 days per installment per Ruli policy (no less than 10 days)','err');
+      const fy=fyOf(from);
+      const bal=getLeaveBalanceForStaff(st.id, fy);
+      if(bal.installments>=3) return toast('Max 3 installments per FY per Ruli policy (already '+bal.installments+' for FY '+fy+')','err');
+      if(bal.used + daysInput > bal.entitlement) return toast('Exceeds entitlement '+bal.entitlement+'d for FY '+fy+' (used '+bal.used+'d + this '+daysInput+'d = '+(bal.used+daysInput)+'d)','err');
       const overlap = DB.leaves.some(l=>{
         if(l.type!=='AL' || l.status==='Ended' || l.status==='Completed') return false;
         if(l.staffId===st.id) return false;
@@ -5004,12 +5075,45 @@ function openLeaveEdit(id){
     <div><label>Type</label><select id="le_type"><option value="AL">Annual leave</option><option value="ML">Maternity leave</option><option value="SL">Sick / Medical leave</option><option value="CL">Other authorized leave</option><option value="TR">Training</option><option value="W">Wedding day</option></select></div>
     <div><label>Status</label><select id="le_status"><option>Planned</option><option>Approved</option><option>Taken</option><option>Ended</option></select></div>
     <div><label>From</label><input type="date" id="le_from" value="${l.from}"></div>
-    <div><label>To <span class="hint">auto-fills for AL</span></label><input type="date" id="le_to" value="${l.to}"></div>
+    <div><label>Number of days</label><input type="number" id="le_days" min="1" max="30" value="${daysBetween(l.from,l.to)+1}" style="border-left:3px solid var(--gold); font-weight:800"></div>
+    <div><label>To <span class="hint">auto from days</span></label><input type="date" id="le_to" value="${l.to}"></div>
+    <div id="le_balance_info" style="grid-column:1/-1"></div>
     <div style="grid-column:1/-1"><label>Note</label><input id="le_note" value="${esc(l.note||'')}"></div>
   </div><div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" onclick="closeModal()">Cancel</button></div></form>`);
   $('#le_type').value=l.type; $('#le_status').value=l.status||'Planned';
-  const auto=()=>{ if($('#le_type').value==='AL'&&$('#le_from').value&&st){ const e=autoLeaveEnd($('#le_from').value, st.contract, 'AL'); if(e) $('#le_to').value=e; } };
+  const leDaysEl=$('#le_days');
+  if(leDaysEl) leDaysEl.value=daysBetween(l.from,l.to)+1;
+  const auto=()=>{
+    const daysEl=$('#le_days');
+    const fromEl=$('#le_from');
+    const toEl=$('#le_to');
+    const balEl=$('#le_balance_info');
+    if($('#le_type').value==='AL'&&fromEl.value&&st){
+      if(daysEl && daysEl.value){
+        const e=calcLeaveEnd(fromEl.value, daysEl.value, st.contract, 'AL');
+        if(e) toEl.value=e;
+      } else {
+        const e=autoLeaveEnd(fromEl.value, st.contract, 'AL');
+        if(e) toEl.value=e;
+      }
+      if(daysEl) {
+        const curDays = parseInt(daysEl.value)||0;
+        if(curDays>0 && curDays<10) {
+          if(balEl) balEl.innerHTML='<div class="alert err">Min 10 days per installment</div>';
+        }
+      }
+    }
+    if(balEl && st){
+      const fy=fyOf(fromEl.value);
+      const bal=getLeaveBalanceForStaff(st.id, fy);
+      const curDays = daysEl && daysEl.value ? parseInt(daysEl.value) : 0;
+      balEl.innerHTML='<div class="alert info"><b>'+esc(st.name)+' — FY '+fy+' — '+bal.entitlement+'d entitlement</b> · Used '+bal.used+'d in '+bal.installments+' installment(s) · Remaining '+bal.remaining+'d · This installment '+curDays+'d</div>';
+    }
+  };
   $('#le_from').onchange=auto; $('#le_type').onchange=auto;
+  const leDaysEl2=$('#le_days');
+  if(leDaysEl2) leDaysEl2.oninput=auto;
+  auto();
   $('#leForm').addEventListener('submit',ev=>{ ev.preventDefault();
     const from=$('#le_from').value, to=$('#le_to').value; if(to<from) return toast('End before start','err');
     l.type=$('#le_type').value; l.status=$('#le_status').value; l.from=from; l.to=to;
@@ -5021,12 +5125,39 @@ function openQuickLeave(){
     <div><label>Staff</label><select id="q_staff">${DB.staff.map(s=>`<option>${esc(s.name)}</option>`).join('')}</select></div>
     <div><label>Type</label><select id="q_type"><option value="AL">Annual leave</option><option value="ML">Maternity leave</option><option value="SL">Sick leave</option><option value="CL">Other authorized leave</option><option value="TR">Training</option><option value="W">Wedding day</option></select></div>
     <div><label>From</label><input type="date" id="q_from" value="${todayISO()}"></div>
+    <div><label>Number of days</label><input type="number" id="q_days" min="1" max="30" value="15" style="border-left:3px solid var(--gold); font-weight:800"></div>
     <div><label>To</label><input type="date" id="q_to" value="${todayISO()}"></div>
+    <div id="q_balance_info" style="grid-column:1/-1"></div>
     <div style="grid-column:1/-1"><label>Note</label><input id="q_note"></div>
   </div><div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Add</button><button class="btn" type="button" onclick="closeModal()">Cancel</button></div></form>`);
-  const qAuto=()=>{ const st=DB.staff.find(s=>s.name===$('#q_staff').value);
-    if($('#q_type').value==='AL'&&$('#q_from').value&&st){ const e=autoLeaveEnd($('#q_from').value, st.contract, 'AL'); if(e) $('#q_to').value=e; } };
+  const qAuto=()=>{
+    const st=DB.staff.find(s=>s.name===$('#q_staff').value);
+    const fromEl=$('#q_from');
+    const daysEl=$('#q_days');
+    const toEl=$('#q_to');
+    const balEl=$('#q_balance_info');
+    if(!st || !fromEl.value) return;
+    if($('#q_type').value==='AL'&&fromEl.value){
+      if(daysEl && daysEl.value){
+        const e=calcLeaveEnd(fromEl.value, daysEl.value, st.contract, 'AL');
+        if(e) toEl.value=e;
+      } else {
+        const e=autoLeaveEnd(fromEl.value, st.contract, 'AL');
+        if(e) toEl.value=e;
+        if(daysEl) daysEl.value=daysBetween(fromEl.value, toEl.value)+1;
+      }
+    }
+    if(balEl){
+      const fy=fyOf(fromEl.value);
+      const bal=getLeaveBalanceForStaff(st.id, fy);
+      const curDays = daysEl && daysEl.value ? parseInt(daysEl.value) : 0;
+      balEl.innerHTML='<div class="alert info"><b>'+esc(st.name)+' — FY '+fy+' — '+bal.entitlement+'d entitlement</b> · Used '+bal.used+'d in '+bal.installments+' installment(s) · Remaining '+bal.remaining+'d · This '+curDays+'d (min 10, max 3 installments)</div>';
+    }
+  };
   $('#q_from').onchange=qAuto; $('#q_type').onchange=qAuto; $('#q_staff').onchange=qAuto;
+  const qDaysEl=$('#q_days');
+  if(qDaysEl) qDaysEl.oninput=qAuto;
+  qAuto();
   $('#ql').addEventListener('submit',ev=>{ ev.preventDefault();
     const st=DB.staff.find(s=>s.name===$('#q_staff').value); const from=$('#q_from').value, to=$('#q_to').value;
     const type=$('#q_type').value;
