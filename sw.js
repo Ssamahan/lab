@@ -1,5 +1,5 @@
-/* Lab Systems v4.12 - Editable leaves + onboarding + roster <3 */
-const CACHE_NAME = 'lab-systems-v4.12-editable-leaves-2026-09-23';
+/* Lab Systems v4.13 - Editable leaves + Patrick back Oct2 + Aurelie fix */
+const CACHE_NAME = 'lab-systems-v4.13-editable-patrick-oct2-2026-09-23';
 const ASSETS = [
   './',
   './index.html',
