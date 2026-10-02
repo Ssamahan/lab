@@ -2246,28 +2246,28 @@ async function exportManifestPNG(man){
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  // Logo blocks 180px wide, logo 100px perfectly centered over text
   const leftBlockX = M;
-  const leftBlockW = 160;
+  const leftBlockW = 180;
   const rightBlockX = W-M-leftBlockW;
-  const rightBlockW = 160;
+  const rightBlockW = 180;
   g.fillStyle='#ffffff';
-  g.fillRect(leftBlockX+32, 10, 96, 96);
-  g.fillRect(rightBlockX+32, 10, 96, 96);
+  g.fillRect(leftBlockX+40, 8, 100, 100);
+  g.fillRect(rightBlockX+40, 8, 100, 100);
   try{
-    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+32, 10, 96, 96); }
-    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+32, 10, 96, 96); }
+    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+40, 8, 100, 100); }
+    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+40, 8, 100, 100); }
   }catch(e){}
   const leftCenter = leftBlockX+leftBlockW/2;
   const rightCenter = rightBlockX+rightBlockW/2;
-  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 11px Trebuchet MS';
-  g.fillText('Republic of Rwanda', leftCenter, 120);
-  g.fillText('Ruli District Hospital', rightCenter, 120);
-  const logoCenterY = 10+48;
+  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 12px Trebuchet MS';
+  g.fillText('Republic of Rwanda', leftCenter, 122);
+  g.fillText('Ruli District Hospital', rightCenter, 122);
+  const logoCenterY = 8+50;
   g.fillStyle='#000000'; g.textAlign='center';
   g.font='900 16px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
   g.font='700 12px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+18);
   g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,138); g.lineTo(W-M,138); g.stroke();
-  // ID on top of barcode, not bold, close to table
   const yInfo = y0-36;
   const idText=ex.manifestId;
   g.font='500 12px Trebuchet MS';
@@ -2279,7 +2279,6 @@ async function exportManifestPNG(man){
     curUnit=Math.max(0.6, (W-M*2-80)/tot);
     barcodeW=tot*curUnit;
   }
-  const idW=g.measureText(idText).width;
   g.textAlign='center';
   g.fillStyle='#000000';
   g.fillText(idText, W/2, yInfo);
@@ -2437,14 +2436,12 @@ function exportManifestPDF(man){
       d.text(ex.title, W/2, 42, {size:16, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Testing Hospital: '+ex.testingHospital, W/2, 62, {size:12, bold:true, align:'center', color:'0 0 0 rg'});
       d.line(MP,96,W-MP,96,{width:2.6,color:'#C9A84C'});
-      // ID on top of barcode, not bold, close to table
       const yInfo=y0-36;
       const idText=ex.manifestId;
       const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
       const unit=1.0;
       let barcodeW=tot*unit;
       if(barcodeW > W-MP*2-80) { barcodeW=W-MP*2-80; }
-      const idEst=idText.length*4.8;
       d.text(idText, W/2, yInfo, {size:10, color:'0 0 0 rg', align:'center'});
       const totalEst=barcodeW;
       const startX=(W-totalEst)/2;
