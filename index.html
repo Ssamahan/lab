@@ -2233,95 +2233,107 @@ async function exportManifestPNG(man){
   const W=1600;
   const cols=ex.samples.length;
   const M=80;
-  const y0=190, rh=44;
-  const cvH=Math.max(620, y0+32+cols*rh+80);
+  const headingH=32;
+  const y0=200;
+  const rh=44;
+  const gapHead=8;
+  const cvH=Math.max(700, y0+headingH+gapHead+cols*rh+120);
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  // white rects behind logos to avoid black bg
   g.fillStyle='#ffffff';
-  g.fillRect(M, 12, 72, 72);
-  g.fillRect(W-M-72, 12, 72, 72);
+  g.fillRect(M, 12, 84, 84);
+  g.fillRect(W-M-84, 12, 84, 84);
   try{
-    if(rwandaCoat){ g.drawImage(rwandaCoat, M, 12, 72, 72); }
-    if(ruliLogo){ g.drawImage(ruliLogo, W-M-72, 12, 72, 72); }
+    if(rwandaCoat){ g.drawImage(rwandaCoat, M, 12, 84, 84); }
+    if(ruliLogo){ g.drawImage(ruliLogo, W-M-84, 12, 84, 84); }
   }catch(e){}
-  const leftCenter = M+36;
-  const rightCenter = W-M-36;
+  const leftCenter = M+42;
+  const rightCenter = W-M-42;
   g.fillStyle='#000000'; g.textAlign='center'; g.font='600 8px Trebuchet MS';
-  g.fillText('Republic of Rwanda', leftCenter, 96);
-  g.fillText('Ruli District Hospital', rightCenter, 96);
-  const logoCenterY = 12+36;
+  g.fillText('Republic of Rwanda', leftCenter, 108);
+  g.fillText('Ruli District Hospital', rightCenter, 108);
+  const logoCenterY = 12+42;
   g.fillStyle='#000000'; g.textAlign='center';
-  g.font='900 14px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-4);
-  g.font='600 10px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+16);
-  g.strokeStyle='#C9A84C'; g.lineWidth=2.2; g.beginPath(); g.moveTo(M,112); g.lineTo(W-M,112); g.stroke();
-  const yInfo = 136;
-  const idText='Manifest ID: '+ex.manifestId;
-  const genText='Generated: '+ex.createdAt+' | Samples: '+ex.samples.length;
-  g.font='500 10px Trebuchet MS';
+  g.font='900 15px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-6);
+  g.font='600 11px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+16);
+  // gold line below main heading with logos
+  g.strokeStyle='#C9A84C'; g.lineWidth=2.6; g.beginPath(); g.moveTo(M,124); g.lineTo(W-M,124); g.stroke();
+  // ID line: ID code + barcode + Generated + Samples — all same line centered close to table
+  const yInfo = 152;
+  const idText=ex.manifestId;
+  const genText='Generated: '+ex.createdAt;
+  const sampText='Samples: '+ex.samples.length;
+  g.font='600 11px Trebuchet MS';
   const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
-  const unit=0.85;
+  const unit=0.9;
   const barcodeW=tot*unit;
   const idW=g.measureText(idText).width;
   const genW=g.measureText(genText).width;
-  const gap=16;
-  let totalW=idW+barcodeW+genW+gap*2;
+  const sampW=g.measureText(sampText).width;
+  const gap=18;
+  let totalW=idW+barcodeW+genW+sampW+gap*3;
   let curUnit=unit, curBarcodeW=barcodeW;
   if(totalW > W-M*2){
-    curUnit=Math.max(0.6, (W-M*2-idW-genW-gap*2)/tot);
+    curUnit=Math.max(0.55, (W-M*2-idW-genW-sampW-gap*3)/tot);
     curBarcodeW=tot*curUnit;
   }
-  const newTotal=idW+curBarcodeW+genW+gap*2;
+  const newTotal=idW+curBarcodeW+genW+sampW+gap*3;
   const startX=(W-newTotal)/2;
   g.textAlign='left'; g.textBaseline='alphabetic';
   g.fillStyle='#000000';
   g.fillText(idText, startX, yInfo);
-  drawBarcode(g, startX+idW+gap, yInfo+2, 14, ex.manifestId, curUnit);
+  drawBarcode(g, startX+idW+gap, yInfo+2, 16, ex.manifestId, curUnit);
   g.fillText(genText, startX+idW+curBarcodeW+gap*2, yInfo);
+  g.fillText(sampText, startX+idW+curBarcodeW+genW+gap*3, yInfo);
   const heads=['S.No','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
   const colW=[36,110,190,210,90,40,130,110,160];
   const sc=(W-M*2)/colW.reduce((a,b)=>a+b,0);
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-M*2)-used; }
   let x=M;
-  g.font='700 9px Trebuchet MS'; g.textBaseline='middle';
+  g.font='700 10px Trebuchet MS'; g.textBaseline='middle';
   heads.forEach((hd,i)=>{
-    g.fillStyle='#a4c0ed'; g.fillRect(x,y0,colW[i],24);
+    g.fillStyle='#c4c4c4'; g.fillRect(x,y0,colW[i],headingH);
     g.fillStyle='#000000'; g.textAlign='left';
-    g.fillText(hd, x+5, y0+12);
+    g.fillText(hd, x+6, y0+headingH/2);
     x+=colW[i];
   });
-  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=1.6; g.beginPath(); g.moveTo(M,y0); g.lineTo(M+colW.reduce((a,b)=>a+b,0), y0); g.stroke(); g.restore();
+  // gold line below table heading
+  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.0; g.beginPath(); g.moveTo(M,y0); g.lineTo(M+colW.reduce((a,b)=>a+b,0), y0); g.stroke(); g.beginPath(); g.moveTo(M,y0+headingH); g.lineTo(M+colW.reduce((a,b)=>a+b,0), y0+headingH); g.stroke(); g.restore();
   ex.samples.forEach((s,ri)=>{
-    const yy=y0+24+ri*rh;
+    const yy=y0+headingH+gapHead+ri*rh;
     g.fillStyle=(ri%2)?'#dadde3':'#ffffff'; g.fillRect(M,yy,colW.reduce((a,b)=>a+b,0),rh);
     let x2=M;
     const vals=[String(ri+1), s.sampleId, (s.healthFacility||'Ruli DH'), s.patientName||'—', s.patientId||'—', s.sex||'—', s.test, s.collectionDate||'—', ''];
     vals.forEach((v,i)=>{
       if(i===8){
-        const fitW=colW[i]-10;
+        const fitW=colW[i]-12;
         const bars=code39Bars(s.barcode||s.sampleId); let tot=0; bars.forEach(b=>tot+=b.w);
         const unit2=Math.min(1.0, fitW/Math.max(tot,1));
-        drawBarcode(g, x2+5, yy+8, 14, s.barcode||s.sampleId, unit2);
+        drawBarcode(g, x2+6, yy+10, 14, s.barcode||s.sampleId, unit2);
       } else {
-        g.fillStyle='#000000'; g.textAlign='left'; g.font='500 9px Trebuchet MS';
+        g.fillStyle='#000000'; g.textAlign='left'; g.font='500 10px Trebuchet MS';
         let txt=String(v);
-        const maxW=colW[i]-10;
+        const maxW=colW[i]-12;
         try{ while(txt.length>0 && g.measureText(txt+'…').width>maxW) txt=txt.slice(0,-1); if(txt!==String(v)) txt=txt.slice(0,-1)+'…'; }catch(e){}
-        g.fillText(txt, x2+5, yy+rh/2+1);
+        g.fillText(txt, x2+6, yy+rh/2+1);
       }
       x2+=colW[i];
     });
   });
-  const tableBottom=y0+24+ex.samples.length*rh;
-  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=1.6; g.beginPath(); g.moveTo(M,tableBottom); g.lineTo(M+colW.reduce((a,b)=>a+b,0), tableBottom); g.stroke(); g.restore();
-  let fy=tableBottom+16;
-  g.fillStyle='#000000'; g.font='500 9px Trebuchet MS'; g.textAlign='left';
+  const tableBottom=y0+headingH+gapHead+ex.samples.length*rh;
+  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.0; g.beginPath(); g.moveTo(M,tableBottom); g.lineTo(M+colW.reduce((a,b)=>a+b,0), tableBottom); g.stroke(); g.restore();
+  let fy=tableBottom+24;
+  g.fillStyle='#000000'; g.font='600 10px Trebuchet MS'; g.textAlign='left';
   g.fillText('Generated By: '+ex.generatedBy, M, fy);
-  g.fillText('Verified By: __________________', M+W*0.33, fy);
-  g.fillText('Received By (at '+ex.testingHospital+'): __________________', M+W*0.62, fy);
+  fy+=18;
+  g.fillText('Transported By: '+(ex.transportedBy||'__________________')+'    Date of Transport: __________________', M, fy);
+  fy+=18;
+  g.fillText('Received By (at '+ex.testingHospital+'): __________________    Date of Reception: __________________', M, fy);
   g.fillStyle='#6b7a99'; g.font='400 8px Trebuchet MS'; g.textAlign='center';
-  g.fillText('Specimen Manifest Generated On: '+ex.createdAt+'  |  Page 1/1', W/2, cvH-12);
+  g.fillText('Specimen Manifest Generated On: '+ex.createdAt+'  |  Page 1/1', W/2, cvH-14);
   cv.toBlob(b=>download(b,'Manifest-'+ex.manifestId+'.png'));
 }
 function barcodeSVG(text){
@@ -2336,24 +2348,27 @@ function previewManifestHTML(man){
   ex.samples.forEach((s,i)=>{ rows+=`<tr><td>${i+1}</td><td><b>${esc(s.sampleId)}</b></td><td>${esc((s.healthFacility||'Ruli DH')+', '+(s.district||''))}</td><td>${esc(maskName(s.patientName||'—'))}</td><td>${esc(maskPatientId(s.patientId)||'—')}</td><td>${esc(s.sex||'—')}</td><td>${esc(s.test)}</td><td>${esc(s.collectionDate||'—')}</td><td>${esc(s.sampleId)}<br>${barcodeSVG(s.barcode||s.sampleId)}</td></tr>`; });
   const rwandaCoatSrcPrev = (typeof RWANDA_COAT_NEW!=='undefined'?RWANDA_COAT_NEW:'assets/rwanda-coat-192.png');
   const ruliLogoSrcPrev = (typeof RULI_HOSPITAL_LOGO!=='undefined'?RULI_HOSPITAL_LOGO:'assets/ruli-hospital-192.png');
-  openModal(`<h2>Preview — ${esc(ex.manifestId)}</h2>
+    openModal(`<h2>Preview — ${esc(ex.manifestId)}</h2>
   <div style="max-height:70vh;overflow:auto;border:1px solid var(--edge);border-radius:12px;padding:14px;background:#fff;font-family:'Trebuchet MS',sans-serif;font-size:11px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 8px 14px;margin-bottom:12px;border-bottom:3px solid #C9A84C">
-      <div style="display:flex; flex-direction:column; align-items:center; gap:4px; width:84px"><img src="${rwandaCoatSrcPrev}" style="width:72px;height:72px;object-fit:contain"><span style="font-size:8px;font-weight:800;text-align:center">Republic of Rwanda</span></div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:4px; width:84px"><img src="${rwandaCoatSrcPrev}" style="width:84px;height:84px;object-fit:contain"><span style="font-size:8px;font-weight:800;text-align:center">Republic of Rwanda</span></div>
       <div style="flex:1; text-align:center;font-weight:800;font-size:14px">${esc(ex.title)}<br><span style="font-size:11px;font-weight:400">Testing Hospital: ${esc(ex.testingHospital)}</span></div>
-      <div style="display:flex; flex-direction:column; align-items:center; gap:4px; width:84px"><img src="${ruliLogoSrcPrev}" style="width:72px;height:72px;object-fit:contain"><span style="font-size:8px;font-weight:800;text-align:center">Ruli District Hospital</span></div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:4px; width:84px"><img src="${ruliLogoSrcPrev}" style="width:84px;height:84px;object-fit:contain"><span style="font-size:8px;font-weight:800;text-align:center">Ruli District Hospital</span></div>
     </div>
-    <div style="display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin-bottom:12px; padding:8px; background:#F7F8FC; border-radius:8px">
-      <span style="font-weight:800">Manifest ID: ${esc(ex.manifestId)}</span>
+    <div style="display:flex; align-items:center; justify-content:center; gap:18px; flex-wrap:wrap; margin-bottom:12px; padding:10px; background:#F7F8FC; border-radius:8px; border:1px solid #e6e9f1">
+      <span style="font-weight:800; font-size:12px">${esc(ex.manifestId)}</span>
       <span>${barcodeSVG(ex.manifestId)}</span>
-      <span style="font-size:10px">Generated: ${esc(ex.createdAt)} | Samples: ${ex.samples.length}</span>
+      <span style="font-size:10px">Generated: ${esc(ex.createdAt)}</span>
+      <span style="font-size:10px">Samples: ${ex.samples.length}</span>
     </div>
-    <table border="1" cellspacing="0" cellpadding="3" style="border-collapse:collapse;width:100%">
-      <tr><th style="background:#eee">#</th><th style="background:#eee">Sample ID</th><th style="background:#eee">Origin</th><th style="background:#eee">Patient</th><th style="background:#eee">PID</th><th style="background:#eee">Sex</th><th style="background:#eee">Test</th><th style="background:#eee">Collected</th><th style="background:#eee">Barcode</th></tr>
+    <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%">
+      <tr><th style="background:#c4c4c4">#</th><th style="background:#c4c4c4">Sample ID</th><th style="background:#c4c4c4">Origin</th><th style="background:#c4c4c4">Patient</th><th style="background:#c4c4c4">PID</th><th style="background:#c4c4c4">Sex</th><th style="background:#c4c4c4">Test</th><th style="background:#c4c4c4">Collected</th><th style="background:#c4c4c4">Barcode</th></tr>
       ${rows}
     </table>
-    <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:10px">
-      <span>Generated By: ${esc(ex.generatedBy)}</span><span>Verified By: ________</span><span>Received By (at ${esc(ex.testingHospital)}): ________</span>
+    <div style="margin-top:14px; font-size:11px; line-height:1.8">
+      <div>Generated By: ${esc(ex.generatedBy)}</div>
+      <div>Transported By: ${esc(ex.transportedBy||'__________________')} &nbsp;&nbsp; Date of Transport: __________________</div>
+      <div>Received By (at ${esc(ex.testingHospital)}): __________________ &nbsp;&nbsp; Date of Reception: __________________</div>
     </div>
   </div>
   <div class="row" style="margin-top:12px"><button class="btn primary" id="pvManPng">Save as PNG</button><button class="btn" id="pvManPdf">Export PDF</button><button class="btn" id="pvManXlsx">Export Excel</button><span class="spacer"></span><button class="btn" onclick="closeModal()">Close</button></div>`);
@@ -2362,7 +2377,7 @@ function previewManifestHTML(man){
 function buildManifestExport(man){
   const samples=man.samples.map(id=>DB.samples.find(s=>s.id===id)).filter(Boolean).map(s=>Object.assign({},s,{barcode:s.barcode||s.sampleId}));
   return {title:man.title||'Sample Referral Manifest', testingHospital:man.testingHospital||'Ruli DH - GeneXpert',
-    manifestId:man.manifestId, createdAt:man.createdAt||todayISO(), samples, generatedBy:man.generatedBy||'Ruli DH Lab'};
+    manifestId:man.manifestId, createdAt:man.createdAt||todayISO(), samples, generatedBy:man.generatedBy||'Ruli DH Lab', transportedBy:man.transportedBy||man.generatedBy||''};
 }
 function exportManifestPDF(man){
   const ex=buildManifestExport(man);
@@ -2373,77 +2388,84 @@ function exportManifestPDF(man){
   const sc=(W-MP*2)/colW.reduce((a,b)=>a+b,0);
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-MP*2)-used; }
-  const y0=150, rh=20, pageFoot=32;
-  const rowsPerPage=Math.max(8, Math.floor((H-pageFoot-y0-20)/rh));
+  const headingH=16;
+  const y0=160, rh=22, pageFoot=36;
+  const rowsPerPage=Math.max(8, Math.floor((H-pageFoot-y0-headingH-40)/rh));
   const pages=Math.max(1, Math.ceil(ex.samples.length/rowsPerPage));
   for(let pg=0; pg<pages; pg++){
     d.addPage(W,H);
     if(pg===0){
       try{
-        d.rect(MP, 12, 48, 48, {fill:'#ffffff'});
-        d.rect(W-MP-48, 12, 48, 48, {fill:'#ffffff'});
-        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, MP, 12, 48, 48); }
-        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, W-MP-48, 12, 48, 48); }
+        d.rect(MP, 12, 56, 56, {fill:'#ffffff'});
+        d.rect(W-MP-56, 12, 56, 56, {fill:'#ffffff'});
+        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, MP, 12, 56, 56); }
+        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, W-MP-56, 12, 56, 56); }
       }catch(e){}
-      d.text('Republic of Rwanda', MP+24, 70, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
-      d.text('Ruli District Hospital', W-MP-24, 70, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
-      d.text(ex.title, W/2, 42, {size:14, bold:true, align:'center', color:'0 0 0 rg'});
-      d.text('Testing Hospital: '+ex.testingHospital, W/2, 58, {size:10, bold:true, align:'center', color:'0 0 0 rg'});
-      d.line(MP,80,W-MP,80,{width:2.2,color:'#C9A84C'});
-      const yInfo=100;
-      const idText='Manifest ID: '+ex.manifestId;
-      const genText='Generated: '+ex.createdAt+' | Samples: '+ex.samples.length;
+      d.text('Republic of Rwanda', MP+28, 78, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Ruli District Hospital', W-MP-28, 78, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text(ex.title, W/2, 40, {size:15, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Testing Hospital: '+ex.testingHospital, W/2, 58, {size:11, bold:true, align:'center', color:'0 0 0 rg'});
+      d.line(MP,88,W-MP,88,{width:2.4,color:'#C9A84C'});
+      const yInfo=108;
+      const idText=ex.manifestId;
+      const genText='Generated: '+ex.createdAt;
+      const sampText='Samples: '+ex.samples.length;
       const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
-      const unit=0.75;
+      const unit=0.8;
       const barcodeW=tot*unit;
-      const idEst=idText.length*4.2;
-      const genEst=genText.length*3.6;
-      const totalEst=idEst+barcodeW+genEst+24;
+      const idEst=idText.length*5.0;
+      const genEst=genText.length*4.0;
+      const sampEst=sampText.length*4.0;
+      const totalEst=idEst+barcodeW+genEst+sampEst+30;
       const startX=(W-totalEst)/2;
-      d.text(idText, startX, yInfo, {size:10, color:'0 0 0 rg'});
-      pdfBarcode(d, startX+idEst+10, yInfo+2, 10, ex.manifestId, unit);
+      d.text(idText, startX, yInfo, {size:11, bold:true, color:'0 0 0 rg'});
+      pdfBarcode(d, startX+idEst+10, yInfo+2, 12, ex.manifestId, unit);
       d.text(genText, startX+idEst+barcodeW+20, yInfo, {size:10, color:'0 0 0 rg'});
+      d.text(sampText, startX+idEst+barcodeW+genEst+30, yInfo, {size:10, color:'0 0 0 rg'});
     } else {
-      d.text('Manifest ID: '+ex.manifestId+' (cont.)', MP, 24, {size:8, bold:true});
+      d.text(ex.manifestId+' (cont.)', MP, 24, {size:8, bold:true});
     }
     let x=MP;
     heads.forEach((hd,i)=>{
-      d.rect(x,y0,colW[i],12,{fill:'#a4c0ed'});
-      d.text(hd, x+2, y0+9, {size:9, bold:true, color:'0 0 0 rg'});
+      d.rect(x,y0,colW[i],headingH,{fill:'#c4c4c4'});
+      d.text(hd, x+3, y0+11, {size:9, bold:true, color:'0 0 0 rg'});
       x+=colW[i];
     });
-    d.line(MP,y0,MP+colW.reduce((a,b)=>a+b,0),y0,{width:1.2,color:'#C9A84C'});
+    d.line(MP,y0,MP+colW.reduce((a,b)=>a+b,0),y0,{width:1.4,color:'#C9A84C'});
+    d.line(MP,y0+headingH,MP+colW.reduce((a,b)=>a+b,0),y0+headingH,{width:1.4,color:'#C9A84C'});
     const startR=pg*rowsPerPage; const endR=Math.min(ex.samples.length, startR+rowsPerPage);
     for(let ri=startR; ri<endR; ri++){
-      const s=ex.samples[ri]; const yy=y0+12+(ri-startR)*rh;
+      const s=ex.samples[ri]; const yy=y0+headingH+6+(ri-startR)*rh;
       let x2=MP;
       const fill = (ri%2)?'#dadde3':'#ffffff';
       d.rect(MP,yy,MP+colW.reduce((a,b)=>a+b,0)-MP,rh,{fill});
       const vals=[String(ri+1), s.sampleId, s.healthFacility||'Ruli DH', s.patientName||'—', s.patientId||'—', s.sex||'—', s.test, s.collectionDate||'—', ''];
       vals.forEach((v,i)=>{
         if(i===8){
-          const fitW=colW[i]-4;
+          const fitW=colW[i]-6;
           const bars=code39Bars(s.barcode||s.sampleId); let tot=0; bars.forEach(b=>tot+=b.w);
-          const unit2=Math.min(0.6, fitW/Math.max(tot,1));
-          pdfBarcode(d, x2+2, yy+2, 8, s.barcode||s.sampleId, unit2);
+          const unit2=Math.min(0.65, fitW/Math.max(tot,1));
+          pdfBarcode(d, x2+3, yy+3, 10, s.barcode||s.sampleId, unit2);
         } else {
           let txt=String(v);
-          if(txt.length>18) txt=txt.slice(0,16)+'..';
-          d.text(txt, x2+2, yy+6, {size:9, color:'0 0 0 rg'});
+          if(txt.length>20) txt=txt.slice(0,18)+'..';
+          d.text(txt, x2+3, yy+7, {size:9, color:'0 0 0 rg'});
         }
         x2+=colW[i];
       });
     }
-    const tableBottom=y0+12+(endR-startR)*rh;
-    d.line(MP,tableBottom,MP+colW.reduce((a,b)=>a+b,0),tableBottom,{width:1.2,color:'#C9A84C'});
+    const tableBottom=y0+headingH+6+(endR-startR)*rh;
+    d.line(MP,tableBottom,MP+colW.reduce((a,b)=>a+b,0),tableBottom,{width:1.4,color:'#C9A84C'});
     if(pg===pages-1){
-      let fy=tableBottom+10;
-      d.text('Generated By: '+ex.generatedBy, MP, fy, {size:9, color:'0 0 0 rg'});
-      d.text('Verified By: __________________', MP+W*0.33, fy, {size:9, color:'0 0 0 rg'});
-      d.text('Received By (at '+ex.testingHospital+'): __________________', MP+W*0.60, fy, {size:9, color:'0 0 0 rg'});
-      d.text('Specimen Manifest Generated On: '+ex.createdAt+'  |  Page '+(pg+1)+'/'+pages, W/2, H-8, {size:7, align:'center', color:'0 0 0 rg'});
+      let fy=tableBottom+14;
+      d.text('Generated By: '+ex.generatedBy, MP, fy, {size:10, color:'0 0 0 rg'});
+      fy+=14;
+      d.text('Transported By: '+(ex.transportedBy||'__________________')+'    Date of Transport: __________________', MP, fy, {size:10, color:'0 0 0 rg'});
+      fy+=14;
+      d.text('Received By (at '+ex.testingHospital+'): __________________    Date of Reception: __________________', MP, fy, {size:10, color:'0 0 0 rg'});
+      d.text('Specimen Manifest Generated On: '+ex.createdAt+'  |  Page '+(pg+1)+'/'+pages, W/2, H-10, {size:7, align:'center', color:'0 0 0 rg'});
     } else {
-      d.text('Specimen Manifest Generated On: '+ex.createdAt+'  |  Page '+(pg+1)+'/'+pages, W/2, H-8, {size:7, align:'center', color:'0 0 0 rg'});
+      d.text('Specimen Manifest Generated On: '+ex.createdAt+'  |  Page '+(pg+1)+'/'+pages, W/2, H-10, {size:7, align:'center', color:'0 0 0 rg'});
     }
   }
   download(new Blob([d.save()],{type:'application/pdf'}),'Manifest-'+ex.manifestId+'.pdf');
@@ -2455,7 +2477,7 @@ function exportManifestXLSX(man){
   rows.push([ex.title]); rows.push(['Testing Hospital: '+ex.testingHospital]); rows.push(['Manifest ID: '+ex.manifestId]); rows.push([]);
   rows.push(['S.No','Sample ID','Health facility, District','Patient Name','Patient ID','Date of Birth','Sex','Sample / Test','Collection Date','Sample Barcode']);
   ex.samples.forEach((s,i)=>rows.push([i+1, s.sampleId, (s.healthFacility||'Ruli DH')+', '+(s.district||'Gakenke'), maskName(s.patientName), maskPatientId(s.patientId)||'—', s.dob||'—', s.sex||'—', s.test, s.collectionDate||'—', s.barcode||'—']));
-  rows.push([]); rows.push(['Generated By:', ex.generatedBy]); rows.push(['Verified By:']); rows.push(['Received By (at '+ex.testingHospital+'):']);
+  rows.push([]); rows.push(['Generated By:', ex.generatedBy]); rows.push(['Transported By:', ex.transportedBy||'', 'Date of Transport:', '']); rows.push(['Received By (at '+ex.testingHospital+'):','','Date of Reception:','']);
   const bytes=buildXLSX([{name:ex.manifestId.slice(0,26), rows}]);
   download(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Manifest-'+ex.manifestId+'.xlsx');
 }
@@ -2997,6 +3019,7 @@ function openSampleForm(id){
     <div><label>Sent date</label><input type="date" id="f_sent" value="${(s?s.sentDate:undefined)||todayISO()}"></div>
     <div><label>Status</label><select id="f_status">${SAMP_STATUS.map(x=>`<option ${(s?s.status:undefined)===x?'selected':''}>${x}</option>`).join('')}</select></div>
     <div><label>Result date</label><input type="date" id="f_res" value="${(s?s.resultDate:undefined)||''}"></div>
+    <div><label>Transported by (lab staff)</label><select id="f_trans"><option value="">— Select staff —</option>${activeStaff().map(st=>`<option value="${esc(st.name)}" ${(s&&s.transporter===st.name)?'selected':''}>${esc(st.name)}</option>`).join('')}</select></div>
     <div style="grid-column:1/-1"><label>Notes</label><textarea id="f_note">${esc((s?s.notes:undefined)||'')}</textarea></div>
     ${!s?'<div style="grid-column:1/-1" class="alert info"> When test is <b>Blood Culture</b>: one Hemoculture bottle is auto-consumed (FIFO), and the sample is referred to <b>CHUK</b> per the new guideline.</div>':''}
   </div>
@@ -3018,7 +3041,7 @@ function openSampleForm(id){
       patientId:$('#f_pid').value.trim(), dob:$('#f_dob').value, sex:$('#f_sex').value, test:$('#f_test').value,
       hospital:$('#f_hosp').value, healthFacility:$('#f_hf').value.trim()||'Ruli DH', district:$('#f_dist').value.trim(),
       collectionDate:$('#f_coll').value, sentDate:$('#f_sent').value, status:$('#f_status').value,
-      resultDate:$('#f_res').value||null, notes:$('#f_note').value.trim() };
+      resultDate:$('#f_res').value||null, transporter:$('#f_trans').value||'', notes:$('#f_note').value.trim() };
     if(!data.sampleId||!data.patientName||!data.test) return toast('Sample ID, patient name and test are required','err');
     if(s){ Object.assign(s,data); toast('Sample updated'); }
     else { commitSampleId($('#f_test').value); data.id=uid('sm'); data.transporter=''; data.manifestId=null; data.barcode=data.barcode||data.sampleId; DB.samples.unshift(data);
@@ -3041,6 +3064,7 @@ function openManifestForm(){
     <div><label>Manifest type / title</label><input id="m_title" value="Sample Referral Manifest" required></div>
     <div><label>Testing hospital</label><input id="m_test" value="${esc(testing)}" required></div>
     <div><label>Manifest ID</label><div class="row"><input id="m_id" value="${newManifestId()}" style="flex:1" required><button type="button" class="btn sm" id="m_regen"></button></div></div>
+    <div><label>Transported by (lab staff)</label><select id="m_trans"><option value="">— Select staff —</option>${activeStaff().map(st=>`<option value="${esc(st.name)}">${esc(st.name)}</option>`).join('')}</select></div>
   </div>
   <div class="alert info" style="margin:10px 0">Select samples below to include. A manifest can hold <b>100+ samples</b>, and more than one manifest can be created the same day.</div>
   <div style="max-height:300px;overflow-y:auto;border:1px solid var(--edge);border-radius:12px;padding:8px" id="m_samples">
@@ -3074,7 +3098,7 @@ function openManifestForm(){
       const ch=chukHospital(); if(ch && !/CHUK/i.test(testingHosp)) testingHosp=ch.name;
     } else if(testObj&&testObj.prefHosp&&!/CHUK/i.test(testingHosp)) testingHosp=testObj.prefHosp;
     const man={id:uid('man'), manifestId:$('#m_id').value.trim(), type:'', title,
-      testingHospital:testingHosp, createdAt:todayISO(), samples:ids, status:'Generated', generatedBy:DB.settings.prepared||'Ruli DH Lab'};
+      testingHospital:testingHosp, createdAt:todayISO(), samples:ids, status:'Generated', generatedBy:DB.settings.prepared||'Ruli DH Lab', transportedBy:($('#m_trans')?$('#m_trans').value:'')||''};
     DB.manifestCounter.last=(DB.manifestCounter.last||0)+1;
     DB.manifests.unshift(man); ids.forEach(id=>{ const s=DB.samples.find(x=>x.id===id); if(s) s.manifestId=man.id; });
     saveDB(); closeModal(); toast('Manifest '+man.manifestId+' generated');
