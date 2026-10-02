@@ -2246,17 +2246,17 @@ async function exportManifestPNG(man){
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-  // Logo blocks 140px wide, logo 96px centered to text
+  // Logo blocks 160px wide, 96px logo centered to text
   const leftBlockX = M;
-  const leftBlockW = 140;
+  const leftBlockW = 160;
   const rightBlockX = W-M-leftBlockW;
-  const rightBlockW = 140;
+  const rightBlockW = 160;
   g.fillStyle='#ffffff';
-  g.fillRect(leftBlockX+22, 10, 96, 96);
-  g.fillRect(rightBlockX+22, 10, 96, 96);
+  g.fillRect(leftBlockX+32, 10, 96, 96);
+  g.fillRect(rightBlockX+32, 10, 96, 96);
   try{
-    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+22, 10, 96, 96); }
-    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+22, 10, 96, 96); }
+    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+32, 10, 96, 96); }
+    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+32, 10, 96, 96); }
   }catch(e){}
   const leftCenter = leftBlockX+leftBlockW/2;
   const rightCenter = rightBlockX+rightBlockW/2;
@@ -2268,15 +2268,15 @@ async function exportManifestPNG(man){
   g.font='900 16px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
   g.font='700 12px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+18);
   g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,138); g.lineTo(W-M,138); g.stroke();
-  // ID + barcode close to table (not close to headings)
-  const yInfo = y0-28;
+  // ID + barcode close to table, spacing at least 4 letters (80px)
+  const yInfo = y0-32;
   const idText=ex.manifestId;
   g.font='800 14px Trebuchet MS';
   const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
   const unit=1.1;
   const barcodeW=tot*unit;
   const idW=g.measureText(idText).width;
-  const gap=36;
+  const gap=80;
   let totalW=idW+barcodeW+gap;
   let curUnit=unit, curBarcodeW=barcodeW;
   if(totalW > W-M*2-40){
@@ -2428,30 +2428,29 @@ function exportManifestPDF(man){
     if(pg===0){
       try{
         const leftBlockX = MP;
-        const leftBlockW = 90;
+        const leftBlockW = 100;
         const rightBlockX = W-MP-leftBlockW;
-        const rightBlockW = 90;
+        const rightBlockW = 100;
         d.rect(leftBlockX, 10, leftBlockW, 64, {fill:'#ffffff'});
         d.rect(rightBlockX, 10, rightBlockW, 64, {fill:'#ffffff'});
-        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+13, 10, 64, 64); }
-        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+13, 10, 64, 64); }
+        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+18, 10, 64, 64); }
+        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+18, 10, 64, 64); }
       }catch(e){}
-      d.text('Republic of Rwanda', MP+45, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
-      d.text('Ruli District Hospital', W-MP-45, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Republic of Rwanda', MP+50, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Ruli District Hospital', W-MP-50, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
       d.text(ex.title, W/2, 42, {size:16, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Testing Hospital: '+ex.testingHospital, W/2, 62, {size:12, bold:true, align:'center', color:'0 0 0 rg'});
       d.line(MP,96,W-MP,96,{width:2.6,color:'#C9A84C'});
-      // ID + barcode close to table
-      const yInfo=y0-30;
+      const yInfo=y0-32;
       const idText=ex.manifestId;
       const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
       const unit=1.0;
       const barcodeW=tot*unit;
       const idEst=idText.length*5.5;
-      const totalEst=idEst+barcodeW+36;
+      const totalEst=idEst+barcodeW+80;
       const startX=(W-totalEst)/2;
       d.text(idText, startX, yInfo, {size:12, bold:true, color:'0 0 0 rg'});
-      pdfBarcode(d, startX+idEst+20, yInfo-7, 16, ex.manifestId, unit);
+      pdfBarcode(d, startX+idEst+40, yInfo-7, 16, ex.manifestId, unit);
     } else {
       d.text(ex.manifestId+' (cont.)', MP, 24, {size:8, bold:true});
     }
