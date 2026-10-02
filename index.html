@@ -2238,15 +2238,14 @@ async function exportManifestPNG(man){
   const W=1600;
   const cols=ex.samples.length;
   const M=80;
-  const headingH=36;
-  const y0=210;
-  const rh=48;
-  const gapHead=10;
-  const cvH=Math.max(760, y0+headingH+gapHead+cols*rh+200);
+  const headingH=38;
+  const y0=220;
+  const rh=50;
+  const gapHead=12;
+  const cvH=Math.max(780, y0+headingH+gapHead+cols*rh+200);
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-  // Logo blocks centered to texts - 120px block, 96px logo centered inside
   const leftBlockX = M;
   const leftBlockW = 120;
   const rightBlockX = W-M-leftBlockW;
@@ -2257,40 +2256,42 @@ async function exportManifestPNG(man){
   try{
     if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+12, 10, 96, 96); }
     if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+12, 10, 96, 96); }
-  }catch(e){ console.warn('logo draw', e.message); }
+  }catch(e){}
   const leftCenter = leftBlockX+leftBlockW/2;
   const rightCenter = rightBlockX+rightBlockW/2;
   g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 11px Trebuchet MS';
-  g.fillText('Republic of Rwanda', leftCenter, 118);
-  g.fillText('Ruli District Hospital', rightCenter, 118);
+  g.fillText('Republic of Rwanda', leftCenter, 120);
+  g.fillText('Ruli District Hospital', rightCenter, 120);
   const logoCenterY = 10+48;
   g.fillStyle='#000000'; g.textAlign='center';
   g.font='900 16px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
   g.font='700 12px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+18);
-  g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,136); g.lineTo(W-M,136); g.stroke();
-  // ID line: ONLY ID code + barcode on one line
-  const yInfo = 166;
+  g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,138); g.lineTo(W-M,138); g.stroke();
+  // ID + barcode SAME LINE, NO OVERLAP - increased gap, same baseline
+  const yInfo = 172;
   const idText=ex.manifestId;
-  g.font='800 13px Trebuchet MS';
+  g.font='800 14px Trebuchet MS';
   const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
-  const unit=1.0;
+  const unit=1.1;
   const barcodeW=tot*unit;
   const idW=g.measureText(idText).width;
-  const gap=22;
+  const gap=36;
   let totalW=idW+barcodeW+gap;
   let curUnit=unit, curBarcodeW=barcodeW;
-  if(totalW > W-M*2){
-    curUnit=Math.max(0.6, (W-M*2-idW-gap)/tot);
+  if(totalW > W-M*2-40){
+    curUnit=Math.max(0.6, (W-M*2-40-idW-gap)/tot);
     curBarcodeW=tot*curUnit;
   }
   const newTotal=idW+curBarcodeW+gap;
   const startX=(W-newTotal)/2;
-  g.textAlign='left'; g.textBaseline='alphabetic';
+  g.textAlign='left'; g.textBaseline='middle';
   g.fillStyle='#000000';
   g.fillText(idText, startX, yInfo);
-  drawBarcode(g, startX+idW+gap, yInfo-12, 18, ex.manifestId, curUnit);
-  const heads=['№','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
-  const colW=[50,140,120,320,130,60,150,120,210];
+  drawBarcode(g, startX+idW+gap, yInfo-9, 20, ex.manifestId, curUnit);
+  // Table headings - use No instead of № to avoid ? in some fonts, but try № with fallback
+  const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
+  // Balanced: Health Facility not wider than heading, Patient Name widest, last 3 not clustered
+  const colW=[45,130,100,350,120,50,140,120,220];
   const sc=(W-M*2)/colW.reduce((a,b)=>a+b,0);
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-M*2)-used; }
@@ -2299,7 +2300,13 @@ async function exportManifestPNG(man){
   heads.forEach((hd,i)=>{
     g.fillStyle='#c4c4c4'; g.fillRect(x,y0,colW[i],headingH);
     g.fillStyle='#000000'; g.textAlign='left';
-    g.fillText(hd, x+8, y0+headingH/2);
+    // Ensure heading fits - truncate if needed
+    let htxt=hd;
+    const maxW=colW[i]-12;
+    try{
+      while(htxt.length>0 && g.measureText(htxt).width>maxW) htxt=htxt.slice(0,-1);
+    }catch(e){}
+    g.fillText(htxt, x+6, y0+headingH/2);
     x+=colW[i];
   });
   g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.2; g.beginPath(); g.moveTo(M,y0); g.lineTo(M+colW.reduce((a,b)=>a+b,0), y0); g.stroke(); g.beginPath(); g.moveTo(M,y0+headingH); g.lineTo(M+colW.reduce((a,b)=>a+b,0), y0+headingH); g.stroke(); g.restore();
@@ -2313,25 +2320,25 @@ async function exportManifestPNG(man){
         const fitW=colW[i]-14;
         const bars=code39Bars(s.barcode||s.sampleId); let tot=0; bars.forEach(b=>tot+=b.w);
         const unit2=Math.min(1.0, fitW/Math.max(tot,1));
-        drawBarcode(g, x2+8, yy+12, 16, s.barcode||s.sampleId, unit2);
+        drawBarcode(g, x2+8, yy+14, 18, s.barcode||s.sampleId, unit2);
       } else {
         g.fillStyle='#000000'; g.textAlign='left';
         if(i===3){
-          g.font='600 11px Trebuchet MS';
+          g.font='600 12px Trebuchet MS';
           let txt=String(v);
-          let fSize=11;
-          while(fSize>=8 && g.measureText(txt).width>colW[i]-14){
+          let fSize=12;
+          while(fSize>=9 && g.measureText(txt).width>colW[i]-14){
             fSize-=0.5;
             g.font=`600 ${fSize}px Trebuchet MS`;
           }
           g.fillText(txt, x2+8, yy+rh/2+1);
           g.font='500 10px Trebuchet MS';
         } else {
-          g.font='500 10px Trebuchet MS';
+          g.font='500 11px Trebuchet MS';
           let txt=String(v);
           const maxW=colW[i]-14;
           try{ 
-            if(i===2 && txt.length>15) txt=txt.slice(0,15);
+            if(i===2 && txt.length>12) txt=txt.slice(0,12);
             while(txt.length>0 && g.measureText(txt+'…').width>maxW) txt=txt.slice(0,-1); 
             if(txt!==String(v) && i!==3) txt=txt.slice(0,-1)+'…'; 
           }catch(e){}
@@ -2343,23 +2350,19 @@ async function exportManifestPNG(man){
   });
   const tableBottom=y0+headingH+gapHead+ex.samples.length*rh;
   g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.2; g.beginPath(); g.moveTo(M,tableBottom); g.lineTo(M+colW.reduce((a,b)=>a+b,0), tableBottom); g.stroke(); g.restore();
-  // Footer with dates on separate lines under each name, DD/MM/YYYY light grey
   let fy=tableBottom+32;
   const colGap=40;
   const footerColW = Math.floor((W-M*2-colGap*2)/3);
   g.textAlign='left'; g.textBaseline='alphabetic';
-  // Generated By
   g.fillStyle='#000000'; g.font='600 11px Trebuchet MS';
   g.fillText('Generated By: '+ex.generatedBy, M, fy);
   g.font='500 10px Trebuchet MS';
   g.fillText('Date: '+ex.createdAt, M, fy+18);
-  // Transported By
   const midX = M+footerColW+colGap;
   g.font='600 11px Trebuchet MS'; g.fillStyle='#000000';
   g.fillText('Transported By: '+(ex.transportedBy||'__________________'), midX, fy);
   g.font='500 10px Trebuchet MS'; g.fillStyle='#9aa3b8';
   g.fillText('Date of Transport: DD/MM/YYYY', midX, fy+18);
-  // Received By
   const rightX = M+(footerColW+colGap)*2;
   g.font='600 11px Trebuchet MS'; g.fillStyle='#000000';
   g.fillText('Received By (at '+ex.testingHospital+'): __________________', rightX, fy);
@@ -2414,21 +2417,20 @@ function buildManifestExport(man){
 function exportManifestPDF(man){
   const ex=buildManifestExport(man);
   const d=new PDF.Doc(); const W=842, H=595;
-  const heads=['№','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
+  const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
   const MP=56;
-  const colW=[30,80,80,160,70,35,80,65,130];
+  const colW=[30,75,65,170,70,30,75,70,145];
   const sc=(W-MP*2)/colW.reduce((a,b)=>a+b,0);
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-MP*2)-used; }
-  const headingH=18;
-  const y0=170, rh=24, pageFoot=50;
+  const headingH=20;
+  const y0=175, rh=26, pageFoot=60;
   const rowsPerPage=Math.max(6, Math.floor((H-pageFoot-y0-headingH-60)/rh));
   const pages=Math.max(1, Math.ceil(ex.samples.length/rowsPerPage));
   for(let pg=0; pg<pages; pg++){
     d.addPage(W,H);
     if(pg===0){
       try{
-        // Logo blocks centered to texts - 80px block, 64px logo centered
         const leftBlockX = MP;
         const leftBlockW = 80;
         const rightBlockX = W-MP-leftBlockW;
@@ -2437,36 +2439,36 @@ function exportManifestPDF(man){
         d.rect(rightBlockX, 10, rightBlockW, 64, {fill:'#ffffff'});
         if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+8, 10, 64, 64); }
         if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+8, 10, 64, 64); }
-      }catch(e){ console.warn('pdf logo', e.message); }
+      }catch(e){}
       d.text('Republic of Rwanda', MP+40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Ruli District Hospital', W-MP-40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
       d.text(ex.title, W/2, 42, {size:16, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Testing Hospital: '+ex.testingHospital, W/2, 62, {size:12, bold:true, align:'center', color:'0 0 0 rg'});
       d.line(MP,96,W-MP,96,{width:2.6,color:'#C9A84C'});
-      const yInfo=116;
+      const yInfo=120;
       const idText=ex.manifestId;
       const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
-      const unit=0.9;
+      const unit=1.0;
       const barcodeW=tot*unit;
-      const idEst=idText.length*5.2;
-      const totalEst=idEst+barcodeW+22;
+      const idEst=idText.length*5.5;
+      const totalEst=idEst+barcodeW+36;
       const startX=(W-totalEst)/2;
       d.text(idText, startX, yInfo, {size:12, bold:true, color:'0 0 0 rg'});
-      pdfBarcode(d, startX+idEst+12, yInfo-6, 14, ex.manifestId, unit);
+      pdfBarcode(d, startX+idEst+20, yInfo-7, 16, ex.manifestId, unit);
     } else {
       d.text(ex.manifestId+' (cont.)', MP, 24, {size:8, bold:true});
     }
     let x=MP;
     heads.forEach((hd,i)=>{
       d.rect(x,y0,colW[i],headingH,{fill:'#c4c4c4'});
-      d.text(hd, x+4, y0+12, {size:9, bold:true, color:'0 0 0 rg'});
+      d.text(hd, x+4, y0+13, {size:8, bold:true, color:'0 0 0 rg'});
       x+=colW[i];
     });
     d.line(MP,y0,MP+colW.reduce((a,b)=>a+b,0),y0,{width:1.6,color:'#C9A84C'});
     d.line(MP,y0+headingH,MP+colW.reduce((a,b)=>a+b,0),y0+headingH,{width:1.6,color:'#C9A84C'});
     const startR=pg*rowsPerPage; const endR=Math.min(ex.samples.length, startR+rowsPerPage);
     for(let ri=startR; ri<endR; ri++){
-      const s=ex.samples[ri]; const yy=y0+headingH+8+(ri-startR)*rh;
+      const s=ex.samples[ri]; const yy=y0+headingH+10+(ri-startR)*rh;
       let x2=MP;
       const fill = (ri%2)?'#dadde3':'#ffffff';
       d.rect(MP,yy,MP+colW.reduce((a,b)=>a+b,0)-MP,rh,{fill});
@@ -2476,20 +2478,21 @@ function exportManifestPDF(man){
           const fitW=colW[i]-8;
           const bars=code39Bars(s.barcode||s.sampleId); let tot=0; bars.forEach(b=>tot+=b.w);
           const unit2=Math.min(0.7, fitW/Math.max(tot,1));
-          pdfBarcode(d, x2+4, yy+4, 12, s.barcode||s.sampleId, unit2);
+          pdfBarcode(d, x2+4, yy+5, 14, s.barcode||s.sampleId, unit2);
         } else {
           let txt=String(v);
-          if(i===2 && txt.length>12) txt=txt.slice(0,12);
-          if(i!==3 && txt.length>22) txt=txt.slice(0,20)+'..';
-          d.text(txt, x2+4, yy+8, {size:9, color:'0 0 0 rg'});
+          if(i===2 && txt.length>10) txt=txt.slice(0,10);
+          if(i===3 && txt.length>24) txt=txt.slice(0,22);
+          if(i!==3 && txt.length>18) txt=txt.slice(0,16)+'..';
+          d.text(txt, x2+4, yy+9, {size:8, color:'0 0 0 rg'});
         }
         x2+=colW[i];
       });
     }
-    const tableBottom=y0+headingH+8+(endR-startR)*rh;
+    const tableBottom=y0+headingH+10+(endR-startR)*rh;
     d.line(MP,tableBottom,MP+colW.reduce((a,b)=>a+b,0),tableBottom,{width:1.6,color:'#C9A84C'});
     if(pg===pages-1){
-      let fy=tableBottom+18;
+      let fy=tableBottom+20;
       const colGap=20;
       const footerColW = Math.floor((W-MP*2-colGap*2)/3);
       d.text('Generated By: '+ex.generatedBy, MP, fy, {size:10, bold:true, color:'0 0 0 rg'});
