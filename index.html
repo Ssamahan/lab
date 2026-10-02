@@ -2288,7 +2288,7 @@ async function exportManifestPNG(man){
   g.fillStyle='#000000';
   g.fillText(idText, startX, yInfo);
   drawBarcode(g, startX+idW+gap, yInfo-9, 20, ex.manifestId, curUnit);
-  // Table headings - use No instead of № to avoid ? in some fonts, but try № with fallback
+  // Table headings - use No instead of No to avoid ? in some fonts, but try No with fallback
   const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
   // Balanced: Health Facility not wider than heading, Patient Name widest, last 3 not clustered
   const colW=[45,130,100,350,120,50,140,120,220];
@@ -2396,7 +2396,7 @@ function previewManifestHTML(man){
       <span>${barcodeSVG(ex.manifestId)}</span>
     </div>
     <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%">
-      <tr><th style="background:#c4c4c4">№</th><th style="background:#c4c4c4">Sample ID</th><th style="background:#c4c4c4">Health Facility</th><th style="background:#c4c4c4">Patient Name</th><th style="background:#c4c4c4">Patient ID</th><th style="background:#c4c4c4">Sex</th><th style="background:#c4c4c4">Test</th><th style="background:#c4c4c4">Collection Date</th><th style="background:#c4c4c4">Barcode</th></tr>
+      <tr><th style="background:#c4c4c4">No</th><th style="background:#c4c4c4">Sample ID</th><th style="background:#c4c4c4">Health Facility</th><th style="background:#c4c4c4">Patient Name</th><th style="background:#c4c4c4">Patient ID</th><th style="background:#c4c4c4">Sex</th><th style="background:#c4c4c4">Test</th><th style="background:#c4c4c4">Collection Date</th><th style="background:#c4c4c4">Barcode</th></tr>
       ${rows}
     </table>
     <div style="margin-top:16px; font-size:11px; line-height:2.0">
