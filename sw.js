@@ -1,4 +1,4 @@
-/* Lab Systems v4.26 - Retained - Fast load */
+/* Lab Systems v4.26 - Retained - Fast load - fixed endless */
 const CACHE_NAME = 'lab-systems-v4.26-retained-2026-10-02';
 const ASSETS = ['./','./index.html','./manifest.json'];
 self.addEventListener('install', e=>{ e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(ASSETS).catch(()=>{})).then(()=>self.skipWaiting())); });
