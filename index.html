@@ -484,9 +484,17 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
 
 </style>
 </head>
-<body><script>try{ localStorage.removeItem('labSystems.isAPK'); if('caches' in window){ caches.keys().then(keys=>keys.forEach(k=>{ if(k.includes('ruli-lab') || k.includes('pipette') || k.includes('v4-2026') || k.includes('v4.6') || k.includes('v4.7') || k.includes('v4.8') || k.includes('v4.9') || k.includes('v4.10') || k.includes('v4.11') || k.includes('v4.12') || k.includes('v4.13') || k.includes('v4.14') || k.includes('v4.15') || k.includes('v4.16') || k.includes('v4.17') || k.includes('v4.18') || k.includes('v4.19') || k.includes('v4.20') || k.includes('v4.21') || k.includes('v4.22') || k.includes('v4.23') || k.includes('v4.24') || k.includes('v4.25') || k.includes('v4.26')){ caches.delete(k); } })); } }catch(e){}</script>
+<body><script>
+try{
+  localStorage.removeItem('labSystems.isAPK');
+  if('caches' in window){ caches.keys().then(keys=>keys.forEach(k=>{ if(k.includes('ruli-lab') || k.includes('lab-systems') || k.includes('v4-')){ caches.delete(k); } })); }
+  if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(regs=>{ regs.forEach(r=>{ if(r.scope.includes('lab')) r.unregister(); }); }); }
+}catch(e){}
+</script>
+<script>try{ if('caches' in window){ caches.keys().then(keys=>keys.forEach(k=>{ if(k.includes('ruli-lab') || k.includes('pipette') || k.includes('v4-2026') || k.includes('v4.6') || k.includes('v4.7') || k.includes('v4.8') || k.includes('v4.9') || k.includes('v4.10') || k.includes('v4.11') || k.includes('v4.12') || k.includes('v4.13') || k.includes('v4.14') || k.includes('v4.15') || k.includes('v4.16') || k.includes('v4.17') || k.includes('v4.18') || k.includes('v4.19') || k.includes('v4.20') || k.includes('v4.21') || k.includes('v4.22') || k.includes('v4.23') || k.includes('v4.24') || k.includes('v4.25') || k.includes('v4.26')){ caches.delete(k); } })); } }catch(e){}</script>
 <noscript><div style="padding:20px;font-family:sans-serif;text-align:center;color:#8f2b30">JavaScript is disabled — Lab Systems needs JavaScript to run. Enable it and reload.</div></noscript>
 <div id="bootSplash" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#F7F8FC;font-family:'Space Grotesk',Segoe UI,Tahoma,Arial,sans-serif;color:#0B1C3D;transition:opacity .5s ease">
+<script>setTimeout(()=>{ const sp=document.getElementById('bootSplash'); if(sp){ sp.style.opacity='0'; setTimeout(()=>{ try{ sp.remove(); }catch(e){} },500); } }, 3500);</script>
 <script>setTimeout(()=>{ const sp=document.getElementById('bootSplash'); if(sp){ sp.style.opacity='0'; setTimeout(()=>{ try{ sp.remove(); }catch(e){} },500); } }, 3500);</script>
 <script>setTimeout(()=>{ const sp=document.getElementById('bootSplash'); if(sp){ sp.style.opacity='0'; setTimeout(()=>{ try{ sp.remove(); }catch(e){} },500); } }, 3500);</script>
 <style>
