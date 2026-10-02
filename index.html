@@ -2246,7 +2246,6 @@ async function exportManifestPNG(man){
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-  // Logo blocks 180px wide, logo 100px perfectly centered over text
   const leftBlockX = M;
   const leftBlockW = 180;
   const rightBlockX = W-M-leftBlockW;
@@ -2260,7 +2259,7 @@ async function exportManifestPNG(man){
   }catch(e){}
   const leftCenter = leftBlockX+leftBlockW/2;
   const rightCenter = rightBlockX+rightBlockW/2;
-  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 12px Trebuchet MS';
+  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 11px Trebuchet MS';
   g.fillText('Republic of Rwanda', leftCenter, 122);
   g.fillText('Ruli District Hospital', rightCenter, 122);
   const logoCenterY = 8+50;
@@ -2284,8 +2283,8 @@ async function exportManifestPNG(man){
   g.fillText(idText, W/2, yInfo);
   const barcodeX=(W-barcodeW)/2;
   drawBarcode(g, barcodeX, yInfo+8, 20, ex.manifestId, curUnit);
-  const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
-  const colW=[45,130,100,350,120,50,140,120,220];
+  const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','DOB','Sex','Test','Collection Date','Barcode'];
+  const colW=[40,110,90,300,100,90,45,120,100,200];
   const sc=(W-M*2)/colW.reduce((a,b)=>a+b,0);
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-M*2)-used; }
@@ -2305,9 +2304,9 @@ async function exportManifestPNG(man){
     const yy=y0+headingH+gapHead+ri*rh;
     g.fillStyle=(ri%2)?'#dadde3':'#ffffff'; g.fillRect(M,yy,colW.reduce((a,b)=>a+b,0),rh);
     let x2=M;
-    const vals=[String(ri+1), s.sampleId, (s.healthFacility||'Ruli DH'), s.patientName||'—', s.patientId||'—', s.sex||'—', s.test, s.collectionDate||'—', ''];
+    const vals=[String(ri+1), s.sampleId, (s.healthFacility||'Ruli DH'), s.patientName||'—', s.patientId||'—', s.dob||'—', s.sex||'—', s.test, s.collectionDate||'—', ''];
     vals.forEach((v,i)=>{
-      if(i===8){
+      if(i===9){
         const fitW=colW[i]-14;
         const bars=code39Bars(s.barcode||s.sampleId); let tot=0; bars.forEach(b=>tot+=b.w);
         const unit2=Math.min(1.0, fitW/Math.max(tot,1));
@@ -2372,7 +2371,7 @@ function barcodeSVG(text){
 function previewManifestHTML(man){
   const ex=buildManifestExport(man);
   let rows='';
-  ex.samples.forEach((s,i)=>{ rows+=`<tr><td>${i+1}</td><td><b>${esc(s.sampleId)}</b></td><td>${esc((s.healthFacility||'Ruli DH')+', '+(s.district||''))}</td><td>${esc(maskName(s.patientName||'—'))}</td><td>${esc(maskPatientId(s.patientId)||'—')}</td><td>${esc(s.sex||'—')}</td><td>${esc(s.test)}</td><td>${esc(s.collectionDate||'—')}</td><td>${esc(s.sampleId)}<br>${barcodeSVG(s.barcode||s.sampleId)}</td></tr>`; });
+  ex.samples.forEach((s,i)=>{ rows+=`<tr><td>${i+1}</td><td><b>${esc(s.sampleId)}</b></td><td>${esc((s.healthFacility||'Ruli DH')+', '+(s.district||''))}</td><td>${esc(maskName(s.patientName||'—'))}</td><td>${esc(maskPatientId(s.patientId)||'—')}</td><td>${esc(s.dob||'—')}</td><td>${esc(s.sex||'—')}</td><td>${esc(s.test)}</td><td>${esc(s.collectionDate||'—')}</td><td>${esc(s.sampleId)}<br>${barcodeSVG(s.barcode||s.sampleId)}</td></tr>`; });
   const rwandaCoatSrcPrev = (typeof RWANDA_COAT_NEW!=='undefined'?RWANDA_COAT_NEW:'assets/rwanda-coat-192.png');
   const ruliLogoSrcPrev = (typeof RULI_HOSPITAL_LOGO!=='undefined'?RULI_HOSPITAL_LOGO:'assets/ruli-hospital-192.png');
       openModal(`<h2>Preview — ${esc(ex.manifestId)}</h2>
@@ -2386,8 +2385,8 @@ function previewManifestHTML(man){
       <span style="font-weight:800; font-size:13px">${esc(ex.manifestId)}</span>
       <span>${barcodeSVG(ex.manifestId)}</span>
     </div>
-    <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%">
-      <tr><th style="background:#c4c4c4">No</th><th style="background:#c4c4c4">Sample ID</th><th style="background:#c4c4c4">Health Facility</th><th style="background:#c4c4c4">Patient Name</th><th style="background:#c4c4c4">Patient ID</th><th style="background:#c4c4c4">Sex</th><th style="background:#c4c4c4">Test</th><th style="background:#c4c4c4">Collection Date</th><th style="background:#c4c4c4">Barcode</th></tr>
+     border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%">
+      <tr><th style="background:#c4c4c4">No</th><th style="background:#c4c4c4">Sample ID</th><th style="background:#c4c4c4">Health Facility</th><th style="background:#c4c4c4">Patient Name</th><th style="background:#c4c4c4">Patient ID</th><th style="background:#c4c4c4">DOB</th><th style="background:#c4c4c4">Sex</th><th style="background:#c4c4c4">Test</th><th style="background:#c4c4c4">Collection Date</th><th style="background:#c4c4c4">Barcode</th></tr>
       ${rows}
     </table>
     <div style="margin-top:16px; font-size:11px; line-height:2.0">
@@ -2408,9 +2407,9 @@ function buildManifestExport(man){
 function exportManifestPDF(man){
   const ex=buildManifestExport(man);
   const d=new PDF.Doc(); const W=842, H=595;
-  const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
+  const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','DOB','Sex','Test','Collection Date','Barcode'];
   const MP=56;
-  const colW=[30,75,65,170,70,30,75,70,145];
+  const colW=[25,65,55,140,60,55,25,65,60,120];
   const sc=(W-MP*2)/colW.reduce((a,b)=>a+b,0);
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-MP*2)-used; }
@@ -2463,9 +2462,9 @@ function exportManifestPDF(man){
       let x2=MP;
       const fill = (ri%2)?'#dadde3':'#ffffff';
       d.rect(MP,yy,MP+colW.reduce((a,b)=>a+b,0)-MP,rh,{fill});
-      const vals=[String(ri+1), s.sampleId, (s.healthFacility||'Ruli DH'), s.patientName||'—', s.patientId||'—', s.sex||'—', s.test, s.collectionDate||'—', ''];
+      const vals=[String(ri+1), s.sampleId, (s.healthFacility||'Ruli DH'), s.patientName||'—', s.patientId||'—', s.dob||'—', s.sex||'—', s.test, s.collectionDate||'—', ''];
       vals.forEach((v,i)=>{
-        if(i===8){
+        if(i===9){
           const fitW=colW[i]-8;
           const bars=code39Bars(s.barcode||s.sampleId); let tot=0; bars.forEach(b=>tot+=b.w);
           const unit2=Math.min(0.7, fitW/Math.max(tot,1));
@@ -2506,7 +2505,7 @@ function exportManifestXLSX(man){
   const rows=[];
   rows.push([ex.hospital+' · '+ex.dept]); rows.push([ex.email+' · '+ex.phone]); rows.push([]);
   rows.push([ex.title]); rows.push(['Testing Hospital: '+ex.testingHospital]); rows.push(['Manifest ID: '+ex.manifestId]); rows.push([]);
-  rows.push(['S.No','Sample ID','Health facility, District','Patient Name','Patient ID','Date of Birth','Sex','Sample / Test','Collection Date','Sample Barcode']);
+  rows.push(['No','Sample ID','Health facility, District','Patient Name','Patient ID','DOB','Sex','Sample / Test','Collection Date','Sample Barcode']);
   ex.samples.forEach((s,i)=>rows.push([i+1, s.sampleId, (s.healthFacility||'Ruli DH')+', '+(s.district||'Gakenke'), maskName(s.patientName), maskPatientId(s.patientId)||'—', s.dob||'—', s.sex||'—', s.test, s.collectionDate||'—', s.barcode||'—']));
   rows.push([]); rows.push(['Generated By:', ex.generatedBy]); rows.push(['Transported By:', ex.transportedBy||'', 'Date of Transport:', '']); rows.push(['Received By (at '+ex.testingHospital+'):','','Date of Reception:','']);
   const bytes=buildXLSX([{name:ex.manifestId.slice(0,26), rows}]);
