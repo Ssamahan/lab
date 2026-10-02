@@ -2239,10 +2239,10 @@ async function exportManifestPNG(man){
   const cols=ex.samples.length;
   const M=80;
   const headingH=38;
-  const y0=220;
+  const y0=230;
   const rh=50;
   const gapHead=12;
-  const cvH=Math.max(780, y0+headingH+gapHead+cols*rh+200);
+  const cvH=Math.max(800, y0+headingH+gapHead+cols*rh+200);
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
@@ -2267,22 +2267,38 @@ async function exportManifestPNG(man){
   g.font='900 16px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
   g.font='700 12px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+18);
   g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,138); g.lineTo(W-M,138); g.stroke();
-  const yInfo = y0-36;
+  // ID on top of barcode, not bold, with rectangular background like preview
+  const yInfo = y0-42;
   const idText=ex.manifestId;
   g.font='500 12px Trebuchet MS';
   const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
   const unit=1.1;
   let barcodeW=tot*unit;
   let curUnit=unit;
-  if(barcodeW > W-M*2-80){
-    curUnit=Math.max(0.6, (W-M*2-80)/tot);
+  if(barcodeW > W-M*2-120){
+    curUnit=Math.max(0.6, (W-M*2-120)/tot);
     barcodeW=tot*curUnit;
   }
+  // Rectangular background like preview #F7F8FC
+  const bgW = Math.max(420, barcodeW+60);
+  const bgH = 56;
+  const bgX = (W-bgW)/2;
+  const bgY = yInfo-18;
+  g.fillStyle='#F7F8FC';
+  g.beginPath();
+  if(g.roundRect) g.roundRect(bgX, bgY, bgW, bgH, 12);
+  else g.rect(bgX, bgY, bgW, bgH);
+  g.fill();
+  g.strokeStyle='#e6e9f1'; g.lineWidth=1.2;
+  if(g.roundRect) g.roundRect(bgX, bgY, bgW, bgH, 12);
+  else g.rect(bgX, bgY, bgW, bgH);
+  g.stroke();
   g.textAlign='center';
   g.fillStyle='#000000';
+  g.font='500 12px Trebuchet MS';
   g.fillText(idText, W/2, yInfo);
   const barcodeX=(W-barcodeW)/2;
-  drawBarcode(g, barcodeX, yInfo+8, 20, ex.manifestId, curUnit);
+  drawBarcode(g, barcodeX, yInfo+10, 20, ex.manifestId, curUnit);
   const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','DOB','Sex','Test','Collection Date','Barcode'];
   const colW=[40,110,90,300,100,90,45,120,100,200];
   const sc=(W-M*2)/colW.reduce((a,b)=>a+b,0);
@@ -2414,7 +2430,7 @@ function exportManifestPDF(man){
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-MP*2)-used; }
   const headingH=20;
-  const y0=175, rh=26, pageFoot=60;
+  const y0=185, rh=26, pageFoot=60;
   const rowsPerPage=Math.max(6, Math.floor((H-pageFoot-y0-headingH-60)/rh));
   const pages=Math.max(1, Math.ceil(ex.samples.length/rowsPerPage));
   for(let pg=0; pg<pages; pg++){
@@ -2435,16 +2451,23 @@ function exportManifestPDF(man){
       d.text(ex.title, W/2, 42, {size:16, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Testing Hospital: '+ex.testingHospital, W/2, 62, {size:12, bold:true, align:'center', color:'0 0 0 rg'});
       d.line(MP,96,W-MP,96,{width:2.6,color:'#C9A84C'});
-      const yInfo=y0-36;
+      // ID on top of barcode with rectangular background like preview
+      const yInfo=y0-40;
       const idText=ex.manifestId;
       const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
       const unit=1.0;
       let barcodeW=tot*unit;
-      if(barcodeW > W-MP*2-80) { barcodeW=W-MP*2-80; }
+      if(barcodeW > W-MP*2-120) { barcodeW=W-MP*2-120; }
+      // Background rect #F7F8FC
+      const bgW = Math.max(300, barcodeW+40);
+      const bgH = 36;
+      const bgX = (W-bgW)/2;
+      const bgY = yInfo-14;
+      d.rect(bgX, bgY, bgW, bgH, {fill:'#F7F8FC'});
+      d.rectBorder(bgX, bgY, bgW, bgH, {width:0.6, color:'#e6e9f1'});
       d.text(idText, W/2, yInfo, {size:10, color:'0 0 0 rg', align:'center'});
-      const totalEst=barcodeW;
-      const startX=(W-totalEst)/2;
-      pdfBarcode(d, startX, yInfo+6, 16, ex.manifestId, unit);
+      const startX=(W-barcodeW)/2;
+      pdfBarcode(d, startX, yInfo+8, 16, ex.manifestId, unit);
     } else {
       d.text(ex.manifestId+' (cont.)', MP, 24, {size:8, bold:true});
     }
