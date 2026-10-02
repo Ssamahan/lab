@@ -1955,24 +1955,27 @@ async function exportPlanPNG(key){
   if(H<860) H=860;
   const cv=document.createElement('canvas'); cv.width=W*scale; cv.height=H*scale; const g=cv.getContext('2d'); g.scale(scale,scale);
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
-  // Premium header with coat left + hospital logo right - perfect middle alignment, larger top margin 110, Republic centered below logos
+  // Premium header with coat left + hospital logo right - centered to texts
   let y=20;
   const MWP=48;
-  const leftCenter = MWP+42;
-  const rightCenter = W-MWP-42;
-  const logoCenterY = 14+42; // 56 - vertical middle of 84px logos
+  const leftBlockX = MWP;
+  const leftBlockW = 120;
+  const rightBlockX = W-MWP-leftBlockW;
+  const rightBlockW = 120;
+  const leftCenter = leftBlockX+leftBlockW/2;
+  const rightCenter = rightBlockX+rightBlockW/2;
+  const logoCenterY = 14+48;
   try{
     g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
     g.fillStyle='#ffffff';
-    g.fillRect(MWP, 14, 84, 84);
-    g.fillRect(W-MWP-84, 14, 84, 84);
-    if(rwandaCoat){ g.drawImage(rwandaCoat, MWP, 14, 84, 84); }
-    if(ruliLogo){ g.drawImage(ruliLogo, W-MWP-84, 14, 84, 84); }
+    g.fillRect(leftBlockX+12, 14, 96, 96);
+    g.fillRect(rightBlockX+12, 14, 96, 96);
+    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+12, 14, 96, 96); }
+    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+12, 14, 96, 96); }
   }catch(e){}
-  // Texts below logos centered in center of logo, beneath each one
-  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 9.5px Trebuchet MS';
-  g.fillText('Republic of Rwanda', leftCenter, 112);
-  g.fillText('Ruli District Hospital', rightCenter, 112);
+  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 11px Trebuchet MS';
+  g.fillText('Republic of Rwanda', leftCenter, 118);
+  g.fillText('Ruli District Hospital', rightCenter, 118);
   // Middle texts aligned perfectly with logos middle, font 14 headings, 12 paragraph
   g.fillStyle='#000000'; g.textAlign='center';
   g.font='900 14px Trebuchet MS'; g.fillText(ex.hospital, W/2, logoCenterY-16);
@@ -2097,16 +2100,18 @@ function exportPlanPDF(key){
   const nameW=120; const cellW=Math.max(14, Math.floor((W-36-nameW)/cols)); // narrower for better fit centered
   const rowH=20, hdrH=44;
   let y=20;
-  // Premium header with coat left + hospital logo right - larger top margin, perfect middle alignment, white bg
+  // Premium header with coat left + hospital logo right - centered to texts
   try{
-    d.rect(24, 10, 56, 56, {fill:'#ffffff'});
-    d.rect(W-24-56, 10, 56, 56, {fill:'#ffffff'});
-    if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, 24, 10, 56, 56); }
-    if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, W-24-56, 10, 56, 56); }
+    const leftBlockX = 24;
+    const leftBlockW = 80;
+    const rightBlockX = W-24-leftBlockW;
+    d.rect(leftBlockX, 10, leftBlockW, 64, {fill:'#ffffff'});
+    d.rect(rightBlockX, 10, leftBlockW, 64, {fill:'#ffffff'});
+    if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+8, 10, 64, 64); }
+    if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+8, 10, 64, 64); }
   }catch(e){ console.warn('PDF logos', e.message); }
-  // Texts below logos centered beneath each logo
-  d.text('Republic of Rwanda', 24+28, 78, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
-  d.text('Ruli District Hospital', W-24-28, 78, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
+  d.text('Republic of Rwanda', 24+40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+  d.text('Ruli District Hospital', W-24-40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
   // Middle texts aligned perfectly with logos middle (logos center y=38)
   d.text(ex.hospital, W/2, y+8, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
   d.text(ex.dept, W/2, y+22, {size:9, bold:true, color:'0 0 0 rg', align:'center'});
@@ -2237,21 +2242,24 @@ async function exportManifestPNG(man){
   const y0=210;
   const rh=48;
   const gapHead=10;
-  const cvH=Math.max(720, y0+headingH+gapHead+cols*rh+160);
+  const cvH=Math.max(760, y0+headingH+gapHead+cols*rh+200);
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-  // white rects behind logos
+  // Logo blocks centered to texts - 120px block, 96px logo centered inside
+  const leftBlockX = M;
+  const leftBlockW = 120;
+  const rightBlockX = W-M-leftBlockW;
+  const rightBlockW = 120;
   g.fillStyle='#ffffff';
-  g.fillRect(M, 10, 96, 96);
-  g.fillRect(W-M-96, 10, 96, 96);
+  g.fillRect(leftBlockX+12, 10, 96, 96);
+  g.fillRect(rightBlockX+12, 10, 96, 96);
   try{
-    if(rwandaCoat){ g.drawImage(rwandaCoat, M, 10, 96, 96); }
-    if(ruliLogo){ g.drawImage(ruliLogo, W-M-96, 10, 96, 96); }
+    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+12, 10, 96, 96); }
+    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+12, 10, 96, 96); }
   }catch(e){ console.warn('logo draw', e.message); }
-  const leftCenter = M+48;
-  const rightCenter = W-M-48;
-  // Republic and Ruli texts aligned to middle of logo, bottom of logo, bigger
+  const leftCenter = leftBlockX+leftBlockW/2;
+  const rightCenter = rightBlockX+rightBlockW/2;
   g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 11px Trebuchet MS';
   g.fillText('Republic of Rwanda', leftCenter, 118);
   g.fillText('Ruli District Hospital', rightCenter, 118);
@@ -2259,9 +2267,8 @@ async function exportManifestPNG(man){
   g.fillStyle='#000000'; g.textAlign='center';
   g.font='900 16px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
   g.font='700 12px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+18);
-  // gold line below main heading with logos
   g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,136); g.lineTo(W-M,136); g.stroke();
-  // ID line: ONLY ID code + barcode on one line, centered, no Generated/Samples (as requested to avoid confusion)
+  // ID line: ONLY ID code + barcode on one line
   const yInfo = 166;
   const idText=ex.manifestId;
   g.font='800 13px Trebuchet MS';
@@ -2282,9 +2289,7 @@ async function exportManifestPNG(man){
   g.fillStyle='#000000';
   g.fillText(idText, startX, yInfo);
   drawBarcode(g, startX+idW+gap, yInfo-12, 18, ex.manifestId, curUnit);
-  // Table headings with №
   const heads=['№','Sample ID','Health Facility','Patient Name','Patient ID','Sex','Test','Collection Date','Barcode'];
-  // Balanced widths: Health Facility not longer than heading, Patient Name widest, last three not clustered
   const colW=[50,140,120,320,130,60,150,120,210];
   const sc=(W-M*2)/colW.reduce((a,b)=>a+b,0);
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
@@ -2297,7 +2302,6 @@ async function exportManifestPNG(man){
     g.fillText(hd, x+8, y0+headingH/2);
     x+=colW[i];
   });
-  // gold lines: top and below heading
   g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.2; g.beginPath(); g.moveTo(M,y0); g.lineTo(M+colW.reduce((a,b)=>a+b,0), y0); g.stroke(); g.beginPath(); g.moveTo(M,y0+headingH); g.lineTo(M+colW.reduce((a,b)=>a+b,0), y0+headingH); g.stroke(); g.restore();
   ex.samples.forEach((s,ri)=>{
     const yy=y0+headingH+gapHead+ri*rh;
@@ -2312,11 +2316,9 @@ async function exportManifestPNG(man){
         drawBarcode(g, x2+8, yy+12, 16, s.barcode||s.sampleId, unit2);
       } else {
         g.fillStyle='#000000'; g.textAlign='left';
-        // Patient names always visible — never truncate, use smaller font if needed
         if(i===3){
           g.font='600 11px Trebuchet MS';
           let txt=String(v);
-          // Try to fit without truncation, reduce font if needed
           let fSize=11;
           while(fSize>=8 && g.measureText(txt).width>colW[i]-14){
             fSize-=0.5;
@@ -2329,7 +2331,6 @@ async function exportManifestPNG(man){
           let txt=String(v);
           const maxW=colW[i]-14;
           try{ 
-            // For health facility, ensure not longer than heading — truncate to heading width
             if(i===2 && txt.length>15) txt=txt.slice(0,15);
             while(txt.length>0 && g.measureText(txt+'…').width>maxW) txt=txt.slice(0,-1); 
             if(txt!==String(v) && i!==3) txt=txt.slice(0,-1)+'…'; 
@@ -2342,13 +2343,28 @@ async function exportManifestPNG(man){
   });
   const tableBottom=y0+headingH+gapHead+ex.samples.length*rh;
   g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.2; g.beginPath(); g.moveTo(M,tableBottom); g.lineTo(M+colW.reduce((a,b)=>a+b,0), tableBottom); g.stroke(); g.restore();
-  let fy=tableBottom+28;
-  g.fillStyle='#000000'; g.font='600 11px Trebuchet MS'; g.textAlign='left';
-  g.fillText('Generated By: '+ex.generatedBy+'    Date: '+ex.createdAt, M, fy);
-  fy+=22;
-  g.fillText('Transported By: '+(ex.transportedBy||'__________________')+'    Date of Transport: DD/MM/YYYY', M, fy);
-  fy+=22;
-  g.fillText('Received By (at '+ex.testingHospital+'): __________________    Date of Reception: DD/MM/YYYY', M, fy);
+  // Footer with dates on separate lines under each name, DD/MM/YYYY light grey
+  let fy=tableBottom+32;
+  const colGap=40;
+  const footerColW = Math.floor((W-M*2-colGap*2)/3);
+  g.textAlign='left'; g.textBaseline='alphabetic';
+  // Generated By
+  g.fillStyle='#000000'; g.font='600 11px Trebuchet MS';
+  g.fillText('Generated By: '+ex.generatedBy, M, fy);
+  g.font='500 10px Trebuchet MS';
+  g.fillText('Date: '+ex.createdAt, M, fy+18);
+  // Transported By
+  const midX = M+footerColW+colGap;
+  g.font='600 11px Trebuchet MS'; g.fillStyle='#000000';
+  g.fillText('Transported By: '+(ex.transportedBy||'__________________'), midX, fy);
+  g.font='500 10px Trebuchet MS'; g.fillStyle='#9aa3b8';
+  g.fillText('Date of Transport: DD/MM/YYYY', midX, fy+18);
+  // Received By
+  const rightX = M+(footerColW+colGap)*2;
+  g.font='600 11px Trebuchet MS'; g.fillStyle='#000000';
+  g.fillText('Received By (at '+ex.testingHospital+'): __________________', rightX, fy);
+  g.font='500 10px Trebuchet MS'; g.fillStyle='#9aa3b8';
+  g.fillText('Date of Reception: DD/MM/YYYY', rightX, fy+18);
   g.fillStyle='#6b7a99'; g.font='400 8px Trebuchet MS'; g.textAlign='center';
   g.fillText('Specimen Manifest Generated On: '+ex.createdAt+'  |  Samples: '+ex.samples.length+'  |  Page 1/1', W/2, cvH-16);
   cv.toBlob(b=>download(b,'Manifest-'+ex.manifestId+'.png'));
@@ -2405,20 +2421,25 @@ function exportManifestPDF(man){
   colW.forEach((v,i)=>{ colW[i]=Math.round(v*sc); });
   { const used=colW.reduce((a,b)=>a+b,0); colW[colW.length-1]+=(W-MP*2)-used; }
   const headingH=18;
-  const y0=170, rh=24, pageFoot=40;
-  const rowsPerPage=Math.max(6, Math.floor((H-pageFoot-y0-headingH-50)/rh));
+  const y0=170, rh=24, pageFoot=50;
+  const rowsPerPage=Math.max(6, Math.floor((H-pageFoot-y0-headingH-60)/rh));
   const pages=Math.max(1, Math.ceil(ex.samples.length/rowsPerPage));
   for(let pg=0; pg<pages; pg++){
     d.addPage(W,H);
     if(pg===0){
       try{
-        d.rect(MP, 10, 64, 64, {fill:'#ffffff'});
-        d.rect(W-MP-64, 10, 64, 64, {fill:'#ffffff'});
-        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, MP, 10, 64, 64); }
-        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, W-MP-64, 10, 64, 64); }
+        // Logo blocks centered to texts - 80px block, 64px logo centered
+        const leftBlockX = MP;
+        const leftBlockW = 80;
+        const rightBlockX = W-MP-leftBlockW;
+        const rightBlockW = 80;
+        d.rect(leftBlockX, 10, leftBlockW, 64, {fill:'#ffffff'});
+        d.rect(rightBlockX, 10, rightBlockW, 64, {fill:'#ffffff'});
+        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+8, 10, 64, 64); }
+        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+8, 10, 64, 64); }
       }catch(e){ console.warn('pdf logo', e.message); }
-      d.text('Republic of Rwanda', MP+32, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
-      d.text('Ruli District Hospital', W-MP-32, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Republic of Rwanda', MP+40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Ruli District Hospital', W-MP-40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
       d.text(ex.title, W/2, 42, {size:16, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Testing Hospital: '+ex.testingHospital, W/2, 62, {size:12, bold:true, align:'center', color:'0 0 0 rg'});
       d.line(MP,96,W-MP,96,{width:2.6,color:'#C9A84C'});
@@ -2458,9 +2479,7 @@ function exportManifestPDF(man){
           pdfBarcode(d, x2+4, yy+4, 12, s.barcode||s.sampleId, unit2);
         } else {
           let txt=String(v);
-          // Health facility max heading length
           if(i===2 && txt.length>12) txt=txt.slice(0,12);
-          // Patient name always visible
           if(i!==3 && txt.length>22) txt=txt.slice(0,20)+'..';
           d.text(txt, x2+4, yy+8, {size:9, color:'0 0 0 rg'});
         }
@@ -2470,12 +2489,17 @@ function exportManifestPDF(man){
     const tableBottom=y0+headingH+8+(endR-startR)*rh;
     d.line(MP,tableBottom,MP+colW.reduce((a,b)=>a+b,0),tableBottom,{width:1.6,color:'#C9A84C'});
     if(pg===pages-1){
-      let fy=tableBottom+16;
-      d.text('Generated By: '+ex.generatedBy+'    Date: '+ex.createdAt, MP, fy, {size:10, color:'0 0 0 rg'});
-      fy+=16;
-      d.text('Transported By: '+(ex.transportedBy||'__________________')+'    Date of Transport: DD/MM/YYYY', MP, fy, {size:10, color:'0 0 0 rg'});
-      fy+=16;
-      d.text('Received By (at '+ex.testingHospital+'): __________________    Date of Reception: DD/MM/YYYY', MP, fy, {size:10, color:'0 0 0 rg'});
+      let fy=tableBottom+18;
+      const colGap=20;
+      const footerColW = Math.floor((W-MP*2-colGap*2)/3);
+      d.text('Generated By: '+ex.generatedBy, MP, fy, {size:10, bold:true, color:'0 0 0 rg'});
+      d.text('Date: '+ex.createdAt, MP, fy+14, {size:9, color:'0 0 0 rg'});
+      const midX = MP+footerColW+colGap;
+      d.text('Transported By: '+(ex.transportedBy||'__________________'), midX, fy, {size:10, bold:true, color:'0 0 0 rg'});
+      d.text('Date of Transport: DD/MM/YYYY', midX, fy+14, {size:9, color:'0.60 0.64 0.72 rg'});
+      const rightX = MP+(footerColW+colGap)*2;
+      d.text('Received By (at '+ex.testingHospital+'): __________________', rightX, fy, {size:10, bold:true, color:'0 0 0 rg'});
+      d.text('Date of Reception: DD/MM/YYYY', rightX, fy+14, {size:9, color:'0.60 0.64 0.72 rg'});
       d.text('Specimen Manifest Generated On: '+ex.createdAt+'  |  Samples: '+ex.samples.length+'  |  Page '+(pg+1)+'/'+pages, W/2, H-12, {size:7, align:'center', color:'0 0 0 rg'});
     } else {
       d.text('Specimen Manifest Generated On: '+ex.createdAt+'  |  Samples: '+ex.samples.length+'  |  Page '+(pg+1)+'/'+pages, W/2, H-12, {size:7, align:'center', color:'0 0 0 rg'});
