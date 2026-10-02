@@ -2246,29 +2246,30 @@ async function exportManifestPNG(man){
   const cv=document.createElement('canvas'); cv.width=W; cv.height=cvH; const g=cv.getContext('2d');
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,cvH);
   g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  // Perfect centering: 200px blocks, 110px logos centered
   const leftBlockX = M;
-  const leftBlockW = 180;
+  const leftBlockW = 200;
   const rightBlockX = W-M-leftBlockW;
-  const rightBlockW = 180;
+  const rightBlockW = 200;
   g.fillStyle='#ffffff';
-  g.fillRect(leftBlockX+40, 8, 100, 100);
-  g.fillRect(rightBlockX+40, 8, 100, 100);
+  g.fillRect(leftBlockX+45, 6, 110, 110);
+  g.fillRect(rightBlockX+45, 6, 110, 110);
   try{
-    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+40, 8, 100, 100); }
-    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+40, 8, 100, 100); }
+    if(rwandaCoat){ g.drawImage(rwandaCoat, leftBlockX+45, 6, 110, 110); }
+    if(ruliLogo){ g.drawImage(ruliLogo, rightBlockX+45, 6, 110, 110); }
   }catch(e){}
   const leftCenter = leftBlockX+leftBlockW/2;
   const rightCenter = rightBlockX+rightBlockW/2;
-  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 11px Trebuchet MS';
-  g.fillText('Republic of Rwanda', leftCenter, 122);
-  g.fillText('Ruli District Hospital', rightCenter, 122);
-  const logoCenterY = 8+50;
+  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.textBaseline='middle';
+  g.font='700 12px Trebuchet MS';
+  g.fillText('Republic of Rwanda', leftCenter, 132);
+  g.fillText('Ruli District Hospital', rightCenter, 132);
+  const logoCenterY = 6+55;
   g.fillStyle='#000000'; g.textAlign='center';
-  g.font='900 16px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
-  g.font='700 12px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+18);
-  g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,138); g.lineTo(W-M,138); g.stroke();
-  // ID on top of barcode, not bold, with rectangular background like preview
-  const yInfo = y0-42;
+  g.font='900 17px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
+  g.font='700 13px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+20);
+  g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,148); g.lineTo(W-M,148); g.stroke();
+  const yInfo = y0-40;
   const idText=ex.manifestId;
   g.font='500 12px Trebuchet MS';
   const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
@@ -2279,11 +2280,10 @@ async function exportManifestPNG(man){
     curUnit=Math.max(0.6, (W-M*2-120)/tot);
     barcodeW=tot*curUnit;
   }
-  // Rectangular background like preview #F7F8FC
-  const bgW = Math.max(420, barcodeW+60);
-  const bgH = 56;
+  const bgW = Math.max(460, barcodeW+80);
+  const bgH = 60;
   const bgX = (W-bgW)/2;
-  const bgY = yInfo-18;
+  const bgY = yInfo-20;
   g.fillStyle='#F7F8FC';
   g.beginPath();
   if(g.roundRect) g.roundRect(bgX, bgY, bgW, bgH, 12);
@@ -2298,7 +2298,7 @@ async function exportManifestPNG(man){
   g.font='500 12px Trebuchet MS';
   g.fillText(idText, W/2, yInfo);
   const barcodeX=(W-barcodeW)/2;
-  drawBarcode(g, barcodeX, yInfo+10, 20, ex.manifestId, curUnit);
+  drawBarcode(g, barcodeX, yInfo+12, 20, ex.manifestId, curUnit);
   const heads=['No','Sample ID','Health Facility','Patient Name','Patient ID','DOB','Sex','Test','Collection Date','Barcode'];
   const colW=[40,110,90,300,100,90,45,120,100,200];
   const sc=(W-M*2)/colW.reduce((a,b)=>a+b,0);
@@ -2438,33 +2438,25 @@ function exportManifestPDF(man){
     if(pg===0){
       try{
         const leftBlockX = MP;
-        const leftBlockW = 100;
+        const leftBlockW = 110;
         const rightBlockX = W-MP-leftBlockW;
-        const rightBlockW = 100;
-        d.rect(leftBlockX, 10, leftBlockW, 64, {fill:'#ffffff'});
-        d.rect(rightBlockX, 10, rightBlockW, 64, {fill:'#ffffff'});
-        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+18, 10, 64, 64); }
-        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+18, 10, 64, 64); }
+        const rightBlockW = 110;
+        d.rect(leftBlockX, 6, leftBlockW, 72, {fill:'#ffffff'});
+        d.rect(rightBlockX, 6, rightBlockW, 72, {fill:'#ffffff'});
+        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+18, 6, 72, 72); }
+        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+18, 6, 72, 72); }
       }catch(e){}
-      d.text('Republic of Rwanda', MP+50, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
-      d.text('Ruli District Hospital', W-MP-50, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Republic of Rwanda', MP+55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+      d.text('Ruli District Hospital', W-MP-55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
       d.text(ex.title, W/2, 42, {size:16, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Testing Hospital: '+ex.testingHospital, W/2, 62, {size:12, bold:true, align:'center', color:'0 0 0 rg'});
-      d.line(MP,96,W-MP,96,{width:2.6,color:'#C9A84C'});
-      // ID on top of barcode with rectangular background like preview
+      d.line(MP,98,W-MP,98,{width:2.6,color:'#C9A84C'});
       const yInfo=y0-40;
       const idText=ex.manifestId;
       const barsForId=code39Bars(ex.manifestId); let tot=0; barsForId.forEach(b=>tot+=b.w);
       const unit=1.0;
       let barcodeW=tot*unit;
       if(barcodeW > W-MP*2-120) { barcodeW=W-MP*2-120; }
-      // Background rect #F7F8FC
-      const bgW = Math.max(300, barcodeW+40);
-      const bgH = 36;
-      const bgX = (W-bgW)/2;
-      const bgY = yInfo-14;
-      d.rect(bgX, bgY, bgW, bgH, {fill:'#F7F8FC'});
-      d.rectBorder(bgX, bgY, bgW, bgH, {width:0.6, color:'#e6e9f1'});
       d.text(idText, W/2, yInfo, {size:10, color:'0 0 0 rg', align:'center'});
       const startX=(W-barcodeW)/2;
       pdfBarcode(d, startX, yInfo+8, 16, ex.manifestId, unit);
