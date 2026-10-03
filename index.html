@@ -14,6 +14,7 @@
 <meta property="og:image" content="assets/logo-square.png">
 <link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
 <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -1978,7 +1979,7 @@ async function exportPlanPNG(key){
   g.fillText('Ruli District Hospital', rightCenter, 132);
   // Middle texts aligned perfectly with logos middle, font 14 headings, 12 paragraph
   g.fillStyle='#000000'; g.textAlign='center';
-  g.font='900 14px Trebuchet MS'; g.fillText(ex.hospital, W/2, logoCenterY-16);
+  g.font='900 24px "Bebas Neue", Trebuchet MS'; g.fillText(ex.hospital, W/2, logoCenterY-16);
   g.font='700 12px Trebuchet MS'; g.fillText(ex.dept, W/2, logoCenterY+2);
   g.font='500 10px Trebuchet MS'; g.fillText(ex.email+' · '+ex.phone, W/2, logoCenterY+18);
   g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(28,y+92); g.lineTo(W-28,y+92); g.stroke();
@@ -2108,8 +2109,8 @@ function exportPlanPDF(key){
     const rightBlockX = W-MP-leftBlockW;
     d.rect(leftBlockX, 6, leftBlockW, 72, {fill:'#ffffff'});
     d.rect(rightBlockX, 6, leftBlockW, 72, {fill:'#ffffff'});
-    if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+18, 6, 72, 72); }
-    if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+18, 6, 72, 72); }
+    if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+19, 6, 72, 72); }
+    if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+19, 6, 72, 72); }
   }catch(e){ console.warn('PDF logos', e.message); }
   d.text('Republic of Rwanda', 24+55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
   d.text('Ruli District Hospital', W-24-55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
@@ -2269,8 +2270,8 @@ async function exportManifestPNG(man){
   g.fillText('Ruli District Hospital', rightCenter, 132);
   const logoCenterY = 6+55;
   g.fillStyle='#000000'; g.textAlign='center';
-  g.font='900 17px Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
-  g.font='700 13px Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+20);
+  g.font='900 28px "Bebas Neue", Trebuchet MS'; g.fillText(ex.title, W/2, logoCenterY-8);
+  g.font='700 15px "Bebas Neue", Trebuchet MS'; g.fillText('Testing Hospital: '+ex.testingHospital, W/2, logoCenterY+20);
   g.strokeStyle='#C9A84C'; g.lineWidth=3.0; g.beginPath(); g.moveTo(M,148); g.lineTo(W-M,148); g.stroke();
   const yInfo = y0-40;
   const idText=ex.manifestId;
@@ -2397,7 +2398,7 @@ function previewManifestHTML(man){
   <div style="max-height:70vh;overflow:auto;border:1px solid var(--edge);border-radius:12px;padding:14px;background:#fff;font-family:'Trebuchet MS',sans-serif;font-size:11px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 8px 14px;margin-bottom:12px;border-bottom:3px solid #C9A84C">
       <div style="display:flex; flex-direction:column; align-items:center; gap:6px; width:96px"><img src="${rwandaCoatSrcPrev}" style="width:96px;height:96px;object-fit:contain"><span style="font-size:10px;font-weight:700;text-align:center;color:#0B1C3D">Republic of Rwanda</span></div>
-      <div style="flex:1; text-align:center;font-weight:800;font-size:15px">${esc(ex.title)}<br><span style="font-size:12px;font-weight:600">Testing Hospital: ${esc(ex.testingHospital)}</span></div>
+      <div style="flex:1; text-align:center;font-family:'Bebas Neue', Trebuchet MS, sans-serif; font-weight:400; font-size:22px; letter-spacing:0.5px">${esc(ex.title)}<br><span style="font-size:12px;font-weight:600">Testing Hospital: ${esc(ex.testingHospital)}</span></div>
       <div style="display:flex; flex-direction:column; align-items:center; gap:6px; width:96px"><img src="${ruliLogoSrcPrev}" style="width:96px;height:96px;object-fit:contain"><span style="font-size:10px;font-weight:700;text-align:center;color:#0B1C3D">Ruli District Hospital</span></div>
     </div>
     <div style="display:flex; align-items:center; justify-content:center; gap:22px; flex-wrap:wrap; margin-bottom:14px; padding:12px; background:#F7F8FC; border-radius:8px; border:1px solid #e6e9f1">
@@ -2446,8 +2447,8 @@ function exportManifestPDF(man){
         const rightBlockW = 110;
         d.rect(leftBlockX, 6, leftBlockW, 72, {fill:'#ffffff'});
         d.rect(rightBlockX, 6, rightBlockW, 72, {fill:'#ffffff'});
-        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+18, 6, 72, 72); }
-        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+18, 6, 72, 72); }
+        if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+19, 6, 72, 72); }
+        if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+19, 6, 72, 72); }
       }catch(e){}
       d.text('Republic of Rwanda', MP+55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
       d.text('Ruli District Hospital', W-MP-55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
@@ -3033,7 +3034,7 @@ function sampleCard(s){
   const stTag={Pending:'amber',Positive:'green',Negative:'blue',Rejected:'red',Done:'gray'}[s.status]||'gray';
   return `<div class="card" style="margin:0">
     <div style="display:flex;gap:10px;align-items:flex-start"><div style="flex:1">
-      <div class="t" style="font-weight:800;font-size:14px">${esc(maskName(s.patientName||'—'))}</div>
+      <div class="t" style="font-family:'Bebas Neue', Trebuchet MS, sans-serif; font-weight:400; font-size:20px; letter-spacing:0.5px">${esc(maskName(s.patientName||'—'))}</div>
       <div class="hint">${esc(s.sampleId)} ${s.patientId?'· PID '+esc(s.patientId):''}</div></div>
       <span class="tag ${stTag}">${s.status}</span></div>
     <hr><div class="row" style="font-size:12.5px;color:var(--muted);gap:6px 14px;margin-top:2px">
