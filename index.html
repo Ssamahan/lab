@@ -2095,6 +2095,7 @@ function exportPlanPDF(key){
   const ex=buildPlanExport(key,ver);
   if(!ex || !ex.staff || !ex.staff.length) return toast('No staff in plan','err');
   const d=new PDF.Doc(); const W=842, H=595;
+  const MP=24;
   d.addPage(W,H);
   const cols=ex.colInfo.length, nRows=ex.staff.length;
   const nameW=120; const cellW=Math.max(14, Math.floor((W-36-nameW)/cols)); // narrower for better fit centered
@@ -2102,9 +2103,9 @@ function exportPlanPDF(key){
   let y=20;
   // Premium header with coat left + hospital logo right - centered to texts
   try{
-    const leftBlockX = 24;
+    const leftBlockX = MP;
     const leftBlockW = 110;
-    const rightBlockX = W-24-leftBlockW;
+    const rightBlockX = W-MP-leftBlockW;
     d.rect(leftBlockX, 6, leftBlockW, 72, {fill:'#ffffff'});
     d.rect(rightBlockX, 6, leftBlockW, 72, {fill:'#ffffff'});
     if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+18, 6, 72, 72); }
