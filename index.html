@@ -2110,13 +2110,14 @@ function exportPlanPDF(key){
     if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+18, 6, 72, 72); }
     if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+18, 6, 72, 72); }
   }catch(e){ console.warn('PDF logos', e.message); }
-  d.text('Republic of Rwanda', 24+40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
-  d.text('Ruli District Hospital', W-24-40, 86, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
-  // Middle texts aligned perfectly with logos middle (logos center y=38)
+  d.text('Republic of Rwanda', 24+55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+  d.text('Ruli District Hospital', W-24-55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+  // Middle texts
   d.text(ex.hospital, W/2, y+8, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
   d.text(ex.dept, W/2, y+22, {size:9, bold:true, color:'0 0 0 rg', align:'center'});
   d.text(ex.email+' · '+ex.phone, W/2, y+32, {size:7.5, color:'0 0 0 rg', align:'center'});
-  d.line(24,y+52,W-24,y+52,{width:2.5,color:'#C9A84C'});
+  // Gold line BELOW Republic/Ruli texts
+  d.line(MP,102,W-MP,102,{width:2.8,color:'#C9A84C'});
   y+=60;
   d.text(ex.title, W/2, y+6, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
   d.text('Date: '+ex.date+'   FY: '+ex.fy, W/2, y+20, {size:9, color:'0 0 0 rg', align:'center'}); // Period removed
