@@ -1,5 +1,5 @@
-/* Lab Systems v4.26 - Minimal - Self-unregister to fix endless loading */
-const CACHE_NAME = 'lab-systems-v4.26-minimal-2026-10-02';
+/* Lab Systems v4.29.6 - Minimal - Self-unregister to fix endless loading + cache bust */
+const CACHE_NAME = 'lab-systems-v4.29.6-2026-10-03';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(
