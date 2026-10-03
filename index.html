@@ -2119,10 +2119,11 @@ function exportPlanPDF(key){
   d.text(ex.email+' · '+ex.phone, W/2, y+32, {size:7.5, color:'0 0 0 rg', align:'center'});
   // Gold line BELOW Republic/Ruli texts
   d.line(MP,102,W-MP,102,{width:2.8,color:'#C9A84C'});
-  y+=60;
-  d.text(ex.title, W/2, y+6, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
-  d.text('Date: '+ex.date+'   FY: '+ex.fy, W/2, y+20, {size:9, color:'0 0 0 rg', align:'center'}); // Period removed
-  y+=36;
+  // Title + Date below headings but on top of table
+  y=108;
+  d.text(ex.title, W/2, y+8, {size:14, bold:true, color:'0 0 0 rg', align:'center'});
+  d.text('Date: '+ex.date+'   FY: '+ex.fy, W/2, y+24, {size:10, color:'0 0 0 rg', align:'center'});
+  y+=32;
   const y0=y;
   // header - Days first row, Dates second row, centered H and V middle
   for(let i=0;i<cols;i++){
