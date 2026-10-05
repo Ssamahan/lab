@@ -547,7 +547,7 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot"><span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.29.6 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span></div>
+    <div class="side-foot" id="sideFoot"><span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.30 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span></div>
   </aside>
 
   <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
@@ -6330,7 +6330,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.29.6 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.30 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span>';
 }
 
 
