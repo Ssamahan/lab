@@ -4767,6 +4767,7 @@ function isWknd(iso){ const d=new Date(iso+'T12:00:00').getDay(); return d===0||
 // ===== NEW STAFF ONBOARDING - 30 days work days only, no holidays/weekends, nights after 30 days, 4-week rotation =====
 function isNewStaffInOnboarding(stMember, dateISO, holidaysSet){
   if(!stMember || !stMember.joinDate) return false;
+  if(stMember.probationOverride) return false;
   const join=stMember.joinDate;
   if(dateISO < join) return false;
   const calDays = (typeof daysBetween==='function') ? daysBetween(join, dateISO) : 0;
@@ -4825,6 +4826,44 @@ function onboardingServiceForWeek(weekNum){
 }
 
 
+
+function regeneratePlansForStaffChange(newStaffId){
+  try{
+    const newStaff = DB.staff.find(s=>s.id===newStaffId);
+    if(!newStaff || newStaff.status!=='active') return;
+    const join = newStaff.joinDate || todayISO();
+    const months=[];
+    let d=new Date(join+'T12:00:00');
+    for(let i=0;i<6;i++){
+      const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      if(!months.includes(key)) months.push(key);
+      d.setMonth(d.getMonth()+1);
+    }
+    const curKey=monthKey(todayISO());
+    if(!months.includes(curKey)) months.push(curKey);
+    months.sort();
+    console.log('Silently updating working plans for new staff', newStaff.name, 'months', months);
+    for(const key of months){
+      if(key < join.slice(0,7)) continue;
+      const act=activeStaff().map(s=>({id:s.id,name:s.name,joinDate:s.joinDate,probationOverride:!!s.probationOverride,nightPref:s.nightPref||'yes',maxNights:s.maxNights==null?4:s.maxNights,maxConsecN:s.maxConsecN||3,pattern:s.pattern||'normal',weekendPattern:s.weekendPattern||'none',weekendOnly:!!s.weekendOnly}));
+      if(act.length<2) continue;
+      const leaves=DB.leaves.map(l=>({staffId:l.staffId,type:l.type,from:l.from,to:l.to}));
+      const res=computePlan({staff:act, leaves, absences:DB.absences.map(a=>({staffId:a.staffId,date:a.date})),
+        offWishes:DB.offWishes.map(w=>({staffId:w.staffId,date:w.date})), holidays:DB.holidays.map(h=>({date:h.date,name:h.name})),
+        key, history:historyBalances(key)});
+      DB.workingPlans[key]=DB.workingPlans[key]||{primary:null,versions:[]};
+      if(DB.workingPlans[key].primary){
+        try{ pushPlanVersion(key,'Auto before adding '+newStaff.name); }catch(e){}
+      }
+      DB.workingPlans[key].primary={staff:res.staff.map((n,ri)=>({name:n,codes:res.codes[ri]})), dates:res.dates,
+        meta:{label:'Auto-updated for new staff '+newStaff.name+' — 30d probation Mon-Fri D only till day 31 nights',date:todayISO(),fy:fyOf(key+'-15'),period:MONTHS[+key.slice(5,7)-1]+'-'+key.slice(0,4),revised:false, autoUpdatedFor:newStaffId}};
+    }
+    saveDB();
+    console.log('Silent plan update done');
+  }catch(e){ console.warn('regeneratePlansForStaffChange', e.message); }
+}
+
+
 function computePlan(input){
   const {staff, leaves, absences, offWishes, holidays, key, history, nightPer} = input;
   // Ruli-specific night counters for fairness
@@ -4849,7 +4888,7 @@ function computePlan(input){
   staff.forEach(s=>{ nightBal[s.id]=history&&history.nightCount&&history.nightCount[s.id]||0;
     dayBal[s.id]=history&&history.dayCount&&history.dayCount[s.id]||0; lastNight[s.id]=-99; nightNow[s.id]=0; restUntil[s.id]=-1; });
   const monthStart=key+'-01';
-  const nightOK=(si, iso)=>{ const st=staff[si]; if(st.nightPref==='no') return false; if(st.maxNights!=null&&st.maxNights<=0) return false; if(st.joinDate){ if(isNewStaffInOnboarding(st, iso||monthStart, hset)) return false; if(daysBetween(st.joinDate, iso||monthStart)<30) return false; } return true; };
+  const nightOK=(si, iso)=>{ const st=staff[si]; if(st.nightPref==='no') return false; if(st.maxNights!=null&&st.maxNights<=0) return false; if(!st.probationOverride && st.joinDate){ if(isNewStaffInOnboarding(st, iso||monthStart, hset)) return false; if(daysBetween(st.joinDate, iso||monthStart)<30) return false; } return true; };
   const isManager=si=>staff[si].pattern==='manager';
   const assignedN=new Array(D).fill(false);
   const dayCovered=new Array(D).fill(false);
@@ -5696,13 +5735,15 @@ function openStaffForm(id){
       <p class="hint">e.g. Aurelie works Day+Night every weekend, paused during her annual leave.</p></div>
     <div><label>Weekend-only worker</label><select id="sf_wkonly"><option value="0">No — works weekdays too</option><option value="1">Yes — rests Mon-Fri, works weekends</option></select>
       <p class="hint">Aurelie rests Monday-Friday and works only Sat & Sun (Day+Night).</p></div>
-    <div><label>Join date</label><input type="date" id="sf_join" value="${(s?s.joinDate:undefined)||todayISO()}"><div class="hint">New staff = 30 working days onboarding: Mon-Fri D only, no weekends/holidays, no nights, Week1 Phlebotomy+Hematology, Week2 Biochemistry+Serology, Week3 Parasitology+TB, Week4 solo</div></div>
+    <div><label>Join date</label><input type="date" id="sf_join" value="${(s?s.joinDate:undefined)||todayISO()}"><div class="hint">New staff = 30 working days onboarding: Mon-Fri D only, no weekends/holidays, no nights, Week1 Phlebotomy+Hematology, Week2 Biochemistry+Serology, Week3 Parasitology+TB, Week4 solo. Day 31 starts nights like others unless overridden.</div></div>
+    <div><label>Probation override</label><select id="sf_override"><option value="0">No — 30d probation Mon-Fri D only</option><option value="1">Yes — start nights immediately (override)</option></select><div class="hint">Override skips 30d probation — useful for experienced staff</div></div>
     <div><label>Status</label><select id="sf_status"><option value="active">Active</option><option value="exited">Exited</option></select></div>
     <div id="sf_exitWrap"><label>Exit date</label><input type="date" id="sf_exit" value="${(s?s.exitDate:undefined)||''}"></div>
     <div style="grid-column:1/-1"><label>Notes</label><input id="sf_note" value="${esc((s?s.note:undefined)||'')}"></div>
   </div><div class="row" style="margin-bottom:16px"><button class="btn primary" type="submit"> Save staff</button><button class="btn" type="button" onclick="closeModal()">Cancel</button></div></form>`);
   $('#sf_sex').value=(s?s.sex:undefined)||'Male'; $('#sf_contract').value=(s?s.contract:undefined)||'statute';
   $('#sf_pattern').value=(s?s.pattern:undefined)||'normal'; $('#sf_np').value=(s?s.nightPref:undefined)||'yes'; $('#sf_status').value=(s?s.status:undefined)||'active';
+  const overEl=$('#sf_override'); if(overEl) overEl.value=(s&&s.probationOverride)?'1':'0';
   $('#sf_status').onchange=()=>{ $('#sf_exitWrap').style.display=$('#sf_status').value==='exited'?'':'none'; };
   $('#sf_wknd').value=(s&&s.weekendPattern)||'none';
   $('#sf_wkonly').value=(s&&s.weekendOnly)?'1':'0';
@@ -5718,7 +5759,7 @@ function openStaffForm(id){
     const exitVal = $('#sf_exit').value || todayISO();
     const data={name:$('#sf_name').value.trim(),role:$('#sf_role').value.trim(),sex:$('#sf_sex').value,dob:$('#sf_dob').value||null,
       phone:$('#sf_phone').value.trim(),email:$('#sf_email').value.trim(),contract:$('#sf_contract').value,pattern:$('#sf_pattern').value,
-      nightPref:$('#sf_np').value,maxNights:+$('#sf_max').value||0,weekendPattern:$('#sf_wknd').value||'none',weekendOnly:$('#sf_wkonly').value==='1',photo:sf_photo||null,joinDate:$('#sf_join').value,status:isExited?'exited':'active',
+      nightPref:$('#sf_np').value,maxNights:+$('#sf_max').value||0,weekendPattern:$('#sf_wknd').value||'none',weekendOnly:$('#sf_wkonly').value==='1',photo:sf_photo||null,joinDate:$('#sf_join').value,probationOverride:$('#sf_override').value==='1',status:isExited?'exited':'active',
       exitDate:isExited?exitVal:null,note:$('#sf_note').value.trim()};
     if(!data.name) return toast('Name required','warn');
     if(isExited && !data.exitDate) data.exitDate=todayISO();
@@ -5730,12 +5771,21 @@ function openStaffForm(id){
       toast(isExited ? ' Exited staff recorded — '+data.exitDate : ' Staff registered as active', isExited?'warn':'ok');
     }
     try{ saveDB(); }catch(e){ toast('Save failed: '+e.message,'err'); console.error(e); }
+    try{
+      if(!s && !isExited){
+        const newly = DB.staff.find(x=>x.name===data.name && x.joinDate===data.joinDate);
+        if(newly){
+          setTimeout(()=>{ try{ regeneratePlansForStaffChange(newly.id); toast('Working plan auto-updated for '+newly.name+' — 30d probation Mon-Fri D only, nights from day 31','ok'); renderRoster(); }catch(e){} }, 300);
+        }
+      } else if(s && !isExited){
+        setTimeout(()=>{ try{ regeneratePlansForStaffChange(s.id); }catch(e){} }, 300);
+      }
+    }catch(e){ console.warn('auto plan update', e.message); }
     closeModal();
-    // Force reload from storage to verify save
     try{
       const check = JSON.parse(localStorage.getItem(DB_KEY));
       const saved = check.staff.find(x=>x.name===data.name);
-      if(saved) console.log('Verified saved:', saved.name, saved.status, saved.exitDate);
+      if(saved) console.log('Verified saved:', saved.name, saved.status, saved.exitDate, 'override', saved.probationOverride);
     }catch(e){}
     renderStaff();
     renderDash();
