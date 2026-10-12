@@ -1099,7 +1099,7 @@ function expTotals(){ let expenses=0, reimbursed=0, count=0;
 /* ---------- charts (inline SVG) ---------- */
 // ============ CHARTS (reference-grade: flat, rounded, bold) ============
 function chartFontScale(w){ const base = w>=700 ? 13 : w>=500 ? 12 : 11; return base; }
-const CHART_COLORS=['#C9A84C','#0B1C3D','#0e9f8a','#e8a33d','#c94c5a','#162a52','#b8963f','#2a9d8f','#8a6d2b','#5a6b8c'];
+var CHART_COLORS=['#C9A84C','#0B1C3D','#0e9f8a','#e8a33d','#c94c5a','#162a52','#b8963f','#2a9d8f','#8a6d2b','#5a6b8c'];
 function getScreenTier(){ const ww = window.innerWidth || 1200; if(ww<=560) return 'xs'; if(ww<=980) return 'sm'; return 'lg'; }
 
 
