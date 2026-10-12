@@ -2655,8 +2655,9 @@ function svgLineChart(series, opts){
 }
 
 
+
 function renderDash(){
-  const el=$('#mod-dash');
+  const el=document.getElementById('mod-dash');
   const stTotal=stockOf('c1'); const vtm=stockOf('c2');
   const samples=DB.samples||[]; const pend=samples.filter(s=>s.status==='Pending');
   const over=pend.filter(s=>daysBetween(s.sentDate||s.collectionDate,todayISO())>7);
@@ -2665,172 +2666,76 @@ function renderDash(){
   const neg=tested.filter(s=>s.status==='Negative').length;
   const rej=samples.filter(s=>s.status==='Rejected').length;
   const posRate=tested.length?Math.round(pos/tested.length*100):0;
-  const negRate=tested.length?Math.round(neg/tested.length*100):0;
-  const rejRate=samples.length?Math.round(rej/samples.length*100):0;
   const act=activeStaff(); const cov=trainingCoverage();
-  const fq=fifoQueue(); const waiting=fq.filter(x=>x.wait!==null);
-  const avgWait=waiting.length?Math.round(waiting.reduce((a,x)=>a+x.wait,0)/waiting.length):0;
-  const ages=act.map(s=>ageOf(s)).filter(a=>a!=null);
-  const avgAge=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):0;
-  const expYears=act.map(s=>Math.max(0,daysBetween(s.joinDate,todayISO())/365.25));
-  const avgExp=expYears.length?(expYears.reduce((a,b)=>a+b,0)/expYears.length).toFixed(1):0;
-  const upcoming=DB.trainings.filter(t=>t.status==='upcoming').length;
-  const completed=DB.trainings.filter(t=>t.status==='completed').length;
+  const fq=fifoQueue(); const avgWait = (()=>{ const w=fq.filter(x=>x.wait!==null); return w.length?Math.round(w.reduce((a,x)=>a+x.wait,0)/w.length):0; })();
   const today=todayISO();
   const mergedForDisplayDash = (typeof mergeConsecutiveLeaves==='function') ? mergeConsecutiveLeaves(DB.leaves) : DB.leaves;
   const onLeaveNow=mergedForDisplayDash.filter(l=>l.from<=today&&l.to>=today&&l.status!=='Completed'&&l.status!=='Ended');
-  const returningSoon=mergedForDisplayDash.filter(l=>l.from<=today&&l.to>=today&&l.status!=='Completed'&&l.status!=='Ended'&&daysBetween(today,l.to)<=7);
   const nextHol=(DB.holidays||[]).filter(h=>h.date>=today&&h.official).sort((a,b)=>a.date.localeCompare(b.date))[0];
   const nowKey=monthKey(todayISO()); const nightCov=monthNightCoverage(nowKey);
-  const testTypes={}; samples.forEach(s=>{ testTypes[s.test]=(testTypes[s.test]||0)+1; });
-  const mostTests=Object.entries(testTypes).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>({label:k,value:v}));
   const hospVol={}; samples.forEach(s=>{ hospVol[s.hospital]=(hospVol[s.hospital]||0)+1; });
   const hospArr=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v}));
   const vtmHC={}; (DB.stock.entries||[]).filter(e=>e.cid==='c2'&&e.type==='issued').forEach(e=>{ vtmHC[e.healthCenter]=(vtmHC[e.healthCenter]||0)+(e.qty||0); });
-  const vtmArr=Object.entries(vtmHC).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v}));
+  const vtmArr=Object.entries(vtmHC).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k,value:v}));
   const perStaff=activeStaff().map(s=>({label:s.name.split(' ').slice(-1)[0], value:DB.trainings.filter(t=>t.status==='completed'&&t.attendees.includes(s.id)).length})).sort((a,b)=>b.value-a.value);
-  const ageBins={}; ages.forEach(a=>{ if(a==null||isNaN(a)) return; const bin=Math.floor(a/5)*5; ageBins[bin]=(ageBins[bin]||0)+1; });
-  const ageArr=Object.entries(ageBins).sort((a,b)=>+a[0]-b[0]).map(([k,v])=>({label:k+'–'+(+k+4),value:v}));
   const tats=tatByTest();
   const stack=staffTrendStack(nowKey);
   const alerts=dashAlerts();
-  const smMon={}; samples.forEach(s=>{ const m=s.sentDate?s.sentDate.slice(0,7):''; if(m) smMon[m]=(smMon[m]||0)+1; });
-  const smMonArr=Object.entries(smMon).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k.slice(5,7)+'/'+k.slice(2,4),value:v}));
-  const smStatus=[{label:'Pending',value:pend.length,color:'#e8a33d'},{label:'Positive',value:pos,color:'#0e9f8a'},{label:'Negative',value:neg,color:'#0B1C3D'},{label:'Rejected',value:rej,color:'#c94c5a'},{label:'Done',value:samples.filter(s=>s.status==='Done').length,color:'#5a6b8c'}].filter(x=>x.value>0);
-
-  // Stexo-inspired premium dashboard - main KPIs focused, charts well arranged, no blanks
+  const smStatus=[{label:'Pending',value:pend.length,color:'#F59E0B'},{label:'Positive',value:pos,color:'#0D9488'},{label:'Negative',value:neg,color:'#0F172A'},{label:'Done',value:samples.filter(s=>s.status==='Done').length,color:'#64748B'}].filter(x=>x.value>0);
+  const dailyMap={}; const last30Days=[];
+  for(let i=29;i>=0;i--){ const d=addDays(today,-i); last30Days.push(d); dailyMap[d]=0; }
+  samples.forEach(s=>{ const d=s.sentDate||s.collectionDate; if(d && dailyMap.hasOwnProperty(d)) dailyMap[d]++; });
+  const dailyVals=last30Days.map(d=>dailyMap[d]);
+  const avg7 = dailyVals.map((_,i)=>{ const slice=dailyVals.slice(Math.max(0,i-6),i+1); return slice.length?Math.round(slice.reduce((a,b)=>a+b,0)/slice.length*10)/10:0; });
+  const maxDaily=Math.max(...dailyVals, ...avg7, 1);
   el.innerHTML=`
-  <div class="section-title"> Lab Command Center <small>${todayISO()} · ${samples.length} samples · ${act.length} active staff · FY ${fyInfo(today).label}</small></div>
-
-  ${alerts.length?`
-  <section id="alert-banner">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
-      <h3 style="margin:0"> Alerts & Insights <span class="sub">${alerts.length} active</span></h3>
-      <span class="tag gold">${alerts.length} insights</span>
-    </div>
-    <div id="alert-content">
-      <div class="alert ${alerts[0].t}">${alerts[0].m}</div>
-    </div>
-    ${alerts.length>1?`<button id="alert-toggle">See ${alerts.length-1} more alerts</button>`:''}
-  </section>`:''}
-
-  <!-- Main KPI Row - 4 premium cards like Stexo, big numbers, gold accent -->
-  <div class="grid g-4" style="gap:16px; margin-bottom:20px">
-    <div class="kpi gold" style="min-height:122px; border-left:4px solid var(--gold)">
-      <div class="k-label">Total Referred Samples</div>
-      <div class="k-val" style="font-size:36px">${samples.length}</div>
-      <div class="k-foot">${(DB.catalog.tests||[]).length} test types · ${pend.length} pending · ${over.length} overdue</div>
-      
-      <div class="k-bar"><i style="width:100%; background:var(--gold)"></i></div>
-    </div>
-    <div class="kpi" style="min-height:122px; border-left:4px solid var(--teal)">
-      <div class="k-label">Training Coverage</div>
-      <div class="k-val" style="font-size:36px">${cov}%</div>
-      <div class="k-foot">${act.filter(s=>DB.trainings.some(t=>t.status==='completed'&&t.attendees.includes(s.id))).length}/${act.length} staff trained · ${avgWait}d avg wait</div>
-      <span class="k-ic" style="background:var(--teal-soft); color:var(--teal)"></span>
-      <div class="k-bar"><i style="width:${cov}%; background:var(--teal)"></i></div>
-    </div>
-    <div class="kpi" style="min-height:122px; border-left:4px solid var(--primary)">
-      <div class="k-label">Night Coverage · ${nowKey}</div>
-      <div class="k-val" style="font-size:36px">${nightCov==null?'—':nightCov+'%'}</div>
-      <div class="k-foot">${act.length} active · ${onLeaveNow.length} on leave now · Next hol ${nextHol?fmtDate(nextHol.date).slice(0,6):'—'}</div>
-      
-      <div class="k-bar"><i style="width:${nightCov||0}%; background:var(--primary)"></i></div>
-    </div>
-    <div class="kpi" style="min-height:122px; border-left:4px solid var(--amber)">
-      <div class="k-label">Stock Status</div>
-      <div class="k-val" style="font-size:36px">${stTotal.total+vtm.total}</div>
-      <div class="k-foot">Hemoculture ${stTotal.total} · VTM ${vtm.total} ${stockStatus('c2')==='low'?'<span style="color:var(--amber)">low</span>':''} · ${DB.catalog.consumables.length} consumables</div>
-      <span class="k-ic" style="background:var(--amber-soft); color:var(--amber)"></span>
-      <div class="k-bar"><i style="width:${Math.min(100, (stTotal.total+vtm.total)/2)}%; background:var(--amber)"></i></div>
-    </div>
+  <div class="section-title">Lab Command Center <small>${fmtDate(today)} · ${samples.length} samples · ${act.length} staff · FY ${fyInfo(today).label}</small></div>
+  ${alerts.length?`<div class="card" style="margin-bottom:24px; border-left:3px solid var(--amber)"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><h3 style="margin:0">Alerts & Insights <span class="tag amber">${alerts.length} active</span></h3>${alerts.length>1?`<button id="alert-toggle" style="font-size:12px; font-weight:600; color:var(--amber)">+${alerts.length-1} more</button>`:''}</div><div id="alert-content"><div class="alert warn">${alerts[0].m}</div></div></div>`:''}
+  <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:28px">
+    <div class="kpi primary"><div class="k-label">Total Samples</div><div class="k-val">${samples.length}</div><div class="k-foot">${pend.length} pending · ${over.length} overdue</div><div class="k-bar"><i style="width:100%"></i></div></div>
+    <div class="kpi amber"><div class="k-label">Pending</div><div class="k-val">${pend.length}</div><div class="k-foot">${over.length} overdue · ${rej} rejected</div><div class="k-bar"><i style="width:${samples.length?Math.round(pend.length/samples.length*100):0}%"></i></div></div>
+    <div class="kpi teal"><div class="k-label">Positivity</div><div class="k-val">${posRate}%</div><div class="k-foot">${pos} pos / ${tested.length} tested</div><div class="k-bar"><i style="width:${posRate}%"></i></div></div>
+    <div class="kpi green"><div class="k-label">Training Coverage</div><div class="k-val">${cov}%</div><div class="k-foot">${avgWait}d avg wait</div><div class="k-bar"><i style="width:${cov}%"></i></div></div>
+    <div class="kpi blue"><div class="k-label">Night Coverage ${nowKey}</div><div class="k-val">${nightCov==null?'—':nightCov+'%'}</div><div class="k-foot">${act.length} active · ${onLeaveNow.length} on leave</div><div class="k-bar"><i style="width:${nightCov||0}%"></i></div></div>
+    <div class="kpi gold"><div class="k-label">Stock</div><div class="k-val">${stTotal.total+vtm.total}</div><div class="k-foot">Hemoculture ${stTotal.total} · VTM ${vtm.total}</div><div class="k-bar"><i style="width:${Math.min(100, stTotal.total+vtm.total)}%"></i></div></div>
   </div>
-
-  <!-- Secondary KPI Row - compact but visual -->
-  <div class="grid g-4" style="gap:12px; margin-bottom:20px">
-    ${kpiCard('Positivity Rate', posRate+'%', pos+' positive of '+tested.length+' tested', {tone:'green', ic:''})}
-    ${kpiCard('Pending Samples', pend.length, over.length+' overdue · '+rejRate+'% rejection', {tone:over.length?'red':'amber', ic:''})}
-    ${kpiCard('Active Staff', act.length, 'avg age '+avgAge+'y · exp '+avgExp+'y · '+onLeaveNow.length+' on leave', {tone:'blue', ic:''})}
-    ${kpiCard('Upcoming / Completed', upcoming+' / '+completed, 'trainings · FIFO '+ (fq[0]?fq[0].s.name.split(' ')[0]+' next':'—'), {tone:'teal', ic:''})}
-  </div>
-
-  <!-- Main Charts Row - balanced, no disproportion, premium -->
-  <div class="grid" style="grid-template-columns: 1.8fr 1fr; gap:16px; margin-bottom:20px; align-items:stretch">
-    <div class="card gold-accent" style="display:flex; flex-direction:column"><h3> Monthly Referral Trend — Main KPI</h3>
-      <div class="chart-box" style="flex:1; min-height:260px">${smMonArr.length?svgLineChart([{label:'Referrals', color:'#C9A84C', values: smMonArr.map((d,i)=>({x:i, y:d.value}))}], {xLabels: smMonArr.map(d=>d.label)}):'<div class="empty">No referral trend data yet</div>'}</div>
-      <div class="chart-legend"><span><i style="background:var(--gold)"></i>Referrals per month</span></div>
+  <div class="card" style="margin-bottom:24px; padding:24px">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px">
+      <div><h3 style="margin:0; font-family:var(--font-head); font-size:18px; letter-spacing:0.5px; text-transform:uppercase">Referrals per Day — Last 30 Days</h3><p class="hint" style="margin-top:6px">Daily volume with 7-day average · Peak ${maxDaily} · Avg ${dailyVals.length? (dailyVals.reduce((a,b)=>a+b,0)/dailyVals.length).toFixed(1):0}/day</p></div>
+      <div class="chart-legend"><span><i style="background:#0D9488"></i>Daily</span><span><i style="background:#0F172A; height:2px"></i>7-day avg</span></div>
     </div>
-    <div class="card" style="display:flex; flex-direction:column"><h3> Sample Status Distribution</h3>
-      <div class="chart-box" style="flex:1; min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center">${smStatus.length?svgDonut(smStatus,{center:String(samples.length), width:140, height:140}):'<div class="empty">No samples</div>'}</div>
-      <div class="chart-legend" style="justify-content:center">${smStatus.map(s=>`<span><i style="background:${s.color}"></i>${s.label} ${s.value}</span>`).join('')}</div>
-    </div>
+    <div class="chart-box" style="min-height:320px">${svgLineChart([
+      {label:'Daily', color:'#0D9488', values: dailyVals.map((v,i)=>({x:i,y:v})), fill:true},
+      {label:'7-day avg', color:'#0F172A', values: avg7.map((v,i)=>({x:i,y:v})), dash:true, bold:true}
+    ], {xLabels: last30Days.map(d=>d.slice(5,10)), h:320})}</div>
   </div>
-
-  <!-- Second Charts Row - balanced 2x2 then 2 charts, no blank spaces -->
-  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap:16px; margin-bottom:20px; align-items:stretch">
-    <div class="card" style="display:flex; flex-direction:column"><h3> Trainings per Staff — Performance</h3><div class="chart-box" style="flex:1">${svgHBar(perStaff)}</div></div>
-    <div class="card" style="display:flex; flex-direction:column"><h3> Referral Volume per Hospital</h3><div class="chart-box" style="flex:1">${svgHBar(hospArr)}</div></div>
-    <div class="card" style="display:flex; flex-direction:column"><h3> Most Referred Sample Types</h3><div class="chart-box" style="flex:1">${svgHBar(mostTests)}</div></div>
-    <div class="card" style="display:flex; flex-direction:column"><h3> VTM Distributed per Health Center</h3><div class="chart-box" style="flex:1">${svgHBar(vtmArr)}</div></div>
-    <div class="card" style="display:flex; flex-direction:column"><h3>TAT — Average vs Expected (Days)</h3>
-      <div class="chart-box" style="flex:1">${(function(){
-        const data=tats.map(t=>({label:t.test, value:t.avg, color:'#C9A84C'}));
-        const exp=tats.map(t=>({label:t.test+' exp', value:t.exp, color:'#0B1C3D'}));
-        if(!data.length) return '<div class="empty">No TAT data yet</div>';
-        return svgLineChart([{label:'Avg TAT', color:'#C9A84C', values: data.map((d,i)=>({x:i, y:d.value}))}, {label:'Expected', color:'#0B1C3D', values: exp.map((d,i)=>({x:i, y:d.value}))}], {xLabels: tats.map(t=>t.test.slice(0,10))});
-      })()}</div>
-      <div class="chart-legend"><span><i style="background:var(--gold)"></i>Avg TAT</span><span><i style="background:var(--primary)"></i>Expected</span></div>
-    </div>
-    <div class="card" style="display:flex; flex-direction:column"><h3> Age Distribution (Active Staff)</h3><div class="chart-box" style="flex:1">${svgBar(ageArr)}</div></div>
+  <div class="grid" style="grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px">
+    <div class="card"><h3>Sample Status</h3><div class="chart-box" style="min-height:240px; display:flex; align-items:center; justify-content:center">${smStatus.length?svgDonut(smStatus,{center:String(samples.length)}):'<div class="empty">No samples</div>'}</div><div class="chart-legend" style="justify-content:center; margin-top:16px">${smStatus.map(s=>`<span><i style="background:${s.color}"></i>${s.label} ${s.value}</span>`).join('')}</div></div>
+    <div class="card"><h3>TAT — Avg vs Expected</h3><div class="chart-box" style="min-height:240px">${tats.length?svgBar(tats.map(t=>({label:t.test, value:t.avg, color:'#0D9488'})), {h:240}):'<div class="empty">No TAT data</div>'}</div></div>
   </div>
-
-  <!-- Daily Staffing Trend - compact premium, not too big -->
-  <div class="card gold-accent" style="margin-bottom:20px; padding:16px 18px"><h3 style="margin-bottom:8px"> Daily Staffing Trend — ${monthLabel(nowKey)} <span class="sub">aggregated by week (Day · Night · Off · Leave/Absent) — line + stacked</span></h3>
-    <div class="chart-box" style="max-height:200px">${stack}</div>
-    <div class="chart-legend"><span><i style="background:#dbe7fb"></i>Day</span><span><i style="background:#0B1C3D"></i>Night</span><span><i style="background:#f1f3f8"></i>Off</span><span><i style="background:#fdeccd"></i>Leave/Absent</span></div>
+  <div class="grid" style="grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px">
+    <div class="card"><h3>Trainings per Staff</h3><div class="chart-box">${svgHBar(perStaff.slice(0,6))}</div></div>
+    <div class="card"><h3>Referrals per Hospital</h3><div class="chart-box">${svgHBar(hospArr.slice(0,6))}</div></div>
   </div>
-
-  <div class="grid g-2" style="gap:16px">
-    <div class="card"><h3>Pending Samples — Aging List</h3>
-      ${pend.length?`<div class="tbl-wrap"><table class="tbl"><tr><th>Patient</th><th>Test</th><th>Hospital</th><th>Sent</th><th>Elapsed</th><th>Status</th></tr>
-      ${pend.map(s=>`<tr><td>${esc(maskName(s.patientName))}</td><td>${esc(s.test)}</td><td>${esc(s.hospital)}</td><td>${fmtDate(s.sentDate||s.collectionDate)}</td>
-      <td class="num">${daysBetween(s.sentDate||s.collectionDate,todayISO())}d</td><td>${daysBetween(s.sentDate||s.collectionDate,todayISO())>7?'<span class="tag red">Overdue</span>':'<span class="tag amber">Pending</span>'}</td></tr>`).join('')}</table></div>`
-      :'<div class="empty"><div class="big"></div>Nothing pending right now.</div>'}</div>
-    <div class="card"><h3> Team Profile & Records <span class="sub">${act.length} active</span></h3>
-      <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px">
-      ${act.map(s=>`<div class="list-row" style="margin:0; padding:12px"><span class="avatar" style="background:${staffColor(s.id)}">${esc(s.name.split(' ').map(w=>w[0]).slice(0,2).join(''))}</span>
-        <div class="grow"><div class="t">${esc(s.name)}</div><div class="s">${esc(s.role)} · ${ageOf(s)}y · ${daysSinceLastTraining(s.id)==null?'<span class="tag amber">never trained</span>':'last '+daysSinceLastTraining(s.id)+'d ago'}</div></div></div>`).join('')}
-      </div></div>
+  <div class="card" style="margin-bottom:24px"><h3>Volume by Health Center</h3><div class="chart-box">${vtmArr.length?svgBar(vtmArr, {h:260}):'<div class="empty">No distribution data</div>'}</div></div>
+  <div class="grid" style="grid-template-columns:1.2fr 0.8fr; gap:20px; margin-bottom:24px">
+    <div class="card"><h3>Daily Staffing Trend — ${monthLabel(nowKey)}</h3><div class="chart-box">${stack}</div></div>
+    <div class="card"><h3>Team <span class="sub">${act.length} active</span></h3><div style="display:flex; flex-direction:column; gap:10px; margin-top:8px">${act.slice(0,6).map(s=>`<div class="list-row" style="margin:0; padding:12px; border-radius:10px"><div style="width:36px; height:36px; border-radius:10px; background:var(--primary-soft); color:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px">${esc(s.name.split(' ').map(w=>w[0]).slice(0,2).join(''))}</div><div class="grow"><div class="t" style="font-size:13px">${esc(s.name)}</div><div class="s" style="font-size:11px">${esc(s.role||'')}</div></div></div>`).join('')}</div></div>
   </div>
   `;
-  // Arena Ai - Alert toggle for >=2 alerts
-  (function(){
-    const banner=document.getElementById('alert-banner');
-    const toggle=document.getElementById('alert-toggle');
-    const content=document.getElementById('alert-content');
-    if(banner && toggle && content){
-      let expanded=false;
-      const allHtml = alerts.map(a=>`<div class="alert ${a.t}">${a.m}</div>`).join('');
-      const firstHtml = alerts.length?`<div class="alert ${alerts[0].t}">${alerts[0].m}</div>`:'';
-      toggle.onclick=function(){
-        expanded=!expanded;
-        content.innerHTML = expanded ? allHtml : firstHtml;
-        toggle.textContent = expanded ? 'See less' : 'See '+(alerts.length-1)+' more alerts';
-        banner.classList.toggle('expanded', expanded);
-      };
-    }
-  })();
-
-  const dT=document.getElementById('dashToggle'); if(dT){
-    const kp=document.getElementById('dashKpis'); const lbl=document.getElementById('dashToggleLbl');
-    const sync=()=>{ const hid=kp&&kp.classList.contains('hidden'); if(lbl) lbl.textContent=hid?'Show KPIs':'Hide KPIs'; };
-    if(UI.dashHidden){ if(kp) kp.classList.add('hidden'); sync(); }
-    dT.onclick=()=>{ if(kp) kp.classList.toggle('hidden'); sync(); UI.dashHidden=kp&&kp.classList.contains('hidden'); };
+  const at=document.getElementById('alert-toggle'); const ac=document.getElementById('alert-content');
+  if(at && ac){
+    let expanded=false;
+    at.onclick=()=>{
+      expanded=!expanded;
+      if(expanded){ ac.innerHTML=alerts.map(a=>`<div class="alert ${a.t}" style="margin-bottom:8px">${a.m}</div>`).join(''); at.textContent='Show less'; }
+      else { ac.innerHTML=`<div class="alert ${alerts[0].t}">${alerts[0].m}</div>`; at.textContent=`+${alerts.length-1} more`; }
+    };
   }
 }
 
-
-function renderTimeline(startISO,endISO){
+function renderTimeline
+(startISO,endISO){
   const evs=timelineEvents(startISO,endISO); if(!evs.length) return '<div class="empty">No events in this period.</div>';
   const start=new Date(startISO+'T12:00:00'); const end=new Date(endISO+'T12:00:00');
   const total=daysBetween(startISO,endISO); const pxPerDay=Math.max(1.6, 900/total);
