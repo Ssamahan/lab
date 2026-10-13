@@ -1977,16 +1977,16 @@ async function exportPlanPNG(key){
   g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 12px Trebuchet MS';
   g.fillText('Republic of Rwanda', leftCenter, 132);
   g.fillText('Ruli District Hospital', rightCenter, 132);
-  // Middle texts aligned perfectly with logos middle, font 14 headings, 12 paragraph
   g.fillStyle='#000000'; g.textAlign='center';
   g.font='900 24px "Bebas Neue", Trebuchet MS'; g.fillText(ex.hospital, W/2, logoCenterY-16);
   g.font='700 12px Trebuchet MS'; g.fillText(ex.dept, W/2, logoCenterY+2);
   g.font='500 10px Trebuchet MS'; g.fillText(ex.email+' · '+ex.phone, W/2, logoCenterY+18);
-  g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(28,y+92); g.lineTo(W-28,y+92); g.stroke();
-  y+=110;
-  g.fillStyle='#000000'; g.font='800 14px Trebuchet MS'; g.textAlign='center'; g.fillText(ex.title, W/2, y+10);
-  g.fillStyle='#000000'; g.font='600 12px Trebuchet MS'; g.fillText('Date: '+ex.date+'   FY: '+ex.fy, W/2, y+28);
-  y+=50;
+  // Gold line BELOW Republic/Ruli texts, not between logo and texts
+  g.strokeStyle='#C9A84C'; g.lineWidth=2.8; g.beginPath(); g.moveTo(MWP,148); g.lineTo(W-MWP,148); g.stroke();
+  y=160;
+  g.fillStyle='#000000'; g.font='800 15px Trebuchet MS'; g.textAlign='center'; g.fillText(ex.title, W/2, y+12);
+  g.font='600 11px Trebuchet MS'; g.fillText('Date: '+ex.date+'   FY: '+ex.fy, W/2, y+30);
+  y+=42;
   let x0=MWP, y0=y;
   const drawCell=(x,y,w,h,fill,text,tcolor)=>{
     g.fillStyle=fill; g.fillRect(x,y,w,h);
@@ -4472,33 +4472,39 @@ async function exportUnitRosterPNG(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}}; const s=DB.settings;
   const W=1600; const scale=2;
   const allUnits=UNITS; // Night Shift already in UNITS
-  const rowH=38, hdrH=46, headH=110;
+  const rowH=42, hdrH=46, headH=90;
   const tableH=hdrH+allUnits.length*rowH;
-  const H=headH+tableH+120;
+  const H=headH+tableH+100;
   const cv=document.createElement('canvas'); cv.width=W*scale; cv.height=H*scale; const g=cv.getContext('2d'); g.scale(scale,scale);
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
   let y=20;
   // Premium header with coat left + hospital logo right - larger top margin proportional, white bg, perfect middle alignment
   const MWP=48;
-  const leftCenter = MWP+42;
-  const rightCenter = W-MWP-42;
+  const leftBlockX = MWP;
+  const leftBlockW = 200;
+  const rightBlockX = W-MWP-leftBlockW;
+  const leftCenter = leftBlockX+leftBlockW/2;
+  const rightCenter = rightBlockX+leftBlockW/2;
+  const logoCenterY = 6+55;
   try{
     g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
     g.fillStyle='#ffffff';
-    g.fillRect(28, 10, 84, 84);
-    g.fillRect(W-28-84, 10, 84, 84);
+    g.fillRect(leftBlockX+45, 6, 110, 110);
+    g.fillRect(rightBlockX+45, 6, 110, 110);
     const coat = await imgOr(null,'rwanda-coat');
     const hosp = await imgOr(null,'ruli-hospital');
-    if(coat) g.drawImage(coat, 28, 10, 84, 84);
-    if(hosp) g.drawImage(hosp, W-28-84, 10, 84, 84);
+    if(coat) g.drawImage(coat, leftBlockX+45, 6, 110, 110);
+    if(hosp) g.drawImage(hosp, rightBlockX+45, 6, 110, 110);
   }catch(e){}
-  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 10px Trebuchet MS';
-  g.fillText('Republic of Rwanda', leftCenter, 104);
-  g.fillText('Ruli District Hospital', rightCenter, 104);
-  g.fillStyle='#000000'; g.font='900 22px Trebuchet MS'; g.textAlign='center'; g.fillText(s.hospital, W/2, y+22);
-  g.font='700 11px Trebuchet MS'; g.fillText(s.dept+' · '+s.email+' · '+s.phone, W/2, y+42);
-  g.strokeStyle='#C9A84C'; g.lineWidth=3; g.beginPath(); g.moveTo(28,y+78); g.lineTo(W-28,y+78); g.stroke();
-  y+=90;
+  g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 12px Trebuchet MS';
+  g.fillText('Republic of Rwanda', leftCenter, 132);
+  g.fillText('Ruli District Hospital', rightCenter, 132);
+  g.fillStyle='#000000'; g.textAlign='center';
+  g.font='900 22px Trebuchet MS'; g.fillText(s.hospital, W/2, logoCenterY-16);
+  g.font='700 11px Trebuchet MS'; g.fillText(s.dept+' · '+s.email+' · '+s.phone, W/2, logoCenterY+2);
+  // Gold line BELOW Republic/Ruli texts, reduce empty space below logo so roster occupies space and looks larger
+  g.strokeStyle='#C9A84C'; g.lineWidth=2.8; g.beginPath(); g.moveTo(MWP,148); g.lineTo(W-MWP,148); g.stroke();
+  y=160;
   g.fillStyle='#000000'; g.font='800 16px Trebuchet MS'; g.textAlign='center'; g.fillText('Weekly Unit Roster — Week of '+fmtDate(wk), W/2, y+12);
   y+=30;
   let x0=MWP, y0=y;
