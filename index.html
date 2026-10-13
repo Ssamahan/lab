@@ -547,7 +547,7 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot"><span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.31 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span></div>
+    <div class="side-foot" id="sideFoot"><span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.31.2 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span></div>
   </aside>
 
   <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
@@ -1946,7 +1946,8 @@ async function exportPlanPNG(key){
   const _tmpCv=document.createElement('canvas'); const _tg=_tmpCv.getContext('2d'); _tg.font='700 12px Space Grotesk';
   const maxName=Math.max(170, ...ex.staff.map(nm=>Math.round(_tg.measureText(nm).width+44)));
   const nameW=Math.min(280, maxName);
-  const cellW=Math.max(28, Math.floor((W-48-nameW)/cols));
+  const MWP=48;
+  const cellW=Math.max(28, Math.floor((W-MWP*2-nameW)/cols));
   const rowH=30, hdrH=46;
   const tableH=hdrH+nRows*rowH;
   const legH= 42 + Math.ceil(ex.legends.length/4)*30;
@@ -1956,16 +1957,14 @@ async function exportPlanPNG(key){
   if(H<860) H=860;
   const cv=document.createElement('canvas'); cv.width=W*scale; cv.height=H*scale; const g=cv.getContext('2d'); g.scale(scale,scale);
   g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
-  // Premium header with coat left + hospital logo right - perfectly centered to texts 200px block 110px logo
+  // Premium header - centered, headings close to bottom near gold line, separate lines for dept/email/phone to use empty space
   let y=20;
-  const MWP=48;
   const leftBlockX = MWP;
   const leftBlockW = 200;
   const rightBlockX = W-MWP-leftBlockW;
-  const rightBlockW = 200;
   const leftCenter = leftBlockX+leftBlockW/2;
-  const rightCenter = rightBlockX+rightBlockW/2;
-  const logoCenterY = 6+55;
+  const rightCenter = rightBlockX+leftBlockW/2;
+  const goldY=148;
   try{
     g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
     g.fillStyle='#ffffff';
@@ -1978,12 +1977,12 @@ async function exportPlanPNG(key){
   g.fillText('Republic of Rwanda', leftCenter, 132);
   g.fillText('Ruli District Hospital', rightCenter, 132);
   g.fillStyle='#000000'; g.textAlign='center';
-  g.font='900 24px "Bebas Neue", Trebuchet MS'; g.fillText(ex.hospital, W/2, logoCenterY-16);
-  g.font='700 12px Trebuchet MS'; g.fillText(ex.dept, W/2, logoCenterY+2);
-  g.font='500 10px Trebuchet MS'; g.fillText(ex.email+' · '+ex.phone, W/2, logoCenterY+18);
-  // Gold line BELOW Republic/Ruli texts, not between logo and texts
-  g.strokeStyle='#C9A84C'; g.lineWidth=2.8; g.beginPath(); g.moveTo(MWP,148); g.lineTo(W-MWP,148); g.stroke();
-  y=160;
+  g.font='900 24px "Bebas Neue", Trebuchet MS'; g.fillText(ex.hospital, W/2, goldY-56);
+  g.font='700 13px Trebuchet MS'; g.fillText(ex.dept, W/2, goldY-32);
+  g.font='500 11px Trebuchet MS'; g.fillText(ex.email, W/2, goldY-16);
+  g.font='500 11px Trebuchet MS'; g.fillText(ex.phone, W/2, goldY-2);
+  g.strokeStyle='#C9A84C'; g.lineWidth=2.8; g.beginPath(); g.moveTo(MWP,goldY); g.lineTo(W-MWP,goldY); g.stroke();
+  y=goldY+12;
   g.fillStyle='#000000'; g.font='800 15px Trebuchet MS'; g.textAlign='center'; g.fillText(ex.title, W/2, y+12);
   g.font='600 11px Trebuchet MS'; g.fillText('Date: '+ex.date+'   FY: '+ex.fy, W/2, y+30);
   y+=42;
@@ -2099,10 +2098,9 @@ function exportPlanPDF(key){
   const MP=24;
   d.addPage(W,H);
   const cols=ex.colInfo.length, nRows=ex.staff.length;
-  const nameW=120; const cellW=Math.max(14, Math.floor((W-36-nameW)/cols)); // narrower for better fit centered
+  const nameW=120; const cellW=Math.max(14, Math.floor((W-MP*2-nameW)/cols)); // symmetric margins, use full width
   const rowH=20, hdrH=44;
-  let y=20;
-  // Premium header with coat left + hospital logo right - centered to texts
+  const goldY=58;
   try{
     const leftBlockX = MP;
     const leftBlockW = 110;
@@ -2112,23 +2110,22 @@ function exportPlanPDF(key){
     if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, leftBlockX+19, 6, 72, 72); }
     if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, rightBlockX+19, 6, 72, 72); }
   }catch(e){ console.warn('PDF logos', e.message); }
-  d.text('Republic of Rwanda', 24+55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
-  d.text('Ruli District Hospital', W-24-55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
-  // Middle texts
-  d.text(ex.hospital, W/2, y+8, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
-  d.text(ex.dept, W/2, y+22, {size:9, bold:true, color:'0 0 0 rg', align:'center'});
-  d.text(ex.email+' · '+ex.phone, W/2, y+32, {size:7.5, color:'0 0 0 rg', align:'center'});
-  // Gold line BELOW Republic/Ruli texts
-  d.line(MP,102,W-MP,102,{width:2.8,color:'#C9A84C'});
-  // Title + Date below headings but on top of table
-  y=108;
+  d.text('Republic of Rwanda', MP+55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+  d.text('Ruli District Hospital', W-MP-55, 88, {size:8, bold:true, align:'center', color:'0 0 0 rg'});
+  // Headings close to bottom near line, separate lines
+  d.text(ex.hospital, W/2, goldY-28, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
+  d.text(ex.dept, W/2, goldY-16, {size:9, bold:true, color:'0 0 0 rg', align:'center'});
+  d.text(ex.email, W/2, goldY-6, {size:7.5, color:'0 0 0 rg', align:'center'});
+  d.text(ex.phone, W/2, goldY+2, {size:7.5, color:'0 0 0 rg', align:'center'});
+  d.line(MP,goldY+10,W-MP,goldY+10,{width:2.8,color:'#C9A84C'});
+  let y=goldY+16;
   d.text(ex.title, W/2, y+8, {size:14, bold:true, color:'0 0 0 rg', align:'center'});
   d.text('Date: '+ex.date+'   FY: '+ex.fy, W/2, y+24, {size:10, color:'0 0 0 rg', align:'center'});
   y+=32;
   const y0=y;
-  // header - Days first row, Dates second row, centered H and V middle
+  // header - Days first row, Dates second row, centered H and V middle - symmetric margins
   for(let i=0;i<cols;i++){
-    const c=ex.colInfo[i]; const x=24+nameW+i*cellW;
+    const c=ex.colInfo[i]; const x=MP+nameW+i*cellW;
     const fill=c.holiday?'#fde2e2':(c.weekend?'#fdf3d7':'#F7F8FC');
     d.rect(x,y0,cellW,18,{fill});
     d.text(c.dow,x+cellW/2,y0+18/2+1,{size:7,bold:true,color:'0 0 0 rg', align:'center'});
@@ -2136,14 +2133,14 @@ function exportPlanPDF(key){
     d.text(String(c.dom),x+cellW/2,y0+18+26/2+1,{size:8,bold:true,color:'0 0 0 rg', align:'center'});
   }
   // Single STAFF/Name column - left aligned
-  d.rect(24,y0,nameW,44,{fill:'#0B1C3D'});
-  d.text('STAFF',28,y0+8,{size:8,bold:true,color:'1 1 1 rg'});
-  d.text('Name',28,y0+24,{size:8,bold:true,color:'1 1 1 rg'});
+  d.rect(MP,y0,nameW,44,{fill:'#0B1C3D'});
+  d.text('STAFF',MP+4,y0+8,{size:8,bold:true,color:'1 1 1 rg'});
+  d.text('Name',MP+4,y0+24,{size:8,bold:true,color:'1 1 1 rg'});
   // body - with names, dates, days - centered V+H middle
   for(let r=0;r<nRows;r++){
     const yy=y0+hdrH+r*rowH;
-    d.rect(24,yy,nameW,rowH,{fill:(r%2)?'#fbfcff':'#ffffff'});
-    d.text(ex.staff[r],26,yy+rowH/2-1,{size:8,bold:true,color:'0 0 0 rg'});
+    d.rect(MP,yy,nameW,rowH,{fill:(r%2)?'#fbfcff':'#ffffff'});
+    d.text(ex.staff[r],MP+2,yy+rowH/2-1,{size:8,bold:true,color:'0 0 0 rg'});
     for(let i=0;i<cols;i++){
       const code=(ex.codes[r]||[])[i]||''; const c=ex.colInfo[i];
       let fill='#ffffff';
@@ -2153,57 +2150,56 @@ function exportPlanPDF(key){
       else if(code) fill='#f7f8fc';
       else if(c.holiday) fill='#fdf0f0';
       else if(c.weekend) fill='#fef9ec';
-      d.rect(24+nameW+i*cellW,yy,cellW,rowH,{fill});
+      d.rect(MP+nameW+i*cellW,yy,cellW,rowH,{fill});
       if(code){
         const col = (code==='N'||code==='DN') ? '1 1 1 rg' : '0 0 0 rg';
-        d.text(code,24+nameW+i*cellW+cellW/2,yy+rowH/2+1,{size:7.5,bold:true,color:col, align:'center'});
+        d.text(code,MP+nameW+i*cellW+cellW/2,yy+rowH/2+1,{size:7.5,bold:true,color:col, align:'center'});
       }
-      d.rectBorder(24+nameW+i*cellW,yy,cellW,rowH,{width:0.3,color:'#d4d9e6'});
+      d.rectBorder(MP+nameW+i*cellW,yy,cellW,rowH,{width:0.3,color:'#d4d9e6'});
     }
   }
-  // Gold lines top and bottom of table to mark endings (only shifts+staff table)
-  d.line(24, y0, 24+nameW+cols*cellW, y0, {width:2.5, color:'#C9A84C'}); // top
-  d.line(24, y0+hdrH+nRows*rowH, 24+nameW+cols*cellW, y0+hdrH+nRows*rowH, {width:2.5, color:'#C9A84C'}); // bottom
-  // Dashed line for upcoming month - through last staff
+  // Gold lines top and bottom of table
+  d.line(MP, y0, MP+nameW+cols*cellW, y0, {width:2.5, color:'#C9A84C'});
+  d.line(MP, y0+hdrH+nRows*rowH, MP+nameW+cols*cellW, y0+hdrH+nRows*rowH, {width:2.5, color:'#C9A84C'});
+  // Dashed line for upcoming month
   for(let i=0;i<cols;i++){
     const c=ex.colInfo[i];
     if(c.next && i>0 && !ex.colInfo[i-1].next){
-      const x=24+nameW+i*cellW;
+      const x=MP+nameW+i*cellW;
       for(let yy=y0; yy<y0+hdrH+nRows*rowH; yy+=10){
         d.line(x, yy, x, Math.min(yy+5, y0+hdrH+nRows*rowH), {width:1.5, color:'#C9A84C'});
       }
     }
   }
   let ly=y0+hdrH+nRows*rowH+16;
-  d.text('Keys:', 24, ly, {size:9, bold:true, color:'0 0 0 rg'});
+  d.text('Keys:', MP, ly, {size:9, bold:true, color:'0 0 0 rg'});
   ly+=12;
   ex.legends.forEach((lg,idx)=>{
     const col=idx%4, row=Math.floor(idx/4);
-    d.text(lg, 24+col*190, ly+row*12+4, {size:7, color:'0 0 0 rg'});
+    d.text(lg, MP+col*190, ly+row*12+4, {size:7, color:'0 0 0 rg'});
   });
   ly+= Math.ceil(ex.legends.length/4)*12 + 8;
   if(ex.holidays.length){
-    d.text('Holidays: '+ex.holidays.join(' · '), 24, ly+4, {size:7, color:'0 0 0 rg'});
+    d.text('Holidays: '+ex.holidays.join(' · '), MP, ly+4, {size:7, color:'0 0 0 rg'});
     ly+=10;
   }
-  d.text('Staff contacts:', 24, ly+4, {size:9, bold:true, color:'0 0 0 rg'});
+  d.text('Staff contacts:', MP, ly+4, {size:9, bold:true, color:'0 0 0 rg'});
   ly+=14;
   ex.phones.forEach((p,i)=>{
     const col=i%3, row=Math.floor(i/3);
-    const x=24+col*250, y=ly+row*16;
+    const x=MP+col*250, y=ly+row*16;
     d.rect(x,y,238,14,{fill:'#F7F8FC'});
     d.rect(x,y,2,14,{fill:'#C9A84C'});
     d.text(p.name+' — '+p.phone, x+8, y+14/2+1, {size:7, color:'0 0 0 rg'});
   });
   ly+= Math.ceil(ex.phones.length/3)*16 + 10;
-  const sy=ly+10; // footer closer, not far
-  d.line(24,sy-10,W-24,sy-10,{width:1.2,color:'#C9A84C'});
+  const sy=ly+10;
+  d.line(MP,sy-10,W-MP,sy-10,{width:1.2,color:'#C9A84C'});
   for(let i=0;i<3;i++){
-    const sx=24+i*(W-48)/3;
+    const sx=MP+i*(W-MP*2)/3;
     d.text(ex.sig[i].l, sx+8, sy+6, {size:8, bold:true, color:'0 0 0 rg'});
     d.text(ex.sig[i].n, sx+8, sy+16, {size:10, bold:true, color:'0 0 0 rg'});
     d.text(ex.sig[i].r, sx+8, sy+26, {size:8, color:'0 0 0 rg'});
-    // No line below - signing next to names, centered V
   }
   download(new Blob([d.save()],{type:'application/pdf'}),'Working-Plan-'+ex.key+'.pdf');
 }
@@ -4423,14 +4419,16 @@ function printUnitRoster(wk){
   const allUnits=UNITS; // Night Shift already in UNITS per request
   const rwandaCoatSrc = (typeof RWANDA_COAT_NEW!=='undefined'?RWANDA_COAT_NEW:'assets/rwanda-coat-192.png');
   const ruliLogoSrc = (typeof RULI_HOSPITAL_LOGO!=='undefined'?RULI_HOSPITAL_LOGO:'assets/ruli-hospital-192.png');
-  let h=`<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; border-bottom:3px solid #C9A84C; padding:14px 8px 16px; margin-bottom:14px; font-family:'Trebuchet MS', sans-serif">
-    <div style="display:flex; flex-direction:column; align-items:center; width:84px"><img src="${rwandaCoatSrc}" style="width:72px;height:72px;object-fit:contain"><span style="font-size:8px;font-weight:800;margin-top:4px;text-align:center">Republic of Rwanda</span></div>
-    <div style="flex:1; text-align:center">
-      <h2 style="margin:0; font-size:20px; color:#0B1C3D; font-weight:900">${s.hospital}</h2>
-      <div style="font-size:12px; color:#0B1C3D; font-weight:700">${s.dept} · ${s.email} · ${s.phone}</div>
-      <div style="font-size:14px; font-weight:800; color:#0B1C3D; margin-top:8px">Weekly Unit Roster — Week of ${fmtDate(wk)}</div>
+  let h=`<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; border-bottom:3px solid #C9A84C; padding:6px 8px 10px; margin-bottom:14px; font-family:'Trebuchet MS', sans-serif">
+    <div style="display:flex; flex-direction:column; align-items:center; width:110px; align-self:flex-start"><img src="${rwandaCoatSrc}" style="width:84px;height:84px;object-fit:contain"><span style="font-size:9px;font-weight:800;margin-top:6px;text-align:center">Republic of Rwanda</span></div>
+    <div style="flex:1; text-align:center; padding-bottom:4px">
+      <h2 style="margin:0 0 4px 0; font-size:22px; color:#000; font-weight:900; font-family:'Bebas Neue','Trebuchet MS',sans-serif; letter-spacing:0.5px">${s.hospital}</h2>
+      <div style="font-size:11px; color:#000; font-weight:700; line-height:1.3">${s.dept}</div>
+      <div style="font-size:10px; color:#000; font-weight:500; line-height:1.3">${s.email}</div>
+      <div style="font-size:10px; color:#000; font-weight:500; line-height:1.3">${s.phone}</div>
+      <div style="font-size:14px; font-weight:800; color:#0B1C3D; margin-top:10px; font-family:'Bebas Neue','Trebuchet MS',sans-serif">Weekly Unit Roster — Week of ${fmtDate(wk)}</div>
     </div>
-    <div style="display:flex; flex-direction:column; align-items:center"><img src="${ruliLogoSrc}" style="width:72px;height:72px;object-fit:contain"><span style="font-size:8px;font-weight:800;margin-top:4px">Ruli District Hospital</span></div>
+    <div style="display:flex; flex-direction:column; align-items:center; width:110px; align-self:flex-start"><img src="${ruliLogoSrc}" style="width:84px;height:84px;object-fit:contain"><span style="font-size:9px;font-weight:800;margin-top:6px; text-align:center">Ruli District Hospital</span></div>
   </div>
   <div style="border:1px solid #e6e9f1; border-radius:12px; overflow:hidden">
   <table cellspacing="0" cellpadding="0" style="border-collapse:collapse; width:100%; font-family:'Trebuchet MS', sans-serif; font-size:11px">
@@ -4463,29 +4461,34 @@ function printUnitRoster(wk){
     h+=`</tr>`;
   });
   h+=`</tbody></table></div>`;
-  // Gold top/bottom lines for table already via header border, add footer
-  h+=`<div style="border-top:1.2px solid #C9A84C; margin-top:16px; padding-top:8px; font-size:10px; color:#000; font-family:'Trebuchet MS'">Week of ${fmtDate(wk)} · Generated ${todayISO()}</div>`;
+  // Footer fixed: no overlap, centered middle of footer section
+  h+=`<div style="border-top:1.5px solid #C9A84C; margin-top:22px; padding:18px 0 8px; text-align:center; font-size:11px; font-weight:700; color:#000; font-family:'Trebuchet MS'">Week of ${fmtDate(wk)} · Generated ${todayISO()} · Ruli District Hospital Laboratory</div>`;
   w.document.write(`<!DOCTYPE html><html><head><title>Unit Roster ${wk}</title><style>@page{size:A4 landscape;margin:10mm} body{font-family:'Trebuchet MS', sans-serif; margin:0; color:#000}${h}</body></html>`);
   w.document.close(); setTimeout(()=>{ w.focus(); w.print(); },300);
 }
 async function exportUnitRosterPNG(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}}; const s=DB.settings;
   const W=1600; const scale=2;
-  const allUnits=UNITS; // Night Shift already in UNITS
-  const rowH=42, hdrH=46, headH=90;
-  const tableH=hdrH+allUnits.length*rowH;
-  const H=headH+tableH+100;
-  const cv=document.createElement('canvas'); cv.width=W*scale; cv.height=H*scale; const g=cv.getContext('2d'); g.scale(scale,scale);
-  g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
-  let y=20;
-  // Premium header with coat left + hospital logo right - larger top margin proportional, white bg, perfect middle alignment
+  const allUnits=UNITS;
+  const rowH=42, hdrH=46;
   const MWP=48;
+  const nameW=180;
+  const colW=(W-MWP*2-nameW)/7; // FIX: 7 days, symmetric margins, use full width next to Sunday
   const leftBlockX = MWP;
   const leftBlockW = 200;
   const rightBlockX = W-MWP-leftBlockW;
   const leftCenter = leftBlockX+leftBlockW/2;
   const rightCenter = rightBlockX+leftBlockW/2;
-  const logoCenterY = 6+55;
+  const goldY=148;
+  // Calculate heights after header
+  const titleY=goldY+12;
+  const y0=goldY+42; // table starts
+  const tableH=hdrH+allUnits.length*rowH;
+  const footerH=70;
+  const H=y0+tableH+footerH;
+  const cv=document.createElement('canvas'); cv.width=W*scale; cv.height=H*scale; const g=cv.getContext('2d'); g.scale(scale,scale);
+  g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
+  // Premium header - logos
   try{
     g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
     g.fillStyle='#ffffff';
@@ -4499,16 +4502,15 @@ async function exportUnitRosterPNG(wk){
   g.fillStyle='#0B1C3D'; g.textAlign='center'; g.font='700 12px Trebuchet MS';
   g.fillText('Republic of Rwanda', leftCenter, 132);
   g.fillText('Ruli District Hospital', rightCenter, 132);
+  // Center headings aligned close to bottom, near gold line, separate lines to use empty space
   g.fillStyle='#000000'; g.textAlign='center';
-  g.font='900 22px Trebuchet MS'; g.fillText(s.hospital, W/2, logoCenterY-16);
-  g.font='700 11px Trebuchet MS'; g.fillText(s.dept+' · '+s.email+' · '+s.phone, W/2, logoCenterY+2);
-  // Gold line BELOW Republic/Ruli texts, reduce empty space below logo so roster occupies space and looks larger
-  g.strokeStyle='#C9A84C'; g.lineWidth=2.8; g.beginPath(); g.moveTo(MWP,148); g.lineTo(W-MWP,148); g.stroke();
-  y=160;
-  g.fillStyle='#000000'; g.font='800 16px Trebuchet MS'; g.textAlign='center'; g.fillText('Weekly Unit Roster — Week of '+fmtDate(wk), W/2, y+12);
-  y+=30;
-  let x0=MWP, y0=y;
-  const colW=(W-48-180)/8; const nameW=180;
+  g.font='900 24px "Bebas Neue", Trebuchet MS'; g.fillText(s.hospital, W/2, goldY-56);
+  g.font='700 13px Trebuchet MS'; g.fillText(s.dept, W/2, goldY-32);
+  g.font='500 11px Trebuchet MS'; g.fillText(s.email, W/2, goldY-16);
+  g.font='500 11px Trebuchet MS'; g.fillText(s.phone, W/2, goldY-2);
+  g.strokeStyle='#C9A84C'; g.lineWidth=2.8; g.beginPath(); g.moveTo(MWP,goldY); g.lineTo(W-MWP,goldY); g.stroke();
+  g.fillStyle='#000000'; g.font='800 16px "Bebas Neue", Trebuchet MS'; g.textAlign='center'; g.fillText('Weekly Unit Roster — Week of '+fmtDate(wk), W/2, titleY);
+  let x0=MWP;
   const drawCell=(x,y,w,h,fill,text,tcolor)=>{
     g.fillStyle=fill; g.fillRect(x,y,w,h);
     if(text){
@@ -4535,7 +4537,7 @@ async function exportUnitRosterPNG(wk){
     drawCell(x0+nameW+i*colW, y0+22, colW, 24, fill, d.slice(8,10), '#000');
   });
   // Gold top line for table
-  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0+nameW+8*colW, y0); g.stroke(); g.restore();
+  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0+nameW+7*colW, y0); g.stroke(); g.restore();
   // Body
   allUnits.forEach((u,ri)=>{
     const yy=y0+hdrH+ri*rowH;
@@ -4546,7 +4548,6 @@ async function exportUnitRosterPNG(wk){
       const isWknd=isWeekend(d);
       let nm='';
       if(isNight){
-        // Night shift row - show who's on night shift from working plan
         const key=d.slice(0,7);
         const p=(DB.workingPlans[key]||{}).primary;
         if(p){
@@ -4556,15 +4557,11 @@ async function exportUnitRosterPNG(wk){
             nm=nightStaff.join(', ');
           }
         }
-        // Fallback to unit roster assignments if no working plan
         if(!nm) nm=(ro.assignments[d]||{})['Night Shift']||'';
       }else{
         nm=(ro.assignments[d]||{})[u]||'';
-        // For weekend, if day shift person works all services, show same name in all units (as per request)
         if(isWknd && !nm){
-          // Check if any assignment for that day exists (day shift works all services)
           const dayAssignments = Object.values(ro.assignments[d]||{}).filter(v=>v);
-          // If only one day person for weekend, use it
           if(dayAssignments.length===1) nm=dayAssignments[0];
         }
       }
@@ -4574,64 +4571,67 @@ async function exportUnitRosterPNG(wk){
     });
   });
   // Gold bottom line for table
-  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x0, y0+hdrH+allUnits.length*rowH); g.lineTo(x0+nameW+8*colW, y0+hdrH+allUnits.length*rowH); g.stroke(); g.restore();
-  // Footer
-  let fy=H-40;
-  g.strokeStyle='#C9A84C'; g.lineWidth=1.2; g.beginPath(); g.moveTo(24,fy-12); g.lineTo(W-24,fy-12); g.stroke();
-  g.fillStyle='#000'; g.font='700 10px Trebuchet MS'; g.textAlign='left'; g.fillText('Week of '+fmtDate(wk)+' · Generated '+todayISO(), 24, fy+4);
+  g.save(); g.strokeStyle='#C9A84C'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x0, y0+hdrH+allUnits.length*rowH); g.lineTo(x0+nameW+7*colW, y0+hdrH+allUnits.length*rowH); g.stroke(); g.restore();
+  // Footer - fixed: no overlap, aligned to middle of footer section
+  const fyLine=y0+tableH+20;
+  g.strokeStyle='#C9A84C'; g.lineWidth=1.2; g.beginPath(); g.moveTo(MWP,fyLine); g.lineTo(W-MWP,fyLine); g.stroke();
+  const footerTextY=fyLine+26; // middle of footer section (footerH 70, line at 20, text at 26 centered)
+  g.fillStyle='#000'; g.font='700 11px Trebuchet MS'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText('Week of '+fmtDate(wk)+' · Generated '+todayISO()+' · Ruli District Hospital Laboratory', W/2, footerTextY);
   cv.toBlob(b=>download(b,'Unit-Roster-'+wk+'.png'));
 }
 function exportUnitRosterPDF(wk){
   const ro=DB.unitRosters[wk]||{assignments:{}}; const s=DB.settings;
-  const allUnits=UNITS; // Night Shift already in UNITS per request
+  const allUnits=UNITS;
   const d=new PDF.Doc(); const W=842, H=595;
+  const MP=24;
   d.addPage(W,H);
-  const nameW=120; const colW=Math.floor((W-36-nameW)/8);
+  const nameW=120; const colW=Math.floor((W-MP*2-nameW)/7); // FIX 7 days symmetric
   const rowH=20, hdrH=44;
-  let y=20;
+  const goldY=52;
   try{
-    d.rect(24, 10, 56, 56, {fill:'#ffffff'});
-    d.rect(W-24-56, 10, 56, 56, {fill:'#ffffff'});
-    if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, 24, 10, 56, 56); }
-    if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, W-24-56, 10, 56, 56); }
+    d.rect(MP, 6, 72, 56, {fill:'#ffffff'});
+    d.rect(W-MP-72, 6, 72, 56, {fill:'#ffffff'});
+    if(typeof RWANDA_COAT_JPG!=='undefined'){ d.image(RWANDA_COAT_JPG, MP+8, 6, 56, 56); }
+    if(typeof RULI_HOSPITAL_JPG!=='undefined'){ d.image(RULI_HOSPITAL_JPG, W-MP-64, 6, 56, 56); }
   }catch(e){}
-  d.text('Republic of Rwanda', 24+28, 78, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
-  d.text('Ruli District Hospital', W-24-28, 78, {size:6, bold:true, align:'center', color:'0 0 0 rg'});
-  d.text(s.hospital, W/2, y+8, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
-  d.text(s.dept, W/2, y+22, {size:10, bold:true, color:'0 0 0 rg', align:'center'});
-  d.text(s.email+' · '+s.phone, W/2, y+32, {size:8, color:'0 0 0 rg', align:'center'});
-  d.line(24,y+52,W-24,y+52,{width:2.5,color:'#C9A84C'});
-  y+=60;
-  d.text('Weekly Unit Roster — Week of '+fmtDate(wk), W/2, y+6, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
-  y+=24;
+  d.text('Republic of Rwanda', MP+36, 68, {size:7, bold:true, align:'center', color:'0 0 0 rg'});
+  d.text('Ruli District Hospital', W-MP-36, 68, {size:7, bold:true, align:'center', color:'0 0 0 rg'});
+  // Headings close to bottom near line, separate lines
+  d.text(s.hospital, W/2, goldY-28, {size:13, bold:true, color:'0 0 0 rg', align:'center'});
+  d.text(s.dept, W/2, goldY-16, {size:9, bold:true, color:'0 0 0 rg', align:'center'});
+  d.text(s.email, W/2, goldY-6, {size:7.5, color:'0 0 0 rg', align:'center'});
+  d.text(s.phone, W/2, goldY+2, {size:7.5, color:'0 0 0 rg', align:'center'});
+  d.line(MP,goldY+8,W-MP,goldY+8,{width:2.5,color:'#C9A84C'});
+  let y=goldY+16;
+  d.text('Weekly Unit Roster — Week of '+fmtDate(wk), W/2, y, {size:12, bold:true, color:'0 0 0 rg', align:'center'});
+  y+=18;
   const y0=y;
   const days=[0,1,2,3,4,5,6].map(i=>addDays(wk,i));
-  // Header
+  // Header 7 days only
   for(let i=0;i<8;i++){
-    const x=24+(i===0?nameW:0)+(i>0?(i-1)*colW+nameW:0);
+    const x=MP+(i===0?0:nameW+(i-1)*colW);
     const w=i===0?nameW:colW;
     if(i===0){
-      d.rect(24,y0,nameW,22,{fill:'#0B1C3D'});
-      d.text('Unit / Day',26,y0+6,{size:8,bold:true,color:'1 1 1 rg'});
-      d.rect(24,y0+22,nameW,24,{fill:'#F7F8FC'});
-      d.text('Date',26,y0+28,{size:8,bold:true,color:'0 0 0 rg'});
+      d.rect(MP,y0,nameW,22,{fill:'#0B1C3D'});
+      d.text('Unit / Day',MP+2,y0+6,{size:8,bold:true,color:'1 1 1 rg'});
+      d.rect(MP,y0+22,nameW,24,{fill:'#F7F8FC'});
+      d.text('Date',MP+2,y0+28,{size:8,bold:true,color:'0 0 0 rg'});
     }else{
       const dd=days[i-1];
       const isWknd=isWeekend(dd);
-      d.rect(24+nameW+(i-1)*colW,y0,colW,22,{fill:isWknd?'#fdf3d7':'#F7F8FC'});
-      d.text(DOWL[dayOfWeek(dd)],24+nameW+(i-1)*colW+colW/2,y0+6,{size:7,bold:true,color:'0 0 0 rg', align:'center'});
-      d.rect(24+nameW+(i-1)*colW,y0+22,colW,24,{fill:isWknd?'#f9e9cb':'#eef1f6'});
-      d.text(dd.slice(8,10),24+nameW+(i-1)*colW+colW/2,y0+30,{size:8,bold:true,color:'0 0 0 rg', align:'center'});
+      d.rect(MP+nameW+(i-1)*colW,y0,colW,22,{fill:isWknd?'#fdf3d7':'#F7F8FC'});
+      d.text(DOWL[dayOfWeek(dd)],MP+nameW+(i-1)*colW+colW/2,y0+6,{size:7,bold:true,color:'0 0 0 rg', align:'center'});
+      d.rect(MP+nameW+(i-1)*colW,y0+22,colW,24,{fill:isWknd?'#f9e9cb':'#eef1f6'});
+      d.text(dd.slice(8,10),MP+nameW+(i-1)*colW+colW/2,y0+30,{size:8,bold:true,color:'0 0 0 rg', align:'center'});
     }
   }
-  // Gold top
-  d.line(24,y0,24+nameW+8*colW,y0,{width:2.5,color:'#C9A84C'});
-  // Body
+  d.line(MP,y0,MP+nameW+7*colW,y0,{width:2.5,color:'#C9A84C'});
   allUnits.forEach((u,ri)=>{
     const yy=y0+hdrH+ri*rowH;
     const isNight=u==='Night Shift';
-    d.rect(24,yy,nameW,rowH,{fill:isNight?'#0B1C3D':(ri%2?'#fbfcff':'#ffffff')});
-    d.text(u,26,yy+6,{size:8,bold:true,color:isNight?'0.79 0.66 0.29 rg':'0 0 0 rg'});
+    d.rect(MP,yy,nameW,rowH,{fill:isNight?'#0B1C3D':(ri%2?'#fbfcff':'#ffffff')});
+    d.text(u,MP+2,yy+6,{size:8,bold:true,color:isNight?'0.79 0.66 0.29 rg':'0 0 0 rg'});
     days.forEach((dd,di)=>{
       let nm='';
       if(isNight){
@@ -4647,13 +4647,16 @@ function exportUnitRosterPDF(wk){
       }else{
         nm=(ro.assignments[dd]||{})[u]||'';
       }
-      d.rect(24+nameW+di*colW,yy,colW,rowH,{fill:isNight?'#0B1C3D':'#ffffff'});
-      if(nm) d.text(nm.slice(0,20),24+nameW+di*colW+colW/2,yy+6,{size:7,bold:true,color:isNight?'0.79 0.66 0.29 rg':'0 0 0 rg', align:'center'});
-      d.rectBorder(24+nameW+di*colW,yy,colW,rowH,{width:0.3,color:'#d4d9e6'});
+      d.rect(MP+nameW+di*colW,yy,colW,rowH,{fill:isNight?'#0B1C3D':'#ffffff'});
+      if(nm) d.text(nm.slice(0,22),MP+nameW+di*colW+colW/2,yy+6,{size:7,bold:true,color:isNight?'0.79 0.66 0.29 rg':'0 0 0 rg', align:'center'});
+      d.rectBorder(MP+nameW+di*colW,yy,colW,rowH,{width:0.3,color:'#d4d9e6'});
     });
   });
-  // Gold bottom
-  d.line(24,y0+hdrH+allUnits.length*rowH,24+nameW+8*colW,y0+hdrH+allUnits.length*rowH,{width:2.5,color:'#C9A84C'});
+  d.line(MP,y0+hdrH+allUnits.length*rowH,MP+nameW+7*colW,y0+hdrH+allUnits.length*rowH,{width:2.5,color:'#C9A84C'});
+  // Footer fixed no overlap, middle of footer section
+  const fyLine=y0+hdrH+allUnits.length*rowH+16;
+  d.line(MP,fyLine,W-MP,fyLine,{width:1.2,color:'#C9A84C'});
+  d.text('Week of '+fmtDate(wk)+' · Generated '+todayISO()+' · Ruli District Hospital Laboratory', W/2, fyLine+12, {size:8, color:'0 0 0 rg', align:'center'});
   download(new Blob([d.save()],{type:'application/pdf'}),'Unit-Roster-'+wk+'.pdf');
 }
 /* ---------------- OFF-DAY WISHES ---------------- */
@@ -6386,7 +6389,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.31 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span id="loadedBadge" style="display:none;color:var(--green);font-weight:800;font-size:12px"> App loaded & running</span><br>Lab Systems v4.31.2 · Local data · auto-saved<br><span id="saveState" style="color:var(--green)">● saved</span>';
 }
 
 
