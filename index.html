@@ -91,8 +91,8 @@ body.nav-mini .nav-item.active .ic{color:var(--gold)}
 body.nav-mini .nav-item:hover{transform:translateX(0) scale(1.08); color:transparent !important}
 body.nav-mini .nav-item::after{content:attr(data-tooltip); position:absolute; left:68px; top:50%; transform:translateY(-50%); background:#0B1C3D; color:#C9A84C; padding:8px 14px; border-radius:10px; font-size:12px; font-weight:700; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity 180ms ease, transform 180ms ease; z-index:100; text-indent:0; line-height:1.2; border:1px solid rgba(201,168,76,0.3); box-shadow:0 4px 16px rgba(11,28,61,0.18)}
 body.nav-mini .nav-item:hover::after{opacity:1; transform:translateY(-50%) translateX(4px)}
-body.nav-mini .side-foot{display:flex !important; justify-content:center; align-items:center; padding:12px 4px; font-size:0 !important; border-top:none; margin-top:auto}
-body.nav-mini .side-foot::before{content:'v4.33'; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px; background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.22); border-radius:99px; padding:4px 8px}
+body.nav-mini .side-foot{display:none !important}
+body.nav-mini .side-foot::before{display:none !important}
 
 #mainWrap{grid-column:2; min-width:0; display:flex; flex-direction:column; width:100%; transition:all 250ms ease}
 body.nav-closed #mainWrap{grid-column:1 !important; width:100% !important; max-width:100% !important}
@@ -563,7 +563,7 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.2</div>
+    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.3</div>
   </aside>
 
   <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
@@ -1328,50 +1328,76 @@ function getScreenTier(){ const ww = window.innerWidth || 1200; if(ww<=560) retu
 
 
 
-function svgDonut(items,opts){ if(!items||!items.length) return '<div class="empty">No data</div>'; opts=opts||{}; const size=opts.size||160, cx=size/2, cy=size/2, r=size/2-12, ir=r*0.62;
-  const total=items.reduce((a,i)=>a+(i.value||0),0)||1; let acc=0; let segs='';
+function svgDonut(items,opts){
+  if(!items||!items.length) return '<div class="empty">No data</div>';
+  opts=opts||{};
+  const size=opts.size||180, cx=size/2, cy=size/2, r=size/2-16, ir=r*0.58;
+  const total=items.reduce((a,i)=>a+(i.value||0),0)||1;
+  let acc=0; let segs='', labels='';
   const tier = typeof getScreenTier==='function' ? getScreenTier() : 'lg';
+  const gapAngle = 0.04; // small gap between segments for premium look
+  
   items.forEach((it,i)=>{
     const frac=it.value/total; if(frac<=0) return;
-    const a0=acc*2*Math.PI-Math.PI/2, a1=(acc+frac)*2*Math.PI-Math.PI/2;
+    const a0=acc*2*Math.PI-Math.PI/2 + gapAngle/2, a1=(acc+frac)*2*Math.PI-Math.PI/2 - gapAngle/2;
     const large=(a1-a0)>Math.PI?1:0;
     const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0), x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+    const x0i=cx+ir*Math.cos(a1), y0i=cy+ir*Math.sin(a1), x1i=cx+ir*Math.cos(a0), y1i=cy+ir*Math.sin(a0);
     const col=it.color||CHART_COLORS[i%CHART_COLORS.length];
-    segs+=`<path d="M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)} L${cx} ${cy} Z" fill="${col}" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.08))"><title>${esc(it.label)}: ${it.value}</title></path>`;
+    // Premium donut with inner cut and subtle shadow, rounded edges via stroke
+    segs+=`<path d="M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)} L${x0i.toFixed(1)} ${y0i.toFixed(1)} A${ir} ${ir} 0 ${large} 0 ${x1i.toFixed(1)} ${y1i.toFixed(1)} Z" fill="${col}" stroke="var(--surface)" stroke-width="2.5" stroke-linejoin="round" style="filter:drop-shadow(0 3px 8px rgba(11,28,61,0.12)); transition:all 250ms ease"><title>${esc(it.label)}: ${it.value} (${(frac*100).toFixed(1)}%)</title></path>`;
     acc+=frac;
   });
-  return `<svg viewBox="0 0 ${size} ${size}" width="${opts.width||140}" height="${opts.height||140}" role="img" style="overflow:visible"><g>${segs}</g><circle cx="${cx}" cy="${cy}" r="${ir}" fill="var(--surface)" stroke="var(--edge)" stroke-width="1"/><text x="${cx}" y="${cy+6}" text-anchor="middle" font-size="${tier==='xs'?14:16}" font-weight="900" fill="var(--text)">${opts.center||''}</text></svg>`;
+  
+  return `<svg viewBox="0 0 ${size} ${size}" width="${opts.width||160}" height="${opts.height||160}" role="img" style="overflow:visible; background:transparent">
+    <g>${segs}</g>
+    <circle cx="${cx}" cy="${cy}" r="${ir-2}" fill="var(--surface)" stroke="var(--edge)" stroke-width="1" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,0.06))"/>
+    <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="${tier==='xs'?18:22}" font-weight="900" fill="var(--text)" style="font-family:'Bebas Neue', 'Space Grotesk', sans-serif; letter-spacing:0.5px">${opts.center||''}</text>
+    <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--muted)" style="letter-spacing:0.3px">${total} total</text>
+  </svg>`;
 }
 
 
 
 
 
-function svgBar(data,opts){ // extra luxury vertical bars - no overlapping, 4-6 words + dots, premium, theme-aware
+function svgBar(data,opts){ // premium vertical bars - Arena Cost per Task aesthetics - curved, well-coded axes
   opts=opts||{};
   const tier=getScreenTier();
   const w = tier==='xs' ? 380 : tier==='sm' ? 540 : (opts.w||700);
-  const h = tier==='xs' ? 260 : tier==='sm' ? 280 : (opts.h||320);
-  const pad = tier==='xs' ? {l:44,r:14,t:30,b:78} : tier==='sm' ? {l:50,r:16,t:32,b:84} : {l:56,r:20,t:36,b:96};
+  const h = tier==='xs' ? 280 : tier==='sm' ? 300 : (opts.h||340);
+  const pad = tier==='xs' ? {l:52,r:16,t:28,b:72} : tier==='sm' ? {l:60,r:20,t:32,b:80} : {l:68,r:24,t:36,b:88};
   const fs = chartFontScale(w);
   const vals=data.map(d=>d.value).concat(0);
   const max=Math.max(...vals,1), min=Math.min(...vals,0); const range=(max-min)||1;
   const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
   const n=data.length||1;
-  const gap = tier==='xs' ? 10 : tier==='sm' ? 14 : 18;
-  const bw = Math.max(18, Math.min(tier==='xs'?32: tier==='sm'?48:58, (iw - gap*(n-1))/n));
-  const y0v=pad.t+ (max/range)*ih;
-  let defs='', bars='', labels='';
+  const gap = tier==='xs' ? 12 : tier==='sm' ? 16 : 20;
+  const bw = Math.max(20, Math.min(tier==='xs'?36: tier==='sm'?52:64, (iw - gap*(n-1))/n));
+  
+  let defs='', bars='', labels='', grid='', yAxis='';
+  
+  // Premium grid - subtle dashed
+  for(let g=0;g<=4;g++){
+    const gy=pad.t+(ih*g)/4;
+    const val = max - (range*g)/4;
+    grid+=`<line x1="${pad.l}" y1="${gy}" x2="${w-pad.r}" y2="${gy}" stroke="#eef1f6" stroke-width="1" stroke-dasharray="4 6" opacity="0.8"/>`;
+    yAxis+=`<text x="${pad.l-12}" y="${gy+4}" text-anchor="end" font-size="${Math.max(fs-1,11)}" fill="#64748B" font-weight="600" style="font-family:'Trebuchet MS', sans-serif">${val>=100?Math.round(val):val.toFixed(1)}</text>`;
+  }
+  
+  // X axis line - premium
+  grid+=`<line x1="${pad.l}" y1="${pad.t+ih}" x2="${w-pad.r}" y2="${pad.t+ih}" stroke="#0B1C3D" stroke-width="1.5" opacity="0.15"/>`;
+  grid+=`<line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t+ih}" stroke="#0B1C3D" stroke-width="1.5" opacity="0.15"/>`;
   
   data.forEach((d,i)=>{
     const col=d.color||CHART_COLORS[i%CHART_COLORS.length];
     const gradId=`gradBar${i}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-    const isGold = col==='#C9A84C' || col.toLowerCase()==='#c9a84c';
-    const lightCol = isGold ? '#e8d5a3' : col+'CC';
-    defs+=`<linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${lightCol}" stop-opacity="0.95"/><stop offset="100%" stop-color="${col}" stop-opacity="1"/></linearGradient>`;
+    defs+=`<linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity="0.92"/><stop offset="100%" stop-color="${col}" stop-opacity="0.68"/></linearGradient>`;
     d._grad=gradId;
   });
 
+  const y0v=pad.t+ (max/range)*ih;
+  
   data.forEach((d,i)=>{
     const x=pad.l + i*(bw+gap);
     const vh=Math.abs(d.value)/range*ih; const y=d.value>=0?y0v-vh:y0v;
@@ -1379,55 +1405,27 @@ function svgBar(data,opts){ // extra luxury vertical bars - no overlapping, 4-6 
     const grad=d._grad;
     const isGold = col==='#C9A84C';
     bars+=`<g style="transition:all 250ms ease">
-      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(vh,3).toFixed(1)}" rx="12" ry="12" fill="url(#${grad})" style="filter:drop-shadow(0 4px 12px rgba(11,28,61,0.12))${isGold?'; filter:drop-shadow(0 0 0 1px rgba(201,168,76,0.22)) drop-shadow(0 6px 20px rgba(201,168,76,0.22))':''}"><title>${esc(d.label)}: ${d.value}</title></rect>
-      <line x1="${(x+4).toFixed(1)}" y1="${(y+3).toFixed(1)}" x2="${(x+bw-4).toFixed(1)}" y2="${(y+3).toFixed(1)}" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-linecap="round"/>
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(vh,4).toFixed(1)}" rx="10" ry="10" fill="url(#${grad})" stroke="rgba(255,255,255,0.8)" stroke-width="1" style="filter:drop-shadow(0 4px 12px rgba(11,28,61,0.10))${isGold?'; filter:drop-shadow(0 0 0 1px rgba(201,168,76,0.22)) drop-shadow(0 6px 20px rgba(201,168,76,0.18))':''}"><title>${d.label}: ${d.value}</title></rect>
+      <rect x="${(x+2).toFixed(1)}" y="${(y+2).toFixed(1)}" width="${(bw-4).toFixed(1)}" height="3" rx="1.5" fill="rgba(255,255,255,0.45)" opacity="0.9"/>
+      <text x="${(x+bw/2).toFixed(1)}" y="${(y-8).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" font-weight="800" fill="#0B1C3D" style="font-family:'Bebas Neue','Trebuchet MS',sans-serif; paint-order:stroke; stroke:white; stroke-width:3px; stroke-linejoin:round">${d.value>=100?Math.round(d.value):d.value.toFixed(1)}</text>
     </g>`;
-    bars+=`<text x="${(x+bw/2).toFixed(1)}" y="${(y-12).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs,12)}" font-weight="900" fill="var(--text)" style="paint-order:stroke; stroke:var(--surface); stroke-width:4px; stroke-linejoin:round">${d.value}</text>`;
+    labels+=`<text x="${(x+bw/2).toFixed(1)}" y="${(pad.t+ih+18).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" fill="#475569" font-weight="600" style="font-family:'Trebuchet MS', sans-serif">${(d.label||'').slice(0, tier==='xs'?10:14)}</text>`;
   });
 
-  const minLabelSpace = tier==='xs' ? 56 : 78;
-  const showEvery = Math.max(1, Math.ceil(n * minLabelSpace / iw));
-  const rotate = n>6 || showEvery>1;
-  if(opts.labels!==false){
-    data.forEach((d,i)=>{
-      if(i%showEvery!==0 && i!==n-1) return;
-      let lab = String(d.label||'');
-      let words = lab.split(/\s+/).filter(w=>w);
-      if(words.length>6) lab = words.slice(0,4).join(' ') + '…';
-      else if(words.length>4 && lab.length>22) lab = words.slice(0,5).join(' ') + '…';
-      else if(lab.length>20) lab = lab.slice(0,18) + '…';
-      const x = pad.l + i*(bw+gap) + bw/2;
-      const y = h-14;
-      if(rotate){
-        labels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="end" transform="rotate(-32 ${x.toFixed(1)} ${y.toFixed(1)})" font-size="${Math.max(fs-1,11)}" fill="var(--muted)" font-weight="700">${esc(lab)}</text>`;
-      } else {
-        labels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" fill="var(--muted)" font-weight="700">${esc(lab)}</text>`;
-      }
-    });
-  }
-
-  let gl='';
-  gl+=`<line x1="${pad.l}" y1="${y0v.toFixed(1)}" x2="${w-pad.r}" y2="${y0v.toFixed(1)}" stroke="var(--edge-strong)" stroke-width="1.4"/>`;
-  for(let g=0;g<=4;g++){
-    const gy=pad.t+(ih*g)/4; const val=Math.round(max-(range*g)/4);
-    gl+=`<line x1="${pad.l}" y1="${gy}" x2="${w-pad.r}" y2="${gy}" stroke="var(--edge)" stroke-width="1" stroke-dasharray="4 6"/>`;
-    gl+=`<text x="${pad.l-12}" y="${gy+4}" text-anchor="end" font-size="${Math.max(fs-1,11)}" fill="var(--muted)" font-weight="600">${val}</text>`;
-  }
-
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; max-height:${h}px; background:var(--surface); border-radius:14px"><defs>${defs}</defs><g>${gl}</g><g>${bars}</g><g>${labels}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:#ffffff; border-radius:14px; border:1px solid #f1f5f9"><defs>${defs}</defs><g>${grid}</g><g>${yAxis}</g><g>${bars}</g><g>${labels}</g></svg>`;
 }
 
-function svgHBar(data,opts){ // extra luxury horizontal bars - gradient, pill shape - theme aware
+function svgHBar(data,opts){ // premium horizontal bars - Arena Cost per Task aesthetics - pill, gradient, well-coded axes
   opts=opts||{};
   const tier=getScreenTier();
   const w = tier==='xs' ? 380 : tier==='sm' ? 540 : (opts.w||700);
-  const rowH = tier==='xs' ? 42 : tier==='sm' ? 46 : 50;
-  const h = opts.h||Math.max(tier==='xs'?200:220, data.length*rowH+36);
+  const rowH = tier==='xs' ? 44 : tier==='sm' ? 48 : 52;
+  const h = opts.h||Math.max(tier==='xs'?200:220, data.length*rowH+40);
   const fs = chartFontScale(w);
   const max=Math.max(...data.map(d=>d.value),1);
-  const labW = tier==='xs' ? 120 : tier==='sm' ? 160 : Math.min(210, w*0.36);
+  const labW = tier==='xs' ? 120 : tier==='sm' ? 160 : Math.min(200, w*0.32);
   const iw=w-labW-70;
-  let defs='', rows='';
+  let defs='', rows='', grid='';
 
   data.forEach((d,i)=>{
     const col=d.color||CHART_COLORS[i%CHART_COLORS.length];
@@ -1438,25 +1436,26 @@ function svgHBar(data,opts){ // extra luxury horizontal bars - gradient, pill sh
 
   for(let g=0; g<=4; g++){
     const gx = labW + (iw*g)/4;
-    rows+=`<line x1="${gx}" y1="12" x2="${gx}" y2="${h-12}" stroke="var(--edge)" stroke-width="1" stroke-dasharray="4 6"/>`;
+    grid+=`<line x1="${gx}" y1="16" x2="${gx}" y2="${h-16}" stroke="#eef1f6" stroke-width="1" stroke-dasharray="4 6" opacity="0.8"/>`;
+    grid+=`<text x="${gx}" y="${h-2}" text-anchor="middle" font-size="${Math.max(fs-2,10)}" fill="#94a3b8" font-weight="600" style="font-family:'Trebuchet MS', sans-serif">${Math.round(max*g/4)}</text>`;
   }
 
   data.forEach((d,i)=>{
-    const y=14+i*rowH;
+    const y=18+i*rowH;
     const bw=(d.value/max)*iw;
     const col=d.color||CHART_COLORS[i%CHART_COLORS.length];
     const grad=d._grad;
     const isGold = col==='#C9A84C';
-    rows+=`<g>
-      <rect x="0" y="${y}" width="${labW-10}" height="${rowH-10}" rx="10" fill="var(--bg2)" stroke="var(--edge)" stroke-width="0.8"/>
-      <text x="${labW-14}" y="${(y+rowH/2).toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="${Math.max(fs,12)}" fill="var(--text)" font-weight="800">${esc(String(d.label).slice(0, tier==='xs'?14:22))}</text>
-      <rect x="${labW}" y="${(y+12).toFixed(1)}" width="${Math.max(bw,6).toFixed(1)}" height="20" rx="10" fill="url(#${grad})" style="filter:drop-shadow(0 3px 8px rgba(11,28,61,0.12))${isGold?'; filter:drop-shadow(0 0 0 1px rgba(201,168,76,0.22)) drop-shadow(0 4px 16px rgba(201,168,76,0.22))':''}"><title>${esc(d.label)}: ${d.value}</title></rect>
-      <circle cx="${(labW+bw).toFixed(1)}" cy="${(y+22).toFixed(1)}" r="5" fill="var(--surface)" stroke="${col}" stroke-width="2.5" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.12))"/>
-      <text x="${(labW+bw+18).toFixed(1)}" y="${(y+rowH/2).toFixed(1)}" dominant-baseline="middle" font-size="${Math.max(fs,12)}" font-weight="900" fill="var(--text)">${d.value}</text>
+    rows+=`<g style="transition:all 250ms ease">
+      <rect x="0" y="${y}" width="${labW-10}" height="${rowH-14}" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="${labW-14}" y="${(y+rowH/2-4).toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="${Math.max(fs-1,12)}" fill="#0f172a" font-weight="700" style="font-family:'Trebuchet MS', sans-serif">${(String(d.label).slice(0, tier==='xs'?14:20))}</text>
+      <rect x="${labW}" y="${(y+6).toFixed(1)}" width="${Math.max(bw,8).toFixed(1)}" height="22" rx="11" fill="url(#${grad})" stroke="rgba(255,255,255,0.9)" stroke-width="1" style="filter:drop-shadow(0 3px 10px rgba(11,28,61,0.12))${isGold?'; filter:drop-shadow(0 0 0 1px rgba(201,168,76,0.22)) drop-shadow(0 4px 16px rgba(201,168,76,0.18))':''}"><title>${d.label}: ${d.value}</title></rect>
+      <circle cx="${(labW+bw).toFixed(1)}" cy="${(y+17).toFixed(1)}" r="6" fill="white" stroke="${col}" stroke-width="2.5" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.14))"/>
+      <text x="${(labW+bw+20).toFixed(1)}" y="${(y+rowH/2-2).toFixed(1)}" dominant-baseline="middle" font-size="${Math.max(fs,12)}" font-weight="800" fill="#0f172a" style="font-family:'Bebas Neue','Trebuchet MS',sans-serif">${d.value}</text>
     </g>`;
   });
 
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; max-height:${Math.min(h, 700)}px; background:var(--surface); border-radius:14px"><defs>${defs}</defs><g>${rows}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:#ffffff; border-radius:14px; border:1px solid #f1f5f9"><defs>${defs}</defs><g>${grid}</g><g>${rows}</g></svg>`;
 }
 
 function svgPareto(data, opts){
@@ -1586,9 +1585,9 @@ function svgStackBar(layers,opts){ // extra luxury stacked bars - rounded, gradi
 function svgLineChart(series, opts){
   opts=opts||{};
   const tier = typeof getScreenTier==='function' ? getScreenTier() : 'lg';
-  const w = tier==='xs' ? 360 : tier==='sm' ? 540 : (opts.w||700);
-  const h = tier==='xs' ? 220 : tier==='sm' ? 260 : (opts.h||300);
-  const pad={l: tier==='xs'?42:56, r: tier==='xs'?12:20, t: tier==='xs'?24:32, b: tier==='xs'?42:52};
+  const w = tier==='xs' ? 360 : tier==='sm' ? 540 : (opts.w||720);
+  const h = tier==='xs' ? 240 : tier==='sm' ? 280 : (opts.h||340);
+  const pad={l: tier==='xs'?52:68, r: tier==='xs'?16:28, t: tier==='xs'?28:36, b: tier==='xs'?48:64};
   const fs = typeof chartFontScale==='function' ? chartFontScale(w) : 12;
   const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
 
@@ -1609,14 +1608,17 @@ function svgLineChart(series, opts){
   const minX=Math.min(...allX,0);
   const rangeX=(maxX-minX)||1;
 
-  let gl='';
+  let gl='', yLabels='', xGrid='';
   for(let g=0;g<=4;g++){
     const gy=pad.t+(ih*g)/4; const val = (maxY - (rangeY*g)/4);
-    gl+=`<line x1="${pad.l}" y1="${gy}" x2="${w-pad.r}" y2="${gy}" stroke="var(--edge)" stroke-width="1" stroke-dasharray="3 4"/>`;
-    gl+=`<text x="${pad.l-10}" y="${gy+4}" text-anchor="end" font-size="${Math.max(fs-1,10)}" fill="var(--muted)" font-weight="600">${typeof val==='number'?val.toFixed(val>=10?0:1):val}</text>`;
+    gl+=`<line x1="${pad.l}" y1="${gy}" x2="${w-pad.r}" y2="${gy}" stroke="#eef1f6" stroke-width="1" stroke-dasharray="5 7" opacity="0.9"/>`;
+    yLabels+=`<text x="${pad.l-14}" y="${gy+4}" text-anchor="end" font-size="${Math.max(fs-1,11)}" fill="#64748B" font-weight="600" style="font-family:'Trebuchet MS', sans-serif">${typeof val==='number'? (val>=100?Math.round(val):val.toFixed(1)) : val}</text>`;
   }
+  // Premium axes - well-coded
+  gl+=`<line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t+ih}" stroke="#0B1C3D" stroke-width="1.8" opacity="0.12" stroke-linecap="round"/>`;
+  gl+=`<line x1="${pad.l}" y1="${pad.t+ih}" x2="${w-pad.r}" y2="${pad.t+ih}" stroke="#0B1C3D" stroke-width="1.8" opacity="0.12" stroke-linecap="round"/>`;
 
-  function smoothPath(points, tension=0.4){
+  function smoothPath(points, tension=0.6){
     if(points.length<2) return '';
     if(points.length===2){
       return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`;
@@ -1636,45 +1638,52 @@ function svgLineChart(series, opts){
     return path;
   }
 
-  let lines='', dots='', xLabels='', areas='';
+  let lines='', dots='', xLabels='', areas='', defs='';
+
   allSeries.forEach((s,si)=>{
     const col=s.color||CHART_COLORS[si%CHART_COLORS.length];
+    const gradId=`gradLine${si}_${Date.now()}`;
+    defs+=`<linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity="0.22"/><stop offset="100%" stop-color="${col}" stop-opacity="0.02"/></linearGradient>`;
+    
     const points = s.values.map(pt=>{
       const x = pad.l + ((pt.x - minX)/rangeX)*iw;
       const y = pad.t + ih - ((pt.y - minY)/rangeY)*ih;
       return {x, y, orig:pt};
     });
 
-    const pathD = smoothPath(points, 0.5);
+    const pathD = smoothPath(points, 0.6);
     let areaD = pathD;
     if(points.length>1){
       areaD+=` L${points[points.length-1].x.toFixed(1)},${(pad.t+ih).toFixed(1)} L${points[0].x.toFixed(1)},${(pad.t+ih).toFixed(1)} Z`;
     }
-    areas+=`<path d="${areaD}" fill="${col}" opacity="0.10" style="transition:all 250ms ease"/>`;
-    lines+=`<path d="${pathD}" fill="none" stroke="${col}" stroke-width="${tier==='xs'?2.6:3}" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.10)); transition:all 250ms ease"><title>${esc(s.label)}</title></path>`;
+    areas+=`<path d="${areaD}" fill="url(#${gradId})" style="transition:all 300ms ease"/>`;
+    lines+=`<path d="${pathD}" fill="none" stroke="${col}" stroke-width="${tier==='xs'?3:3.5}" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 4px 10px rgba(11,28,61,0.12)); transition:all 300ms ease"><title>${esc(s.label)}</title></path>`;
 
-    points.forEach(pt=>{
-      dots+=`<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="${tier==='xs'?4:5}" fill="${col}" stroke="var(--surface)" stroke-width="2.2" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.14)); transition:all 250ms ease"><title>${esc(s.label)}: ${pt.orig.y} at ${pt.orig.x}</title></circle>`;
-      if(pt.orig.y!==0 && pt.orig.y!=null){
-        dots+=`<text x="${pt.x.toFixed(1)}" y="${(pt.y-12).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-2,10)}" font-weight="800" fill="var(--text)" style="paint-order:stroke; stroke:var(--surface); stroke-width:3px; stroke-linejoin:round">${typeof pt.orig.y==='number' ? (Math.abs(pt.orig.y)>=100?Math.round(pt.orig.y):pt.orig.y.toFixed(1)) : ''}</text>`;
+    points.forEach((pt,pi)=>{
+      // Premium dot with white border and shadow, only show for key points or hover
+      const showDot = points.length<=20 || pi%Math.ceil(points.length/12)===0 || pi===points.length-1;
+      if(showDot){
+        dots+=`<g style="transition:all 250ms ease">
+          <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="${tier==='xs'?6:8}" fill="${col}" opacity="0.18"/>
+          <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="${tier==='xs'?4:5.5}" fill="${col}" stroke="white" stroke-width="2.5" style="filter:drop-shadow(0 3px 8px rgba(0,0,0,0.16))"><title>${esc(s.label)}: ${pt.orig.y} at ${pt.orig.x}</title></circle>
+        </g>`;
       }
     });
   });
 
   if(opts.xLabels){
-    // Intelligent skipping to avoid overlap - use same logic as bar charts
-    const minLabelSpace=56;
+    const minLabelSpace=64;
     const showEvery=Math.max(1, Math.ceil(opts.xLabels.length * minLabelSpace / iw));
     opts.xLabels.forEach((lab,i)=>{
       if(i%showEvery!==0 && i!==opts.xLabels.length-1) return;
       const x = pad.l + (i/(Math.max(opts.xLabels.length-1,1)))*iw;
-      xLabels+=`<text x="${x.toFixed(1)}" y="${(h-12).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,10)}" fill="var(--muted)" font-weight="600">${esc(String(lab).slice(0,12))}</text>`;
+      xLabels+=`<text x="${x.toFixed(1)}" y="${(pad.t+ih+22).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" fill="#475569" font-weight="600" style="font-family:'Trebuchet MS', sans-serif">${esc(String(lab).slice(0,14))}</text>`;
+      xGrid+=`<line x1="${x.toFixed(1)}" y1="${pad.t}" x2="${x.toFixed(1)}" y2="${pad.t+ih}" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="3 6" opacity="0.6"/>`;
     });
   }
 
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; max-height:${h}px; background:var(--surface); border-radius:12px"><g>${gl}</g><g>${areas}</g><g>${lines}</g><g>${dots}</g><g>${xLabels}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:#ffffff; border-radius:16px; border:1px solid #f1f5f9; box-shadow:0 1px 3px rgba(15,23,42,0.04)"><defs>${defs}</defs><g>${xGrid}</g><g>${gl}</g><g>${yLabels}</g><g>${areas}</g><g>${lines}</g><g>${dots}</g><g>${xLabels}</g></svg>`;
 }
-
 
 function svgSpark(values,color){ color=color||'#2878f0'; const w=120,h=30,max=Math.max(...values,1),n=values.length;
   if(n<2) return ''; const pts=values.map((v,i)=>`${(i/(n-1)*w).toFixed(1)},${(h-(v/max)*h).toFixed(1)}`).join(' ');
@@ -6872,7 +6881,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.2</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.3</span>';
 }
 
 
