@@ -36,7 +36,7 @@
   --shadow-hover:0 4px 12px rgba(11,28,61,0.08), 0 12px 32px rgba(11,28,61,0.07), 0 0 0 1px rgba(201,168,76,0.18);
   --shadow-gold:0 0 0 1px rgba(201,168,76,0.22), 0 4px 20px rgba(201,168,76,0.18);
   --r:14px; --r-sm:10px; --r-lg:18px; --r-xl:22px;
-  --topbar-h:64px; --sidebar-w:268px;
+  --topbar-h:64px; --sidebar-w:268px; --sidebar-w-mini:68px;
   --font:'Space Grotesk','Segoe UI',-apple-system,BlinkMacSystemFont,'Inter',Tahoma,Verdana,Arial,sans-serif;
 }
 [data-theme="dark"]{
@@ -78,6 +78,17 @@ hr{border:none; border-top:1px solid var(--edge); margin:16px 0; transition:bord
 #app{display:grid; grid-template-columns:var(--sidebar-w) 1fr; min-height:100vh; transition:grid-template-columns 250ms ease}
 body.nav-closed #sidebar{transform:translateX(-108%); box-shadow:none}
 body.nav-closed #app{grid-template-columns:1fr !important}
+body.nav-mini #app{grid-template-columns:var(--sidebar-w-mini) 1fr !important}
+body.nav-mini #sidebar{width:var(--sidebar-w-mini); padding:16px 8px 18px; overflow:visible}
+body.nav-mini #mainWrap{grid-column:2 !important; width:auto !important; max-width:none !important}
+body.nav-mini .brand b, body.nav-mini .brand small, body.nav-mini .nav-section, body.nav-mini .side-foot span:not(.mini-version), body.nav-mini .nav-item .badge, body.nav-mini .brand-text{display:none !important}
+body.nav-mini .brand{justify-content:center; padding:8px 0 18px; gap:0}
+body.nav-mini .nav{padding:4px 0; align-items:center}
+body.nav-mini .nav-item{justify-content:center; padding:12px 8px; gap:0; width:44px; height:44px; border-radius:12px; margin:0 auto}
+body.nav-mini .nav-item .ic{width:24px; height:24px; flex:0 0 24px}
+body.nav-mini .nav-item:hover{transform:translateX(0) scale(1.05)}
+body.nav-mini .nav-item::after{content:attr(data-tooltip); position:absolute; left:68px; top:50%; transform:translateY(-50%); background:#0B1C3D; color:#C9A84C; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity 180ms ease; z-index:100}
+body.nav-mini .nav-item:hover::after{opacity:1}
 #mainWrap{grid-column:2; min-width:0; display:flex; flex-direction:column; width:100%; transition:all 250ms ease}
 body.nav-closed #mainWrap{grid-column:1 !important; width:100% !important; max-width:100% !important}
 #sidebar{
@@ -547,7 +558,7 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.3</div>
+    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.0</div>
   </aside>
 
   <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
@@ -1211,8 +1222,48 @@ function stockOf(cid){ const c=consById(cid); if(!c) return {total:0, batches:[]
   const total=bs.reduce((a,b)=>a+(b.qty||0),0); return {total, batches:bs}; }
 function stockStatus(cid){ const c=consById(cid); if(!c) return 'ok'; const {total}=stockOf(cid);
   if(total<=0) return 'out'; if(total<c.threshold) return 'low'; return 'ok'; }
-function expiringSoon(cid,days=30){ const today=todayISO(); return (DB.stock.batches||[]).filter(b=>b.cid===cid&&b.qty>0&&b.expiry>=today&&daysBetween(today,b.expiry)<=days); }
-function expiredBatches(cid){ const today=todayISO(); return (DB.stock.batches||[]).filter(b=>b.cid===cid&&b.qty>0&&b.expiry<today); }
+function expiringSoon(cid,days=10){ const today=todayISO(); return (DB.stock.batches||[]).filter(b=>b.cid===cid&&b.qty>0&&b.expiry&&b.expiry>=today&&daysBetween(today,b.expiry)<=days); }
+function expiredBatches(cid){ const today=todayISO(); return (DB.stock.batches||[]).filter(b=>b.cid===cid&&b.qty>0&&b.expiry&&b.expiry<today); }
+function expiringSoon10(cid){ return expiringSoon(cid,10); }
+function alertExpired(alertDate, days=10){ if(!alertDate) return false; return daysBetween(alertDate, todayISO()) > days; }
+// Send consumable alert email reminder via custom server
+async function sendConsumableAlertEmail(){
+  try{
+    const csCfg = (typeof getCustomServerConfig==='function') ? getCustomServerConfig() : null;
+    if(!csCfg || !csCfg.enabled || !csCfg.url || !csCfg.token) return;
+    const alerts = dashAlerts().filter(a=>a.t!=='info' || /OUT|low|expired|expiring/i.test(a.m));
+    if(!alerts.length) return;
+    // Check if we already sent today
+    const lastSent = localStorage.getItem('labSystems.lastAlertEmail.v1');
+    if(lastSent && lastSent===todayISO()) return;
+    const toEmail='smhnklvn@gmail.com';
+    const fromEmail='rulidhlab@gmail.com';
+    const subject=`Ruli Lab — Consumable Alert — ${alerts.length} items need attention`;
+    const htmlBody=alerts.map(a=>`<div style="padding:8px; border-left:4px solid ${a.t==='err'?'#c94c5a':a.t==='warn'?'#e8a33d':'#0B1C3D'}; margin:6px 0; background:#F7F8FC">${a.m}</div>`).join('');
+    // Use custom server send-otp endpoint repurposed for alerts via generic email
+    // We'll call /api/send-otp with purpose=alert, but server will send as alert email
+    // For now use /api/send-otp with toEmail and otp as alert summary
+    const summary = alerts.map(a=>a.m.replace(/<[^>]*>/g,'')).join('\n');
+    // Try generic email endpoint if exists, else use send-otp
+    try{
+      const res=await fetch(csCfg.url.replace(/\/$/,'')+'/api/send-alert', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+csCfg.token},
+        body: JSON.stringify({toEmail, subject, html: `<h3>Ruli Lab Consumable Alerts — ${todayISO()}</h3>${htmlBody}<p style="color:#64748B">Auto reminder from Lab Systems — expires in 10 days</p>`, text: summary})
+      });
+      if(res.ok){ localStorage.setItem('labSystems.lastAlertEmail.v1', todayISO()); console.log('Alert email sent'); return; }
+    }catch(e){}
+    // Fallback to send-otp endpoint
+    try{
+      await fetch(csCfg.url.replace(/\/$/,'')+'/api/send-otp', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+csCfg.token},
+        body: JSON.stringify({toEmail, otp: alerts.length+' alerts: '+summary.slice(0,100), purpose: 'consumable-alert'})
+      });
+      localStorage.setItem('labSystems.lastAlertEmail.v1', todayISO());
+    }catch(e){ console.warn('alert email err', e.message); }
+  }catch(e){ console.warn('sendConsumableAlertEmail', e.message); }
+}
 
 /* ---------- trainings helpers ---------- */
 function trainingCoverage(){ const act=activeStaff(); if(!act.length) return 0;
@@ -1401,6 +1452,87 @@ function svgHBar(data,opts){ // extra luxury horizontal bars - gradient, pill sh
   });
 
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; max-height:${Math.min(h, 700)}px; background:var(--surface); border-radius:14px"><defs>${defs}</defs><g>${rows}</g></svg>`;
+}
+
+function svgPareto(data, opts){
+  // Arena leaderboard Pareto style - bars descending + cumulative curved line - premium
+  opts=opts||{};
+  const tier = typeof getScreenTier==='function' ? getScreenTier() : 'lg';
+  const w = tier==='xs' ? 400 : tier==='sm' ? 560 : (opts.w||720);
+  const h = tier==='xs' ? 260 : tier==='sm' ? 300 : (opts.h||340);
+  const fs = typeof chartFontScale==='function' ? chartFontScale(w) : 12;
+  const pad={l: tier==='xs'?50:70, r: tier==='xs'?40:60, t: 24, b: tier==='xs'?60:70};
+  const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
+  
+  // Sort descending by value
+  const sorted = [...data].sort((a,b)=>b.value-a.value);
+  const total = sorted.reduce((a,b)=>a+b.value,0) || 1;
+  let cum=0;
+  const cumData = sorted.map(d=>{ cum+=d.value; return {label:d.label, value:d.value, cum: cum, cumPct: (cum/total)*100}; });
+  
+  const maxVal = Math.max(...sorted.map(d=>d.value),1);
+  const maxCumPct = 100;
+  
+  const n=sorted.length;
+  const gap = tier==='xs'?10:14;
+  const bw = Math.max(18, Math.min(48, (iw - gap*(n-1))/n));
+  
+  let grid='', bars='', cumLine='', cumDots='', xLabs='', yLabs='';
+  
+  // Grid lines
+  for(let g=0;g<=4;g++){
+    const gy=pad.t+(ih*g)/4;
+    const val = maxVal - (maxVal*g)/4;
+    grid+=`<line x1="${pad.l}" y1="${gy}" x2="${w-pad.r}" y2="${gy}" stroke="var(--edge)" stroke-width="1" stroke-dasharray="4 6"/>`;
+    yLabs+=`<text x="${pad.l-10}" y="${gy+4}" text-anchor="end" font-size="${Math.max(fs-1,10)}" fill="var(--muted)" font-weight="600">${Math.round(val)}</text>`;
+    // Right axis for cum %
+    const cumVal = 100 - (100*g)/4;
+    grid+=`<text x="${w-pad.r+8}" y="${gy+4}" text-anchor="start" font-size="${Math.max(fs-1,10)}" fill="#C9A84C" font-weight="600">${Math.round(cumVal)}%</text>`;
+  }
+  
+  // Bars
+  sorted.forEach((d,i)=>{
+    const x=pad.l + i*(bw+gap);
+    const bh=(d.value/maxVal)*ih;
+    const y=pad.t+ih-bh;
+    const col=d.color|| (i===0?'#C9A84C': i===1?'#0B1C3D': '#64748B');
+    const gradId=`gradPareto${i}_${Date.now()}`;
+    const isGold = col==='#C9A84C';
+    bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(bh,2).toFixed(1)}" rx="8" fill="${col}" opacity="${0.9 - i*0.08}" style="filter:drop-shadow(0 3px 8px rgba(11,28,61,0.12))${isGold?'; filter:drop-shadow(0 0 0 1px rgba(201,168,76,0.22))':''}"><title>${d.label}: ${d.value}</title></rect>`;
+    xLabs+=`<text x="${(x+bw/2).toFixed(1)}" y="${(h-14).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-2,10)}" fill="var(--muted)" font-weight="700" transform="rotate(-18 ${(x+bw/2).toFixed(1)} ${(h-14).toFixed(1)})">${(d.label||'').slice(0,12)}</text>`;
+  });
+  
+  // Cumulative curved line
+  const points = cumData.map((d,i)=>{
+    const x=pad.l + i*(bw+gap) + bw/2;
+    const y=pad.t+ih - (d.cumPct/100)*ih;
+    return {x,y, orig:d};
+  });
+  
+  function smoothPath(points, tension=0.5){
+    if(points.length<2) return '';
+    let path=`M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+    for(let i=0;i<points.length-1;i++){
+      const p0 = i>0 ? points[i-1] : points[0];
+      const p1 = points[i];
+      const p2 = points[i+1];
+      const p3 = i+2 < points.length ? points[i+2] : p2;
+      const cp1x = p1.x + (p2.x - p0.x) * tension / 6;
+      const cp1y = p1.y + (p2.y - p0.y) * tension / 6;
+      const cp2x = p2.x - (p3.x - p1.x) * tension / 6;
+      const cp2y = p2.y - (p3.y - p1.y) * tension / 6;
+      path+=` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+    return path;
+  }
+  
+  const pathD = smoothPath(points, 0.6);
+  cumLine+=`<path d="${pathD}" fill="none" stroke="#C9A84C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 4" style="filter:drop-shadow(0 2px 6px rgba(201,168,76,0.3))"/>`;
+  points.forEach(pt=>{
+    cumDots+=`<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="5" fill="#C9A84C" stroke="white" stroke-width="2.2" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2))"><title>Cumulative: ${pt.orig.cum} (${pt.orig.cumPct.toFixed(1)}%)</title></circle>`;
+  });
+  
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:var(--surface); border-radius:14px"><g>${grid}</g><g>${bars}</g><g>${cumLine}</g><g>${cumDots}</g><g>${xLabs}</g><g>${yLabs}</g></svg>`;
 }
 
 function svgStackBar(layers,opts){ // extra luxury stacked bars - rounded, gradient, compact - theme aware
@@ -2654,18 +2786,33 @@ function kpiCard(label,val,foot,opts){
 
 function dashAlerts(){
   const A=[];
-  for(const c of DB.catalog.consumables||[]){ const st=stockStatus(c.id); const {total}=stockOf(c.id);
-    if(st==='out') A.push({t:'err', m:`<b>${esc(c.name)}</b> is OUT of stock.`});
-    else if(st==='low') A.push({t:'warn', m:`<b>${esc(c.name)}</b> — ${total} left (below threshold ${c.threshold}).`});
-    const ex=expiredBatches(c.id); if(ex.length) A.push({t:'warn', m:`<b>${esc(c.name)}</b>: ${ex.length} expired batch(es) (${ex.map(b=>b.expiry).join(', ')}) — use with caution.`});
-    const es=expiringSoon(c.id); if(es.length) A.push({t:'info', m:`<b>${esc(c.name)}</b>: ${es.reduce((a,b)=>a+b.qty,0)} expiring within 30 days.`}); }
-  const pend=DB.samples.filter(s=>s.status==='Pending'); const overdue=pend.filter(s=>daysBetween(s.sentDate||s.collectionDate,todayISO())>7);
-  if(overdue.length) A.push({t:'err', m:`${overdue.length} pending sample(s) overdue: ${overdue.map(s=>esc(s.sampleId)).join(', ')}.`});
-  const onLeave=DB.leaves.filter(l=>l.from<=todayISO()&&l.to>=todayISO()&&l.status!=='Completed');
-  for(const l of onLeave){ const st=staffById(l.staffId); A.push({t:'info', m:`<b>${esc(st?st.name:'?')}</b> on ${LEAVE_NAMES[l.type]} — back ${fmtDate(l.backOn)}.`}); }
-  const nowKey=monthKey(todayISO()); const cov=monthNightCoverage(nowKey);
-  if(cov!=null&&cov<100) A.push({t:'warn', m:`Night coverage this month is <b>${cov}%</b> — some nights unassigned.`});
-  return A;
+  const today=todayISO();
+  for(const c of DB.catalog.consumables||[]){ 
+    if(c.hasExpiry===false) {
+      const st=stockStatus(c.id); const {total}=stockOf(c.id);
+      if(st==='out') A.push({t:'err', m:`<b>${esc(c.name)}</b> is OUT of stock.`, date:today});
+      else if(st==='low') A.push({t:'warn', m:`<b>${esc(c.name)}</b> — ${total} left (below threshold ${c.threshold}).`, date:today});
+      continue;
+    }
+    const st=stockStatus(c.id); const {total}=stockOf(c.id);
+    if(st==='out') A.push({t:'err', m:`<b>${esc(c.name)}</b> is OUT of stock.`, date:today});
+    else if(st==='low') A.push({t:'warn', m:`<b>${esc(c.name)}</b> — ${total} left (below threshold ${c.threshold}).`, date:today});
+    const ex=expiredBatches(c.id); if(ex.length) A.push({t:'warn', m:`<b>${esc(c.name)}</b>: ${ex.length} expired batch(es) (${ex.map(b=>b.expiry).join(', ')}) — use with caution.`, date:today});
+    const es=expiringSoon(c.id,10); if(es.length) A.push({t:'info', m:`<b>${esc(c.name)}</b>: ${es.reduce((a,b)=>a+b.qty,0)} expiring within 10 days (was 30d) — ${es.map(b=>b.expiry).join(', ')}`, date:today}); 
+  }
+  // Expire alerts older than 10 days
+  const filtered = A.filter(a=>!a.date || !alertExpired(a.date,10));
+  // Samples alerts also expire in 10 days if overdue resolved?
+  const pend=DB.samples.filter(s=>s.status==='Collected'||s.status==='Received'||s.status==='Pending'); 
+  const overdue=pend.filter(s=>daysBetween(s.sentDate||s.collectionDate,today)>7);
+  if(overdue.length) filtered.push({t:'err', m:`${overdue.length} pending sample(s) overdue: ${overdue.map(s=>esc(s.sampleId)).join(', ')}.`, date:today});
+  const onLeave=DB.leaves.filter(l=>l.from<=today&&l.to>=today&&l.status!=='Completed');
+  for(const l of onLeave){ const st=staffById(l.staffId); filtered.push({t:'info', m:`<b>${esc(st?st.name:'?')}</b> on ${LEAVE_NAMES[l.type]} — back ${fmtDate(l.backOn)}.`, date:l.from}); }
+  const nowKey=monthKey(today); const cov=monthNightCoverage(nowKey);
+  if(cov!=null&&cov<100) filtered.push({t:'warn', m:`Night coverage this month is <b>${cov}%</b> — some nights unassigned.`, date:today});
+  // Auto send email reminder for consumable alerts expiring in 10 days
+  try{ if(filtered.some(a=>/OUT|low|expired|expiring/i.test(a.m))){ setTimeout(()=>sendConsumableAlertEmail(), 2000); } }catch(e){}
+  return filtered.filter(a=>!a.date || !alertExpired(a.date,10));
 }
 function monthNightCoverage(key){
   const p=(DB.workingPlans[key]||{}).primary; if(!p) return null;
@@ -2732,14 +2879,30 @@ function renderDash(){
     ${alerts.length>1?`<button id="alert-toggle">See ${alerts.length-1} more alerts</button>`:''}
   </section>`:''}
 
-  <!-- Main KPI Row - 4 premium cards like Stexo, big numbers, gold accent -->
+  <!-- Main KPI Row - 4 premium cards like Stexo, big numbers, gold accent + analysis line -->
   <div class="grid g-4" style="gap:16px; margin-bottom:20px">
-    <div class="kpi gold" style="min-height:122px; border-left:4px solid var(--gold)">
+    <div class="kpi gold" style="min-height:128px; border-left:4px solid var(--gold); position:relative; overflow:hidden">
       <div class="k-label">Total Referred Samples</div>
       <div class="k-val" style="font-size:36px">${samples.length}</div>
       <div class="k-foot">${(DB.catalog.tests||[]).length} test types · ${pend.length} pending · ${over.length} overdue</div>
-      
-      <div class="k-bar"><i style="width:100%; background:var(--gold)"></i></div>
+      <div class="k-bar" style="display:flex; height:6px; border-radius:99px; overflow:hidden; background:#f1f3f8; margin-top:10px">
+        ${(() => {
+          const total = samples.length || 1;
+          const overduePct = Math.round((over.length/total)*100);
+          const pendingPct = Math.round(((pend.length-over.length)/total)*100);
+          const reportedPct = 100 - overduePct - pendingPct;
+          return `
+            ${overduePct>0?`<i style="width:${overduePct}%; background:#c94c5a; height:100%; display:block" title="${over.length} overdue"></i>`:''}
+            ${pendingPct>0?`<i style="width:${pendingPct}%; background:#d4d9e6; height:100%; display:block" title="${pend.length-over.length} pending"></i>`:''}
+            ${reportedPct>0?`<i style="width:${reportedPct}%; background:var(--gold); height:100%; display:block" title="${total-over.length-(pend.length-over.length)} reported"></i>`:''}
+          `;
+        })()}
+      </div>
+      <div style="display:flex; gap:8px; margin-top:6px; font-size:10px; color:var(--muted)">
+        <span><i style="display:inline-block; width:8px; height:8px; background:#c94c5a; border-radius:2px; margin-right:4px"></i>Overdue ${over.length}</span>
+        <span><i style="display:inline-block; width:8px; height:8px; background:#d4d9e6; border-radius:2px; margin-right:4px"></i>Pending ${pend.length-over.length}</span>
+        <span><i style="display:inline-block; width:8px; height:8px; background:var(--gold); border-radius:2px; margin-right:4px"></i>Reported ${samples.length-over.length-(pend.length-over.length)}</span>
+      </div>
     </div>
     <div class="kpi" style="min-height:122px; border-left:4px solid var(--teal)">
       <div class="k-label">Training Coverage</div>
@@ -2786,7 +2949,7 @@ function renderDash(){
 
   <!-- Second Charts Row - balanced 2x2 then 2 charts, no blank spaces -->
   <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap:16px; margin-bottom:20px; align-items:stretch">
-    <div class="card" style="display:flex; flex-direction:column"><h3> Trainings per Staff — Performance</h3><div class="chart-box" style="flex:1">${svgHBar(perStaff)}</div></div>
+    <div class="card" style="display:flex; flex-direction:column"><h3> Trainings per Staff — Pareto Performance <span class="sub">Arena-style cost per task</span></h3><div class="chart-box" style="flex:1">${svgPareto(perStaff)}</div><div class="chart-legend"><span><i style="background:#C9A84C"></i>Trainings (bars)</span><span><i style="background:#C9A84C; border-style:dashed"></i>Cumulative % (curved)</span></div></div>
     <div class="card" style="display:flex; flex-direction:column"><h3> Referral Volume per Hospital</h3><div class="chart-box" style="flex:1">${svgHBar(hospArr)}</div></div>
     <div class="card" style="display:flex; flex-direction:column"><h3> Most Referred Sample Types</h3><div class="chart-box" style="flex:1">${svgHBar(mostTests)}</div></div>
     <div class="card" style="display:flex; flex-direction:column"><h3> VTM Distributed per Health Center</h3><div class="chart-box" style="flex:1">${svgHBar(vtmArr)}</div></div>
@@ -2900,7 +3063,12 @@ const LEAVE_NAMES={AL:'Annual leave',ML:'Maternity leave',SL:'Sick / Medical lea
 
 /* ================= REFERRED SAMPLES & MANIFEST ================= */
 'use strict';
-const SAMP_STATUS=['Pending','Positive','Negative','Rejected','Done'];
+const SAMP_STATUS=['Collected','Received','Reported','Pending','Positive','Negative','Rejected','Done'];
+const CULTURE_TESTS=['Blood Culture','Urine Culture','Stool Culture','Wound Culture','Sputum Culture','CSF Culture','HVS Culture','Urethral Culture','Semen Culture'];
+const BLOOD_CULTURE_DRUGS=[
+  'Ampicillin','Amoxicillin-Clavulanate','Ceftriaxone','Ceftazidime','Cefotaxime','Ciprofloxacin','Gentamicin','Amikacin','Meropenem','Imipenem','Vancomycin','Oxacillin','Penicillin','Erythromycin','Clindamycin','Trimethoprim-Sulfamethoxazole','Nitrofurantoin','Chloramphenicol','Tetracycline','Azithromycin'
+];
+const PCR_TESTS=['HIV Viral Load','HIV Recency Viral Load','HBV Viral Load','HCV Viral Load','HPV PCR','SARS-CoV-2 PCR','Marburg','Measles & Rubella PCR','MonkeyPox PCR','PCR Polio Virus','PCR Rift Valley','PCR Yellow Fever','TB GeneXpert','HIV DNA PCR'];
 function sampleCodeFor(testName){
   const t=(DB.catalog&&DB.catalog.tests||[]).find(x=>x.name===testName);
   if(t&&t.code) return String(t.code).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4)||'RUL';
@@ -3020,29 +3188,204 @@ function renderSmBody(){
   // View Results quick filters
   const viewAll=document.getElementById('viewAllOrders'); if(viewAll) viewAll.onclick=()=>{ UI.smStatus='All'; renderSmBody(); };
   const viewPend=document.getElementById('viewPending'); if(viewPend) viewPend.onclick=()=>{ UI.smStatus='Pending'; renderSmBody(); };
-  $('#btnRegister').onclick=openSampleForm;
+  $('#btnRegister').onclick=()=>openSampleForm();
   $('#btnManifest').onclick=openManifestForm;
   const btnRes=document.getElementById('btnViewResults'); if(btnRes) btnRes.onclick=()=>{ UI.smStatus='Done'; UI.smQ=''; renderSmBody(); toast('Showing results — Done/Positive/Negative'); };
+  // Edit / Del / Report handlers for sample cards
+  document.querySelectorAll('[data-act="edit"]').forEach(b=>b.onclick=()=>{ if(typeof isAdmin==='function' && !isAdmin()) return requireAdmin(); openSampleForm(b.dataset.id); });
+  document.querySelectorAll('[data-act="report"]').forEach(b=>b.onclick=()=>{ if(typeof isAdmin==='function' && !isAdmin()) return requireAdmin(); openReportForm(b.dataset.id); });
+  document.querySelectorAll('[data-act="del"]').forEach(b=>b.onclick=()=>{ if(typeof isAdmin==='function' && !isAdmin()) return requireAdmin(); const s=DB.samples.find(x=>x.id===b.dataset.id); if(!s) return; confirmDlg('Delete sample '+s.sampleId+'?', ()=>{ DB.samples=DB.samples.filter(x=>x.id!==b.dataset.id); saveDB(); renderSamples(); toast('Sample deleted'); }); });
 
 }
 function sampleCard(s){
   const elapsed=daysBetween(s.sentDate||s.collectionDate,todayISO());
-  const stTag={Pending:'amber',Positive:'green',Negative:'blue',Rejected:'red',Done:'gray'}[s.status]||'gray';
-  return `<div class="card" style="margin:0">
+  const statusMap={
+    'Collected': {tag:'blue', label:'Collected'},
+    'Received': {tag:'amber', label:'Received at referral'},
+    'Reported': {tag:'green', label:'Reported'},
+    'Pending': {tag:'amber', label:'Pending'},
+    'Positive': {tag:'green', label:'Positive'},
+    'Negative': {tag:'teal', label:'Negative'},
+    'Rejected': {tag:'red', label:'Rejected'},
+    'Done': {tag:'gray', label:'Done'}
+  };
+  const st = statusMap[s.status] || {tag:'gray', label:s.status};
+  const hasAST = s.ast && s.ast.length;
+  const hasResult = s.resultValue || s.result;
+  return `<div class="card" style="margin:0; border-left:4px solid ${s.status==='Collected'?'#3b82f6':s.status==='Received'?'#e8a33d':s.status==='Reported'?'#22a06b':s.status==='Positive'?'#22a06b':s.status==='Negative'?'#0B1C3D':s.status==='Rejected'?'#c94c5a':'#d4d9e6'}">
     <div style="display:flex;gap:10px;align-items:flex-start"><div style="flex:1">
       <div class="t" style="font-family:'Bebas Neue', Trebuchet MS, sans-serif; font-weight:400; font-size:20px; letter-spacing:0.5px">${esc(maskName(s.patientName||'—'))}</div>
-      <div class="hint">${esc(s.sampleId)} ${s.patientId?'· PID '+esc(s.patientId):''}</div></div>
-      <span class="tag ${stTag}">${s.status}</span></div>
+      <div class="hint">${esc(s.sampleId)} ${s.patientId?'· PID '+esc(s.patientId):''} ${s.dob?'· DOB '+esc(s.dob):''}</div></div>
+      <span class="tag ${st.tag}">${st.label}</span></div>
     <hr><div class="row" style="font-size:12.5px;color:var(--muted);gap:6px 14px;margin-top:2px">
       <span> <b style="color:var(--text)">${esc(s.test)}</b></span>
       <span> ${esc(s.hospital)}</span></div>
-    <div class="hint" style="margin-top:7px"> ${esc(s.healthFacility||'Ruli DH')}${s.district?', '+esc(s.district):''} · Collected ${fmtDate(s.collectionDate)}</div>
-    <div class="row" style="margin-top:10px">
-      <span class="tag ${elapsed>7&&s.status==='Pending'?'red':'gray'}">${elapsed}d elapsed</span>
+    <div class="hint" style="margin-top:7px"> ${esc(s.healthFacility||'Ruli DH')}${s.district?', '+esc(s.district):''} · Collected ${fmtDate(s.collectionDate)} ${s.receivedDate?'· Received '+fmtDate(s.receivedDate):''} ${s.reportedDate?'· Reported '+fmtDate(s.reportedDate):''}</div>
+    ${hasResult?`<div class="hint" style="margin-top:6px; font-weight:700; color:var(--text)">Result: ${esc(s.resultValue||s.result)} ${s.resultUnit?esc(s.resultUnit):''} ${s.resultInterpretation?'· '+esc(s.resultInterpretation):''}</div>`:''}
+    ${hasAST?`<div class="hint" style="margin-top:6px">AST: ${s.ast.map(a=>esc(a.drug)+':'+esc(a.result)).join(' · ')}</div>`:''}
+    <div class="row" style="margin-top:10px; flex-wrap:wrap; gap:6px">
+      <span class="tag ${elapsed>7&&s.status!=='Reported'&&s.status!=='Done'?'red':'gray'}">${elapsed}d elapsed</span>
       ${s.manifestId?'<span class="tag blue"> '+esc((DB.manifests.find(m=>m.id===s.manifestId)||{}).manifestId||'')+'</span>':''}
       <span class="spacer" style="flex:1"></span>
-      <button class="btn xs ghost" data-act="edit" data-id="${s.id}">Edit</button>
+      <button class="btn xs" data-act="edit" data-id="${s.id}">Edit</button>
+      <button class="btn xs primary" data-act="report" data-id="${s.id}">Report</button>
       <button class="btn xs danger" data-act="del" data-id="${s.id}">Del</button></div></div>`;
+}
+function openReportForm(id){
+  const s=DB.samples.find(x=>x.id===id); if(!s) return;
+  const isCulture = CULTURE_TESTS.includes(s.test) || /culture/i.test(s.test);
+  const isPCR = PCR_TESTS.includes(s.test) || /PCR|Viral Load|GeneXpert/i.test(s.test);
+  const isBloodCulture = s.test==='Blood Culture';
+  
+  let astHtml='';
+  if(isCulture){
+    const currentAST = s.ast || [];
+    // Ensure at least 3 rows for blood culture
+    const drugsToShow = isBloodCulture ? [...new Set([...BLOOD_CULTURE_DRUGS.slice(0,8), ...currentAST.map(a=>a.drug)])] : [...new Set([...BLOOD_CULTURE_DRUGS.slice(0,5), ...currentAST.map(a=>a.drug)])];
+    astHtml = `
+      <div style="grid-column:1/-1"><h4 style="margin:12px 0 8px; color:#0B1C3D">AST — Antibiotic Susceptibility ${isBloodCulture?'(Blood Culture)':'(Culture)'} — R/S/I, skip MIC</h4>
+        <div class="hint" style="margin-bottom:8px">Add drugs as they evolve, select R=Resistant, S=Sensitive, I=Intermediate. You can add more drugs below.</div>
+        <div id="astRows" style="display:flex; flex-direction:column; gap:8px">
+          ${currentAST.length?currentAST.map((a,i)=>`
+            <div class="row" style="gap:8px; align-items:center" data-ast-row="${i}">
+              <select class="ast-drug" style="flex:1; min-width:160px"><option value="">Select drug</option>${BLOOD_CULTURE_DRUGS.map(d=>`<option ${a.drug===d?'selected':''}>${d}</option>`).join('')}<option value="__custom__">Custom drug...</option></select>
+              <input class="ast-drug-custom" placeholder="Custom drug name" style="flex:1; display:${BLOOD_CULTURE_DRUGS.includes(a.drug)?'none':''}" value="${!BLOOD_CULTURE_DRUGS.includes(a.drug)?esc(a.drug):''}">
+              <select class="ast-result" style="width:110px"><option value="S" ${a.result==='S'?'selected':''}>S - Sensitive</option><option value="R" ${a.result==='R'?'selected':''}>R - Resistant</option><option value="I" ${a.result==='I'?'selected':''}>I - Intermediate</option></select>
+              <button type="button" class="btn xs danger ast-del">Del</button>
+            </div>
+          `).join(''):`
+            <div class="row" style="gap:8px; align-items:center" data-ast-row="0">
+              <select class="ast-drug" style="flex:1"><option value="">Select drug</option>${BLOOD_CULTURE_DRUGS.map(d=>`<option>${d}</option>`).join('')}<option value="__custom__">Custom drug...</option></select>
+              <input class="ast-drug-custom" placeholder="Custom drug name" style="flex:1; display:none">
+              <select class="ast-result" style="width:110px"><option value="S">S - Sensitive</option><option value="R">R - Resistant</option><option value="I">I - Intermediate</option></select>
+              <button type="button" class="btn xs danger ast-del">Del</button>
+            </div>
+          `}
+        </div>
+        <div class="row" style="margin-top:10px; gap:8px">
+          <button type="button" class="btn sm" id="astAdd">+ Add drug</button>
+          <button type="button" class="btn sm" id="astAddCustom">+ Add custom drug</button>
+          <span class="hint">Drugs: ${BLOOD_CULTURE_DRUGS.slice(0,6).join(', ')}... + custom</span>
+        </div>
+      </div>
+    `;
+  }
+  
+  let pcrHtml='';
+  if(isPCR || !isCulture){
+    pcrHtml = `
+      <div style="grid-column:1/-1"><h4 style="margin:12px 0 8px; color:#0B1C3D">PCR / Viral Load Result</h4></div>
+      <div><label>Result Interpretation</label><select id="rep_interp"><option value="">Select</option><option value="Positive" ${s.resultInterpretation==='Positive'?'selected':''}>Positive</option><option value="Negative" ${s.resultInterpretation==='Negative'?'selected':''}>Negative</option><option value="Detected" ${s.resultInterpretation==='Detected'?'selected':''}>Detected</option><option value="Not Detected" ${s.resultInterpretation==='Not Detected'?'selected':''}>Not Detected</option><option value="Indeterminate" ${s.resultInterpretation==='Indeterminate'?'selected':''}>Indeterminate</option><option value="Invalid" ${s.resultInterpretation==='Invalid'?'selected':''}>Invalid</option></select></div>
+      <div><label>Result Value</label><input id="rep_value" value="${esc(s.resultValue||s.result||'')}" placeholder="e.g. 1200, 45, Detected"></div>
+      <div><label>Unit</label><select id="rep_unit"><option value="">No unit</option><option value="copies/mL" ${s.resultUnit==='copies/mL'?'selected':''}>copies/mL</option><option value="IU/mL" ${s.resultUnit==='IU/mL'?'selected':''}>IU/mL</option><option value="log10 copies/mL" ${s.resultUnit==='log10 copies/mL'?'selected':''}>log10 copies/mL</option><option value="Ct" ${s.resultUnit==='Ct'?'selected':''}>Ct value</option><option value="%" ${s.resultUnit==='%'?'selected':''}>%</option><option value="mg/dL" ${s.resultUnit==='mg/dL'?'selected':''}>mg/dL</option><option value="custom">Custom unit...</option></select><input id="rep_unit_custom" placeholder="Custom unit" style="margin-top:6px; display:none" value="${!['','copies/mL','IU/mL','log10 copies/mL','Ct','%','mg/dL'].includes(s.resultUnit||'')?esc(s.resultUnit||''):''}"></div>
+      <div><label>Result Date</label><input type="date" id="rep_date" value="${s.resultDate||todayISO()}"></div>
+    `;
+  }
+  
+  openModal(`<h2> Report Sample — ${esc(s.sampleId)} · ${esc(s.test)}</h2>
+  <div class="alert info" style="margin-bottom:12px">Patient: ${esc(s.patientName||'—')} · Test: ${esc(s.test)} · Status workflow: Collected → Received → Reported</div>
+  <form id="repForm"><div class="form-grid fg-2">
+    <div><label>Current Status</label><select id="rep_status"><option value="Collected" ${s.status==='Collected'?'selected':''}>Collected</option><option value="Received" ${s.status==='Received'?'selected':''}>Received (at referral hospital)</option><option value="Reported" ${s.status==='Reported'?'selected':''}>Reported (results given)</option><option value="Done" ${s.status==='Done'?'selected':''}>Done</option><option value="Positive" ${s.status==='Positive'?'selected':''}>Positive</option><option value="Negative" ${s.status==='Negative'?'selected':''}>Negative</option></select></div>
+    <div><label>Received Date (at referral)</label><input type="date" id="rep_received" value="${s.receivedDate||''}"></div>
+    ${pcrHtml}
+    ${astHtml}
+    <div style="grid-column:1/-1"><label>Report Notes</label><textarea id="rep_notes" placeholder="e.g. Blood culture positive for E.coli, AST as above">${esc(s.reportNotes||s.notes||'')}</textarea></div>
+  </div><div class="row" style="margin-top:16px"><button class="btn primary" type="submit"> Save Report</button><button class="btn" type="button" onclick="closeModal()">Cancel</button></div></form>`);
+  
+  // AST handlers
+  const astRows=document.getElementById('astRows');
+  function bindASTRow(row){
+    const drugSel=row.querySelector('.ast-drug');
+    const customInp=row.querySelector('.ast-drug-custom');
+    const delBtn=row.querySelector('.ast-del');
+    if(drugSel) drugSel.onchange=()=>{
+      if(drugSel.value==='__custom__'){ customInp.style.display=''; customInp.focus(); }
+      else if(!BLOOD_CULTURE_DRUGS.includes(drugSel.value) && drugSel.value){ customInp.style.display=''; }
+      else { customInp.style.display='none'; }
+    };
+    if(delBtn) delBtn.onclick=()=>{ row.remove(); };
+  }
+  if(astRows){
+    astRows.querySelectorAll('[data-ast-row]').forEach(bindASTRow);
+    const addBtn=document.getElementById('astAdd');
+    const addCustomBtn=document.getElementById('astAddCustom');
+    if(addBtn) addBtn.onclick=()=>{
+      const idx=astRows.children.length;
+      const div=document.createElement('div');
+      div.className='row'; div.style.gap='8px'; div.style.alignItems='center';
+      div.dataset.astRow=idx;
+      div.innerHTML=`<select class="ast-drug" style="flex:1"><option value="">Select drug</option>${BLOOD_CULTURE_DRUGS.map(d=>`<option>${d}</option>`).join('')}<option value="__custom__">Custom drug...</option></select><input class="ast-drug-custom" placeholder="Custom drug name" style="flex:1; display:none"><select class="ast-result" style="width:110px"><option value="S">S - Sensitive</option><option value="R">R - Resistant</option><option value="I">I - Intermediate</option></select><button type="button" class="btn xs danger ast-del">Del</button>`;
+      astRows.appendChild(div);
+      bindASTRow(div);
+    };
+    if(addCustomBtn) addCustomBtn.onclick=()=>{
+      const idx=astRows.children.length;
+      const div=document.createElement('div');
+      div.className='row'; div.style.gap='8px'; div.style.alignItems='center';
+      div.dataset.astRow=idx;
+      div.innerHTML=`<select class="ast-drug" style="flex:1; display:none"><option value="__custom__" selected>Custom drug...</option></select><input class="ast-drug-custom" placeholder="Custom drug name - e.g. Linezolid" style="flex:1"><select class="ast-result" style="width:110px"><option value="S">S - Sensitive</option><option value="R">R - Resistant</option><option value="I">I - Intermediate</option></select><button type="button" class="btn xs danger ast-del">Del</button>`;
+      astRows.appendChild(div);
+      bindASTRow(div);
+      div.querySelector('.ast-drug-custom').focus();
+    };
+  }
+  // PCR unit custom
+  const unitSel=document.getElementById('rep_unit');
+  const unitCustom=document.getElementById('rep_unit_custom');
+  if(unitSel && unitCustom){
+    unitSel.onchange=()=>{
+      if(unitSel.value==='custom'){ unitCustom.style.display=''; unitCustom.focus(); }
+      else { unitCustom.style.display='none'; }
+    };
+    if(unitSel.value==='custom' || (unitCustom.value && !['','copies/mL','IU/mL','log10 copies/mL','Ct','%','mg/dL'].includes(unitSel.value))){
+      unitSel.value='custom';
+      unitCustom.style.display='';
+    }
+  }
+  
+  document.getElementById('repForm').addEventListener('submit',ev=>{
+    ev.preventDefault();
+    const newStatus=document.getElementById('rep_status').value;
+    const receivedDate=document.getElementById('rep_received').value||null;
+    const resultDate=document.getElementById('rep_date')?document.getElementById('rep_date').value||null:s.resultDate;
+    const interp=document.getElementById('rep_interp')?document.getElementById('rep_interp').value:'';
+    let value=document.getElementById('rep_value')?document.getElementById('rep_value').value.trim():'';
+    let unit=document.getElementById('rep_unit')?document.getElementById('rep_unit').value:'';
+    if(unit==='custom'){ unit=document.getElementById('rep_unit_custom').value.trim(); }
+    const notes=document.getElementById('rep_notes').value.trim();
+    
+    let ast=[];
+    if(astRows){
+      astRows.querySelectorAll('[data-ast-row]').forEach(row=>{
+        const drugSel=row.querySelector('.ast-drug');
+        const customInp=row.querySelector('.ast-drug-custom');
+        const resSel=row.querySelector('.ast-result');
+        let drug='';
+        if(drugSel && drugSel.value==='__custom__'){ drug=customInp.value.trim(); }
+        else if(drugSel && drugSel.value && drugSel.value!==''){ drug=drugSel.value; if(customInp && customInp.value.trim() && !BLOOD_CULTURE_DRUGS.includes(drug)) drug=customInp.value.trim()||drug; }
+        else if(customInp && customInp.value.trim()){ drug=customInp.value.trim(); }
+        const result=resSel?resSel.value:'S';
+        if(drug) ast.push({drug, result});
+      });
+    }
+    
+    s.status=newStatus;
+    if(receivedDate) s.receivedDate=receivedDate;
+    if(resultDate) s.resultDate=resultDate;
+    if(newStatus==='Reported' || newStatus==='Positive' || newStatus==='Negative' || newStatus==='Done'){
+      s.reportedDate=resultDate||todayISO();
+    }
+    if(interp) s.resultInterpretation=interp;
+    if(value) { s.resultValue=value; s.result=value; }
+    if(unit) s.resultUnit=unit;
+    if(notes) { s.reportNotes=notes; s.notes=notes; }
+    if(ast.length) s.ast=ast;
+    
+    saveDB();
+    closeModal();
+    toast('Sample reported — '+newStatus+(ast.length?' · AST '+ast.length+' drugs':''), 'ok');
+    renderSamples();
+  });
 }
 function chukHospital(){ if(!DB||!DB.catalog) return null; return (DB.catalog.hospitals||[]).find(h=>/CHUK/i.test(h.name)); }
 function openSampleForm(id){
@@ -6524,14 +6867,25 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.3</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.0</span>';
 }
 
 
 function wireNav(){
   const nav=$('#nav');
+  // Add tooltip for mini mode
+  try{
+    $$('.nav-item').forEach(b=>{
+      if(!b.dataset.tooltip){
+        const txt=(b.textContent||'').trim().replace(/\s+/g,' ');
+        if(txt) b.dataset.tooltip=txt;
+      }
+    });
+  }catch(e){}
   nav.addEventListener('click',e=>{ const b=e.target.closest('.nav-item'); if(!b) return;
-    setTab(b.dataset.tab); closeSidebar(); });
+    setTab(b.dataset.tab); 
+    if(window.innerWidth<=980) closeSidebar();
+  });
   const bottomNav=document.getElementById('bottomNav');
   if(bottomNav){
     bottomNav.addEventListener('click',e=>{
@@ -6543,20 +6897,39 @@ function wireNav(){
     const isMobile = window.innerWidth<=980;
     if(isMobile){ $('#sidebar').classList.toggle('open'); }
     else{
-      document.body.classList.toggle('nav-closed');
-      $('#sidebar').classList.remove('open');
+      // Toggle between mini (icon-only) and full (268px)
+      if(document.body.classList.contains('nav-mini')){
+        document.body.classList.remove('nav-mini');
+        document.body.classList.remove('nav-closed');
+      }else{
+        document.body.classList.add('nav-mini');
+      }
       const mw = document.getElementById('mainWrap');
       if(mw){
         if(document.body.classList.contains('nav-closed')){ mw.style.gridColumn='1'; mw.style.width='100%'; }
-        else{ mw.style.gridColumn='2'; }
+        else{ mw.style.gridColumn='2'; mw.style.width=''; }
       }
+      try{ localStorage.setItem('labSystems.navMini.v1', document.body.classList.contains('nav-mini')?'1':'0'); }catch(e){}
     }
     setTimeout(()=>window.dispatchEvent(new Event('resize')), 300);
   });
-  document.querySelector('main').addEventListener('click',()=>closeSidebar()); // tap content = close drawer
+  document.querySelector('main').addEventListener('click',()=>closeSidebar());
   window.addEventListener('resize',()=>{ if(window.innerWidth>980) $('#sidebar').classList.remove('open'); });
-  $('#topbar').addEventListener('click',()=>closeSidebar());
+  $('#topbar').addEventListener('click',()=>{ if(window.innerWidth<=980) closeSidebar(); });
   $('#sidebar').addEventListener('click',e=>{ e.stopPropagation(); });
+  // Default open with mini icons alive (like this chat) - desktop mini, mobile closed
+  try{
+    const saved=localStorage.getItem('labSystems.navMini.v1');
+    if(window.innerWidth>980){
+      if(saved===null || saved==='1'){ document.body.classList.add('nav-mini'); document.body.classList.remove('nav-closed'); }
+      else{ document.body.classList.remove('nav-mini'); }
+    }else{
+      document.body.classList.add('nav-closed');
+      document.body.classList.remove('nav-mini');
+    }
+  }catch(e){
+    if(window.innerWidth>980){ document.body.classList.add('nav-mini'); }
+  }
 }
 function closeSidebar(){ if(window.innerWidth<=980) $('#sidebar').classList.remove('open'); }
 function wireScrollHide(){
@@ -7242,6 +7615,69 @@ function verifyOTP(inputCode, email, purpose){
   }catch(e){ return {ok:false, msg:'OTP error: '+e.message}; }
 }
 
+// Hidden admin access - no login button visible to viewers, only secret link
+let adminClickCount=0;
+let adminClickTimer=null;
+let hiddenAdminRevealed=false;
+function revealHiddenAdmin(){
+  hiddenAdminRevealed=true;
+  const btnLogin=document.getElementById('btnAuth');
+  if(btnLogin) btnLogin.style.display='inline-flex';
+  const chip=document.getElementById('authChip');
+  if(chip){ chip.style.display='inline-flex'; chip.textContent=' Admin access revealed'; }
+  toast(' Admin login revealed — hidden link activated','ok');
+  try{ localStorage.setItem('labSystems.hiddenAdmin.v1','1'); }catch(e){}
+}
+function initHiddenAdmin(){
+  try{
+    // URL param ?admin or ?admin=1 reveals login
+    if(location.search.includes('admin') || location.hash.includes('admin')){
+      revealHiddenAdmin();
+    }
+    // If previously revealed in this browser, keep revealed
+    if(localStorage.getItem('labSystems.hiddenAdmin.v1')==='1'){
+      hiddenAdminRevealed=true;
+    }
+    // Secret: click side-foot version 5 times quickly
+    const foot=document.getElementById('sideFoot');
+    if(foot){
+      foot.style.cursor='pointer';
+      foot.title='Click 5 times quickly for admin access';
+      foot.addEventListener('click',()=>{
+        adminClickCount++;
+        clearTimeout(adminClickTimer);
+        adminClickTimer=setTimeout(()=>{ adminClickCount=0; }, 3000);
+        if(adminClickCount>=5){
+          adminClickCount=0;
+          revealHiddenAdmin();
+        }
+      });
+    }
+    // Secret: Ctrl+Shift+A
+    document.addEventListener('keydown',e=>{
+      if(e.ctrlKey && e.shiftKey && e.key.toLowerCase()==='a'){
+        e.preventDefault();
+        revealHiddenAdmin();
+      }
+    });
+    // Secret: triple-click on brand logo
+    const brand=document.querySelector('.brand');
+    if(brand){
+      let brandClicks=0;
+      let brandTimer=null;
+      brand.addEventListener('click',()=>{
+        brandClicks++;
+        clearTimeout(brandTimer);
+        brandTimer=setTimeout(()=>{ brandClicks=0; }, 2000);
+        if(brandClicks>=3){
+          brandClicks=0;
+          revealHiddenAdmin();
+        }
+      });
+    }
+  }catch(e){}
+}
+
 function updateAuthUI(){
   const chip = document.getElementById('authChip');
   const btnLogin = document.getElementById('btnAuth');
@@ -7253,8 +7689,14 @@ function updateAuthUI(){
     if(btnLogout) btnLogout.style.display='inline-flex';
     document.body.classList.remove('viewer-mode');
   }else{
-    chip.style.display='inline-flex'; chip.classList.remove('admin'); chip.textContent=' Viewer — read-only';
-    if(btnLogin) btnLogin.style.display='inline-flex';
+    // Hidden admin: viewers see NO login button, NO viewer banner, NO explanations
+    if(hiddenAdminRevealed){
+      chip.style.display='inline-flex'; chip.classList.remove('admin'); chip.textContent=' Admin login hidden — click to login';
+      if(btnLogin) btnLogin.style.display='inline-flex';
+    }else{
+      chip.style.display='none';
+      if(btnLogin) btnLogin.style.display='none';
+    }
     if(btnLogout) btnLogout.style.display='none';
     document.body.classList.add('viewer-mode');
   }
@@ -7265,15 +7707,22 @@ function updateAuthUI(){
     const staffNav = document.querySelector('[data-tab="staff"]');
     if(revNav){ revNav.style.display = isViewer() ? 'none' : ''; }
     if(staffNav){ staffNav.style.display = isViewer() ? 'none' : ''; }
-    // Hide patient name columns in viewer mode via CSS injection
-    if(isViewer()){
-      document.querySelectorAll('th').forEach(th=>{
-        if(/patient/i.test(th.textContent)) th.style.display='none';
-      });
-    }
   }catch(e){}
 
-  // Hide viewer banner completely per user request - admin login button already in topbar
+  // Hide all viewer explanations - only admin sees them
+  try{
+    document.querySelectorAll('.viewer-banner, .viewer-explain, [data-viewer-explain]').forEach(b=>{
+      if(isViewer()) b.style.display='none';
+      else b.style.display='';
+    });
+    // Hide hints that say "Viewer mode — you can view & download, but cannot edit"
+    document.querySelectorAll('.card .hint').forEach(h=>{
+      const txt=(h.textContent||'').toLowerCase();
+      if(isViewer() && (txt.includes('viewer mode') || txt.includes('viewer · read-only') || txt.includes('admin only') || txt.includes('login as admin to edit'))){
+        h.style.display='none';
+      }
+    });
+  }catch(e){}
   document.querySelectorAll('.viewer-banner').forEach(b=>b.remove());
 }
 function openAuth(tab){
@@ -8061,7 +8510,7 @@ function boot(){
     try{ if(typeof initFirebase==='function') initFirebase(); }catch(e){ console.warn('initFirebase', e.message); }
   }catch(e){}
   try{ saveDB(); }catch(e){}
-  try{ updateChips(); wireNav(); wireScrollHide(); wireGlobalClicks(); wireAuth(); installAdminGuards(); updateAuthUI(); }catch(e){ console.error('wire:',e); showBootError('setup: '+(e&&e.message||e)); }
+  try{ updateChips(); wireNav(); wireScrollHide(); wireGlobalClicks(); wireAuth(); installAdminGuards(); initHiddenAdmin(); updateAuthUI(); }catch(e){ console.error('wire:',e); showBootError('setup: '+(e&&e.message||e)); }
   // Cloud live load - if Firebase enabled, try to pull newer data
   try{
     if(typeof cloudLoadAndListen==='function'){
