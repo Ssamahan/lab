@@ -1,5 +1,5 @@
-/* Lab Systems v4.34.0 - Premium Arena Clone - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v4.34.0-2026-10-15';
+/* Lab Systems v5.0 AURORA - Premium - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.0-aurora-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(
