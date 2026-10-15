@@ -176,6 +176,26 @@ body.nav-closed main{grid-column:1 !important; max-width:100% !important}
 .card.gold-accent{border-left:3px solid var(--gold)}
 .card.gold-accent::after{content:''; position:absolute; top:0; left:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--gold),var(--gold-2));}
 .card h3{font-size:13.5px; font-weight:800; letter-spacing:.2px; color:var(--text); display:flex; align-items:center; gap:10px; margin-bottom:16px; text-align:left}
+
+/* Premium Arena Clone - exact match https://01a13fec-270d-79f9-9ba6-a24190402245.arena.site/ */
+.gold-gradient{background:linear-gradient(135deg, #C9A84C 0%, #E6C97A 100%)}
+.navy-gradient{background:linear-gradient(135deg, #0B1C3D 0%, #1e293b 100%)}
+.card{background:var(--surface); border:1px solid var(--edge); border-radius:16px; padding:20px; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03); transition:all 200ms ease}
+.card-interactive:hover{transform:translateY(-2px); box-shadow:0 8px 24px rgba(15,23,42,0.08)}
+.card.p-4{padding:16px}
+.card.p-5{padding:20px}
+.kpi-value{font-family:'Bebas Neue','Space Grotesk',sans-serif; letter-spacing:-0.5px}
+.stagger > *{animation:fadeUp 0.4s ease both}
+.stagger > *:nth-child(1){animation-delay:0.05s}
+.stagger > *:nth-child(2){animation-delay:0.1s}
+.stagger > *:nth-child(3){animation-delay:0.15s}
+.stagger > *:nth-child(4){animation-delay:0.2s}
+.stagger > *:nth-child(5){animation-delay:0.25s}
+.stagger > *:nth-child(6){animation-delay:0.3s}
+@keyframes fadeUp{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
+.shimmer{background:linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); animation:shimmer 2.5s infinite}
+@keyframes shimmer{0%{transform:translateX(-100%)} 100%{transform:translateX(100%)}}
+
 .card h3 .sub{font-weight:500; color:var(--faint); font-size:11.5px; margin-left:auto; text-transform:none; letter-spacing:0}
 
 .grid{display:grid; gap:16px}
@@ -550,13 +570,14 @@ try{
 <div style="margin-top:18px;width:140px;height:5px;border-radius:99px;background:rgba(11,28,61,0.08);overflow:hidden; position:relative; border:1px solid rgba(201,168,76,0.18)"><div id="bootBar" style="height:100%;width:100%;background:transparent;border-radius:99px;position:relative;overflow:hidden"><div style="position:absolute; left:0; top:0; bottom:0; width:45%; background:linear-gradient(90deg,#C9A84C,#b8963f,#e8d5a3); border-radius:99px; animation:goldRun 1.1s ease-in-out infinite; box-shadow:0 0 12px rgba(201,168,76,0.42)"></div><div style="position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.55),transparent); animation:barShimmer 1.2s ease-in-out infinite"></div></div></div>
 <div id="bootLbl" style="margin-top:10px;font-size:11.5px;color:#8a9ab5; font-weight:600">Please wait…</div>
 </div>
-<div id="app">
-  <aside id="sidebar">
-    <div class="brand">
-      <div class="crest" id="brandCrest" style="background:#fff; border:1px solid var(--edge); overflow:hidden; width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center"><img src="assets/favicon.svg" alt="Lab Systems" style="width:100%;height:100%;object-fit:contain; padding:2px" onerror="this.src='assets/favicon-32.png'"></div>
-      <div><b>Lab Systems</b><small>Ruli District Hospital · Lab</small></div>
+<div id="app" class="min-h-screen flex bg-[#f8fafc] dark:bg-[#020617]">
+  <div class="fixed lg:static inset-y-0 left-0 z-40 transition-transform lg:translate-x-0 -translate-x-full lg:translate-x-0" id="sidebarWrap">
+  <aside id="sidebar" class="no-print fixed lg:static inset-y-0 left-0 z-40 flex flex-col bg-[#0B1C3D] text-white transition-all duration-300 w-20 lg:w-[268px] border-r border-white/5" style="background:linear-gradient(180deg, #0B1C3D 0%, #0f172a 100%)">
+    <div class="brand flex items-center gap-3 px-5 h-16 border-b border-white/5" style="border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div class="crest h-9 w-9 rounded-xl gold-gradient flex items-center justify-center shrink-0 shadow-lg" id="brandCrest" style="background:linear-gradient(135deg, #C9A84C 0%, #E6C97A 100%); width:36px; height:36px; border-radius:12px"><svg class="pipette h-5 w-5 text-[#0B1C3D]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path></svg></div>
+      <div class="brand-text"><b style="font-size:15px; color:#f8fafc; font-weight:800; letter-spacing:-0.2px">Lab Systems</b><small style="color:#94a3b8; font-size:11px">Ruli District Hospital · Lab</small></div>
     </div>
-    <nav class="nav" id="nav">
+    <nav class="nav flex-1 px-3 py-4 space-y-1 overflow-y-auto" id="nav">
       <div class="nav-section">Operations</div>
       <button class="nav-item" data-tab="dash"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>Dashboard</button>
       <button class="nav-item" data-tab="samples"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/></svg></span>Referred Samples</button>
@@ -572,11 +593,18 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.34.0</div>
+    <div class="side-foot px-3 py-4 border-t border-white/5" id="sideFoot" style="border-top:1px solid rgba(255,255,255,0.06)">
+      <div class="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/5 justify-center">
+        <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
+        <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
+      </div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.1.3 PREMIUM</div>
+      <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
+    </div>
   </aside>
-
-  <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
-  <header id="topbar">
+  </div>
+  <div id="mainWrap" class="flex-1 flex flex-col min-w-0" style="min-width:0; display:flex; flex-direction:column">
+  <header id="topbar" class="no-print sticky top-0 z-30 h-16 flex items-center gap-4 px-4 lg:px-8 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)]">
     <button class="hamburger" id="hamburger" aria-label="Menu" style="color:#33435f"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <div>
       <div class="t-title" id="topTitle">Dashboard</div>
