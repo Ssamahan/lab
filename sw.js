@@ -1,5 +1,5 @@
-/* Lab Systems v5.0 AURORA - Premium - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.0-aurora-2026-10-15';
+/* Lab Systems v5.0.1 AURORA - Fix recentActivities not defined - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.0.1-aurora-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(

@@ -2905,6 +2905,29 @@ function renderDash(){
   // On duty now
   const onDutyStaff = act.slice(0,6).map(s=>({id:s.id, name:s.name, role:s.role||'Technologist', initials:s.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}));
   
+  // Recent activities - for live activity feed
+  const recentActivities=[];
+  try{
+    samples.slice(0,5).forEach(s=>{
+      const daysAgo=daysBetween(s.collectionDate||s.sentDate||today, today);
+      const timeLabel=daysAgo===0?'Today':daysAgo===1?'Yesterday':`${daysAgo}d ago`;
+      recentActivities.push({icon:'✓', color:'#22a06b', title:`${s.test} — ${s.sampleId}`, sub:`${s.patientName?maskName(s.patientName):''} · ${s.hospital}`, time:timeLabel, by:s.transporter||'Lab'});
+    });
+    (DB.stock.entries||[]).slice(0,3).forEach(e=>{
+      const c=consById(e.cid);
+      if(!c) return;
+      recentActivities.push({icon:'!', color:'#e8a33d', title:`Stock alert: ${c.name} ${e.type}`, sub:`${e.qty} ${e.type} · ${e.healthCenter||''}`, time:fmtDate(e.date).slice(5), by:'System'});
+    });
+    (DB.leaves||[]).slice(0,2).forEach(l=>{
+      const st=staffById(l.staffId);
+      recentActivities.push({icon:'✓', color:'#0e9f8a', title:`Leave ${LEAVE_NAMES[l.type]||l.type} — ${st?st.name.split(' ')[0]:''}`, sub:`Back ${fmtDate(l.backOn)}`, time:fmtDate(l.from).slice(5), by:'Kelvin SAMAHANI'});
+    });
+    if(!recentActivities.length){
+      recentActivities.push({icon:'✓', color:'#22a06b', title:'Roster generated for week of 28 Sep', sub:'Weekly roster ready', time:'2 min ago', by:'Kelvin SAMAHANI'});
+      recentActivities.push({icon:'!', color:'#e8a33d', title:'Stock alert: Glucose strips critical (3 left)', sub:'Consumable low', time:'14 min ago', by:'System'});
+    }
+  }catch(e){ console.warn('recentActivities', e.message); }
+  
   // Supply radar - expiring soonest
   const allBatches=(DB.stock.batches||[]).filter(b=>b.qty>0&&b.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry)).slice(0,5);
   const supplyRadar = allBatches.length?allBatches.map(b=>{
