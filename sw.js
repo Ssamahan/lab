@@ -1,5 +1,5 @@
-/* Lab Systems v5.1.0 PREMIUM - Clone first Arena site with real data, no hallucination, revenue admin-only - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.1.0-premium-2026-10-15';
+/* Lab Systems v5.1.1 PREMIUM - Dark mode perfect match Arena - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.1.1-premium-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(

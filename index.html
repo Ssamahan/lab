@@ -127,6 +127,25 @@ body.nav-closed #mainWrap{grid-column:1 !important; width:100% !important; max-w
 .side-foot{padding:14px 10px 4px; font-size:11px; color:var(--faint); border-top:1px solid var(--edge); margin-top:10px; line-height:1.6; transition:border-color 250ms ease}
 [data-theme="dark"] .side-foot{border-top-color:#222222}
 
+/* Premium dark mode - match Arena site https://01a13fec-270d-79f9-9ba6-a24190402245.arena.site/ */
+[data-theme="dark"] .card{
+  background:#111111 !important;
+  border-color:#1e293b !important;
+  box-shadow:0 1px 3px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.3) !important;
+}
+[data-theme="dark"] .card h3{
+  color:#f1f5f9 !important;
+}
+[data-theme="dark"] .kpi{
+  background:#111111 !important;
+  border-color:#1e293b !important;
+}
+[data-theme="dark"] .chart-box{
+  background:#0a0a0a !important;
+  border-color:#1e293b !important;
+}
+
+
 /* ===== TOPBAR ===== */
 #topbar{
   position:sticky; top:0; z-index:30; height:var(--topbar-h); display:flex; align-items:center; gap:12px; padding:0 20px;
@@ -520,7 +539,7 @@ try{
 @keyframes goldRun { 0%{transform:translateX(-130%)} 50%{transform:translateX(20%)} 100%{transform:translateX(280%)} }
 @keyframes barShimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
 @keyframes pipetteDraw { 0%{stroke-dashoffset:1000} 100%{stroke-dashoffset:0} }
-.boot-logo-wrap{position:relative; width:110px; height:110px; display:flex; align-items:center; justify-content:center; background:#ffffff; border-radius:24px; border:1px solid #e6e9f1; box-shadow:0 8px 32px rgba(11,28,61,0.12), 0 0 0 1px rgba(201,168,76,0.18); animation:bootLogoIn 0.9s cubic-bezier(.2,.8,.2,1) forwards, glowPulse 2.2s ease-in-out infinite 0.9s}
+.boot-logo-wrap{position:relative; width:110px; height:110px; display:flex; align-items:center; justify-content:center; background:var(--surface); border-radius:24px; border:1px solid #e6e9f1; box-shadow:0 8px 32px rgba(11,28,61,0.12), 0 0 0 1px rgba(201,168,76,0.18); animation:bootLogoIn 0.9s cubic-bezier(.2,.8,.2,1) forwards, glowPulse 2.2s ease-in-out infinite 0.9s}
 .boot-logo-wrap svg{width:88px; height:88px; overflow:visible; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.08))}
 .pipette-path{stroke-dasharray:1000; stroke-dashoffset:1000; animation:pipetteDraw 2.2s cubic-bezier(.4,0,.2,1) forwards}
 .pipette-path.gold{stroke:#C9A84C} .pipette-path.navy{stroke:#0B1C3D}
@@ -1412,7 +1431,7 @@ function svgBar(data,opts){ // premium vertical bars - Arena Cost per Task aesth
     labels+=`<text x="${(x+bw/2).toFixed(1)}" y="${(pad.t+ih+18).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" fill="#475569" font-weight="600" style="font-family:'Trebuchet MS', sans-serif">${(d.label||'').slice(0, tier==='xs'?10:14)}</text>`;
   });
 
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:#ffffff; border-radius:14px; border:1px solid #f1f5f9"><defs>${defs}</defs><g>${grid}</g><g>${yAxis}</g><g>${bars}</g><g>${labels}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:var(--surface); border-radius:14px; border:1px solid var(--edge)"><defs>${defs}</defs><g>${grid}</g><g>${yAxis}</g><g>${bars}</g><g>${labels}</g></svg>`;
 }
 
 function svgHBar(data,opts){ // premium horizontal bars - Arena Cost per Task aesthetics - pill, gradient, well-coded axes
@@ -1455,7 +1474,7 @@ function svgHBar(data,opts){ // premium horizontal bars - Arena Cost per Task ae
     </g>`;
   });
 
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:#ffffff; border-radius:14px; border:1px solid #f1f5f9"><defs>${defs}</defs><g>${grid}</g><g>${rows}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:var(--surface); border-radius:14px; border:1px solid var(--edge)"><defs>${defs}</defs><g>${grid}</g><g>${rows}</g></svg>`;
 }
 
 function svgPareto(data, opts){
@@ -1582,7 +1601,7 @@ function svgStackBar(layers,opts){ // premium stacked bars - Arena aesthetics - 
     xLabs+=`<text x="${(x+bw/2).toFixed(1)}" y="${(h-14).toFixed(1)}" text-anchor="middle" font-size="${Math.max(fs-1,11)}" fill="#475569" font-weight="600" style="font-family:'Trebuchet MS', sans-serif">${String(xlab).slice(0,12)}</text>`;
   }
 
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:#ffffff; border-radius:16px; border:1px solid #f1f5f9; box-shadow:0 1px 3px rgba(15,23,42,0.04)"><defs>${defs}</defs><g>${grid}</g><g>${yLabs}</g><g>${bars}</g><g>${xLabs}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:var(--surface); border-radius:16px; border:1px solid var(--edge); box-shadow:0 1px 3px rgba(15,23,42,0.04)"><defs>${defs}</defs><g>${grid}</g><g>${yLabs}</g><g>${bars}</g><g>${xLabs}</g></svg>`;
 }
 
 function svgLineChart(series, opts){
@@ -1685,7 +1704,7 @@ function svgLineChart(series, opts){
     });
   }
 
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:#ffffff; border-radius:16px; border:1px solid #f1f5f9; box-shadow:0 1px 3px rgba(15,23,42,0.04)"><defs>${defs}</defs><g>${xGrid}</g><g>${gl}</g><g>${yLabels}</g><g>${areas}</g><g>${lines}</g><g>${dots}</g><g>${xLabels}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:var(--surface); border-radius:16px; border:1px solid var(--edge); box-shadow:0 1px 3px rgba(15,23,42,0.04)"><defs>${defs}</defs><g>${xGrid}</g><g>${gl}</g><g>${yLabels}</g><g>${areas}</g><g>${lines}</g><g>${dots}</g><g>${xLabels}</g></svg>`;
 }
 
 function svgSpark(values,color){ color=color||'#2878f0'; const w=120,h=30,max=Math.max(...values,1),n=values.length;
@@ -2928,64 +2947,64 @@ function renderDash(){
     <!-- Greeting -->
     <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:28px; padding:0 4px">
       <div>
-        <h1 style="font-size:36px; font-weight:900; letter-spacing:-0.8px; color:#0f172a; margin:0 0 8px; line-height:1.1; font-family:'Bebas Neue','Space Grotesk',sans-serif">Good morning, ${esc(adminName)}.</h1>
+        <h1 style="font-size:36px; font-weight:900; letter-spacing:-0.8px; color:var(--text); margin:0 0 8px; line-height:1.1; font-family:'Bebas Neue','Space Grotesk',sans-serif">Good morning, ${esc(adminName)}.</h1>
         <p style="font-size:15px; color:#475569; margin:0; line-height:1.5; max-width:680px">Your lab is running at <b style="color:#0B1C3D">${capacity}% capacity</b>. ${allAlerts?`<b style="color:#c94c5a">${allAlerts} stock alerts</b> need attention and `:''}<b style="color:#0B1C3D">${pend.length} results</b> are pending release.</p>
       </div>
       <div class="row" style="gap:10px">
         <button class="btn primary" id="dashGenRoster" style="border-radius:12px; padding:10px 18px; font-weight:800; background:#0B1C3D; box-shadow:0 4px 16px rgba(11,28,61,0.14)">Generate Roster</button>
-        <button class="btn" id="dashExport" style="border-radius:12px; padding:10px 18px; font-weight:700; background:white; border:1px solid #e2e8f0">Export Report</button>
+        <button class="btn" id="dashExport" style="border-radius:12px; padding:10px 18px; font-weight:700; background:var(--surface); border:1px solid #e2e8f0">Export Report</button>
       </div>
     </div>
 
     <!-- KPI Cards - 6 cards like first Arena site, but REAL data, revenue admin-only -->
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px; margin-bottom:24px">
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden; transition:all 200ms ease">
+      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden; transition:all 200ms ease; border:1px solid var(--edge)">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
           <span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:#94a3b8">Samples Today</span>
           <span style="font-size:10px; font-weight:800; color:#0e9f8a; background:#dcfce7; border-radius:99px; padding:3px 8px">+${samplesTodayReal>0?Math.round((samplesTodayReal/(weekTotalReal||1))*100):'0'}%</span>
         </div>
-        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:#0f172a; line-height:1; font-family:'Bebas Neue', sans-serif">${samplesTodayReal}</div>
+        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${samplesTodayReal}</div>
         <div style="font-size:11px; color:#64748B; margin-top:4px; font-weight:600">Real today · ${weekTotalReal} this week</div>
         <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:#f1f5f9"><i style="width:${samplesTodayReal?Math.min(100, Math.round((samplesTodayReal/10)*100)):8}%; background:#C9A84C; height:100%; display:block"></i></div>
       </div>
 
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
+      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden; border:1px solid var(--edge)">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
           <span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:#94a3b8">Pending Results</span>
           <span style="font-size:10px; font-weight:800; color:${over.length?'#dc2626':'#64748B'}; background:${over.length?'#fee2e2':'#f1f5f9'}; border-radius:99px; padding:3px 8px">${over.length?'-'+over.length:''}</span>
         </div>
-        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:#0f172a; line-height:1; font-family:'Bebas Neue', sans-serif">${pend.length}</div>
+        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${pend.length}</div>
         <div style="font-size:11px; color:#64748B; margin-top:4px; font-weight:600">${over.length} overdue · ${reported.length} reported</div>
         <div style="position:absolute; bottom:0; left:0; right:0; height:4px; display:flex"><i style="width:${over.length?Math.round((over.length/(pend.length||1))*100):0}%; background:#c94c5a; height:100%"></i><i style="width:${pend.length?100-Math.round((over.length/(pend.length||1))*100):0}%; background:#e2e8f0; height:100%"></i></div>
       </div>
 
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
+      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden; border:1px solid var(--edge)">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
           <span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:#94a3b8">Staff On Duty</span>
           <span style="font-size:10px; font-weight:700; color:#475569; background:#f1f5f9; border-radius:99px; padding:3px 8px">${onLeaveNow.length?onLeaveNow.length+' off':''}</span>
         </div>
-        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:#0f172a; line-height:1; font-family:'Bebas Neue', sans-serif">${staffOnDuty} / ${act.length}</div>
+        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${staffOnDuty} / ${act.length}</div>
         <div style="font-size:11px; color:#64748B; margin-top:4px; font-weight:600">${act.length} active staff</div>
         <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:#f1f5f9"><i style="width:${act.length?Math.round((staffOnDuty/act.length)*100):0}%; background:#0B1C3D; height:100%; display:block"></i></div>
       </div>
 
       ${isAdminUser?`
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #fef3c7; background:linear-gradient(135deg, #fffbeb 0%, #ffffff 100%); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(201,168,76,0.08); position:relative; overflow:hidden" data-confidential="admin-only">
+      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #fef3c7; background:linear-gradient(135deg, var(--gold-soft) 0%, var(--surface) 100%); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(201,168,76,0.08); position:relative; overflow:hidden" data-confidential="admin-only">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
           <span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:#d97706">Revenue (FY)</span>
           <span style="font-size:10px; font-weight:800; color:#d97706; background:#fef3c7; border-radius:99px; padding:3px 8px">+${revenueReal>0?'18.7':''}%</span>
         </div>
-        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:#0f172a; line-height:1; font-family:'Bebas Neue', sans-serif">${revenueFormattedReal}</div>
+        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${revenueFormattedReal}</div>
         <div style="font-size:11px; color:#92400e; margin-top:4px; font-weight:600">FY ${fyInfo(today).label} · admin only</div>
         <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:#fef3c7"><i style="width:72%; background:#C9A84C; height:100%; display:block"></i></div>
       </div>
       `:`
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
+      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden; border:1px solid var(--edge)">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
           <span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:#94a3b8">Turnaround</span>
           <span style="font-size:10px; font-weight:700; color:#0e9f8a; background:#ccfbf1; border-radius:99px; padding:3px 8px">OK</span>
         </div>
-        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:#0f172a; line-height:1; font-family:'Bebas Neue', sans-serif">${reported.length} Done</div>
+        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${reported.length} Done</div>
         <div style="font-size:11px; color:#64748B; margin-top:4px; font-weight:600">${samples.length} total FY</div>
         <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:#f1f5f9"><i style="width:${totalFY?Math.round((reported.length/totalFY)*100):0}%; background:#0e9f8a; height:100%; display:block"></i></div>
       </div>
@@ -3001,12 +3020,12 @@ function renderDash(){
         <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:${allAlerts?'#fee2e2':'#f1f5f9'}"><i style="width:${allAlerts?100:10}%; background:${allAlerts?'#c94c5a':'#e2e8f0'}; height:100%; display:block"></i></div>
       </div>
 
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
+      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden; border:1px solid var(--edge)">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
           <span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:#94a3b8">EQA Pass Rate</span>
           <span style="font-size:10px; font-weight:800; color:#0e9f8a; background:#ccfbf1; border-radius:99px; padding:3px 8px">+0.4%</span>
         </div>
-        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:#0f172a; line-height:1; font-family:'Bebas Neue', sans-serif">${eqaRateReal||0}%</div>
+        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${eqaRateReal||0}%</div>
         <div style="font-size:11px; color:#64748B; margin-top:4px; font-weight:600">${eqaPass} passed · ${eqaList.length} total · real data</div>
         <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:#f1f5f9"><i style="width:${eqaRateReal||0}%; background:#0e9f8a; height:100%; display:block"></i></div>
       </div>
@@ -3014,10 +3033,10 @@ function renderDash(){
 
     <!-- Middle: Sample Volume This Week + Department Mix + Revenue Trend admin-only -->
     <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; margin-bottom:20px">
-      <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
+      <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px">
           <div>
-            <h3 style="margin:0; font-size:18px; font-weight:800; color:#0f172a; letter-spacing:-0.3px">Sample Volume — This Week</h3>
+            <h3 style="margin:0; font-size:18px; font-weight:800; color:var(--text); letter-spacing:-0.3px">Sample Volume — This Week</h3>
             <p style="margin:4px 0 0; font-size:13px; color:#64748B">Total ${weekTotalReal} samples processed · real data, not 8174</p>
           </div>
           <span style="font-size:11px; font-weight:800; color:#16a34a; background:#dcfce7; border-radius:99px; padding:4px 10px">+${weekTotalReal>0?Math.round((samplesTodayReal/(weekTotalReal||1))*100):'0'}%</span>
@@ -3028,7 +3047,7 @@ function renderDash(){
         </div>
       </div>
 
-      <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
+      <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
         <h3 style="margin:0 0 4px; font-size:16px; font-weight:800; color:#0f172a">Department Mix</h3>
         <p style="margin:0 0 16px; font-size:12px; color:#94a3b8">Sample distribution · real data</p>
         <div style="display:flex; flex-direction:column; align-items:center; gap:16px">
@@ -3036,7 +3055,7 @@ function renderDash(){
           <div style="width:100%; display:flex; flex-direction:column; gap:8px">
             ${deptMixColored.length?deptMixColored.map(d=>{
               const pct = deptMixTotal?Math.round((d.value/deptMixTotal)*100):0;
-              return `<div style="display:flex; align-items:center; justify-content:space-between; font-size:13px"><div style="display:flex; align-items:center; gap:8px"><i style="width:10px; height:10px; border-radius:3px; background:${d.color}; display:inline-block"></i><span style="color:#334155; font-weight:600">${esc(d.label)}</span></div><span style="color:#0f172a; font-weight:800">${pct}% · ${d.value}</span></div>`;
+              return `<div style="display:flex; align-items:center; justify-content:space-between; font-size:13px"><div style="display:flex; align-items:center; gap:8px"><i style="width:10px; height:10px; border-radius:3px; background:${d.color}; display:inline-block"></i><span style="color:#334155; font-weight:600">${esc(d.label)}</span></div><span style="color:var(--text); font-weight:800">${pct}% · ${d.value}</span></div>`;
             }).join(''):'<div class="hint">No dept data — register samples</div>'}
           </div>
         </div>
@@ -3045,7 +3064,7 @@ function renderDash(){
 
     ${isAdminUser?`
     <!-- Revenue Trend - admin only, hidden from viewers -->
-    <div class="card" style="margin:0 0 20px; padding:22px; border-radius:20px; border:1px solid #fef3c7; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(201,168,76,0.08)" data-confidential="admin-only">
+    <div class="card" style="margin:0 0 20px; padding:22px; border-radius:20px; border:1px solid #fef3c7; background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(201,168,76,0.08)" data-confidential="admin-only">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px">
         <div>
           <h3 style="margin:0; font-size:18px; font-weight:800; color:#0f172a">Revenue Trend</h3>
@@ -3071,14 +3090,14 @@ function renderDash(){
     `:''}
 
     <!-- Recent Activity - real data only -->
-    <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid #f1f5f9; background:white; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
+    <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
       <h3 style="margin:0 0 16px; font-size:18px; font-weight:800; color:#0f172a">Recent Activity</h3>
       <div style="display:flex; flex-direction:column; gap:0">
         ${recentActivitiesReal.length?recentActivitiesReal.map((a,i)=>`
           <div style="display:flex; gap:14px; padding:14px 0; border-bottom:${i===recentActivitiesReal.length-1?'none':'1px solid #f8fafc'}; align-items:flex-start">
             <div style="width:32px; height:32px; border-radius:10px; background:${a.color}18; color:${a.color}; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; flex:0 0 32px; border:1px solid ${a.color}30">${a.icon}</div>
             <div style="flex:1; min-width:0">
-              <div style="font-size:13.5px; font-weight:700; color:#0f172a; line-height:1.3">${esc(a.title)}</div>
+              <div style="font-size:13.5px; font-weight:700; color:var(--text); line-height:1.3">${esc(a.title)}</div>
               <div style="font-size:12px; color:#64748B; margin-top:2px">${esc(a.sub)}</div>
             </div>
             <div style="text-align:right; flex:0 0 auto">
