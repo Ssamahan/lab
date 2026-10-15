@@ -1,5 +1,5 @@
-/* Lab Systems v4.32.1 - Minimal - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v4.32.1-2026-10-15';
+/* Lab Systems v4.32.2 - Minimal - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v4.32.2-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(

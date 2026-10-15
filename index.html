@@ -547,7 +547,7 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.1</div>
+    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.2</div>
   </aside>
 
   <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
@@ -6524,7 +6524,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.1</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.2</span>';
 }
 
 
@@ -7183,7 +7183,24 @@ function sendOTP(email, purpose){
   const code = genOTP();
   const rec = {code, email: email.toLowerCase(), purpose, at:Date.now(), exp: Date.now()+ 5*60*1000};
   try{ localStorage.setItem(OTP_KEY, JSON.stringify(rec)); }catch(e){}
-  // Try real email delivery via EmailJS if configured (zero-cost)
+  // 1) Try real email via your free custom server (Node + Nodemailer Gmail SMTP) - zero-cost, most reliable
+  try{
+    const csCfg = (typeof getCustomServerConfig==='function') ? getCustomServerConfig() : null;
+    if(csCfg && csCfg.enabled && csCfg.url && csCfg.token){
+      fetch(csCfg.url.replace(/\/$/,'')+'/api/send-otp', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+csCfg.token},
+        body: JSON.stringify({toEmail: email, otp: code, purpose: purpose||'login'})
+      }).then(r=>r.json()).then(j=>{
+        if(j.ok){
+          if(typeof toast==='function') toast(' OTP sent via secure server to '+email+' — check inbox (real email)','ok');
+        }else{
+          console.log('Custom server email fallback:', j.error);
+        }
+      }).catch(e=>{ console.warn('Custom server email err', e.message); });
+    }
+  }catch(e){ console.warn('sendOTP custom server check', e.message); }
+  // 2) Try EmailJS if configured (zero-cost 200/month)
   try{
     const cfg = (typeof getEmailJSConfig==='function') ? getEmailJSConfig() : {enabled:false};
     if(cfg && cfg.enabled && cfg.serviceId && cfg.templateId && cfg.publicKey && typeof sendEmailViaEmailJS==='function'){
