@@ -547,7 +547,7 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.31.4</div>
+    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.0</div>
   </aside>
 
   <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
@@ -6127,6 +6127,28 @@ function renderDataMgr(body){
       <div class="hint" style="margin-top:10px">Archives: ${archives.length} preserved — includes staff, samples, stock, trainings, revenue, leaves, working plans. Stored in ${ARCHIVES_KEY} + cloud archives path.</div>
     </div>
 
+    <div class="card gold-accent" style="border-left:4px solid #0B1C3D"><h3> 🚀 Free Secure Server — Ruli Lab Cloud (Recommended, 100% free)</h3>
+      <div class="alert info" style="margin-bottom:12px">
+        <b>Your own free server</b> — I built you a Node.js + SQLite server that keeps data online & secure for free (Render.com free tier). Replaces broken Firebase lab-default-rtdb (404). Phone ↔ PC live sync.
+      </div>
+      <p class="hint" style="margin-bottom:10px">Deploy steps: Push <code>lab-server</code> folder to GitHub → Render.com → New Web Service → Free → Add env JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD → Add Disk 1GB → Deploy → copy URL → paste below → Save → Test → Push. Full guide in lab-server/README.md</p>
+      <form id="csForm" class="form-grid fg-2">
+        <div><label>Custom Server Enabled</label><select id="cs_enabled"><option value="0">Disabled</option><option value="1">Enabled — use my free server</option></select></div>
+        <div><label>Server URL (Render URL)</label><input id="cs_url" placeholder="https://ruli-lab-server.onrender.com" style="font-weight:700"></div>
+        <div><label>Admin Username</label><input id="cs_user" value="admin" placeholder="admin"></div>
+        <div><label>Admin Password</label><input type="password" id="cs_pass" placeholder="RuliLab@2026"></div>
+        <div style="grid-column:1/-1" class="row" style="gap:10px; margin-top:8px">
+          <button class="btn primary sm" type="submit"> Save Custom Server & Enable</button>
+          <button class="btn sm" type="button" id="cs_test"> Test Connection</button>
+          <button class="btn sm" type="button" id="cs_push"> Push Local → Server Now</button>
+          <button class="btn sm" type="button" id="cs_pull"> Pull Server → Local</button>
+        </div>
+      </form>
+      <div id="cs_status" class="hint" style="margin-top:10px"></div>
+      <hr style="margin:14px 0">
+      <p class="hint"><b>Free hosting:</b> Render.com free 750h/month, 1GB disk, 100GB bandwidth. Secure: JWT, bcrypt, Helmet, CORS locked to ssamahan.github.io, rate limit. Alternative: Supabase free Postgres or new Firebase project.</p>
+    </div>
+
     <div class="card gold-accent"><h3> Cloud Live Sync — Firebase (Real-time, zero-cost)</h3>
       <div class="alert ${cloudOn?'ok':'info'}" style="margin-bottom:12px">
         ${cloudOn?'<b> Live Sync Enabled</b> — Data is live across devices (Firebase Realtime DB). Edits by Admin sync instantly to all viewers.':'<b> Local Only</b> — Data stays in this browser (localStorage). Enable Firebase to make it live across phones & PCs.'}
@@ -6327,6 +6349,88 @@ If you didn't request, ignore.</pre>
     cloudSave();
     toast(' Local data pushed to cloud','ok');
   };
+  // Custom Server form - free secure server
+  const csCfg = (typeof getCustomServerConfig==='function') ? (getCustomServerConfig()||{}) : {};
+  const csEnabledEl=document.getElementById('cs_enabled');
+  const csUrlEl=document.getElementById('cs_url');
+  const csUserEl=document.getElementById('cs_user');
+  const csPassEl=document.getElementById('cs_pass');
+  const csStatusEl=document.getElementById('cs_status');
+  if(csEnabledEl) csEnabledEl.value = csCfg.enabled ? '1' : '0';
+  if(csUrlEl) csUrlEl.value = csCfg.url || '';
+  if(csUserEl) csUserEl.value = csCfg.username || 'admin';
+  if(csStatusEl) csStatusEl.innerHTML = csCfg.enabled && csCfg.url ? `<span class="tag green">Custom Server ON — ${csCfg.url}</span> <span class="hint">Token ${csCfg.token?'saved':'not yet'}</span>` : '<span class="tag gray">Custom Server OFF — using Firebase/local</span>';
+  const csFormEl=document.getElementById('csForm');
+  if(csFormEl){
+    csFormEl.addEventListener('submit',async ev=>{
+      ev.preventDefault();
+      const cfg={
+        enabled: document.getElementById('cs_enabled').value==='1',
+        url: document.getElementById('cs_url').value.trim().replace(/\/$/,''),
+        username: document.getElementById('cs_user').value.trim()||'admin',
+        password: document.getElementById('cs_pass').value,
+        token: csCfg.token||''
+      };
+      if(cfg.enabled && !cfg.url) return toast('Server URL required','warn');
+      if(cfg.enabled && cfg.url && !cfg.password && !cfg.token) return toast('Password required to login to custom server','warn');
+      // Try login to get token if enabled and password provided
+      if(cfg.enabled && cfg.url && cfg.password){
+        toast(' Logging into custom server...','info');
+        const tok=await customServerLogin(cfg.url, cfg.username, cfg.password);
+        if(tok){ cfg.token=tok; toast(' Custom server login OK — token saved','ok'); }
+        else { toast(' Custom server login failed — check URL/user/pass','err'); return; }
+      }
+      // Don't save password, only token
+      const toSave={enabled:cfg.enabled, url:cfg.url, username:cfg.username, token:cfg.token};
+      saveCustomServerConfig(toSave);
+      toast(cfg.enabled?' Custom server saved — live sync ON':' Custom server disabled','ok');
+      if(cfg.enabled){
+        try{ cloudSave(); }catch(e){}
+        try{ cloudLoadAndListen(()=>{ renderDataMgr(body); }); }catch(e){}
+      }
+      renderDataMgr(body);
+    });
+  }
+  const csTestEl=document.getElementById('cs_test');
+  if(csTestEl) csTestEl.onclick=async()=>{
+    const url=document.getElementById('cs_url').value.trim();
+    if(!url) return toast('Enter server URL first','warn');
+    toast(' Testing custom server...','info');
+    try{
+      const r=await fetch(url.replace(/\/$/,'')+'/api/health');
+      const j=await r.json();
+      if(j.ok) toast(` Custom server OK — ${j.keys} keys stored, time ${new Date().toLocaleString()}`,'ok');
+      else toast(' Custom server responded but not ok','warn');
+    }catch(e){ toast(' Custom server test failed: '+e.message,'err'); }
+  };
+  const csPushEl=document.getElementById('cs_push');
+  if(csPushEl) csPushEl.onclick=async()=>{
+    const cfg=getCustomServerConfig();
+    if(!cfg.enabled || !cfg.url) return toast('Enable custom server first','warn');
+    if(!isAdmin()) return requireAdmin();
+    if(!cfg.token){
+      const pass=document.getElementById('cs_pass').value;
+      if(!pass) return toast('Enter password to login','warn');
+      const tok=await customServerLogin(cfg.url, cfg.username||'admin', pass);
+      if(!tok) return toast('Login failed','err');
+      cfg.token=tok; saveCustomServerConfig(cfg);
+    }
+    toast(' Pushing local → custom server...','info');
+    const ok=await customServerSave(cfg.url, cfg.token, DB);
+    if(ok) toast(' Pushed to custom server — live now','ok');
+    else toast(' Push failed','err');
+  };
+  const csPullEl=document.getElementById('cs_pull');
+  if(csPullEl) csPullEl.onclick=async()=>{
+    const cfg=getCustomServerConfig();
+    if(!cfg.enabled || !cfg.url) return toast('Enable custom server first','warn');
+    confirmDlg('Pull server data and overwrite local? Local changes will be lost if server newer.',async()=>{
+      const j=await customServerLoad(cfg.url);
+      if(j && j.data){ DB=j.data; saveDB(); toast(' Pulled from custom server — reloaded','ok'); renderDataMgr(body); location.reload(); }
+      else toast(' No server data found','warn');
+    });
+  };
+
   const fbPullEl=document.getElementById('fb_pull');
   if(fbPullEl) fbPullEl.onclick=()=>{
     if(!cloudSyncEnabled) return toast('Enable Firebase first','warn');
@@ -6420,7 +6524,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.31.4</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.32.0</span>';
 }
 
 
@@ -6591,6 +6695,7 @@ const FIREBASE_KEY='labSystems.firebase.v1';
 const EMAILJS_KEY='labSystems.emailjs.v1';
 const ARCHIVES_KEY='labSystems.archives.v1';
 const LABS_KEY='labSystems.labs.v1';
+const CUSTOM_SERVER_KEY='labSystems.customServer.v1';
 const CLOUD_PATH='lab/v1';
 let firebaseApp=null, firebaseDB=null, cloudSyncEnabled=false;
 
@@ -6677,6 +6782,40 @@ function getFirebaseConfig(){
 function saveFirebaseConfig(cfg){
   try{ localStorage.setItem(FIREBASE_KEY, JSON.stringify(cfg)); }catch(e){ console.warn('saveFirebase', e.message); }
 }
+function getCustomServerConfig(){
+  try{
+    const raw=localStorage.getItem(CUSTOM_SERVER_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return {enabled:false, url:'', token:'', username:'admin'};
+}
+function saveCustomServerConfig(cfg){
+  try{ localStorage.setItem(CUSTOM_SERVER_KEY, JSON.stringify(cfg)); }catch(e){ console.warn('saveCustomServer', e.message); }
+}
+async function customServerLogin(url, username, password){
+  try{
+    const res=await fetch(url.replace(/\/$/,'')+'/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, password})});
+    const j=await res.json();
+    if(j.token) return j.token;
+    return null;
+  }catch(e){ console.warn('custom login', e.message); return null; }
+}
+async function customServerSave(url, token, data){
+  try{
+    const res=await fetch(url.replace(/\/$/,'')+'/api/data?key=lab/v1', {method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body:JSON.stringify({data})});
+    const j=await res.json();
+    return !!j.ok;
+  }catch(e){ console.warn('custom save', e.message); return false; }
+}
+async function customServerLoad(url){
+  try{
+    const res=await fetch(url.replace(/\/$/,'')+'/api/data?key=lab/v1');
+    const j=await res.json();
+    if(j && j.data && j.data.meta) return j;
+    if(j && j.raw && j.raw.data) return j.raw;
+    return null;
+  }catch(e){ console.warn('custom load', e.message); return null; }
+}
 function initFirebase(){
   try{
     const cfg=getFirebaseConfig();
@@ -6698,6 +6837,18 @@ function initFirebase(){
 }
 function cloudSave(){
   try{
+    // 1) Try custom free server first (your own Render server) - most reliable, free, secure
+    try{
+      const csCfg = (typeof getCustomServerConfig==='function') ? getCustomServerConfig() : null;
+      if(csCfg && csCfg.enabled && csCfg.url && csCfg.token){
+        const payload = JSON.parse(JSON.stringify(DB));
+        fetch(csCfg.url.replace(/\/$/,'')+'/api/data?key=lab/v1', {method:'PUT', headers:{'Content-Type':'application/json','Authorization':'Bearer '+csCfg.token}, body:JSON.stringify({data: payload})})
+          .then(r=>r.json()).then(j=>{ if(j.ok) console.log('Custom server save OK - live instantly'); else console.warn('Custom server save', j); })
+          .catch(e=>{ console.warn('Custom server save err', e.message); });
+        // Also continue to Firebase as backup if enabled
+      }
+    }catch(e){ console.warn('custom save check', e.message); }
+
     const cfg = (typeof getFirebaseConfig==='function') ? getFirebaseConfig() : null;
     const enabled = cfg ? cfg.enabled : cloudSyncEnabled;
     if(!enabled) return;
@@ -6723,6 +6874,87 @@ function cloudSave(){
 }
 function cloudLoadAndListen(onFirst){
   try{
+    // 1) Try custom free server first - if enabled, load from there
+    try{
+      const csCfg = (typeof getCustomServerConfig==='function') ? getCustomServerConfig() : null;
+      if(csCfg && csCfg.enabled && csCfg.url){
+        fetch(csCfg.url.replace(/\/$/,'')+'/api/data?key=lab/v1').then(r=>r.json()).then(val=>{
+          try{
+            let cloudData=null;
+            if(val && val.data && val.data.meta) cloudData=val.data;
+            else if(val && val.raw && val.raw.data) cloudData=val.raw.data;
+            else if(val && val.data && val.data.data) cloudData=val.data.data;
+            if(cloudData && cloudData.meta){
+              const localRaw=localStorage.getItem('labSystems.v1');
+              let shouldOverwrite=false;
+              if(!localRaw) shouldOverwrite=true;
+              else{
+                try{
+                  const local=JSON.parse(localRaw);
+                  const localTime = local.meta && local.meta.lastSave ? new Date(local.meta.lastSave).getTime() : 0;
+                  const cloudTime = cloudData.meta && cloudData.meta.lastSave ? new Date(cloudData.meta.lastSave).getTime() : (val.at||0);
+                  if(cloudTime > localTime) shouldOverwrite=true;
+                }catch(e){ shouldOverwrite=true; }
+              }
+              if(shouldOverwrite){
+                console.log('Custom server newer — overwriting local - EQA synced phone->PC');
+                DB=cloudData;
+                try{ localStorage.setItem('labSystems.v1', JSON.stringify(DB)); }catch(e){}
+                if(onFirst) onFirst(true);
+                try{ if(typeof toast==='function') toast('Live data from custom server — synced','ok'); }catch(e){}
+                // poll custom server every 15s for live updates
+                try{
+                  setInterval(()=>{
+                    fetch(csCfg.url.replace(/\/$/,'')+'/api/data?key=lab/v1').then(r=>r.json()).then(v=>{
+                      if(!v) return;
+                      let cd=null;
+                      if(v.data && v.data.meta) cd=v.data;
+                      else if(v.raw && v.raw.data) cd=v.raw.data;
+                      if(!cd) return;
+                      const cloudTime = cd.meta && cd.meta.lastSave ? new Date(cd.meta.lastSave).getTime() : (v.at||0);
+                      const localTime = DB && DB.meta && DB.meta.lastSave ? new Date(DB.meta.lastSave).getTime() : 0;
+                      if(cloudTime > localTime + 5000){
+                        console.log('Live custom server poll update');
+                        DB=cd;
+                        try{ localStorage.setItem('labSystems.v1', JSON.stringify(DB)); }catch(e){}
+                        try{ if(UI && UI.tab && RENDER[UI.tab]){ RENDER[UI.tab](); updateChips(); updateAuthUI(); } }catch(e){}
+                      }
+                    });
+                  }, 15000);
+                }catch(e){}
+                return;
+              }else{
+                if(onFirst) onFirst(false);
+                // still poll
+                try{
+                  setInterval(()=>{
+                    fetch(csCfg.url.replace(/\/$/,'')+'/api/data?key=lab/v1').then(r=>r.json()).then(v=>{
+                      if(!v) return;
+                      let cd=null;
+                      if(v.data && v.data.meta) cd=v.data;
+                      else if(v.raw && v.raw.data) cd=v.raw.data;
+                      if(!cd) return;
+                      const cloudTime = cd.meta && cd.meta.lastSave ? new Date(cd.meta.lastSave).getTime() : (v.at||0);
+                      const localTime = DB && DB.meta && DB.meta.lastSave ? new Date(DB.meta.lastSave).getTime() : 0;
+                      if(cloudTime > localTime + 5000){
+                        DB=cd;
+                        try{ localStorage.setItem('labSystems.v1', JSON.stringify(DB)); }catch(e){}
+                        try{ if(UI && UI.tab && RENDER[UI.tab]){ RENDER[UI.tab](); updateChips(); updateAuthUI(); } }catch(e){}
+                      }
+                    });
+                  }, 15000);
+                }catch(e){}
+                return;
+              }
+            }else{
+              if(onFirst) onFirst(false);
+            }
+          }catch(e){ if(onFirst) onFirst(false); }
+        }).catch(e=>{ console.warn('Custom server load err', e.message); if(onFirst) onFirst(false); });
+        return;
+      }
+    }catch(e){ console.warn('custom load check', e.message); }
+
     const cfg=getFirebaseConfig();
     if(!cfg || !cfg.enabled) { if(onFirst) onFirst(false); return; }
     // Try SDK init, but don't fail if SDK not loaded yet (REST fallback)
