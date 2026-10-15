@@ -79,16 +79,21 @@ hr{border:none; border-top:1px solid var(--edge); margin:16px 0; transition:bord
 body.nav-closed #sidebar{transform:translateX(-108%); box-shadow:none}
 body.nav-closed #app{grid-template-columns:1fr !important}
 body.nav-mini #app{grid-template-columns:var(--sidebar-w-mini) 1fr !important}
-body.nav-mini #sidebar{width:var(--sidebar-w-mini); padding:16px 8px 18px; overflow:visible}
+body.nav-mini #sidebar{width:var(--sidebar-w-mini); padding:16px 8px 18px; overflow:visible; align-items:center}
 body.nav-mini #mainWrap{grid-column:2 !important; width:auto !important; max-width:none !important}
-body.nav-mini .brand b, body.nav-mini .brand small, body.nav-mini .nav-section, body.nav-mini .side-foot span:not(.mini-version), body.nav-mini .nav-item .badge, body.nav-mini .brand-text{display:none !important}
-body.nav-mini .brand{justify-content:center; padding:8px 0 18px; gap:0}
-body.nav-mini .nav{padding:4px 0; align-items:center}
-body.nav-mini .nav-item{justify-content:center; padding:12px 8px; gap:0; width:44px; height:44px; border-radius:12px; margin:0 auto}
-body.nav-mini .nav-item .ic{width:24px; height:24px; flex:0 0 24px}
-body.nav-mini .nav-item:hover{transform:translateX(0) scale(1.05)}
-body.nav-mini .nav-item::after{content:attr(data-tooltip); position:absolute; left:68px; top:50%; transform:translateY(-50%); background:#0B1C3D; color:#C9A84C; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity 180ms ease; z-index:100}
-body.nav-mini .nav-item:hover::after{opacity:1}
+body.nav-mini .brand b, body.nav-mini .brand small, body.nav-mini .nav-section, body.nav-mini .side-foot, body.nav-mini .nav-item .badge, body.nav-mini .brand-text, body.nav-mini .nav-section::after{display:none !important}
+body.nav-mini .brand{justify-content:center; padding:8px 0 18px; gap:0; border-bottom:none; margin-bottom:8px; width:100%}
+body.nav-mini .brand .crest{width:44px; height:44px; flex:0 0 44px}
+body.nav-mini .nav{padding:4px 0; align-items:center; width:100%; gap:6px}
+body.nav-mini .nav-item{justify-content:center; padding:0; gap:0; width:44px; height:44px; border-radius:12px; margin:0 auto; font-size:0 !important; color:transparent !important; line-height:0; text-indent:-9999px; overflow:hidden; position:relative}
+body.nav-mini .nav-item .ic{width:24px; height:24px; flex:0 0 24px; color:var(--muted); text-indent:0; font-size:initial; display:flex; align-items:center; justify-content:center}
+body.nav-mini .nav-item.active .ic{color:var(--gold)}
+body.nav-mini .nav-item:hover{transform:translateX(0) scale(1.08); color:transparent !important}
+body.nav-mini .nav-item::after{content:attr(data-tooltip); position:absolute; left:68px; top:50%; transform:translateY(-50%); background:#0B1C3D; color:#C9A84C; padding:8px 14px; border-radius:10px; font-size:12px; font-weight:700; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity 180ms ease, transform 180ms ease; z-index:100; text-indent:0; line-height:1.2; border:1px solid rgba(201,168,76,0.3); box-shadow:0 4px 16px rgba(11,28,61,0.18)}
+body.nav-mini .nav-item:hover::after{opacity:1; transform:translateY(-50%) translateX(4px)}
+body.nav-mini .side-foot{display:flex !important; justify-content:center; align-items:center; padding:12px 4px; font-size:0 !important; border-top:none; margin-top:auto}
+body.nav-mini .side-foot::before{content:'v4.33'; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px; background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.22); border-radius:99px; padding:4px 8px}
+
 #mainWrap{grid-column:2; min-width:0; display:flex; flex-direction:column; width:100%; transition:all 250ms ease}
 body.nav-closed #mainWrap{grid-column:1 !important; width:100% !important; max-width:100% !important}
 #sidebar{
@@ -558,7 +563,7 @@ try{
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
-    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.1</div>
+    <div class="side-foot" id="sideFoot" style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.2</div>
   </aside>
 
   <div id="mainWrap" style="min-width:0; display:flex; flex-direction:column; grid-column:2">
@@ -6867,7 +6872,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.1</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.33.2</span>';
 }
 
 
