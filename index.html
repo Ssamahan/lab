@@ -270,6 +270,47 @@ body{
   font-weight:800;
 }
 
+
+/* Hamburger always visible and working - proofreading fix */
+#hamburger{
+  display:flex !important;
+  position:relative;
+  z-index:50;
+  width:40px; height:40px;
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:12px;
+  color:#f1f5f9;
+  align-items:center; justify-content:center;
+  cursor:pointer;
+  transition:all 200ms ease;
+}
+#hamburger:hover{
+  background:rgba(255,255,255,0.12);
+  border-color:rgba(201,168,76,0.3);
+  transform:scale(1.05);
+}
+body.nav-mini #hamburger{
+  background:rgba(201,168,76,0.14);
+  border-color:rgba(201,168,76,0.24);
+  color:#C9A84C;
+}
+#sidebar{
+  transition:transform 300ms cubic-bezier(.4,0,.2,1), width 300ms ease !important;
+}
+#sidebar.open{
+  transform:translateX(0) !important;
+}
+@media(max-width:980px){
+  #sidebar{
+    transform:translateX(-110%);
+    width:280px !important;
+  }
+  #sidebar.open{
+    transform:translateX(0) !important;
+  }
+}
+
 /* Premium Arena Clone - exact match https://01a13fec-270d-79f9-9ba6-a24190402245.arena.site/ */
 .gold-gradient{background:linear-gradient(135deg, #C9A84C 0%, #E6C97A 100%)}
 .navy-gradient{background:linear-gradient(135deg, #0B1C3D 0%, #1e293b 100%)}
@@ -691,7 +732,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.0 PREMIUM EXACT</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.1.3 PREMIUM</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -817,37 +858,18 @@ try{
 .beeper-row .beeper-sub { font-size:11.5px; color:var(--muted); }
 .beeper-row .beeper-badge { margin-left:auto; background:linear-gradient(135deg, #C9A84C, #b8963f); color:#0B1C3D; font-size:10px; font-weight:900; border-radius:99px; padding:4px 10px; }
 @media(max-width:980px){
-  body.is-web #sidebar { display:flex !important; position:fixed; transform:translateX(-108%); }
-  body.is-web #sidebar.open { transform:translateX(0) !important; }
-  body.is-web #hamburger { display:flex !important; }
-  body.is-web #bottomNav { display:none !important; }
-  body.is-apk #sidebar { display:none !important; }
-  body.is-apk #hamburger { display:none !important; }
-  body.is-apk #bottomNav { display:flex !important; }
-  body.is-apk main { padding-bottom:calc(110px + env(safe-area-inset-bottom)) !important; min-height:100dvh; }
-  body.is-web main { padding-bottom:24px !important; }
+/* Removed conflicting is-web/is-apk hamburger CSS - fixed for proofreading */
   .grid.g-2, .grid.g-3, .grid.g-4, .g-auto { grid-template-columns:1fr !important; }
 }
 @media(min-width:981px){
   #bottomNav { display:none !important; }
-  body.is-web #hamburger { display:none !important; }
-  body.is-web #sidebar { display:flex !important; transform:none !important; }
+/* Removed conflicting is-web/is-apk hamburger CSS - fixed for proofreading */
 }
 </style>
 <style>
 /* v4.9: Web original look preserved, APK liquid glass - fix button looks as app & web at same */
 #bottomNav { display:none !important; }
-body.is-apk #bottomNav { display:flex !important; }
-body.is-web #bottomNav { display:none !important; }
-body.is-web #sidebar { display:flex !important; }
-body.is-apk #sidebar { display:none !important; }
-body.is-web #hamburger { display:none; }
-@media(max-width:980px){
-  body.is-web #hamburger { display:flex !important; }
-  body.is-apk #hamburger { display:none !important; }
-  body.is-web #sidebar { transform:translateX(-108%); }
-  body.is-web #sidebar.open { transform:translateX(0) !important; }
-}
+/* Removed conflicting is-web/is-apk hamburger CSS - fixed for proofreading */
 </style>
 
 
