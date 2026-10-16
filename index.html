@@ -732,7 +732,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.1.4 PREMIUM</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.0 AURORA PREMIUM</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -1840,9 +1840,27 @@ function svgLineChart(series, opts){
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" style="overflow:visible; background:var(--surface); border-radius:16px; border:1px solid var(--edge); box-shadow:0 1px 3px rgba(15,23,42,0.04)"><defs>${defs}</defs><g>${xGrid}</g><g>${gl}</g><g>${yLabels}</g><g>${areas}</g><g>${lines}</g><g>${dots}</g><g>${xLabels}</g></svg>`;
 }
 
-function svgSpark(values,color){ color=color||'#2878f0'; const w=120,h=30,max=Math.max(...values,1),n=values.length;
-  if(n<2) return ''; const pts=values.map((v,i)=>`${(i/(n-1)*w).toFixed(1)},${(h-(v/max)*h).toFixed(1)}`).join(' ');
-  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/></svg>`; }
+function svgSpark(values,color){ 
+  color=color||'#D4A853'; 
+  const w=120,h=36,max=Math.max(...values,1),n=values.length;
+  if(n<2) return '<div style="height:36px"></div>'; 
+  const pts=values.map((v,i)=>({x:(i/(n-1)*w), y:(h-(v/max)*h)}));
+  // Smooth curved sparkline with area fill - premium like reference
+  let path=`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for(let i=0;i<pts.length-1;i++){
+    const p0 = i>0?pts[i-1]:pts[0];
+    const p1 = pts[i];
+    const p2 = pts[i+1];
+    const p3 = i+2<pts.length?pts[i+2]:p2;
+    const cp1x = p1.x + (p2.x - p0.x)*0.3/6;
+    const cp1y = p1.y + (p2.y - p0.y)*0.3/6;
+    const cp2x = p2.x - (p3.x - p1.x)*0.3/6;
+    const cp2y = p2.y - (p3.y - p1.y)*0.3/6;
+    path+=` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  const areaPath = path + ` L${pts[pts.length-1].x.toFixed(1)},${h} L${pts[0].x.toFixed(1)},${h} Z`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="overflow:visible"><defs><linearGradient id="sparkGrad${Date.now()}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity="0.24"/><stop offset="100%" stop-color="${color}" stop-opacity="0.02"/></linearGradient></defs><path d="${areaPath}" fill="url(#sparkGrad${Date.now()})"/><path d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.12))"/></svg>`;
+}
 
 /* ---------- master timeline data ---------- */
 function timelineEvents(startISO,endISO){ // returns [{date,label,color,type,lengthDays}]
@@ -3105,7 +3123,7 @@ function renderDash(){
           <button class="h-10 px-4 rounded-xl gold-gradient text-[#0B1C3D] text-sm font-semibold shadow-md" id="dashExport">Export Report</button>
         </div>
       </div>
-      <svg class="absolute -right-10 -bottom-10 h-48 w-48 opacity-10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path></svg>
+      <div class="absolute -right-8 -bottom-8 h-32 w-32 opacity-[0.04] pointer-events-none" style="background:radial-gradient(circle, rgba(212,168,83,0.4) 0%, transparent 70%)"></div>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 stagger">

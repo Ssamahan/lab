@@ -1,5 +1,5 @@
-/* Lab Systems v5.1.4 PREMIUM - Fix messy dashboard bizarre charts exact Arena clone - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.1.4-premium-2026-10-15';
+/* Lab Systems v5.2.0 AURORA PREMIUM - Fix flask bug, premium charts curved, dark mode perfect match - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.2.0-aurora-premium-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(
