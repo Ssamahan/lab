@@ -1,5 +1,5 @@
-/* Lab Systems v5.1.5 PREMIUM - Fix dashboard messy charts, all time FY toggle, hospital distribution real - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.1.5-premium-2026-10-15';
+/* Lab Systems v5.1.6 PREMIUM - Fix giant buggy icons, dashboard all time FY toggle, hospital distribution - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.1.6-premium-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(
