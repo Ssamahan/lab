@@ -1,4 +1,4 @@
-/* Lab Systems v5.2.1 PREMIUM EXACT - Fix giant buggy icons, no flask, premium charts exact Arena clone - Self-unregister + cache bust 2026-10-15 */
+/* Lab Systems v5.2.1 PREMIUM EXACT - Exact Arena clone no flask bug, premium charts - Self-unregister + cache bust 2026-10-15 */
 const CACHE_NAME = 'lab-systems-v5.2.1-premium-exact-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
