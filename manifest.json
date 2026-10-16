@@ -1,1 +1,7 @@
-{"name":"Lab Systems","short_name":"Lab Systems","start_url":"./","display":"standalone"}
+{
+  "name": "Lab Systems",
+  "short_name": "Lab Systems",
+  "start_url": "./?v=5.0.2",
+  "display": "standalone",
+  "version": "5.0.2"
+}
