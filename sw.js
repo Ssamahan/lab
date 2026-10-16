@@ -1,5 +1,5 @@
-/* Lab Systems v5.0 - Return to stable - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.0-stable-2026-10-15';
+/* Lab Systems v5.0.1 - Fix recentActivities not defined - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.0.1-fix-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(
