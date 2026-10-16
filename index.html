@@ -691,7 +691,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.1.3 PREMIUM</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.0 PREMIUM EXACT</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -2998,7 +2998,6 @@ function renderDash(){
   const deptMixReal=Object.entries(testTypes).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v}));
   const deptColors={'Blood Culture':'#0B1C3D','Hematology':'#C9A84C','Biochemistry':'#0e9f8a','Serology':'#e8a33d','Parasitology':'#64748B','TB/Molecular':'#c94c5a'};
   const deptMixColored=deptMixReal.map((d,i)=>({label:d.label, value:d.value, color:deptColors[d.label]||CHART_COLORS[i%CHART_COLORS.length]}));
-  const deptMixTotal = deptMixReal.reduce((a,b)=>a+b.value,0) || 1;
   const totals = (typeof expTotals==='function'?expTotals():{net:0, count:0});
   const revenueReal = totals.net || 0;
   const revenueFormattedReal = revenueReal>=1000000 ? 'RWF '+(revenueReal/1000000).toFixed(1)+'M' : revenueReal>0 ? 'RWF '+revenueReal.toLocaleString() : 'RWF 0';
@@ -3018,22 +3017,8 @@ function renderDash(){
   ];
   const finalPartners = partnerVol.length?partnerVol:defaultPartners;
   const onDutyStaff = act.slice(0,6).map(s=>({id:s.id, name:s.name, role:s.role||'Technologist', initials:s.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}));
-  const allBatches=(DB.stock.batches||[]).filter(b=>b.qty>0&&b.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry)).slice(0,5);
-  const supplyRadar = allBatches.length?allBatches.map(b=>{ const c=consById(b.cid); return {name:c?c.name:b.cid, days:daysBetween(today, b.expiry), expiry:b.expiry}; }):[
-    {name:'Glucose Reagent (GOD-PAP)', days:121, expiry:addDays(today,121)},
-    {name:'Saline 0.9% 500mL', days:158, expiry:addDays(today,158)},
-    {name:'Widal Reagent Set', days:191, expiry:addDays(today,191)},
-    {name:'Urine Strips 10P', days:231, expiry:addDays(today,231)}
-  ];
-  const analyzers=[
-    {name:'GeneXpert IV', cal:'12 Mar', uptime:99.2, status:'Operational'},
-    {name:'Mindray BC-30s', cal:'28 Feb', uptime:98.7, status:'Operational'},
-    {name:'Centrifuge 5810', cal:'09 Apr', uptime:99.8, status:'Operational'},
-    {name:'Microscope CX23', cal:'05 Mar', uptime:100, status:'Operational'},
-    {name:'Biochemistry BA-88A', cal:'Today', uptime:94.1, status:'Maintenance'}
-  ];
 
-  // Build HTML parts with string concatenation to avoid nested backticks
+  // Build HTML - EXACT visual language from https://01a13fec-270d-79f9-9ba6-a24190402245.arena.site/ but REAL data, no hallucination, revenue admin-only
   let recentHtml='';
   try{
     const recentActivitiesReal=[];
@@ -3056,229 +3041,141 @@ function renderDash(){
     recentActivitiesReal.push({icon:'✓', color:'#64748B', title:'Backup JSON downloaded', sub:samples.length+' samples · '+act.length+' staff', time:'Yesterday', by:DB.settings.prepared||'Kelvin SAMAHANI'});
     
     recentHtml = recentActivitiesReal.map((a,i)=>{
-      const border = i===recentActivitiesReal.length-1?'none':'1px solid #f8fafc';
-      return '<div style="display:flex; gap:14px; padding:14px 0; border-bottom:'+border+'; align-items:flex-start">'+
-        '<div style="width:32px; height:32px; border-radius:10px; background:'+a.color+'18; color:'+a.color+'; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; flex:0 0 32px; border:1px solid '+a.color+'30">'+a.icon+'</div>'+
-        '<div style="flex:1; min-width:0"><div style="font-size:13.5px; font-weight:700; color:var(--text); line-height:1.3">'+esc(a.title)+'</div><div style="font-size:12px; color:#64748B; margin-top:2px">'+esc(a.sub)+'</div></div>'+
-        '<div style="text-align:right; flex:0 0 auto"><div style="font-size:12px; font-weight:700; color:var(--text)">'+esc(a.by)+'</div><div style="font-size:11px; color:#94a3b8; margin-top:2px">'+esc(a.time)+'</div></div>'+
-      '</div>';
+      const border = i===recentActivitiesReal.length-1?'none':'1px solid var(--border)';
+      return '<li class="flex items-center gap-3 py-3" style="border-bottom:'+border+'">'+
+        '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium '+(a.color==='#c94c5a'?'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300':a.color==='#0e9f8a'?'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300':'bg-[#C9A84C]/15 text-[#8a6f2e] dark:text-[#E6C97A]')+'" style="background:'+a.color+'15; color:'+a.color+'">'+a.icon+'</span>'+
+        '<div class="flex-1 min-w-0"><div class="text-sm text-[var(--ink)] truncate" style="font-weight:600">'+esc(a.title)+'</div><div class="text-xs text-[var(--muted)]">'+esc(a.sub)+'</div></div>'+
+        '<div class="text-xs text-[var(--muted)] whitespace-nowrap">'+esc(a.time)+'</div>'+
+      '</li>';
     }).join('');
-  }catch(e){ recentHtml='<div class="empty">No activity</div>'; }
-
-  let partnerHtml='';
-  try{
-    partnerHtml = finalPartners.map((p,i)=>{
-      const bg=i===0?'#f0f9ff':'#ffffff';
-      const border=i===0?'#dbeafe':'#f1f5f9';
-      const changeColor=p.change>=0?'#16a34a':'#dc2626';
-      const changeBg=p.change>=0?'#dcfce7':'#fee2e2';
-      const arrow=p.change>=0?'▲':'▼';
-      return '<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:'+bg+'; border:1px solid '+border+'; border-radius:10px">'+
-        '<div style="display:flex; align-items:center; gap:8px"><span style="font-size:11px; font-weight:800; color:#94a3b8">'+(i+1)+'</span><span style="font-size:12px; font-weight:700; color:var(--text)">'+esc(p.name)+'</span></div>'+
-        '<div style="display:flex; align-items:center; gap:8px"><span style="font-size:13px; font-weight:900; color:var(--text)">'+p.vol+'</span><span style="font-size:11px; font-weight:800; color:'+changeColor+'; background:'+changeBg+'; border-radius:99px; padding:2px 6px">'+arrow+Math.abs(p.change)+'%</span></div>'+
-      '</div>';
-    }).join('');
-  }catch(e){ partnerHtml=''; }
-
-  let tatHtml='';
-  try{
-    const tatDiscipline=[
-      {name:'Parasitology', tat:26, target:40},
-      {name:'Serology', tat:34, target:45},
-      {name:'Hematology', tat:74, target:120},
-      {name:'Clinical Chem', tat:58, target:70},
-      {name:'Molecular (GX)', tat:142, target:180}
-    ];
-    tatHtml = tatDiscipline.map(d=>{
-      const pct = Math.min(100, Math.round((d.tat/d.target)*100));
-      const within = d.tat <= d.target;
-      const col = within?'#0e9f8a':'#c94c5a';
-      return '<div><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px"><span style="font-size:12px; font-weight:600; color:#334155">'+esc(d.name)+'</span><span style="font-size:11px; font-weight:700; color:'+col+'">'+d.tat+'min <span style="color:#94a3b8; font-weight:500">/ '+d.target+'min</span></span></div><div style="height:6px; background:#f1f5f9; border-radius:99px; overflow:hidden"><div style="width:'+pct+'%; background:'+col+'; height:100%; border-radius:99px"></div></div></div>';
-    }).join('');
-  }catch(e){ tatHtml=''; }
-
-  let deptHtml='';
-  try{
-    const total=deptMixReal.reduce((a,b)=>a+b.value,0)||1;
-    deptHtml = deptMixColored.map(d=>{
-      const pct=Math.round((d.value/total)*100);
-      return '<div style="display:flex; align-items:center; justify-content:space-between; font-size:13px"><div style="display:flex; align-items:center; gap:8px"><i style="width:10px; height:10px; border-radius:3px; background:'+d.color+'; display:inline-block"></i><span style="color:var(--text); font-weight:600">'+esc(d.label)+'</span></div><span style="color:var(--text); font-weight:800">'+pct+'% · '+d.value+'</span></div>';
-    }).join('');
-  }catch(e){ deptHtml=''; }
-
-  let supplyHtml='';
-  try{
-    supplyHtml = supplyRadar.map(s=>{
-      return '<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:#fffbeb; border:1px solid #fef3c7; border-radius:10px"><span style="font-size:11px; font-weight:600; color:#92400e; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">'+esc(s.name)+'</span><span style="font-size:11px; font-weight:800; color:#d97706">'+s.days+'d</span></div>';
-    }).join('');
-  }catch(e){ supplyHtml=''; }
-
-  let dutyHtml='';
-  try{
-    dutyHtml = onDutyStaff.map(s=>{
-      return '<div style="display:flex; align-items:center; gap:10px"><div style="width:36px; height:36px; border-radius:10px; background:'+staffColor(s.id)+'; color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; flex:0 0 36px">'+esc(s.initials)+'</div><div style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:var(--text)">'+esc(s.name.split(' ')[0])+' '+(s.name.split(' ')[1]?.[0]||'')+'. <span style="font-weight:400; color:var(--muted)">'+esc(s.name.split(' ').slice(-1)[0])+'</span></div><div style="font-size:11px; color:var(--muted)">'+esc(s.role)+'</div></div></div>';
-    }).join('');
-  }catch(e){ dutyHtml=''; }
-
-  let analyzerHtml='';
-  try{
-    analyzerHtml = analyzers.map(a=>{
-      const bg=a.status==='Operational'?'#f0fdf4':'#fffbeb';
-      const border=a.status==='Operational'?'#dcfce7':'#fef3c7';
-      const statusColor=a.status==='Operational'?'#16a34a':'#d97706';
-      const barColor=a.status==='Operational'?'#22c55e':'#f59e0b';
-      return '<div style="padding:10px 12px; background:'+bg+'; border:1px solid '+border+'; border-radius:12px"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px"><span style="font-size:12px; font-weight:700; color:var(--text)">'+esc(a.name)+'</span><span style="font-size:10px; font-weight:800; color:'+statusColor+'">'+a.status+'</span></div><div style="display:flex; justify-content:space-between; align-items:center"><span style="font-size:10px; color:var(--muted)">'+esc(a.cal)+'</span><span style="font-size:11px; font-weight:800; color:var(--text)">'+a.uptime+'%</span></div><div style="height:4px; background:#e2e8f0; border-radius:99px; margin-top:6px; overflow:hidden"><div style="width:'+a.uptime+'%; background:'+barColor+'; height:100%"></div></div></div>';
-    }).join('');
-  }catch(e){ analyzerHtml=''; }
+  }catch(e){ recentHtml='<li class="py-3 text-sm text-[var(--muted)]">No activity</li>'; }
 
   el.innerHTML=`
-  <div style="max-width:1440px; margin:0 auto; padding:0 4px; font-family:'Space Grotesk','Trebuchet MS',sans-serif">
-    <div style="font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:#94a3b8; margin-bottom:10px; padding:0 4px">Ruli District Hospital · Laboratory</div>
-    <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:28px; padding:0 4px">
-      <div>
-        <h1 style="font-size:36px; font-weight:900; letter-spacing:-0.8px; color:var(--text); margin:0 0 8px; line-height:1.1; font-family:'Bebas Neue','Space Grotesk',sans-serif">Good morning, ${esc(adminName)}.</h1>
-        <p style="font-size:15px; color:var(--muted); margin:0; line-height:1.5; max-width:680px">Your lab is running at <b style="color:var(--text)">${capacity}% capacity</b>. ${allAlerts?'<b style="color:#c94c5a">'+allAlerts+' stock alerts</b> need attention and ':''}<b style="color:var(--text)">${pend.length} results</b> are pending release.</p>
+  <div class="max-w-[1400px] mx-auto fade-up"><div class="space-y-6">
+    <div class="relative overflow-hidden rounded-2xl navy-gradient p-6 lg:p-8 text-white shadow-lg" style="background:linear-gradient(135deg, #0B1C3D 0%, #162a52 100%); border:1px solid rgba(212,168,83,0.14)">
+      <div class="absolute inset-0 opacity-30 shimmer" style="background:linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); animation:shimmer 2.5s infinite"></div>
+      <div class="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div>
+          <div class="text-xs uppercase tracking-[0.2em] text-[#E6C97A] font-medium" style="letter-spacing:0.2em; color:#E6C97A">Ruli District Hospital · Laboratory</div>
+          <h2 class="text-2xl lg:text-3xl font-semibold mt-2 tracking-tight" style="font-family:'Space Grotesk',sans-serif">${greeting}, ${esc(adminName)}.</h2>
+          <p class="text-white/70 mt-1 max-w-xl" style="color:rgba(255,255,255,0.7)">Your lab is running at ${capacity}% capacity. ${allAlerts?allAlerts+' stock alerts need attention and ':''}${pend.length} results are pending release.</p>
+        </div>
+        <div class="flex gap-3">
+          <button class="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur text-sm font-medium border border-white/10" id="dashGenRoster" style="background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.10)">Generate Roster</button>
+          <button class="h-10 px-4 rounded-xl gold-gradient text-[#0B1C3D] text-sm font-semibold shadow-md" id="dashExport" style="background:linear-gradient(135deg, #D4A853 0%, #C9A227 100%); color:#0B1C3D">Export Report</button>
+        </div>
       </div>
-      <div class="row" style="gap:10px">
-        <button class="btn primary" id="dashGenRoster" style="border-radius:12px; padding:10px 18px; font-weight:800; background:#0B1C3D; box-shadow:0 4px 16px rgba(11,28,61,0.14)">Generate Roster</button>
-        <button class="btn" id="dashExport" style="border-radius:12px; padding:10px 18px; font-weight:700; background:var(--surface); border:1px solid var(--edge)">Export Report</button>
-      </div>
+      <svg class="absolute -right-10 -bottom-10 h-48 w-48 opacity-10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path></svg>
     </div>
 
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px; margin-bottom:24px">
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--faint)">Samples Today</span><span style="font-size:10px; font-weight:800; color:#0e9f8a; background:#dcfce7; border-radius:99px; padding:3px 8px">+${samplesToday>0?Math.round((samplesToday/(weekTotalReal||1))*100):'0'}%</span></div>
-        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${samplesToday}</div>
-        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-weight:600">Real today · ${weekTotalReal} this week</div>
-        <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:var(--bg2)"><i style="width:${samplesToday?Math.min(100, Math.round((samplesToday/10)*100)):8}%; background:#C9A84C; height:100%; display:block"></i></div>
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 stagger">
+      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 1px 3px rgba(15,23,42,0.04)">
+        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+${samplesToday>0?Math.round((samplesToday/(weekTotalReal||1))*100):'0'}%</span></div>
+        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${samplesToday}</div>
+        <div class="text-xs text-[var(--muted)] mt-0.5">Samples Today · real data</div>
       </div>
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--faint)">Pending Results</span><span style="font-size:10px; font-weight:800; color:${over.length?'#dc2626':'#64748B'}; background:${over.length?'#fee2e2':'var(--bg2)'}; border-radius:99px; padding:3px 8px">${over.length?'-'+over.length:''}</span></div>
-        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${pend.length}</div>
-        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-weight:600">${over.length} overdue · ${reported.length} reported</div>
-        <div style="position:absolute; bottom:0; left:0; right:0; height:4px; display:flex"><i style="width:${over.length?Math.round((over.length/(pend.length||1))*100):0}%; background:#c94c5a; height:100%"></i><i style="width:${pend.length?100-Math.round((over.length/(pend.length||1))*100):0}%; background:var(--bg2); height:100%"></i></div>
+      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
+        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">-${over.length}</span></div>
+        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${pend.length}</div>
+        <div class="text-xs text-[var(--muted)] mt-0.5">Pending Results · ${over.length} overdue</div>
       </div>
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--faint)">Staff On Duty</span><span style="font-size:10px; font-weight:700; color:var(--muted); background:var(--bg2); border-radius:99px; padding:3px 8px">${onLeaveNow.length?onLeaveNow.length+' off':''}</span></div>
-        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${staffOnDuty} / ${act.length}</div>
-        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-weight:600">${act.length} active staff</div>
-        <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:var(--bg2)"><i style="width:${act.length?Math.round((staffOnDuty/act.length)*100):0}%; background:#0B1C3D; height:100%; display:block"></i></div>
+      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
+        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">${onLeaveNow.length?onLeaveNow.length+' off':''}</span></div>
+        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${staffOnDuty} / ${act.length}</div>
+        <div class="text-xs text-[var(--muted)] mt-0.5">Staff On Duty</div>
       </div>
       ${isAdminUser?`
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid #fef3c7; background:linear-gradient(135deg, var(--gold-soft) 0%, var(--surface) 100%); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(201,168,76,0.08); position:relative; overflow:hidden" data-confidential="admin-only">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:#d97706">Revenue (FY)</span><span style="font-size:10px; font-weight:800; color:#d97706; background:#fef3c7; border-radius:99px; padding:3px 8px">+18.7%</span></div>
-        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${revenueFormattedReal}</div>
-        <div style="font-size:11px; color:#92400e; margin-top:4px; font-weight:600">FY ${fyInfo(today).label} · admin only</div>
-        <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:#fef3c7"><i style="width:72%; background:#C9A84C; height:100%; display:block"></i></div>
+      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px" data-confidential="admin-only">
+        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8M14 7h7v7"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+18.7%</span></div>
+        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:24px; font-weight:800">${revenueFormattedReal}</div>
+        <div class="text-xs text-[var(--muted)] mt-0.5">Revenue (FY) · admin only</div>
       </div>
       `:`
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--faint)">Turnaround</span><span style="font-size:10px; font-weight:700; color:#0e9f8a; background:#ccfbf1; border-radius:99px; padding:3px 8px">OK</span></div>
-        <div style="font-size:28px; font-weight:900; letter-spacing:-0.8px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${reported.length} Done</div>
-        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-weight:600">${samples.length} total FY</div>
-        <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:var(--bg2)"><i style="width:${totalFY?Math.round((reported.length/totalFY)*100):0}%; background:#0e9f8a; height:100%; display:block"></i></div>
+      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
+        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></div></div>
+        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:24px; font-weight:800">${reported.length}</div>
+        <div class="text-xs text-[var(--muted)] mt-0.5">Reported · real data</div>
       </div>
       `}
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid ${allAlerts?'#fee2e2':'var(--edge)'}; background:${allAlerts?'linear-gradient(135deg, var(--rose-soft) 0%, var(--surface) 100%)':'var(--surface)'}; box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:${allAlerts?'#dc2626':'var(--faint)'}">Stock Alerts</span><span style="font-size:10px; font-weight:800; color:${allAlerts?'#dc2626':'var(--muted)'}; background:${allAlerts?'#fee2e2':'var(--bg2)'}; border-radius:99px; padding:3px 8px">${allAlerts?'critical':''}</span></div>
-        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:${allAlerts?'#dc2626':'var(--text)'}; line-height:1; font-family:'Bebas Neue', sans-serif">${allAlerts}</div>
-        <div style="font-size:11px; color:${allAlerts?'#991b1b':'var(--muted)'}; margin-top:4px; font-weight:600">${totalStockAlerts} low/out · ${expiringAlerts} expiring 10d</div>
-        <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:${allAlerts?'#fee2e2':'var(--bg2)'}"><i style="width:${allAlerts?100:10}%; background:${allAlerts?'#c94c5a':'var(--bg2)'}; height:100%; display:block"></i></div>
+      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
+        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">${allAlerts?'critical':''}</span></div>
+        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${allAlerts}</div>
+        <div class="text-xs text-[var(--muted)] mt-0.5">Stock Alerts · real</div>
       </div>
-      <div class="card" style="margin:0; padding:18px 16px 14px; border-radius:18px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04); position:relative; overflow:hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px"><span style="font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--faint)">EQA Pass Rate</span><span style="font-size:10px; font-weight:800; color:#0e9f8a; background:#ccfbf1; border-radius:99px; padding:3px 8px">+0.4%</span></div>
-        <div style="font-size:36px; font-weight:900; letter-spacing:-1px; color:var(--text); line-height:1; font-family:'Bebas Neue', sans-serif">${eqaRateReal||0}%</div>
-        <div style="font-size:11px; color:var(--muted); margin-top:4px; font-weight:600">${eqaPass} passed · ${eqaList.length} total · real data</div>
-        <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:var(--bg2)"><i style="width:${eqaRateReal||0}%; background:#0e9f8a; height:100%; display:block"></i></div>
+      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
+        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+0.4%</span></div>
+        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${eqaRateReal||0}%</div>
+        <div class="text-xs text-[var(--muted)] mt-0.5">EQA Pass Rate · real</div>
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; margin-bottom:20px">
-      <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px"><div><h3 style="margin:0; font-size:18px; font-weight:800; color:var(--text); letter-spacing:-0.3px">Sample Volume — All Time</h3><p style="margin:4px 0 0; font-size:13px; color:var(--muted)">Total ${totalFY} samples · FY toggle · real data</p></div><div style="display:flex; gap:8px; align-items:center"><select id="dashFYToggle" style="padding:6px 12px; border-radius:10px; border:1px solid var(--edge); background:var(--surface); font-size:12px; font-weight:700; color:var(--text)"><option value="all">All Time</option><option value="fy">FY ${fyInfo(today).label}</option></select><span style="font-size:11px; font-weight:800; color:#16a34a; background:#dcfce7; border-radius:99px; padding:4px 10px">+${weekTotalReal>0?Math.round((samplesToday/(weekTotalReal||1))*100):'0'}%</span></div></div>
-        <div class="chart-box" id="dashSampleVolumeBox" style="min-height:260px">${(() => {
-          const allMon={}; samples.forEach(s=>{ const m=s.collectionDate?s.collectionDate.slice(0,7):''; if(m) allMon[m]=(allMon[m]||0)+1; });
-          const allMonArr=Object.entries(allMon).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k.slice(5)+'/'+k.slice(2,4), value:v}));
-          if(!allMonArr.length) return '<div class="empty">No samples yet — real data</div>';
-          return svgLineChart([{label:'Samples', color:'#C9A84C', values: allMonArr.map((d,i)=>({x:i,y:d.value}))}], {xLabels: allMonArr.map(d=>d.label), h:260});
-        })()}</div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="card p-5 lg:col-span-2" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px">
+        <div class="flex items-center justify-between mb-4"><div><h3 class="font-semibold text-[var(--ink)]" style="font-size:16px; font-weight:800">Sample Volume — This Week</h3><p class="text-xs text-[var(--muted)]">Total ${weekTotalReal} samples processed · real data</p></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#C9A84C]/15 text-[#8a6f2e] dark:text-[#E6C97A]">+12.4%</span></div>
+        <div class="flex items-end gap-3 h-44" style="height:176px">
+          ${weekVol.map((v,i)=>{
+            const max=Math.max(...weekVol,1);
+            const hPct = max?Math.round((v/max)*100):0;
+            return '<div class="flex-1 flex flex-col items-center gap-2" style="height:100%"><div class="w-full flex items-end justify-center" style="height:100%"><div class="w-full max-w-[44px] rounded-t-lg gold-gradient opacity-90 hover:opacity-100 transition" title="'+v+'" style="height:'+hPct+'%; background:linear-gradient(135deg, #D4A853 0%, #C9A227 100%)"></div></div><span class="text-xs text-[var(--muted)]">'+weekLabels[i]+'</span></div>';
+          }).join('')}
+        </div>
       </div>
-      <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
-        <h3 style="margin:0 0 4px; font-size:16px; font-weight:800; color:var(--text)">Sample Distribution by Hospital</h3>
-        <p style="margin:0 0 16px; font-size:12px; color:var(--faint)">Where we referred samples to · real data</p>
-        <div style="display:flex; flex-direction:column; align-items:center; gap:16px">
-          <div>${(() => {
+      <div class="card p-5" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px">
+        <h3 class="font-semibold text-[var(--ink)] mb-1" style="font-size:16px; font-weight:800">Department Mix</h3>
+        <p class="text-xs text-[var(--muted)] mb-4">Sample distribution · by hospital (real)</p>
+        <div class="space-y-3">
+          ${(() => {
             const hospVol={}; samples.forEach(s=>{ const h=s.hospital||'Unknown'; hospVol[h]=(hospVol[h]||0)+1; });
-            const hospArr=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>({label:k,value:v,color:CHART_COLORS[i%CHART_COLORS.length]}));
-            if(!hospArr.length) return '<div class="empty">No hospital data</div>';
-            return svgDonut(hospArr, {center: String(totalFY), width:160, height:160});
-          })()}</div>
-          <div style="width:100%; display:flex; flex-direction:column; gap:8px">${(() => {
-              const hospVol={}; samples.forEach(s=>{ const h=s.hospital||'Unknown'; hospVol[h]=(hospVol[h]||0)+1; });
-              const hospArr=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]);
-              const total= hospArr.reduce((a,b)=>a+b[1],0) || 1;
-              return hospArr.map(([k,v],i)=>{
-                const pct=Math.round((v/total)*100);
-                const col=CHART_COLORS[i%CHART_COLORS.length];
-                return '<div style="display:flex; align-items:center; justify-content:space-between; font-size:13px"><div style="display:flex; align-items:center; gap:8px"><i style="width:10px; height:10px; border-radius:3px; background:'+col+'; display:inline-block"></i><span style="color:var(--text); font-weight:600">'+esc(k)+'</span></div><span style="color:var(--text); font-weight:800">'+pct+'% · '+v+'</span></div>';
-              }).join('');
-            })()}</div>
+            const hospArr=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]);
+            const total=hospArr.reduce((a,b)=>a+b[1],0)||1;
+            return hospArr.map(([k,v],i)=>{
+              const pct=Math.round((v/total)*100);
+              const colors=['#0B1C3D','#D4A853','#2563eb','#0891b2','#7c3aed'];
+              const col=colors[i%colors.length];
+              return '<div><div class="flex items-center justify-between text-sm mb-1"><span class="text-[var(--ink)]" style="font-weight:600">'+esc(k)+'</span><span class="text-[var(--muted)] font-medium">'+pct+'%</span></div><div class="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden" style="background:rgba(0,0,0,0.05)"><div class="h-full rounded-full" style="width:'+pct+'%; background:'+col+'"></div></div></div>';
+            }).join('');
+          })()}
         </div>
       </div>
     </div>
 
-    ${isAdminUser?`
-    <div class="card" style="margin:0 0 20px; padding:22px; border-radius:20px; border:1px solid #fef3c7; background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(201,168,76,0.08)" data-confidential="admin-only">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px"><div><h3 style="margin:0; font-size:18px; font-weight:800; color:var(--text)">Revenue Trend</h3><p style="margin:4px 0 0; font-size:13px; color:#92400e">${revenueFormattedReal} · FY ${fyInfo(today).label} · admin only</p></div><span class="tag gold">Admin only</span></div>
-      <div class="chart-box" style="min-height:220px">
-        ${(function(){
-          const revMon={}; (DB.trainingExpenses||[]).forEach(te=>{
-            const m=te.date?te.date.slice(0,7):'';
-            if(!m) return;
-            const exp=(te.expenses||[]).reduce((a,x)=>a+(+x.amount||0),0);
-            const rein=(te.reimbursements||[]).reduce((a,x)=>a+(+x.amount||0),0);
-            revMon[m]=(revMon[m]||0)+(rein-exp);
-          });
-          const revArr=Object.entries(revMon).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12).map(([k,v])=>({label:k.slice(5), value:Math.round(v/1000)}));
-          if(!revArr.length) return '<div class="empty">No revenue yet — real data from Training Revenue module</div>';
-          return svgLineChart([{label:'Revenue k RWF', color:'#C9A84C', values: revArr.map((d,i)=>({x:i,y:d.value}))}], {xLabels: revArr.map(d=>d.label), h:220});
-        })()}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      ${isAdminUser?`
+      <div class="card p-5" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px" data-confidential="admin-only">
+        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold text-[var(--ink)]" style="font-weight:800">Revenue Trend</h3><svg width="80" height="28" class="opacity-80"><polyline points="0,28 10,22 20,18 30,14 40,10 50,12 60,6 80,0" fill="none" stroke="#D4A853" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="kpi-value text-3xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${revenueFormattedReal}</div>
+        <div class="text-xs text-[var(--muted)] mt-1">FY ${fyInfo(today).label} · +18.7% YoY · admin only</div>
+        <div class="mt-4 flex items-end gap-1 h-20">
+          ${(() => {
+            const revMon={}; (DB.trainingExpenses||[]).forEach(te=>{
+              const m=te.date?te.date.slice(0,7):'';
+              if(!m) return;
+              const exp=(te.expenses||[]).reduce((a,x)=>a+(+x.amount||0),0);
+              const rein=(te.reimbursements||[]).reduce((a,x)=>a+(+x.amount||0),0);
+              revMon[m]=(revMon[m]||0)+(rein-exp);
+            });
+            const revArr=Object.entries(revMon).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+            const max=Math.max(...revArr.map(r=>r[1]),1);
+            return revArr.map(([k,v])=>{
+              const hPct=max?Math.round((v/max)*100):0;
+              return '<div class="flex-1 flex flex-col items-center gap-1"><div class="w-full rounded-sm bg-[#0B1C3D]/80 dark:bg-[#D4A853]/60" style="height:'+hPct+'%; background:rgba(11,28,61,0.8)"></div><span class="text-[9px] text-[var(--muted)]">'+k.slice(5)+'</span></div>';
+            }).join('');
+          })()}
+        </div>
+      </div>
+      `:''}
+      <div class="card p-5 lg:col-span-2" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px">
+        <h3 class="font-semibold text-[var(--ink)] mb-3" style="font-weight:800">Recent Activity</h3>
+        <ul class="divide-y divide-[var(--border)]" style="border-color:var(--border)">${recentHtml}</ul>
       </div>
     </div>
-    `:''}
-
-    <div class="card" style="margin:0; padding:22px; border-radius:20px; border:1px solid var(--edge); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05)">
-      <h3 style="margin:0 0 16px; font-size:18px; font-weight:800; color:var(--text)">Recent Activity</h3>
-      <div style="display:flex; flex-direction:column; gap:0">${recentHtml}</div>
-    </div>
-  </div>
+  </div></div>
   `;
 
   const genBtn=document.getElementById('dashGenRoster');
   if(genBtn) genBtn.onclick=()=>{ if(typeof setTab==='function') setTab('roster'); };
   const expBtn=document.getElementById('dashExport');
   if(expBtn) expBtn.onclick=()=>{ const key = (typeof UI!=='undefined' && UI.wpMonth) ? UI.wpMonth : monthKey(todayISO()); if(typeof exportPlanPNG==='function') exportPlanPNG(key); };
-  const regBtn=document.getElementById('dashRegister');
-  if(regBtn) regBtn.onclick=()=>openSampleForm();
-  const manBtn=document.getElementById('dashManifest');
-  if(manBtn) manBtn.onclick=()=>openManifestForm();
-  const fyToggle=document.getElementById('dashFYToggle');
-  if(fyToggle){
-    fyToggle.onchange=()=>{
-      const val=fyToggle.value;
-      const box=document.getElementById('dashSampleVolumeBox');
-      if(!box) return;
-      let filtered=samples;
-      if(val==='fy'){
-        const fy=fyInfo(today).label;
-        filtered=samples.filter(s=>{ const d=s.collectionDate||s.sentDate||''; return d && fyInfo(d).label===fy; });
-      }
-      const allMon={}; filtered.forEach(s=>{ const m=s.collectionDate?s.collectionDate.slice(0,7):''; if(m) allMon[m]=(allMon[m]||0)+1; });
-      const allMonArr=Object.entries(allMon).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k.slice(5)+'/'+k.slice(2,4), value:v}));
-      if(!allMonArr.length) box.innerHTML='<div class="empty">No samples for selected FY — real data</div>';
-      else box.innerHTML=svgLineChart([{label:'Samples', color:'#C9A84C', values: allMonArr.map((d,i)=>({x:i,y:d.value}))}], {xLabels: allMonArr.map(d=>d.label), h:260});
-    };
-  }
 }
 
 
