@@ -724,6 +724,7 @@ try{
       <button class="nav-item" data-tab="leave"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19l5-5 4 4 7-8"/><path d="M20 6v5h-5"/></svg></span>Leave &amp; Timeline</button>
       <div class="nav-section">Quality</div>
       <button class="nav-item" data-tab="eqa"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></span>EQA / PT Scores</button>
+      <button class="nav-item" data-tab="equipment"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M12 15v6"/></svg></span>Equipment & Maintenance</button>
       <div class="nav-section">Admin</div>
       <button class="nav-item" data-tab="staff" data-confidential="admin-only"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span>Staff &amp; Settings</button>
 </nav>
@@ -732,7 +733,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.1 PREMIUM EXACT</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.2 PREMIUM</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -1314,6 +1315,13 @@ function migrateDB(d){
       }
     });
     d.stock=d.stock||{batches:[],entries:[]};
+  d.equipment=d.equipment||[
+    {id:'eq1', name:'GeneXpert IV', model:'GeneXpert IV', serial:'GXP-IV-001', location:'Molecular Lab', manufacturer:'Cepheid', lastPM:'2026-03-12', nextPM:'2026-06-12', status:'Operational', uptime:99.2, maintenanceLogs:[{date:'2026-03-12', type:'Preventive', by:'Biomed', notes:'Calibration + self-test'}, {date:'2026-01-15', type:'Corrective', by:'Vendor', notes:'Module 2 replacement'}]},
+    {id:'eq2', name:'Mindray BC-30s', model:'BC-30s', serial:'MND-BC30-002', location:'Hematology', manufacturer:'Mindray', lastPM:'2026-02-28', nextPM:'2026-05-28', status:'Operational', uptime:98.7, maintenanceLogs:[{date:'2026-02-28', type:'Preventive', by:'Lab', notes:'Daily cleaning + QC'}]},
+    {id:'eq3', name:'Centrifuge 5810', model:'5810', serial:'EPP-5810-003', location:'Main Lab', manufacturer:'Eppendorf', lastPM:'2026-04-09', nextPM:'2026-07-09', status:'Operational', uptime:99.8, maintenanceLogs:[{date:'2026-04-09', type:'Preventive', by:'Biomed', notes:'Rotor check + service'}]},
+    {id:'eq4', name:'Microscope CX23', model:'CX23', serial:'OLY-CX23-004', location:'Parasitology', manufacturer:'Olympus', lastPM:'2026-03-05', nextPM:'2026-06-05', status:'Operational', uptime:100, maintenanceLogs:[{date:'2026-03-05', type:'Preventive', by:'Lab', notes:'Deep-clean + optics'}]},
+    {id:'eq5', name:'Biochemistry BA-88A', model:'BA-88A', serial:'MND-BA88-005', location:'Biochemistry', manufacturer:'Mindray', lastPM:'2026-10-15', nextPM:'2026-11-15', status:'Maintenance', uptime:94.1, maintenanceLogs:[{date:'2026-10-15', type:'Preventive', by:'Vendor', notes:'Vendor visit — Today'}]}
+  ];
     d.samples=d.samples||[]; d.manifests=d.manifests||[]; d.trainings=d.trainings||[];
     d.trainingExpenses=d.trainingExpenses||[]; d.leaves=d.leaves||[]; d.holidays=d.holidays||[];
     d.absences=d.absences||[]; d.offWishes=d.offWishes||[]; d.offExceptions=d.offExceptions||[];
@@ -6371,6 +6379,150 @@ function renderAbsences(body){
 
 /* ================= STAFF & SETTINGS ================= */
 'use strict';
+function renderEquipment(){
+  const el=$('#mod-equipment'); if(!el) return;
+  const equipment=DB.equipment||[];
+  const today=todayISO();
+  const operational=equipment.filter(e=>e.status==='Operational').length;
+  const maintenance=equipment.filter(e=>e.status==='Maintenance').length;
+  const dueSoon=equipment.filter(e=>e.nextPM && daysBetween(today, e.nextPM)<=14).length;
+  const avgUptime=equipment.length?Math.round(equipment.reduce((a,b)=>a+(b.uptime||0),0)/equipment.length*10)/10:0;
+  
+  // Build equipment ledger HTML
+  let equipCards='';
+  try{
+    equipCards = equipment.map(eq=>{
+      const daysToNext = eq.nextPM ? daysBetween(today, eq.nextPM) : 999;
+      const statusColor = eq.status==='Operational'?'#10b981':eq.status==='Maintenance'?'#f59e0b':'#ef4444';
+      const statusBg = eq.status==='Operational'?'bg-emerald-100 dark:bg-emerald-500/15':'bg-amber-100 dark:bg-amber-500/15';
+      const statusText = eq.status==='Operational'?'text-emerald-700 dark:text-emerald-300':'text-amber-700 dark:text-amber-300';
+      const urgency = daysToNext<=0?'Overdue':daysToNext<=7?'Due soon':daysToNext<=14?'Upcoming':'OK';
+      const urgencyColor = daysToNext<=0?'#ef4444':daysToNext<=7?'#f59e0b':daysToNext<=14?'#eab308':'#10b981';
+      return '<div class="card" style="margin:0; padding:20px; border-radius:18px; border:1px solid var(--border); background:var(--surface); box-shadow:0 1px 3px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04)">'+
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px">'+
+          '<div style="display:flex; align-items:center; gap:10px"><div style="width:40px; height:40px; border-radius:12px; background:rgba(11,28,61,0.08); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text)">🔬</div><div><div style="font-size:14px; font-weight:800; color:var(--text)">'+esc(eq.name)+'</div><div style="font-size:11px; color:var(--muted)">'+esc(eq.model||'')+' · '+esc(eq.serial||'')+'</div></div></div>'+
+          '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium '+statusBg+' '+statusText+'" style="background:'+statusColor+'18; color:'+statusColor+'; border:1px solid '+statusColor+'30">'+eq.status+'</span>'+
+        '</div>'+
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px">'+
+          '<div style="padding:8px 10px; background:var(--bg2); border-radius:10px; border:1px solid var(--border)"><div style="font-size:9px; font-weight:800; text-transform:uppercase; color:var(--faint)">Location</div><div style="font-size:11px; font-weight:600; color:var(--text); margin-top:2px">'+esc(eq.location||'—')+'</div></div>'+
+          '<div style="padding:8px 10px; background:var(--bg2); border-radius:10px; border:1px solid var(--border)"><div style="font-size:9px; font-weight:800; text-transform:uppercase; color:var(--faint)">Uptime</div><div style="font-size:12px; font-weight:800; color:var(--text); margin-top:2px">'+eq.uptime+'%</div></div>'+
+          '<div style="padding:8px 10px; background:var(--bg2); border-radius:10px; border:1px solid var(--border)"><div style="font-size:9px; font-weight:800; text-transform:uppercase; color:var(--faint)">Last PM</div><div style="font-size:11px; font-weight:600; color:var(--text); margin-top:2px">'+fmtDate(eq.lastPM||'')+'</div></div>'+
+          '<div style="padding:8px 10px; background:'+(daysToNext<=7?'#fef2f2':'var(--bg2)')+'; border-radius:10px; border:1px solid '+(daysToNext<=7?'#fee2e2':'var(--border)')+'"><div style="font-size:9px; font-weight:800; text-transform:uppercase; color:'+(daysToNext<=7?'#dc2626':'var(--faint)')+'">Next PM</div><div style="font-size:11px; font-weight:700; color:'+(daysToNext<=7?'#dc2626':'var(--text)')+'; margin-top:2px">'+fmtDate(eq.nextPM||'')+' · <span style="color:'+urgencyColor+'">'+urgency+'</span></div></div>'+
+        '</div>'+
+        '<div style="height:6px; background:var(--bg2); border-radius:99px; overflow:hidden; margin-bottom:12px"><div style="width:'+eq.uptime+'%; background:'+statusColor+'; height:100%; border-radius:99px"></div></div>'+
+        '<div style="display:flex; gap:6px"><button class="btn xs" data-eqView="'+eq.id+'" style="flex:1; border-radius:10px">View logs</button><button class="btn xs primary" data-eqPM="'+eq.id+'" style="flex:1; border-radius:10px; background:#C9A84C; color:#0f172a">Log PM</button></div>'+
+      '</div>';
+    }).join('');
+  }catch(e){ equipCards='<div class="empty">Error loading equipment</div>'; }
+
+  el.innerHTML=`
+  <div style="max-width:1440px; margin:0 auto; font-family:'Space Grotesk',sans-serif">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px">
+      <div>
+        <h2 style="margin:0; font-size:24px; font-weight:900; color:var(--text); letter-spacing:-0.5px">Equipment & Maintenance</h2>
+        <p style="margin:4px 0 0; font-size:13px; color:var(--muted)">${equipment.length} analyzers · ${operational} operational · ${maintenance} maintenance · ${dueSoon} due soon · avg uptime ${avgUptime}% · real data</p>
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="btn" id="eqExport" style="border-radius:12px; background:var(--surface); border:1px solid var(--edge)">Export</button>
+        <button class="btn primary" id="eqAdd" style="border-radius:12px; background:#C9A84C; color:#0f172a; font-weight:800; box-shadow:0 4px 16px rgba(201,168,76,0.24)">+ Add Equipment</button>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:20px">
+      <div class="card" style="margin:0; padding:16px; border-radius:16px; border:1px solid var(--edge); background:var(--surface)"><div style="font-size:10px; font-weight:800; text-transform:uppercase; color:var(--faint)">Total Equipment</div><div style="font-size:32px; font-weight:900; color:var(--text); font-family:'Bebas Neue', sans-serif">${equipment.length}</div><div style="font-size:11px; color:var(--muted)">Analyzers tracked</div></div>
+      <div class="card" style="margin:0; padding:16px; border-radius:16px; border:1px solid var(--edge); background:var(--surface)"><div style="font-size:10px; font-weight:800; text-transform:uppercase; color:var(--faint)">Operational</div><div style="font-size:32px; font-weight:900; color:#10b981; font-family:'Bebas Neue', sans-serif">${operational}</div><div style="font-size:11px; color:var(--muted)">${equipment.length?Math.round((operational/equipment.length)*100):0}% uptime</div></div>
+      <div class="card" style="margin:0; padding:16px; border-radius:16px; border:1px solid var(--edge); background:var(--surface)"><div style="font-size:10px; font-weight:800; text-transform:uppercase; color:var(--faint)">Due Soon (14d)</div><div style="font-size:32px; font-weight:900; color:${dueSoon?'#f59e0b':'var(--text)'}; font-family:'Bebas Neue', sans-serif">${dueSoon}</div><div style="font-size:11px; color:var(--muted)">PM due in 14 days</div></div>
+      <div class="card" style="margin:0; padding:16px; border-radius:16px; border:1px solid var(--edge); background:var(--surface)"><div style="font-size:10px; font-weight:800; text-transform:uppercase; color:var(--faint)">Avg Uptime</div><div style="font-size:32px; font-weight:900; color:var(--text); font-family:'Bebas Neue', sans-serif">${avgUptime}%</div><div style="font-size:11px; color:var(--muted)">Last 30 days</div></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; margin-bottom:20px">
+      ${equipCards}
+    </div>
+
+    <div class="card" style="margin:0; padding:20px; border-radius:18px; border:1px solid var(--edge); background:var(--surface)"><h3 style="margin:0 0 12px; font-size:14px; font-weight:800">Preventive Maintenance Schedule</h3>
+      <div class="tbl-wrap"><table class="tbl"><tr><th>Equipment</th><th>Last PM</th><th>Next PM</th><th>Days Left</th><th>Status</th><th>Logs</th></tr>
+        ${equipment.map(eq=>{
+          const daysLeft = eq.nextPM ? daysBetween(today, eq.nextPM) : 999;
+          const urgency = daysLeft<=0?'Overdue':daysLeft<=7?'Due soon':daysLeft<=30?'Upcoming':'OK';
+          const color = daysLeft<=0?'red':daysLeft<=7?'amber':'green';
+          return '<tr><td><b>'+esc(eq.name)+'</b><br><span class="hint">'+esc(eq.model||'')+'</span></td><td>'+fmtDate(eq.lastPM||'')+'</td><td>'+fmtDate(eq.nextPM||'')+'</td><td class="num" style="color:'+(daysLeft<=0?'#dc2626':daysLeft<=7?'#d97706':'var(--text)')+'">'+daysLeft+'d</td><td><span class="tag '+color+'">'+urgency+'</span></td><td>'+(eq.maintenanceLogs||[]).length+' logs</td></tr>';
+        }).join('')}
+      </table></div>
+    </div>
+  </div>
+  `;
+
+  document.getElementById('eqAdd').onclick=()=>openEquipmentForm();
+  document.getElementById('eqExport').onclick=()=>{ saveJSON(equipment, 'equipment-'+todayISO()+'.json'); toast('Equipment exported'); };
+  document.querySelectorAll('[data-eqView]').forEach(b=>b.onclick=()=>openEquipmentForm(b.dataset.eqView));
+  document.querySelectorAll('[data-eqPM]').forEach(b=>b.onclick=()=>openEquipmentPMForm(b.dataset.eqPM));
+}
+
+function openEquipmentForm(id){
+  const eq=id?DB.equipment.find(x=>x.id===id):null;
+  openModal(`<h2>${eq?'Edit Equipment':'Add Equipment'}</h2>
+  <form id="eqForm"><div class="form-grid fg-2">
+    <div><label>Equipment Name</label><input id="eq_name" value="${eq?esc(eq.name):''}" required placeholder="e.g. GeneXpert IV"></div>
+    <div><label>Model</label><input id="eq_model" value="${eq?esc(eq.model):''}" placeholder="e.g. BC-30s"></div>
+    <div><label>Serial Number</label><input id="eq_serial" value="${eq?esc(eq.serial):''}" placeholder="SN-..."></div>
+    <div><label>Location</label><input id="eq_loc" value="${eq?esc(eq.location):''}" placeholder="e.g. Hematology"></div>
+    <div><label>Manufacturer</label><input id="eq_manu" value="${eq?esc(eq.manufacturer):''}" placeholder="e.g. Cepheid"></div>
+    <div><label>Status</label><select id="eq_status"><option value="Operational" ${eq&&eq.status==='Operational'?'selected':''}>Operational</option><option value="Maintenance" ${eq&&eq.status==='Maintenance'?'selected':''}>Maintenance</option><option value="Out of Service" ${eq&&eq.status==='Out of Service'?'selected':''}>Out of Service</option></select></div>
+    <div><label>Last PM Date</label><input type="date" id="eq_last" value="${eq?eq.lastPM||'':todayISO()}"></div>
+    <div><label>Next PM Date</label><input type="date" id="eq_next" value="${eq?eq.nextPM||'':addDays(todayISO(),90)}"></div>
+    <div><label>Uptime %</label><input type="number" id="eq_uptime" min="0" max="100" step="0.1" value="${eq?eq.uptime||99:99}"></div>
+    <div style="grid-column:1/-1"><label>Notes</label><input id="eq_notes" value="${eq?esc(eq.notes||''):''}" placeholder="e.g. Calibration due"></div>
+  </div><div class="row" style="margin-top:16px"><button class="btn primary" type="submit">Save Equipment</button><button class="btn" type="button" onclick="closeModal()">Cancel</button></div></form>`);
+  document.getElementById('eqForm').addEventListener('submit',ev=>{
+    ev.preventDefault();
+    const data={
+      name:document.getElementById('eq_name').value.trim(),
+      model:document.getElementById('eq_model').value.trim(),
+      serial:document.getElementById('eq_serial').value.trim(),
+      location:document.getElementById('eq_loc').value.trim(),
+      manufacturer:document.getElementById('eq_manu').value.trim(),
+      status:document.getElementById('eq_status').value,
+      lastPM:document.getElementById('eq_last').value,
+      nextPM:document.getElementById('eq_next').value,
+      uptime:parseFloat(document.getElementById('eq_next').value)||99,
+      notes:document.getElementById('eq_notes').value.trim(),
+      maintenanceLogs: eq?eq.maintenanceLogs||[]:[]
+    };
+    if(!data.name) return toast('Name required','warn');
+    if(eq) Object.assign(eq, data);
+    else DB.equipment.push({id:uid('eq'), ...data, uptime:parseFloat(document.getElementById('eq_uptime').value)||99, maintenanceLogs:[]});
+    saveDB(); closeModal(); renderEquipment(); toast('Equipment saved');
+  });
+}
+
+function openEquipmentPMForm(id){
+  const eq=DB.equipment.find(x=>x.id===id); if(!eq) return;
+  openModal(`<h2>Log PM — ${esc(eq.name)}</h2>
+  <form id="eqPMForm"><div class="form-grid fg-2">
+    <div><label>Date</label><input type="date" id="pm_date" value="${todayISO()}" required></div>
+    <div><label>Type</label><select id="pm_type"><option value="Preventive">Preventive</option><option value="Corrective">Corrective</option><option value="Calibration">Calibration</option><option value="Service">Service</option></select></div>
+    <div><label>Performed by</label><input id="pm_by" placeholder="e.g. Biomed, Vendor, Lab" required></div>
+    <div><label>Next PM Due</label><input type="date" id="pm_next" value="${addDays(todayISO(),90)}"></div>
+    <div style="grid-column:1/-1"><label>Notes</label><textarea id="pm_notes" placeholder="e.g. Calibration check, self-test passed"></textarea></div>
+  </div><div class="row" style="margin-top:16px"><button class="btn primary" type="submit">Log Maintenance</button><button class="btn" type="button" onclick="closeModal()">Cancel</button></div></form>`);
+  document.getElementById('eqPMForm').addEventListener('submit',ev=>{
+    ev.preventDefault();
+    const log={
+      date:document.getElementById('pm_date').value,
+      type:document.getElementById('pm_type').value,
+      by:document.getElementById('pm_by').value.trim(),
+      nextDue:document.getElementById('pm_next').value,
+      notes:document.getElementById('pm_notes').value.trim()
+    };
+    eq.maintenanceLogs=eq.maintenanceLogs||[];
+    eq.maintenanceLogs.unshift(log);
+    eq.lastPM=log.date;
+    eq.nextPM=log.nextDue;
+    eq.uptime=99.5;
+    saveDB(); closeModal(); renderEquipment(); toast('PM logged for '+eq.name);
+  });
+}
+
 function renderStaff(){
   const el=$('#mod-staff');
   if(typeof isViewer==='function' && isViewer()){ el.innerHTML=`<div class="card" style="padding:24px; text-align:center"><h3>Staff & Settings — Admin Only</h3><p class="hint" style="margin:12px 0">Staff registry and settings are visible only to Admin for confidentiality.</p><button class="btn primary" onclick="openAuth('pass')">Admin Login</button></div>`; return; }
@@ -7248,8 +7400,8 @@ If you didn't request, ignore.</pre>
 
 'use strict';
 const UI={tab:'dash',smTab:'list',stTab:'ov',trTab:'dash',wpTab:'plan',lvTab:'plan',stfTab:'staff'};
-const TAB_META={dash:[' Dashboard','Laboratory operations overview'],samples:[' Referred Samples','Register · track · manifest'],stock:[' Stock & Supplies','Consumables · batches · distribution'],training:[' Training Roster','FIFO queue · registry · history'],revenue:[' Training Revenue','Expenses · income · balance'],roster:[' Working Plan','Monthly plan · unit roster'],leave:[' Leave & Timeline','Planner · records · timeline'],eqa:[' EQA / PT Scores','Proficiency testing · quarters'],staff:[' Staff & Settings','Registry · branding · data']};
-const RENDER={dash:renderDash,samples:renderSamples,stock:renderStock,training:renderTraining,revenue:renderRevenue,roster:renderRoster,leave:renderLeave,eqa:renderEQA,staff:renderStaff};
+const TAB_META={dash:[' Dashboard','Laboratory operations overview'],samples:[' Referred Samples','Register · track · manifest'],stock:[' Stock & Supplies','Consumables · batches · distribution'],training:[' Training Roster','FIFO queue · registry · history'],revenue:[' Training Revenue','Expenses · income · balance'],roster:[' Working Plan','Monthly plan · unit roster'],leave:[' Leave & Timeline','Planner · records · timeline'],eqa:[' EQA / PT Scores','Proficiency testing · quarters'],staff:[' Staff & Settings','Registry · branding · data'],equipment:[' Equipment & Maintenance','Analyzers · preventive maintenance · uptime']};
+const RENDER={dash:renderDash,samples:renderSamples,stock:renderStock,training:renderTraining,revenue:renderRevenue,roster:renderRoster,leave:renderLeave,eqa:renderEQA,staff:renderStaff,equipment:renderEquipment};
 
 function setTab(tab,silent){
   if(!RENDER[tab]) tab='dash';
