@@ -3136,8 +3136,23 @@ function renderDash(){
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div class="card p-5 lg:col-span-2"><div class="flex items-center justify-between mb-4"><div><h3 class="font-semibold text-[var(--ink)]">Sample Volume — This Week</h3><p class="text-xs text-[var(--muted)]">Total ${weekTotalReal} samples processed · real data</p></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#C9A84C]/15 text-[#8a6f2e] dark:text-[#E6C97A]">+12.4%</span></div><div class="flex items-end gap-3 h-44">${volumeBarsHtml}</div></div>
-      <div class="card p-5"><h3 class="font-semibold text-[var(--ink)] mb-1">Department Mix</h3><p class="text-xs text-[var(--muted)] mb-4">Sample distribution · by hospital real</p><div class="space-y-3">${deptMixHtml}</div></div>
+      <div class="card p-5 lg:col-span-2"><div class="flex items-center justify-between mb-4"><div><h3 class="font-semibold text-[var(--ink)]">Sample Volume — All Time</h3><p class="text-xs text-[var(--muted)]">Total ${totalFY} samples · FY toggle · real data, not 8174</p></div><div style="display:flex; gap:8px; align-items:center"><select id="dashFYToggle" style="padding:6px 10px; border-radius:10px; border:1px solid var(--border); background:var(--surface); font-size:12px; font-weight:700; color:var(--ink)"><option value="all">All Time</option><option value="fy">FY ${fyInfo(today).label}</option></select><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#C9A84C]/15 text-[#8a6f2e] dark:text-[#E6C97A]">+12.4%</span></div></div><div class="chart-box" id="dashSampleVolumeBox" style="min-height:260px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px">${(() => {
+          const allMon={}; samples.forEach(s=>{ const m=s.collectionDate?s.collectionDate.slice(0,7):''; if(m) allMon[m]=(allMon[m]||0)+1; });
+          const allMonArr=Object.entries(allMon).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k.slice(5)+'/'+k.slice(2,4), value:v}));
+          if(!allMonArr.length) return '<div class="empty">No samples yet — real data</div>';
+          return svgLineChart([{label:'Samples', color:'#D4A853', values: allMonArr.map((d,i)=>({x:i,y:d.value}))}], {xLabels: allMonArr.map(d=>d.label), h:260});
+        })()}</div></div>
+      <div class="card p-5"><h3 class="font-semibold text-[var(--ink)] mb-1">Sample Distribution by Hospital</h3><p class="text-xs text-[var(--muted)] mb-4">Where we referred samples to · real data, not departments</p><div class="space-y-3">${(() => {
+            const hospVol={}; samples.forEach(s=>{ const h=s.hospital||'Unknown'; hospVol[h]=(hospVol[h]||0)+1; });
+            const hospArr=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]);
+            const total=hospArr.reduce((a,b)=>a+b[1],0)||1;
+            const colors=['#0B1C3D','#D4A853','#2563eb','#0891b2','#7c3aed'];
+            return hospArr.map(([k,v],i)=>{
+              const pct=Math.round((v/total)*100);
+              const col=colors[i%colors.length];
+              return '<div><div class="flex items-center justify-between text-sm mb-1"><span class="text-[var(--ink)]" style="font-weight:600">'+esc(k)+'</span><span class="text-[var(--muted)] font-medium">'+pct+'% · '+v+'</span></div><div class="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden"><div class="h-full rounded-full" style="width:'+pct+'%; background:'+col+'"></div></div></div>';
+            }).join('');
+          })()}</div></div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -3165,6 +3180,23 @@ function renderDash(){
   if(genBtn) genBtn.onclick=()=>{ if(typeof setTab==='function') setTab('roster'); };
   const expBtn=document.getElementById('dashExport');
   if(expBtn) expBtn.onclick=()=>{ const key = (typeof UI!=='undefined' && UI.wpMonth) ? UI.wpMonth : monthKey(todayISO()); if(typeof exportPlanPNG==='function') exportPlanPNG(key); };
+  const fyToggle=document.getElementById('dashFYToggle');
+  if(fyToggle){
+    fyToggle.onchange=()=>{
+      const val=fyToggle.value;
+      const box=document.getElementById('dashSampleVolumeBox');
+      if(!box) return;
+      let filtered=samples;
+      if(val==='fy'){
+        const fy=fyInfo(today).label;
+        filtered=samples.filter(s=>{ const d=s.collectionDate||s.sentDate||''; return d && fyInfo(d).label===fy; });
+      }
+      const allMon={}; filtered.forEach(s=>{ const m=s.collectionDate?s.collectionDate.slice(0,7):''; if(m) allMon[m]=(allMon[m]||0)+1; });
+      const allMonArr=Object.entries(allMon).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>({label:k.slice(5)+'/'+k.slice(2,4), value:v}));
+      if(!allMonArr.length) box.innerHTML='<div class="empty">No samples for selected FY — real data</div>';
+      else box.innerHTML=svgLineChart([{label:'Samples', color:'#D4A853', values: allMonArr.map((d,i)=>({x:i,y:d.value}))}], {xLabels: allMonArr.map(d=>d.label), h:260});
+    };
+  }
 }
 
 
