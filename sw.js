@@ -1,5 +1,5 @@
-/* Lab Systems v5.1.3 PREMIUM - Fix hamburger menu not working proofreading - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.1.3-premium-2026-10-15';
+/* Lab Systems v5.1.4 PREMIUM - Fix messy dashboard bizarre charts exact Arena clone - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.1.4-premium-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(

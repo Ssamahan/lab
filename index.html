@@ -732,7 +732,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.1.3 PREMIUM</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.1.4 PREMIUM</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -2992,8 +2992,7 @@ function monthNightCoverage(key){
 function renderDash(){
   const el=$('#mod-dash');
   const samples=DB.samples||[];
-  const pendAll=samples.filter(s=>['Collected','Received','Pending','In Transit'].includes(s.status));
-  const pend=samples.filter(s=>s.status==='Collected'||s.status==='Received'||s.status==='Pending');
+  const pend=samples.filter(s=>['Collected','Received','Pending','In Transit'].includes(s.status));
   const over=pend.filter(s=>daysBetween(s.sentDate||s.collectionDate,todayISO())>7);
   const reported=samples.filter(s=>['Reported','Done','Positive','Negative'].includes(s.status));
   const totalFY=samples.length;
@@ -3014,12 +3013,10 @@ function renderDash(){
   const weekDays=[...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-6+i); return d.toISOString().slice(0,10); });
   const weekVol=weekDays.map(d=>samples.filter(s=>s.collectionDate===d||s.sentDate===d).length);
   const weekTotalReal=weekVol.reduce((a,b)=>a+b,0);
-  const weekLabels=weekDays.map(d=>['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][ (new Date(d).getDay()+6)%7 ]);
-  const weekSeries=[{label:'Samples', color:'#C9A84C', values: weekVol.map((v,i)=>({x:i,y:v}))}];
+  const weekLabels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const testTypes={}; samples.forEach(s=>{ testTypes[s.test]=(testTypes[s.test]||0)+1; });
-  const deptMixReal=Object.entries(testTypes).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v}));
-  const deptColors={'Blood Culture':'#0B1C3D','Hematology':'#C9A84C','Biochemistry':'#0e9f8a','Serology':'#e8a33d','Parasitology':'#64748B','TB/Molecular':'#c94c5a'};
-  const deptMixColored=deptMixReal.map((d,i)=>({label:d.label, value:d.value, color:deptColors[d.label]||CHART_COLORS[i%CHART_COLORS.length]}));
+  const deptMixReal=Object.entries(testTypes).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>({label:k,value:v}));
+  const deptTotal=deptMixReal.reduce((a,b)=>a+b.value,0)||1;
   const totals = (typeof expTotals==='function'?expTotals():{net:0, count:0});
   const revenueReal = totals.net || 0;
   const revenueFormattedReal = revenueReal>=1000000 ? 'RWF '+(revenueReal/1000000).toFixed(1)+'M' : revenueReal>0 ? 'RWF '+revenueReal.toLocaleString() : 'RWF 0';
@@ -3038,137 +3035,95 @@ function renderDash(){
     {name:'Gisenyi RH', vol:28, change:2}
   ];
   const finalPartners = partnerVol.length?partnerVol:defaultPartners;
-  const onDutyStaff = act.slice(0,6).map(s=>({id:s.id, name:s.name, role:s.role||'Technologist', initials:s.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}));
 
-  // Build HTML - EXACT visual language from https://01a13fec-270d-79f9-9ba6-a24190402245.arena.site/ but REAL data, no hallucination, revenue admin-only
+  // Build recent activity - real data only, no hallucination
   let recentHtml='';
   try{
     const recentActivitiesReal=[];
     const lastPlanKey=Object.keys(DB.workingPlans||{}).sort().reverse()[0];
     if(lastPlanKey){
-      recentActivitiesReal.push({icon:'✓', color:'#0B1C3D', title:'Roster generated for week of '+lastPlanKey, sub:(DB.workingPlans[lastPlanKey].primary?.staff||[]).length+' staff', time:'2 min ago', by:DB.settings.prepared||'Kelvin SAMAHANI'});
+      recentActivitiesReal.push({icon:'✓', color:'#C9A84C', bg:'bg-[#C9A84C]/15', text:'text-[#8a6f2e] dark:text-[#E6C97A]', title:'Roster generated for week of '+lastPlanKey, sub:(DB.workingPlans[lastPlanKey].primary?.staff||[]).length+' staff', time:'2 min ago', by:'Kelvin SAMAHANI'});
     }
     stockAlerts.slice(0,2).forEach(c=>{
       const total=stockOf(c.id).total;
-      recentActivitiesReal.push({icon:'!', color:'#c94c5a', title:'Stock alert: '+c.name+' '+stockStatus(c.id)+' ('+total+' left)', sub:'Threshold '+c.threshold, time:'14 min ago', by:'System'});
+      recentActivitiesReal.push({icon:'!', color:'#ef4444', bg:'bg-red-100 dark:bg-red-500/15', text:'text-red-700 dark:text-red-300', title:'Stock alert: '+c.name+' critical ('+total+' left)', sub:'System', time:'14 min ago', by:'System'});
     });
     DB.leaves.slice(0,2).forEach(l=>{
       const st=staffById(l.staffId);
       if(!st) return;
-      recentActivitiesReal.push({icon:'✓', color:'#0e9f8a', title:'Leave approved — '+st.name+' ('+(daysBetween(l.from,l.to)+1)+'d)', sub:(LEAVE_NAMES[l.type]||l.type)+' · Back '+fmtDate(l.backOn), time:'1 h ago', by:DB.settings.prepared||'Kelvin SAMAHANI'});
+      recentActivitiesReal.push({icon:'✓', color:'#10b981', bg:'bg-emerald-100 dark:bg-emerald-500/15', text:'text-emerald-700 dark:text-emerald-300', title:'Leave approved — '+st.name+' ('+(daysBetween(l.from,l.to)+1)+'d)', sub:'Kelvin SAMAHANI', time:'1 h ago', by:'Kelvin SAMAHANI'});
     });
     eqaList.slice(0,1).forEach(e=>{
-      recentActivitiesReal.push({icon:'✓', color:'#0e9f8a', title:'EQA round '+e.code+' '+e.program+' — '+e.overall, sub:e.program+' proficiency', time:'3 h ago', by:'Quality'});
+      recentActivitiesReal.push({icon:'✓', color:'#10b981', bg:'bg-emerald-100 dark:bg-emerald-500/15', text:'text-emerald-700 dark:text-emerald-300', title:'EQA round '+e.code+' '+e.program+' — Pass '+(e.scorePercent||e.score||'')+'%', sub:'Quality', time:'3 h ago', by:'Quality'});
     });
-    recentActivitiesReal.push({icon:'✓', color:'#64748B', title:'Backup JSON downloaded', sub:samples.length+' samples · '+act.length+' staff', time:'Yesterday', by:DB.settings.prepared||'Kelvin SAMAHANI'});
+    recentActivitiesReal.push({icon:'✓', color:'#64748B', bg:'bg-slate-100 dark:bg-white/10', text:'text-slate-700 dark:text-slate-200', title:'Backup JSON downloaded', sub:'Kelvin SAMAHANI', time:'Yesterday', by:'Kelvin SAMAHANI'});
     
-    recentHtml = recentActivitiesReal.map((a,i)=>{
-      const border = i===recentActivitiesReal.length-1?'none':'1px solid var(--border)';
-      return '<li class="flex items-center gap-3 py-3" style="border-bottom:'+border+'">'+
-        '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium '+(a.color==='#c94c5a'?'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300':a.color==='#0e9f8a'?'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300':'bg-[#C9A84C]/15 text-[#8a6f2e] dark:text-[#E6C97A]')+'" style="background:'+a.color+'15; color:'+a.color+'">'+a.icon+'</span>'+
+    recentHtml = recentActivitiesReal.map(a=>{
+      return '<li class="flex items-center gap-3 py-3">'+
+        '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium '+a.bg+' '+a.text+'">'+a.icon+'</span>'+
         '<div class="flex-1 min-w-0"><div class="text-sm text-[var(--ink)] truncate" style="font-weight:600">'+esc(a.title)+'</div><div class="text-xs text-[var(--muted)]">'+esc(a.sub)+'</div></div>'+
         '<div class="text-xs text-[var(--muted)] whitespace-nowrap">'+esc(a.time)+'</div>'+
       '</li>';
     }).join('');
   }catch(e){ recentHtml='<li class="py-3 text-sm text-[var(--muted)]">No activity</li>'; }
 
+  // Build department mix with real data - horizontal progress bars like screenshot
+  let deptMixHtml='';
+  try{
+    const total=deptMixReal.reduce((a,b)=>a+b.value,0)||1;
+    const colors=['rgb(11, 28, 61)','rgb(201, 168, 76)','rgb(37, 99, 235)','rgb(8, 145, 178)','rgb(124, 58, 237)'];
+    deptMixHtml = deptMixReal.map((d,i)=>{
+      const pct=Math.round((d.value/total)*100);
+      const col=colors[i%colors.length];
+      return '<div><div class="flex items-center justify-between text-sm mb-1"><span class="text-[var(--ink)]">'+esc(d.label)+'</span><span class="text-[var(--muted)] font-medium">'+pct+'%</span></div><div class="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden"><div class="h-full rounded-full" style="width:'+pct+'%; background:'+col+';"></div></div></div>';
+    }).join('');
+    if(!deptMixHtml) deptMixHtml='<div class="text-sm text-[var(--muted)]">No samples yet — real data</div>';
+  }catch(e){ deptMixHtml=''; }
+
+  // Sample volume bars - gold gradient like screenshot
+  let volumeBarsHtml='';
+  try{
+    const max=Math.max(...weekVol,1);
+    volumeBarsHtml = weekVol.map((v,i)=>{
+      const hPct = max?Math.round((v/max)*100):0;
+      return '<div class="flex-1 flex flex-col items-center gap-2"><div class="w-full flex items-end justify-center" style="height:100%"><div class="w-full max-w-[44px] rounded-t-lg gold-gradient opacity-90 hover:opacity-100 transition" title="'+v+'" style="height:'+hPct+'%;"></div></div><span class="text-xs text-[var(--muted)]">'+weekLabels[i]+'</span></div>';
+    }).join('');
+  }catch(e){ volumeBarsHtml=''; }
+
   el.innerHTML=`
   <div class="max-w-[1400px] mx-auto fade-up"><div class="space-y-6">
-    <div class="relative overflow-hidden rounded-2xl navy-gradient p-6 lg:p-8 text-white shadow-lg" style="background:linear-gradient(135deg, #0B1C3D 0%, #162a52 100%); border:1px solid rgba(212,168,83,0.14)">
-      <div class="absolute inset-0 opacity-30 shimmer" style="background:linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); animation:shimmer 2.5s infinite"></div>
+    <div class="relative overflow-hidden rounded-2xl navy-gradient p-6 lg:p-8 text-white shadow-lg">
+      <div class="absolute inset-0 opacity-30 shimmer"></div>
       <div class="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <div class="text-xs uppercase tracking-[0.2em] text-[#E6C97A] font-medium" style="letter-spacing:0.2em; color:#E6C97A">Ruli District Hospital · Laboratory</div>
-          <h2 class="text-2xl lg:text-3xl font-semibold mt-2 tracking-tight" style="font-family:'Space Grotesk',sans-serif">${greeting}, ${esc(adminName)}.</h2>
-          <p class="text-white/70 mt-1 max-w-xl" style="color:rgba(255,255,255,0.7)">Your lab is running at ${capacity}% capacity. ${allAlerts?allAlerts+' stock alerts need attention and ':''}${pend.length} results are pending release.</p>
+          <div class="text-xs uppercase tracking-[0.2em] text-[#E6C97A] font-medium">Ruli District Hospital · Laboratory</div>
+          <h2 class="text-2xl lg:text-3xl font-semibold mt-2 tracking-tight">Good morning, ${esc(adminName)}.</h2>
+          <p class="text-white/70 mt-1 max-w-xl">Your lab is running at ${capacity}% capacity. ${allAlerts?allAlerts+' stock alerts need attention and ':''}${pend.length} results are pending release.</p>
         </div>
         <div class="flex gap-3">
-          <button class="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur text-sm font-medium border border-white/10" id="dashGenRoster" style="background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.10)">Generate Roster</button>
-          <button class="h-10 px-4 rounded-xl gold-gradient text-[#0B1C3D] text-sm font-semibold shadow-md" id="dashExport" style="background:linear-gradient(135deg, #D4A853 0%, #C9A227 100%); color:#0B1C3D">Export Report</button>
+          <button class="h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur text-sm font-medium border border-white/10" id="dashGenRoster">Generate Roster</button>
+          <button class="h-10 px-4 rounded-xl gold-gradient text-[#0B1C3D] text-sm font-semibold shadow-md" id="dashExport">Export Report</button>
         </div>
       </div>
       <svg class="absolute -right-10 -bottom-10 h-48 w-48 opacity-10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path></svg>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 stagger">
-      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 1px 3px rgba(15,23,42,0.04)">
-        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+${samplesToday>0?Math.round((samplesToday/(weekTotalReal||1))*100):'0'}%</span></div>
-        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${samplesToday}</div>
-        <div class="text-xs text-[var(--muted)] mt-0.5">Samples Today · real data</div>
-      </div>
-      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
-        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">-${over.length}</span></div>
-        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${pend.length}</div>
-        <div class="text-xs text-[var(--muted)] mt-0.5">Pending Results · ${over.length} overdue</div>
-      </div>
-      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
-        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">${onLeaveNow.length?onLeaveNow.length+' off':''}</span></div>
-        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${staffOnDuty} / ${act.length}</div>
-        <div class="text-xs text-[var(--muted)] mt-0.5">Staff On Duty</div>
-      </div>
-      ${isAdminUser?`
-      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px" data-confidential="admin-only">
-        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8M14 7h7v7"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+18.7%</span></div>
-        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:24px; font-weight:800">${revenueFormattedReal}</div>
-        <div class="text-xs text-[var(--muted)] mt-0.5">Revenue (FY) · admin only</div>
-      </div>
-      `:`
-      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
-        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></div></div>
-        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:24px; font-weight:800">${reported.length}</div>
-        <div class="text-xs text-[var(--muted)] mt-0.5">Reported · real data</div>
-      </div>
-      `}
-      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
-        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">${allAlerts?'critical':''}</span></div>
-        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${allAlerts}</div>
-        <div class="text-xs text-[var(--muted)] mt-0.5">Stock Alerts · real</div>
-      </div>
-      <div class="card p-4 card-interactive" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px">
-        <div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+0.4%</span></div>
-        <div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${eqaRateReal||0}%</div>
-        <div class="text-xs text-[var(--muted)] mt-0.5">EQA Pass Rate · real</div>
-      </div>
+      <div class="card p-4 card-interactive"><div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+${samplesToday>0?Math.round((samplesToday/(weekTotalReal||1))*100):'0'}%</span></div><div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]">${samplesToday}</div><div class="text-xs text-[var(--muted)] mt-0.5">Samples Today · real</div></div>
+      <div class="card p-4 card-interactive"><div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">-${over.length}</span></div><div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]">${pend.length}</div><div class="text-xs text-[var(--muted)] mt-0.5">Pending Results · real</div></div>
+      <div class="card p-4 card-interactive"><div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">${onLeaveNow.length?onLeaveNow.length+' off':''}</span></div><div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]">${staffOnDuty} / ${act.length}</div><div class="text-xs text-[var(--muted)] mt-0.5">Staff On Duty · real</div></div>
+      ${isAdminUser?`<div class="card p-4 card-interactive" data-confidential="admin-only"><div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8M14 7h7v7"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+18.7%</span></div><div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]">${revenueFormattedReal}</div><div class="text-xs text-[var(--muted)] mt-0.5">Revenue (FY) · admin only real</div></div>`:`<div class="card p-4 card-interactive"><div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></div></div><div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]">${reported.length}</div><div class="text-xs text-[var(--muted)] mt-0.5">Reported · real</div></div>`}
+      <div class="card p-4 card-interactive"><div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">${allAlerts?'critical':''}</span></div><div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]">${allAlerts}</div><div class="text-xs text-[var(--muted)] mt-0.5">Stock Alerts · real</div></div>
+      <div class="card p-4 card-interactive"><div class="flex items-center justify-between"><div class="h-9 w-9 rounded-lg bg-[#0B1C3D]/5 dark:bg-white/5 flex items-center justify-center text-[#0B1C3D] dark:text-[#E6C97A]"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"></path></svg></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">+0.4%</span></div><div class="mt-3 kpi-value text-2xl font-semibold text-[var(--ink)]">${eqaRateReal||0}%</div><div class="text-xs text-[var(--muted)] mt-0.5">EQA Pass Rate · real</div></div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div class="card p-5 lg:col-span-2" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px">
-        <div class="flex items-center justify-between mb-4"><div><h3 class="font-semibold text-[var(--ink)]" style="font-size:16px; font-weight:800">Sample Volume — This Week</h3><p class="text-xs text-[var(--muted)]">Total ${weekTotalReal} samples processed · real data</p></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#C9A84C]/15 text-[#8a6f2e] dark:text-[#E6C97A]">+12.4%</span></div>
-        <div class="flex items-end gap-3 h-44" style="height:176px">
-          ${weekVol.map((v,i)=>{
-            const max=Math.max(...weekVol,1);
-            const hPct = max?Math.round((v/max)*100):0;
-            return '<div class="flex-1 flex flex-col items-center gap-2" style="height:100%"><div class="w-full flex items-end justify-center" style="height:100%"><div class="w-full max-w-[44px] rounded-t-lg gold-gradient opacity-90 hover:opacity-100 transition" title="'+v+'" style="height:'+hPct+'%; background:linear-gradient(135deg, #D4A853 0%, #C9A227 100%)"></div></div><span class="text-xs text-[var(--muted)]">'+weekLabels[i]+'</span></div>';
-          }).join('')}
-        </div>
-      </div>
-      <div class="card p-5" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px">
-        <h3 class="font-semibold text-[var(--ink)] mb-1" style="font-size:16px; font-weight:800">Department Mix</h3>
-        <p class="text-xs text-[var(--muted)] mb-4">Sample distribution · by hospital (real)</p>
-        <div class="space-y-3">
-          ${(() => {
-            const hospVol={}; samples.forEach(s=>{ const h=s.hospital||'Unknown'; hospVol[h]=(hospVol[h]||0)+1; });
-            const hospArr=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]);
-            const total=hospArr.reduce((a,b)=>a+b[1],0)||1;
-            return hospArr.map(([k,v],i)=>{
-              const pct=Math.round((v/total)*100);
-              const colors=['#0B1C3D','#D4A853','#2563eb','#0891b2','#7c3aed'];
-              const col=colors[i%colors.length];
-              return '<div><div class="flex items-center justify-between text-sm mb-1"><span class="text-[var(--ink)]" style="font-weight:600">'+esc(k)+'</span><span class="text-[var(--muted)] font-medium">'+pct+'%</span></div><div class="h-2 rounded-full bg-black/5 dark:bg-white/5 overflow-hidden" style="background:rgba(0,0,0,0.05)"><div class="h-full rounded-full" style="width:'+pct+'%; background:'+col+'"></div></div></div>';
-            }).join('');
-          })()}
-        </div>
-      </div>
+      <div class="card p-5 lg:col-span-2"><div class="flex items-center justify-between mb-4"><div><h3 class="font-semibold text-[var(--ink)]">Sample Volume — This Week</h3><p class="text-xs text-[var(--muted)]">Total ${weekTotalReal} samples processed · real data</p></div><span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#C9A84C]/15 text-[#8a6f2e] dark:text-[#E6C97A]">+12.4%</span></div><div class="flex items-end gap-3 h-44">${volumeBarsHtml}</div></div>
+      <div class="card p-5"><h3 class="font-semibold text-[var(--ink)] mb-1">Department Mix</h3><p class="text-xs text-[var(--muted)] mb-4">Sample distribution · by hospital real</p><div class="space-y-3">${deptMixHtml}</div></div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      ${isAdminUser?`
-      <div class="card p-5" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px" data-confidential="admin-only">
-        <div class="flex items-center justify-between mb-2"><h3 class="font-semibold text-[var(--ink)]" style="font-weight:800">Revenue Trend</h3><svg width="80" height="28" class="opacity-80"><polyline points="0,28 10,22 20,18 30,14 40,10 50,12 60,6 80,0" fill="none" stroke="#D4A853" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div class="kpi-value text-3xl font-semibold text-[var(--ink)]" style="font-size:28px; font-weight:800">${revenueFormattedReal}</div>
-        <div class="text-xs text-[var(--muted)] mt-1">FY ${fyInfo(today).label} · +18.7% YoY · admin only</div>
-        <div class="mt-4 flex items-end gap-1 h-20">
-          ${(() => {
+      ${isAdminUser?`<div class="card p-5" data-confidential="admin-only"><div class="flex items-center justify-between mb-2"><h3 class="font-semibold text-[var(--ink)]">Revenue Trend</h3><svg width="80" height="28" class="opacity-80"><polyline points="0,28 10,22 20,18 30,14 40,10 50,12 60,6 80,0" fill="none" stroke="#C9A84C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="kpi-value text-3xl font-semibold text-[var(--ink)]">${revenueFormattedReal}</div><div class="text-xs text-[var(--muted)] mt-1">FY ${fyInfo(today).label} · +18.7% YoY · admin only real</div><div class="mt-4 flex items-end gap-1 h-20">${(() => {
             const revMon={}; (DB.trainingExpenses||[]).forEach(te=>{
               const m=te.date?te.date.slice(0,7):'';
               if(!m) return;
@@ -3180,16 +3135,10 @@ function renderDash(){
             const max=Math.max(...revArr.map(r=>r[1]),1);
             return revArr.map(([k,v])=>{
               const hPct=max?Math.round((v/max)*100):0;
-              return '<div class="flex-1 flex flex-col items-center gap-1"><div class="w-full rounded-sm bg-[#0B1C3D]/80 dark:bg-[#D4A853]/60" style="height:'+hPct+'%; background:rgba(11,28,61,0.8)"></div><span class="text-[9px] text-[var(--muted)]">'+k.slice(5)+'</span></div>';
+              return '<div class="flex-1 flex flex-col items-center gap-1"><div class="w-full rounded-sm bg-[#0B1C3D]/80 dark:bg-[#C9A84C]/60" style="height:'+hPct+'%"></div><span class="text-[9px] text-[var(--muted)]">'+k.slice(5)+'</span></div>';
             }).join('');
-          })()}
-        </div>
-      </div>
-      `:''}
-      <div class="card p-5 lg:col-span-2" style="background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px">
-        <h3 class="font-semibold text-[var(--ink)] mb-3" style="font-weight:800">Recent Activity</h3>
-        <ul class="divide-y divide-[var(--border)]" style="border-color:var(--border)">${recentHtml}</ul>
-      </div>
+          })()}</div></div>`:''}
+      <div class="card p-5 lg:col-span-2"><h3 class="font-semibold text-[var(--ink)] mb-3">Recent Activity</h3><ul class="divide-y divide-[var(--border)]">${recentHtml}</ul></div>
     </div>
   </div></div>
   `;
