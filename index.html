@@ -733,7 +733,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.3 PREMIUM</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.4 PREMIUM REAL</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -3056,13 +3056,13 @@ function renderDash(){
   const last24h=samples.filter(s=>{ const d=s.collectionDate||s.sentDate; return d && daysBetween(d, today)<=1; }).length;
   const avgTAT = (function(){
     const tats=tatByTest();
-    if(!tats.length) return 57;
+    if(!tats.length) return 0;
     return Math.round(tats.reduce((a,b)=>a+b.avg,0)/tats.length);
   })();
-  const statPending=samples.filter(s=>s.notes&&/STAT/i.test(s.notes)).length || 6;
+  const statPending=samples.filter(s=>s.notes&&/STAT/i.test(s.notes)).length;
   const eqaList=DB.eqa||[];
   const eqaPass=eqaList.filter(e=>e.overall==='Pass').length;
-  const eqaComposite=eqaList.length?Math.round((eqaPass/eqaList.length)*1000)/10:94.6;
+  const eqaComposite=eqaList.length?Math.round((eqaPass/eqaList.length)*1000)/10:0;
   
   const last14Days=[...Array(14)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().slice(0,10); });
   const throughput14=last14Days.map(d=>samples.filter(s=>s.collectionDate===d).length);
@@ -3090,25 +3090,12 @@ function renderDash(){
   
   const hospVol={}; samples.forEach(s=>{ const h=s.hospital||'Unknown'; hospVol[h]=(hospVol[h]||0)+1; });
   const partnerVol=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v],i)=>({name:k, vol:v, change: [12,6,9,-3,4,2][i%6]}));
-  const defaultPartners=[
-    {name:'Rwanda Biomedical Centre', vol:118, change:12},
-    {name:'CHUK — Kigali', vol:94, change:6},
-    {name:'Musanze DH', vol:61, change:9},
-    {name:'Kabaya DH', vol:47, change:-3},
-    {name:'Nemba DH', vol:39, change:4},
-    {name:'Gisenyi RH', vol:28, change:2}
-  ];
-  const finalPartners = partnerVol.length?partnerVol:defaultPartners;
+  const finalPartners = partnerVol; // real only, no 118/94/61 fake
   
   const onDutyStaff = act.slice(0,6).map(s=>({id:s.id, name:s.name, role:s.role||'Technologist', initials:s.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}));
   
   const allBatches=(DB.stock.batches||[]).filter(b=>b.qty>0&&b.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry)).slice(0,5);
-  const supplyRadar = allBatches.length?allBatches.map(b=>{ const c=consById(b.cid); return {name:c?c.name:b.cid, days:daysBetween(today, b.expiry), expiry:b.expiry}; }):[
-    {name:'Glucose Reagent (GOD-PAP)', days:121, expiry:addDays(today,121)},
-    {name:'Saline 0.9% 500mL', days:158, expiry:addDays(today,158)},
-    {name:'Widal Reagent Set', days:191, expiry:addDays(today,191)},
-    {name:'Urine Strips 10P', days:231, expiry:addDays(today,231)}
-  ];
+  const supplyRadar = allBatches.map(b=>{ const c=consById(b.cid); return {name:c?c.name:b.cid, days:daysBetween(today, b.expiry), expiry:b.expiry}; }); // real only
   
   const analyzers=[
     {name:'GeneXpert IV', cal:'12 Mar', uptime:99.2, status:'Operational'},
@@ -3196,7 +3183,7 @@ function renderDash(){
       <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; align-items:flex-start">
         <div>
           <h1 style="font-size:28px; font-weight:700; color:#f8fafc; letter-spacing:-0.5px; line-height:1.1">Good afternoon, <i style="font-family:'Times New Roman', serif; font-weight:400; color:#E6C97A; font-style:italic">Dr. Mugisha</i></h1>
-          <p style="font-size:13.5px; color:#94a3b8; margin-top:8px; line-height:1.5">Your laboratory processed <b style="color:#f8fafc">163</b> samples in the last 24 hours — TAT compliance at <b style="color:#2dd4bf">96.4%</b>, with all analyzers operational.</p>
+          <p style="font-size:13.5px; color:#94a3b8; margin-top:8px; line-height:1.5">Your laboratory processed <b style="color:#f8fafc">${last24h}</b> samples in the last 24 hours — TAT compliance at <b style="color:#2dd4bf">${tatCompliance}%</b>, with all analyzers operational.</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap">
           <button class="h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2" id="dashRegister" style="background:#D4A853; color:#0B0F19; border:1px solid rgba(212,168,83,0.3); box-shadow:0 4px 12px rgba(212,168,83,0.2)"><span>✎</span>Register sample</button>
@@ -3244,12 +3231,21 @@ function renderDash(){
         <div style="font-size:10px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#D4A853; margin-bottom:4px">Sample Pipeline</div>
         <h3 style="font-size:20px; font-weight:700; color:#f8fafc; margin:0 0 16px">Status <i style="font-family:serif; font-style:italic; color:#D4A853; font-weight:400">breakdown</i></h3>
         <div style="display:flex; flex-direction:column; align-items:center; gap:16px">
-          <div>${svgDonut([{label:'Resulted', value:412, color:'#14b8a6'},{label:'Pending', value:96, color:'#D4A853'},{label:'In Transit', value:38, color:'#60a5fa'},{label:'Archived', value:154, color:'#475569'}], {center:'700', width:180, height:180})}</div>
+          <div>${(() => {
+            const realStatus=[
+              {label:'Resulted', value:resulted, color:'#14b8a6'},
+              {label:'Pending', value:pend.length, color:'#D4A853'},
+              {label:'In Transit', value:inTransit, color:'#60a5fa'},
+              {label:'Archived', value:archived, color:'#475569'}
+            ].filter(x=>x.value>0);
+            if(!realStatus.length) return '<div class="empty">No status data - real</div>';
+            return svgDonut(realStatus, {center: String(totalFY), width:180, height:180});
+          })()}</div>
           <div style="width:100%; display:flex; flex-direction:column; gap:8px; font-size:12px">
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#14b8a6"></i>Resulted</span><span style="color:#94a3b8">412</span></div>
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#D4A853"></i>Pending</span><span style="color:#94a3b8">96</span></div>
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#60a5fa"></i>In Transit</span><span style="color:#94a3b8">38</span></div>
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#475569"></i>Archived</span><span style="color:#94a3b8">154</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#14b8a6"></i>Resulted</span><span style="color:#94a3b8">${resulted}</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#D4A853"></i>Pending</span><span style="color:#94a3b8">${pend.length}</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#60a5fa"></i>In Transit</span><span style="color:#94a3b8">${inTransit}</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#475569"></i>Archived</span><span style="color:#94a3b8">${archived}</span></div>
           </div>
         </div>
       </div>
