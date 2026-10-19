@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -38,8 +38,8 @@
 }
 
 [data-theme="light"]{
-  --bg:#f8fafc; --bg2:#f1f5f9; --surface:#ffffff; --surface-2:#ffffff; --surface-hover:#f8fafc;
-  --text:#0f172a; --muted:#64748B; --faint:#94a3b8; --edge:#e2e8f0; --edge-strong:#cbd5e1;
+  --bg:#0B0F19; --bg2:#111827; --surface:rgba(17,24,39,0.72); --surface-2:rgba(17,24,39,0.54); --surface-hover:rgba(31,41,55,0.72);
+  --text:#f8fafc; --muted:#94a3b8; --faint:#64748B; --edge:rgba(255,255,255,0.06); --edge-strong:rgba(255,255,255,0.10);
   --card:#ffffff; --border:#e2e8f0; --ink:#0f172a;
   --shadow:0 1px 3px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03);
   --shadow-hover:0 4px 12px rgba(15,23,42,0.08), 0 10px 28px rgba(15,23,42,0.06);
@@ -664,7 +664,7 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
 
 </style>
 </head>
-<body><script>
+<body data-theme="dark"><script>
 try{
   localStorage.removeItem('labSystems.isAPK');
   if('caches' in window){ caches.keys().then(keys=>keys.forEach(k=>{ if(k.includes('ruli-lab') || k.includes('lab-systems') || k.includes('v4-')){ caches.delete(k); } })); }
@@ -733,7 +733,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.2 PREMIUM</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.3 PREMIUM</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -749,7 +749,7 @@ try{
     <span class="chip" id="fyChip">FY 2026/2027</span>
     <span class="chip" id="dateChip"></span>
     <span class="chip" id="authChip" style="display:none"></span>
-    <button id="themeToggle" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+    <button id="themeToggle" style="display:none" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
     <button class="btn primary sm" id="btnAuth"> Admin Login</button>
     <button class="btn sm" id="btnLogout" style="display:none">Logout</button>
   </header>
@@ -3038,7 +3038,20 @@ function renderDash(){
   
   const hour=new Date().getHours();
   const greeting = hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
-  const adminName = (DB.settings&&DB.settings.prepared?DB.settings.prepared.split(' ')[0]:'Dr. Mugisha') || 'Dr. Mugisha';
+  let adminName='';
+  try{
+    if(typeof isAdmin==='function' && isAdmin()){
+      const authRec = (typeof getAuthRec==='function'?getAuthRec():null);
+      const staffRec = DB.staff.find(s=>s.name.toLowerCase().includes('kelvin')|| (s.role&&/manager/i.test(s.role)));
+      if(staffRec) adminName = staffRec.name.split(' ')[0];
+      else if(authRec && authRec.username) adminName = authRec.username==='admin' ? 'Kelvin' : authRec.username;
+      else adminName = 'Kelvin';
+      // Tailor to ssamahan, lab manager
+      if(adminName.toLowerCase()==='admin') adminName='Kelvin';
+    }else{
+      adminName=''; // Skip name if admin not logged
+    }
+  }catch(e){ adminName=''; }
   
   const last24h=samples.filter(s=>{ const d=s.collectionDate||s.sentDate; return d && daysBetween(d, today)<=1; }).length;
   const avgTAT = (function(){
@@ -3061,7 +3074,13 @@ function renderDash(){
   ];
   const regVsResLabels=last14Days.map(d=>{ const dt=new Date(d); return 'Feb '+(dt.getDate()<10?'0'+dt.getDate():dt.getDate()); });
   
-  const tatDiscipline=[
+  // TAT vs target - real from referred samples module (DB.samples)
+  const realTATs = (typeof tatByTest==='function'?tatByTest():[]);
+  const tatDiscipline = realTATs.length ? realTATs.map(t=>({
+    name: t.test,
+    tat: t.avg,
+    target: t.exp
+  })).slice(0,5) : [
     {name:'Parasitology', tat:26, target:40},
     {name:'Serology', tat:34, target:45},
     {name:'Hematology', tat:74, target:120},
@@ -4945,7 +4964,7 @@ body.viewer-mode #btnAuth {
   box-shadow:var(--shadow-gold) !important; font-weight:800 !important;
 }
 
-</style></head><body>
+</style></head><body data-theme="dark">
   <div class="head" style="text-align:center; padding:12px 0 14px; background:#F7F8FC; border-radius:12px; border:1px solid #e6e9f1; border-left:4px solid #C9A84C; margin-bottom:12px"><h1 style="margin:0; font-size:20px; color:#0B1C3D; font-family:'Space Grotesk',sans-serif; font-weight:900">${ex.hospital}</h1><div style="font-size:13px; color:#0B1C3D; font-weight:700; margin-top:2px">${ex.dept}</div><div class="sub" style="font-size:11px; color:#5a6b8c; margin-top:6px">${ex.email} · ${ex.phone}</div><div style="font-size:14px; font-weight:800; color:#0B1C3D; margin-top:10px">${ex.title}</div><div style="font-size:10.5px; color:#5a6b8c; margin-top:4px">Date: ${ex.date} · FY: ${ex.fy}</div></div>
   <h2 style="text-align:center;font-size:14px;margin:6px 0">${ex.title}</h2>
   <div class="meta"><span>Date: ${ex.date}</span><span>FY: ${ex.fy}</span><span>Period: ${ex.period}</span></div>
