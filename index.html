@@ -3235,9 +3235,10 @@ function renderDash(){
 
     <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:14px; margin-bottom:18px">
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:20px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.28)">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px"><span style="font-size:10px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#D4A853">Throughput · Last 14 Days</span><div style="display:flex; gap:12px; font-size:10px; font-weight:700"><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#D4A853; border-radius:2px"></i>REGISTERED</span><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#14b8a6; border-radius:2px"></i>RESULTED</span></div></div>
-        <h3 style="font-size:20px; font-weight:700; color:#f8fafc; margin:0 0 16px; letter-spacing:-0.3px">Samples registered vs <i style="font-family:serif; font-style:italic; color:#D4A853; font-weight:400">resulted</i></h3>
-        <div style="min-height:260px">${svgLineChart(regVsResSeries, {xLabels: regVsResLabels, h:260})}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:8px"><span style="font-size:10px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#D4A853">Sample Volume · All Time</span><div style="display:flex; gap:8px; align-items:center"><select id="dashFYToggle" style="padding:4px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.3); font-size:11px; font-weight:700; color:#e2e8f0"><option value="all">All Time</option><option value="fy">FY ${fyInfo(today).label}</option></select><div style="display:flex; gap:12px; font-size:10px; font-weight:700"><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#D4A853; border-radius:2px"></i>REGISTERED</span><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#14b8a6; border-radius:2px"></i>RESULTED</span></div></div></div>
+        <h3 style="font-size:20px; font-weight:700; color:#f8fafc; margin:0 0 6px; letter-spacing:-0.3px">Samples registered vs <i style="font-family:serif; font-style:italic; color:#D4A853; font-weight:400">resulted</i></h3>
+        <p style="font-size:11px; color:#94a3b8; margin-bottom:12px">Total ${totalFY} samples · FY toggle · real data from referred modules</p>
+        <div style="min-height:260px" id="dashSampleVolumeBox">${svgLineChart(regVsResSeries, {xLabels: regVsResLabels, h:260})}</div>
       </div>
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:20px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.28)">
         <div style="font-size:10px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#D4A853; margin-bottom:4px">Sample Pipeline</div>
@@ -3339,6 +3340,28 @@ function renderDash(){
   if(regBtn) regBtn.onclick=()=>openSampleForm();
   const manBtn=document.getElementById('dashManifest');
   if(manBtn) manBtn.onclick=()=>openManifestForm();
+  const fyToggle=document.getElementById('dashFYToggle');
+  if(fyToggle){
+    fyToggle.onchange=()=>{
+      const val=fyToggle.value;
+      const box=document.getElementById('dashSampleVolumeBox');
+      if(!box) return;
+      let filtered=samples;
+      if(val==='fy'){
+        const fy=fyInfo(today).label;
+        filtered=samples.filter(s=>{ const d=s.collectionDate||s.sentDate||''; return d && fyInfo(d).label===fy; });
+      }
+      const last14DaysFiltered=[...Array(14)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().slice(0,10); });
+      const regFiltered=last14DaysFiltered.map(d=>filtered.filter(s=>s.collectionDate===d).length);
+      const resFiltered=last14DaysFiltered.map(d=>filtered.filter(s=>s.resultDate===d||s.reportedDate===d).length);
+      const series=[
+        {label:'REGISTERED', color:'#D4A853', values: regFiltered.map((v,i)=>({x:i,y:v}))},
+        {label:'RESULTED', color:'#14b8a6', values: resFiltered.map((v,i)=>({x:i,y:v}))}
+      ];
+      const labels=last14DaysFiltered.map(d=>{ const dt=new Date(d); return 'Feb '+(dt.getDate()<10?'0'+dt.getDate():dt.getDate()); });
+      box.innerHTML=svgLineChart(series, {xLabels: labels, h:260});
+    };
+  }
 }
 
 
