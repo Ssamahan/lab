@@ -1,5 +1,5 @@
-/* Lab Systems v5.2.5 PREMIUM REAL - Fix imaginary Dr Mugisha 163 samples, use real data only - Self-unregister + cache bust 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.2.5-premium-real-2026-10-15';
+/* Lab Systems v5.2.6 - Fix tatCompliance not defined - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.2.6-premium-real-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(
