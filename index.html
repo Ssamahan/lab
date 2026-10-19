@@ -733,7 +733,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.6 PREMIUM REAL</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.7 PREMIUM REAL</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -3035,7 +3035,8 @@ function renderDash(){
   const expiringAlerts=DB.catalog.consumables.reduce((a,c)=>a+(c.hasExpiry===false?0:expiringSoon(c.id,10).length),0);
   const allAlerts=totalStockAlerts+expiringAlerts;
   const capacity = Math.max(72, Math.min(98, 100 - over.length*2 - totalStockAlerts*3));
-  const tatCompliance = over.length ? Math.max(0, Math.min(100, 100 - over.length*5)) : 100;
+  let tatCompliance = 100;
+  try{ tatCompliance = over.length ? Math.max(0, Math.min(100, 100 - over.length*5)) : 100; }catch(e){ tatCompliance=100; }
   
   const hour=new Date().getHours();
   const greeting = hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
