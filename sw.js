@@ -1,5 +1,5 @@
-/* Lab Systems v5.2.7 - Fix tatCompliance not defined persistent CDN cache - Self-unregister all + network-first 2026-10-15 */
-const CACHE_NAME = 'lab-systems-v5.2.7-premium-real-2026-10-15';
+/* Lab Systems v5.2.8 - Fix tatCompliance persistent error, empty .nojekyll, network-first - Self-unregister + cache bust 2026-10-15 */
+const CACHE_NAME = 'lab-systems-v5.2.8-premium-real-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
   e.waitUntil(
