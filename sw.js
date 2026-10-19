@@ -1,4 +1,4 @@
-/* Lab Systems v5.2.2 PREMIUM - Equipment module + premium dashboard exact Arena - Self-unregister + cache bust 2026-10-15 */
+/* Lab Systems v5.2.2 - Fix dutyHtml not defined + giant icons + premium - Self-unregister + cache bust 2026-10-15 */
 const CACHE_NAME = 'lab-systems-v5.2.2-premium-2026-10-15';
 self.addEventListener('install', e=>{ self.skipWaiting(); });
 self.addEventListener('activate', e=>{
