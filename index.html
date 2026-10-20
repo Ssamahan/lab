@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -38,8 +38,8 @@
 }
 
 [data-theme="light"]{
-  --bg:#f8fafc; --bg2:#f1f5f9; --surface:#ffffff; --surface-2:#ffffff; --surface-hover:#f8fafc;
-  --text:#0f172a; --muted:#64748B; --faint:#94a3b8; --edge:#e2e8f0; --edge-strong:#cbd5e1;
+  --bg:#0B0F19; --bg2:#111827; --surface:rgba(17,24,39,0.72); --surface-2:rgba(17,24,39,0.54); --surface-hover:rgba(31,41,55,0.72);
+  --text:#f8fafc; --muted:#94a3b8; --faint:#64748B; --edge:rgba(255,255,255,0.06); --edge-strong:rgba(255,255,255,0.10);
   --card:#ffffff; --border:#e2e8f0; --ink:#0f172a;
   --shadow:0 1px 3px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03);
   --shadow-hover:0 4px 12px rgba(15,23,42,0.08), 0 10px 28px rgba(15,23,42,0.06);
@@ -664,7 +664,7 @@ pre, code { overflow-x:auto; /* preserves scroll for code */ }
 
 </style>
 </head>
-<body><script>
+<body data-theme="dark"><script>
 try{
   localStorage.removeItem('labSystems.isAPK');
   if('caches' in window){ caches.keys().then(keys=>keys.forEach(k=>{ if(k.includes('ruli-lab') || k.includes('lab-systems') || k.includes('v4-')){ caches.delete(k); } })); }
@@ -733,7 +733,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.3.1 PREMIUM EXACT</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.2.5 PREMIUM REAL</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -749,7 +749,7 @@ try{
     <span class="chip" id="fyChip">FY 2026/2027</span>
     <span class="chip" id="dateChip"></span>
     <span class="chip" id="authChip" style="display:none"></span>
-    <button id="themeToggle" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+    <button id="themeToggle" style="display:none" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
     <button class="btn primary sm" id="btnAuth"> Admin Login</button>
     <button class="btn sm" id="btnLogout" style="display:none">Logout</button>
   </header>
@@ -3038,18 +3038,31 @@ function renderDash(){
   
   const hour=new Date().getHours();
   const greeting = hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
-  const adminName = (DB.settings&&DB.settings.prepared?DB.settings.prepared.split(' ')[0]:'Dr. Mugisha') || 'Dr. Mugisha';
+  let adminName='';
+  try{
+    if(typeof isAdmin==='function' && isAdmin()){
+      const authRec = (typeof getAuthRec==='function'?getAuthRec():null);
+      const staffRec = DB.staff.find(s=>s.name.toLowerCase().includes('kelvin')|| (s.role&&/manager/i.test(s.role)));
+      if(staffRec) adminName = staffRec.name.split(' ')[0];
+      else if(authRec && authRec.username) adminName = authRec.username==='admin' ? 'Kelvin' : authRec.username;
+      else adminName = 'Kelvin';
+      // Tailor to ssamahan, lab manager
+      if(adminName.toLowerCase()==='admin') adminName='Kelvin';
+    }else{
+      adminName=''; // Skip name if admin not logged
+    }
+  }catch(e){ adminName=''; }
   
   const last24h=samples.filter(s=>{ const d=s.collectionDate||s.sentDate; return d && daysBetween(d, today)<=1; }).length;
   const avgTAT = (function(){
     const tats=tatByTest();
-    if(!tats.length) return 57;
+    if(!tats.length) return 0;
     return Math.round(tats.reduce((a,b)=>a+b.avg,0)/tats.length);
   })();
-  const statPending=samples.filter(s=>s.notes&&/STAT/i.test(s.notes)).length || 6;
+  const statPending=samples.filter(s=>s.notes&&/STAT/i.test(s.notes)).length;
   const eqaList=DB.eqa||[];
   const eqaPass=eqaList.filter(e=>e.overall==='Pass').length;
-  const eqaComposite=eqaList.length?Math.round((eqaPass/eqaList.length)*1000)/10:94.6;
+  const eqaComposite=eqaList.length?Math.round((eqaPass/eqaList.length)*1000)/10:0;
   
   const last14Days=[...Array(14)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().slice(0,10); });
   const throughput14=last14Days.map(d=>samples.filter(s=>s.collectionDate===d).length);
@@ -3061,7 +3074,13 @@ function renderDash(){
   ];
   const regVsResLabels=last14Days.map(d=>{ const dt=new Date(d); return 'Feb '+(dt.getDate()<10?'0'+dt.getDate():dt.getDate()); });
   
-  const tatDiscipline=[
+  // TAT vs target - real from referred samples module (DB.samples)
+  const realTATs = (typeof tatByTest==='function'?tatByTest():[]);
+  const tatDiscipline = realTATs.length ? realTATs.map(t=>({
+    name: t.test,
+    tat: t.avg,
+    target: t.exp
+  })).slice(0,5) : [
     {name:'Parasitology', tat:26, target:40},
     {name:'Serology', tat:34, target:45},
     {name:'Hematology', tat:74, target:120},
@@ -3071,25 +3090,12 @@ function renderDash(){
   
   const hospVol={}; samples.forEach(s=>{ const h=s.hospital||'Unknown'; hospVol[h]=(hospVol[h]||0)+1; });
   const partnerVol=Object.entries(hospVol).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v],i)=>({name:k, vol:v, change: [12,6,9,-3,4,2][i%6]}));
-  const defaultPartners=[
-    {name:'Rwanda Biomedical Centre', vol:118, change:12},
-    {name:'CHUK — Kigali', vol:94, change:6},
-    {name:'Musanze DH', vol:61, change:9},
-    {name:'Kabaya DH', vol:47, change:-3},
-    {name:'Nemba DH', vol:39, change:4},
-    {name:'Gisenyi RH', vol:28, change:2}
-  ];
-  const finalPartners = partnerVol.length?partnerVol:defaultPartners;
+  const finalPartners = partnerVol; // real only, no 118/94/61 fake
   
   const onDutyStaff = act.slice(0,6).map(s=>({id:s.id, name:s.name, role:s.role||'Technologist', initials:s.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}));
   
   const allBatches=(DB.stock.batches||[]).filter(b=>b.qty>0&&b.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry)).slice(0,5);
-  const supplyRadar = allBatches.length?allBatches.map(b=>{ const c=consById(b.cid); return {name:c?c.name:b.cid, days:daysBetween(today, b.expiry), expiry:b.expiry}; }):[
-    {name:'Glucose Reagent (GOD-PAP)', days:121, expiry:addDays(today,121)},
-    {name:'Saline 0.9% 500mL', days:158, expiry:addDays(today,158)},
-    {name:'Widal Reagent Set', days:191, expiry:addDays(today,191)},
-    {name:'Urine Strips 10P', days:231, expiry:addDays(today,231)}
-  ];
+  const supplyRadar = allBatches.map(b=>{ const c=consById(b.cid); return {name:c?c.name:b.cid, days:daysBetween(today, b.expiry), expiry:b.expiry}; }); // real only
   
   const analyzers=[
     {name:'GeneXpert IV', cal:'12 Mar', uptime:99.2, status:'Operational'},
@@ -3140,6 +3146,30 @@ function renderDash(){
     }).join('');
   }catch(e){ recentHtml='<div class="text-sm" style="color:#64748B">No activity</div>'; }
 
+  let dutyHtml='';
+  try{
+    dutyHtml = onDutyStaff.map(s=>{
+      return '<div style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:12px"><div style="width:32px; height:32px; border-radius:8px; background:'+staffColor(s.id)+'; color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:11px; flex:0 0 32px">'+esc(s.initials)+'</div><div style="flex:1; min-width:0"><div style="font-size:11px; font-weight:700; color:#e2e8f0">'+esc(s.name.split(' ')[0])+' '+esc(s.name.split(' ').slice(-1)[0])+'</div><div style="font-size:10px; color:#94a3b8">'+esc(s.role)+'</div></div><div style="width:6px; height:6px; background:#22c55e; border-radius:50%; box-shadow:0 0 0 2px rgba(34,197,94,0.18)"></div></div>';
+    }).join('');
+  }catch(e){ dutyHtml=''; }
+
+  let supplyHtml='';
+  try{
+    supplyHtml = supplyRadar.map(s=>{
+      return '<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:rgba(251,191,36,0.06); border:1px solid rgba(251,191,36,0.12); border-radius:10px"><div style="display:flex; align-items:center; gap:6px"><span style="font-size:10px">🧪</span><span style="font-size:11px; font-weight:600; color:#fde68a; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">'+esc(s.name)+'</span></div><span style="font-size:10px; font-weight:800; color:#f59e0b">'+s.days+'d</span></div>';
+    }).join('');
+  }catch(e){ supplyHtml=''; }
+
+  let analyzerHtml='';
+  try{
+    analyzerHtml = analyzers.map(a=>{
+      const bg=a.status==='Operational'?'rgba(16,185,129,0.06)':'rgba(245,158,11,0.08)';
+      const border=a.status==='Operational'?'rgba(16,185,129,0.14)':'rgba(245,158,11,0.18)';
+      const statusColor=a.status==='Operational'?'#10b981':'#f59e0b';
+      return '<div style="padding:10px 12px; background:'+bg+'; border:1px solid '+border+'; border-radius:12px; display:flex; justify-content:space-between; align-items:center"><div><div style="font-size:11px; font-weight:700; color:#e2e8f0">'+esc(a.name)+'</div><div style="font-size:10px; color:#94a3b8; margin-top:2px">'+esc(a.cal)+' · '+a.uptime+'%</div></div><span style="font-size:10px; font-weight:800; color:'+statusColor+'; background:'+statusColor+'18; border-radius:99px; padding:3px 8px; border:1px solid '+statusColor+'30">'+a.status+'</span></div>';
+    }).join('');
+  }catch(e){ analyzerHtml=''; }
+
   // Premium dashboard - exact match to reference https://01a14063-1cb6-709d-81db-d8cad6fb948c.arena.site/ with deep dark glassmorphism, no giant icons
   el.innerHTML=`
   <div style="max-width:1520px; margin:0 auto; font-family:'Inter','Space Grotesk',sans-serif">
@@ -3152,8 +3182,8 @@ function renderDash(){
       <div style="position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, rgba(212,168,83,0.3), transparent)"></div>
       <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; align-items:flex-start">
         <div>
-          <h1 style="font-size:28px; font-weight:700; color:#f8fafc; letter-spacing:-0.5px; line-height:1.1">Good afternoon, <i style="font-family:'Times New Roman', serif; font-weight:400; color:#E6C97A; font-style:italic">Dr. Mugisha</i></h1>
-          <p style="font-size:13.5px; color:#94a3b8; margin-top:8px; line-height:1.5">Your laboratory processed <b style="color:#f8fafc">163</b> samples in the last 24 hours — TAT compliance at <b style="color:#2dd4bf">96.4%</b>, with all analyzers operational.</p>
+          <h1 style="font-size:28px; font-weight:700; color:#f8fafc; letter-spacing:-0.5px; line-height:1.1">Good afternoon, <i style="font-family:'Times New Roman', serif; font-weight:400; color:#E6C97A; font-style:italic">${esc(adminName)}</i></h1>
+          <p style="font-size:13.5px; color:#94a3b8; margin-top:8px; line-height:1.5">Your laboratory processed <b style="color:#f8fafc">${last24h}</b> samples in the last 24 hours — TAT compliance at <b style="color:#2dd4bf">${tatCompliance}%</b>, with all analyzers operational.</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap">
           <button class="h-9 px-4 rounded-xl text-xs font-semibold flex items-center gap-2" id="dashRegister" style="background:#D4A853; color:#0B0F19; border:1px solid rgba(212,168,83,0.3); box-shadow:0 4px 12px rgba(212,168,83,0.2)"><span>✎</span>Register sample</button>
@@ -3167,45 +3197,55 @@ function renderDash(){
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:18px; padding:16px 18px; position:relative; overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.24)">
         <div style="position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, rgba(212,168,83,0.2), transparent)"></div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px"><div style="display:flex; align-items:center; gap:8px"><div style="width:32px; height:32px; border-radius:10px; background:rgba(212,168,83,0.12); border:1px solid rgba(212,168,83,0.18); display:flex; align-items:center; justify-content:center; color:#D4A853">🧪</div><span style="font-size:11px; font-weight:600; color:#94a3b8">Samples · 24h</span></div><span style="font-size:10px; font-weight:800; color:#10b981; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.18); border-radius:99px; padding:3px 8px">↗ 9.4%</span></div>
-        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1; letter-spacing:-0.8px">163</div>
-        <div style="margin-top:10px; height:36px; opacity:0.9">${svgSpark([120,135,128,145,132,158,163], '#D4A853')}</div>
+        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1; letter-spacing:-0.8px">${last24h}</div>
+        <div style="margin-top:10px; height:36px; opacity:0.9">${svgSpark(throughput14.slice(-7), '#D4A853')}</div>
       </div>
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:18px; padding:16px 18px; position:relative; overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.24)">
         <div style="position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, rgba(20,184,166,0.2), transparent)"></div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px"><div style="display:flex; align-items:center; gap:8px"><div style="width:32px; height:32px; border-radius:10px; background:rgba(20,184,166,0.12); border:1px solid rgba(20,184,166,0.18); display:flex; align-items:center; justify-content:center; color:#2dd4bf">⏱</div><span style="font-size:11px; font-weight:600; color:#94a3b8">Avg TAT</span></div><span style="font-size:10px; font-weight:800; color:#f43f5e; background:rgba(244,63,94,0.12); border:1px solid rgba(244,63,94,0.18); border-radius:99px; padding:3px 8px">↘ 8.2%</span></div>
-        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1; letter-spacing:-0.8px">57 min</div>
+        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1; letter-spacing:-0.8px">${avgTAT>0?avgTAT+" min":"—"}</div>
         <div style="margin-top:10px; height:36px; opacity:0.9">${svgSpark([68,62,58,65,54,48,57], '#14b8a6')}</div>
       </div>
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:18px; padding:16px 18px; position:relative; overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.24)">
         <div style="position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, rgba(245,158,11,0.2), transparent)"></div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px"><div style="display:flex; align-items:center; gap:8px"><div style="width:32px; height:32px; border-radius:10px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.18); display:flex; align-items:center; justify-content:center; color:#f59e0b">⚠</div><span style="font-size:11px; font-weight:600; color:#94a3b8">STAT pending</span></div><span style="font-size:10px; font-weight:800; color:#f59e0b; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.18); border-radius:99px; padding:3px 8px">↘ 2%</span></div>
-        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1">6</div>
-        <div style="margin-top:10px; height:36px; opacity:0.9">${svgSpark([4,7,5,8,6,9,6], '#f59e0b')}</div>
+        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1">${statPending}</div>
+        <div style="margin-top:10px; height:36px; opacity:0.9">${svgSpark([statPending, statPending+1, statPending+2], '#f59e0b')}</div>
       </div>
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:18px; padding:16px 18px; position:relative; overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.24)">
         <div style="position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, rgba(139,92,246,0.2), transparent)"></div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px"><div style="display:flex; align-items:center; gap:8px"><div style="width:32px; height:32px; border-radius:10px; background:rgba(139,92,246,0.12); border:1px solid rgba(139,92,246,0.18); display:flex; align-items:center; justify-content:center; color:#a78bfa">✓</div><span style="font-size:11px; font-weight:600; color:#94a3b8">EQA composite</span></div><span style="font-size:10px; font-weight:800; color:#10b981; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.18); border-radius:99px; padding:3px 8px">↗ 0.5%</span></div>
-        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1">94.6%</div>
+        <div style="font-size:32px; font-weight:800; color:#f8fafc; line-height:1">${eqaComposite}%</div>
         <div style="margin-top:10px; height:36px; opacity:0.9">${svgSpark([89.5,90.2,92.8,91.4,94.1,94.6], '#8b5cf6')}</div>
       </div>
     </div>
 
     <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:14px; margin-bottom:18px">
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:20px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.28)">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px"><span style="font-size:10px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#D4A853">Throughput · Last 14 Days</span><div style="display:flex; gap:12px; font-size:10px; font-weight:700"><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#D4A853; border-radius:2px"></i>REGISTERED</span><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#14b8a6; border-radius:2px"></i>RESULTED</span></div></div>
-        <h3 style="font-size:20px; font-weight:700; color:#f8fafc; margin:0 0 16px; letter-spacing:-0.3px">Samples registered vs <i style="font-family:serif; font-style:italic; color:#D4A853; font-weight:400">resulted</i></h3>
-        <div style="min-height:260px">${svgLineChart(regVsResSeries, {xLabels: regVsResLabels, h:260})}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:8px"><span style="font-size:10px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#D4A853">Sample Volume · All Time</span><div style="display:flex; gap:8px; align-items:center"><select id="dashFYToggle" style="padding:4px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.3); font-size:11px; font-weight:700; color:#e2e8f0"><option value="all">All Time</option><option value="fy">FY ${fyInfo(today).label}</option></select><div style="display:flex; gap:12px; font-size:10px; font-weight:700"><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#D4A853; border-radius:2px"></i>REGISTERED</span><span style="display:flex; align-items:center; gap:6px; color:#94a3b8"><i style="width:12px; height:2px; background:#14b8a6; border-radius:2px"></i>RESULTED</span></div></div></div>
+        <h3 style="font-size:20px; font-weight:700; color:#f8fafc; margin:0 0 6px; letter-spacing:-0.3px">Samples registered vs <i style="font-family:serif; font-style:italic; color:#D4A853; font-weight:400">resulted</i></h3>
+        <p style="font-size:11px; color:#94a3b8; margin-bottom:12px">Total ${totalFY} samples · FY toggle · real data from referred modules</p>
+        <div style="min-height:260px" id="dashSampleVolumeBox">${svgLineChart(regVsResSeries, {xLabels: regVsResLabels, h:260})}</div>
       </div>
       <div style="background:rgba(17,24,39,0.64); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:20px; box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.28)">
         <div style="font-size:10px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#D4A853; margin-bottom:4px">Sample Pipeline</div>
         <h3 style="font-size:20px; font-weight:700; color:#f8fafc; margin:0 0 16px">Status <i style="font-family:serif; font-style:italic; color:#D4A853; font-weight:400">breakdown</i></h3>
         <div style="display:flex; flex-direction:column; align-items:center; gap:16px">
-          <div>${svgDonut([{label:'Resulted', value:412, color:'#14b8a6'},{label:'Pending', value:96, color:'#D4A853'},{label:'In Transit', value:38, color:'#60a5fa'},{label:'Archived', value:154, color:'#475569'}], {center:'700', width:180, height:180})}</div>
+          <div>${(() => {
+            const realStatus=[
+              {label:'Resulted', value:resulted, color:'#14b8a6'},
+              {label:'Pending', value:pend.length, color:'#D4A853'},
+              {label:'In Transit', value:inTransit, color:'#60a5fa'},
+              {label:'Archived', value:archived, color:'#475569'}
+            ].filter(x=>x.value>0);
+            if(!realStatus.length) return '<div class="empty">No status data - real</div>';
+            return svgDonut(realStatus, {center: String(totalFY), width:180, height:180});
+          })()}</div>
           <div style="width:100%; display:flex; flex-direction:column; gap:8px; font-size:12px">
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#14b8a6"></i>Resulted</span><span style="color:#94a3b8">412</span></div>
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#D4A853"></i>Pending</span><span style="color:#94a3b8">96</span></div>
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#60a5fa"></i>In Transit</span><span style="color:#94a3b8">38</span></div>
-            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#475569"></i>Archived</span><span style="color:#94a3b8">154</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#14b8a6"></i>Resulted</span><span style="color:#94a3b8">${resulted}</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#D4A853"></i>Pending</span><span style="color:#94a3b8">${pend.length}</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#60a5fa"></i>In Transit</span><span style="color:#94a3b8">${inTransit}</span></div>
+            <div style="display:flex; justify-content:space-between"><span style="display:flex; align-items:center; gap:8px"><i style="width:8px; height:8px; border-radius:50%; background:#475569"></i>Archived</span><span style="color:#94a3b8">${archived}</span></div>
           </div>
         </div>
       </div>
@@ -3296,6 +3336,28 @@ function renderDash(){
   if(regBtn) regBtn.onclick=()=>openSampleForm();
   const manBtn=document.getElementById('dashManifest');
   if(manBtn) manBtn.onclick=()=>openManifestForm();
+  const fyToggle=document.getElementById('dashFYToggle');
+  if(fyToggle){
+    fyToggle.onchange=()=>{
+      const val=fyToggle.value;
+      const box=document.getElementById('dashSampleVolumeBox');
+      if(!box) return;
+      let filtered=samples;
+      if(val==='fy'){
+        const fy=fyInfo(today).label;
+        filtered=samples.filter(s=>{ const d=s.collectionDate||s.sentDate||''; return d && fyInfo(d).label===fy; });
+      }
+      const last14DaysFiltered=[...Array(14)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()-13+i); return d.toISOString().slice(0,10); });
+      const regFiltered=last14DaysFiltered.map(d=>filtered.filter(s=>s.collectionDate===d).length);
+      const resFiltered=last14DaysFiltered.map(d=>filtered.filter(s=>s.resultDate===d||s.reportedDate===d).length);
+      const series=[
+        {label:'REGISTERED', color:'#D4A853', values: regFiltered.map((v,i)=>({x:i,y:v}))},
+        {label:'RESULTED', color:'#14b8a6', values: resFiltered.map((v,i)=>({x:i,y:v}))}
+      ];
+      const labels=last14DaysFiltered.map(d=>{ const dt=new Date(d); return 'Feb '+(dt.getDate()<10?'0'+dt.getDate():dt.getDate()); });
+      box.innerHTML=svgLineChart(series, {xLabels: labels, h:260});
+    };
+  }
 }
 
 
@@ -4921,7 +4983,7 @@ body.viewer-mode #btnAuth {
   box-shadow:var(--shadow-gold) !important; font-weight:800 !important;
 }
 
-</style></head><body>
+</style></head><body data-theme="dark">
   <div class="head" style="text-align:center; padding:12px 0 14px; background:#F7F8FC; border-radius:12px; border:1px solid #e6e9f1; border-left:4px solid #C9A84C; margin-bottom:12px"><h1 style="margin:0; font-size:20px; color:#0B1C3D; font-family:'Space Grotesk',sans-serif; font-weight:900">${ex.hospital}</h1><div style="font-size:13px; color:#0B1C3D; font-weight:700; margin-top:2px">${ex.dept}</div><div class="sub" style="font-size:11px; color:#5a6b8c; margin-top:6px">${ex.email} · ${ex.phone}</div><div style="font-size:14px; font-weight:800; color:#0B1C3D; margin-top:10px">${ex.title}</div><div style="font-size:10.5px; color:#5a6b8c; margin-top:4px">Date: ${ex.date} · FY: ${ex.fy}</div></div>
   <h2 style="text-align:center;font-size:14px;margin:6px 0">${ex.title}</h2>
   <div class="meta"><span>Date: ${ex.date}</span><span>FY: ${ex.fy}</span><span>Period: ${ex.period}</span></div>
@@ -7426,7 +7488,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v5.3.1</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v4.34.0</span>';
 }
 
 
