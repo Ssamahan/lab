@@ -1,9 +1,30 @@
 {
-  "name": "Lab Systems",
+  "name": "Lab Systems — Ruli District Hospital",
   "short_name": "Lab Systems",
-  "start_url": "./?v=5.3.1",
+  "description": "The laboratory operating console of Ruli District Hospital — referred samples, chain of custody, stock, scheduling, quality and PBF evaluation. Offline-first.",
+  "id": "/lab/",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "version": "5.3.1",
-  "background_color": "#0B0F19",
-  "theme_color": "#0B0F19"
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#05070D",
+  "theme_color": "#070A12",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["medical", "productivity", "business"],
+  "icons": [
+    { "src": "assets/favicon-32.png", "sizes": "32x32", "type": "image/png", "purpose": "any" },
+    { "src": "assets/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Register a sample", "short_name": "Register", "url": "./index.html#/samples?new=1", "icons": [{ "src": "assets/favicon-192.png", "sizes": "192x192" }] },
+    { "name": "Working plan", "short_name": "Roster", "url": "./index.html#/roster" },
+    { "name": "EQA scorecard", "short_name": "EQA", "url": "./index.html#/eqa" },
+    { "name": "Stock & supplies", "short_name": "Stock", "url": "./index.html#/stock" }
+  ],
+  "prefer_related_applications": false
 }
