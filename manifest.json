@@ -1,7 +1,9 @@
 {
   "name": "Lab Systems",
   "short_name": "Lab Systems",
-  "start_url": "./?v=5.0.2",
+  "start_url": "./?v=5.3.1",
   "display": "standalone",
-  "version": "5.0.2"
+  "version": "5.3.1",
+  "background_color": "#0B0F19",
+  "theme_color": "#0B0F19"
 }
