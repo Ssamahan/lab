@@ -733,7 +733,7 @@ try{
         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#E6C97A] flex items-center justify-center text-xs font-bold text-[#0B1C3D]">KS</div>
         <div class="brand-text" style="flex:1; min-width:0"><div style="font-size:12px; font-weight:700; color:#f1f5f9">Kelvin SAMAHANI</div><div style="font-size:10px; color:#94a3b8">Lab Manager · Admin</div></div>
       </div>
-      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.3.1 PREMIUM EXACT</div>
+      <div style="text-align:center; margin-top:8px; font-size:10px; font-weight:800; color:#C9A84C; letter-spacing:0.5px">Lab Systems v5.3.2 PREMIUM REAL</div>
       <button class="mt-2 w-full h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/5 text-xs" id="sidebarCollapseBtn">»</button>
     </div>
   </aside>
@@ -3039,10 +3039,12 @@ function renderDash(){
   try{ tatCompliance = over.length ? Math.max(0, Math.min(100, 100 - over.length*5)) : 100; }catch(e){ tatCompliance=100; }
   
   const nowTime=new Date();
-  const hour=nowTime.getHours();
+  // Use Africa/Kigali timezone for greeting to match current time in Kigali
+  const kigaliHour = parseInt(nowTime.toLocaleString('en-GB', {hour:'2-digit', hour12:false, timeZone:'Africa/Kigali'}));
+  const hour=kigaliHour;
   const greeting = hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';
-  // Live time for Kigali - updates every second for Command Center feel
   const liveTimeStr = nowTime.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'Africa/Kigali'}) + ' CAT';
+  const liveDateStr = nowTime.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric', timeZone:'Africa/Kigali'});
   let adminName='';
   try{
     if(typeof isAdmin==='function' && isAdmin()){
@@ -3179,7 +3181,7 @@ function renderDash(){
   el.innerHTML=`
   <div style="max-width:1520px; margin:0 auto; font-family:'Inter','Space Grotesk',sans-serif">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-      <div style="font-size:10px; font-weight:800; letter-spacing:0.18em; text-transform:uppercase; color:#D4A853; display:flex; align-items:center; gap:8px"><span style="color:#D4A853">✦</span>LIVE OPERATIONS · ${new Date().toLocaleDateString('en-GB',{weekday:'long', day:'numeric', month:'long', year:'numeric'}).toUpperCase()}</div>
+      <div style="font-size:10px; font-weight:800; letter-spacing:0.18em; text-transform:uppercase; color:#D4A853; display:flex; align-items:center; gap:8px"><span style="color:#D4A853">✦</span>LIVE OPERATIONS · ${liveDateStr.toUpperCase()}</div>
       <div style="font-size:10px; color:#64748B">v5.0 AURORA · ISO 15189 ALIGNED · FY ${fyInfo(today).label}</div>
     </div>
 
@@ -3327,7 +3329,7 @@ function renderDash(){
 
     <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding:12px 16px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:12px; font-size:10px; font-weight:700; letter-spacing:0.5px; color:#475569; margin-top:8px; backdrop-filter:blur(12px)">
       <span style="display:flex; align-items:center; gap:8px"><span style="width:6px; height:6px; background:#22c55e; border-radius:50%; box-shadow:0 0 0 3px rgba(34,197,94,0.18)"></span>ALL SYSTEMS OPERATIONAL · CLOUD SYNC: ON · ENV: PROD</span>
-      <span>PRESS ⌘K FOR COMMANDS · ${new Date().toLocaleTimeString()} · LAB SYSTEMS v5.0</span>
+      <span>PRESS ⌘K FOR COMMANDS · ${liveTimeStr} · LAB SYSTEMS v5.3.1</span>
     </div>
   </div>
   <style>@keyframes pulse{0%,100%{transform:scale(1); opacity:1}50%{transform:scale(1.15); opacity:0.8}} @keyframes shimmer{0%{transform:translateX(-100%)} 100%{transform:translateX(200%)}}</style>
@@ -7493,7 +7495,7 @@ function updateChips(){
   const t=new Date(); $('#dateChip').textContent=t.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   $('#fyChip').textContent='FY '+fyInfo(todayISO()).label;
   const st=activeStaff().length;
-      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v5.3.1 PREMIUM EXACT</span>';
+      const sf=$('#sideFoot'); if(sf) sf.innerHTML='<span style="color:#C9A84C; font-weight:800; letter-spacing:0.4px; font-size:13px">Lab Systems v5.3.2 PREMIUM REAL</span>';
 }
 
 
