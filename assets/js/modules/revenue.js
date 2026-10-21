@@ -6,8 +6,15 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.revenue=M;
 let rootEl=null;
+const EXPENSE_CATS=['Transport','Per-diem','Materials','Meal','Housing','Communication','Equipment','Other'];
+const catLabel=e=>{ const c=e&&(e.cat||'Other'); return e&&e.custom?'Other — '+c:c; };
 const sumExp=t=>U.sum(t.expenses||[],e=>e.amount||0);
 const sumReimb=t=>U.sum(t.reimbursements||[],r=>r.amount||0);
+function catOptions(cur){
+  const list=EXPENSE_CATS.slice();
+  if(cur && list.indexOf(cur)<0) list.push(cur);
+  return list.map(c=>'<option value="'+U.esc(c)+'"'+(c===cur?' selected':'')+'>'+U.esc(c)+'</option>').join('');
+}
 function data(){
   const list=S.db().trainingExpenses||[];
   const exp=U.sum(list,sumExp), reimb=U.sum(list,sumReimb);
@@ -45,7 +52,7 @@ function drawer(id){
     body:'<div class="row wrap" style="gap:6px;margin-bottom:14px"><span class="pill gold">'+U.esc(t.organizer||'—')+'</span><span class="pill slate">'+U.esc(t.location||'—')+'</span><span class="pill '+(r>=e?'teal':'amber')+'">'+(r>=e?'settled':'pending')+'</span></div>'
      +'<div class="split-3" style="margin-bottom:14px">'+[['Expenses',e,'amber'],['Reimbursed',r,'teal'],['Net',r-e,r-e>=0?'teal':'rose']].map(([k,v,tone])=>'<div class="card pad"><div class="eyebrow">'+k+'</div><div class="serif" style="font-size:1.4rem;margin-top:4px;color:var(--'+(tone==='teal'?'pos':tone==='rose'?'crit':'warn')+')">'+U.fmtNum(v)+'</div><div class="xs faint">RWF</div></div>').join('')+'</div>'
      +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('receipt',14,'ic')+'Expense lines</div></div><button class="btn xs" data-add-exp>'+UI.ic('plus',12)+'Add line</button></div><div class="card-body">'
-       +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(x.cat||'')+' · '+U.fmtDate(x.date)+'</div></div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>').join('')
+       +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div></div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>'+(x.desc&&x.custom?'':'' )).join('')
      +'</div></div>'
      +'<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('banknote',14,'ic')+'Reimbursements</div></div><button class="btn xs" data-add-reimb>'+UI.ic('plus',12)+'Add</button></div><div class="card-body">'
        +((t.reimbursements||[]).length?(t.reimbursements||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.source||'Reimbursement')+'</div><div class="lr-sub">'+U.fmtDate(x.date)+(x.note?' · '+U.esc(x.note):'')+'</div></div><div class="lr-val" style="color:var(--pos)">'+U.fmtNum(x.amount)+'</div></div>').join(''):'<p class="xs faint">No reimbursement recorded yet.</p>')
@@ -57,7 +64,7 @@ function drawer(id){
       panel.querySelector('[data-print]').onclick=()=>{
         U.printDoc('Training revenue statement — '+t.title,
           '<table><thead><tr><th>Item</th><th>Category</th><th>Date</th><th>Amount (RWF)</th></tr></thead><tbody>'
-          +(t.expenses||[]).map(x=>'<tr><td>'+U.esc(x.desc||'')+'</td><td>'+U.esc(x.cat||'')+'</td><td>'+U.fmtDate(x.date)+'</td><td>'+U.fmtNum(x.amount)+'</td></tr>').join('')
+          +(t.expenses||[]).map(x=>'<tr><td>'+U.esc(x.desc||'')+'</td><td>'+U.esc(catLabel(x))+'</td><td>'+U.fmtDate(x.date)+'</td><td>'+U.fmtNum(x.amount)+'</td></tr>').join('')
           +'<tr><td colspan="3"><b>Total expenses</b></td><td><b>'+U.fmtNum(e)+'</b></td></tr></tbody></table>'
           +'<p style="margin-top:8px;font-size:9px">Reimbursed: '+U.fmtRWF(r)+' · Net: '+U.fmtRWF(r-e)+'</p>',{meta:'<span>Prepared by '+U.esc(LS.auth.user.name)+'</span>'});
       };
@@ -68,16 +75,27 @@ function addLine(t,kind,panel){
     '<div class="form-grid"><div class="field span2"><label>Description</label><input class="input" id="lnDesc" placeholder="'+(kind==='expense'?'Transport to Musanze':'RBC reimbursement')+'"></div>'
     +'<div class="field"><label>Amount (RWF)</label><input class="input mono" id="lnAmt" type="number" min="0" value="0"></div>'
     +'<div class="field"><label>Date</label><input class="input mono" id="lnDate" type="date" value="'+U.todayISO()+'"></div>'
-    +(kind==='expense'?'<div class="field span2"><label>Category</label><select class="select" id="lnCat"><option>Transport</option><option>Per-diem</option><option>Materials</option><option>Other</option></select></div>':'<div class="field span2"><label>Source</label><input class="input" id="lnSrc" value="RBC"></div>')+'</div>',
+    +(kind==='expense'?'<div class="field"><label>Category</label><select class="select" id="lnCat">'+catOptions('Transport')+'</select></div>'
+      +'<div class="field" id="lnCatOtherWrap" style="display:none"><label>Custom category</label><input class="input" id="lnCatOther" placeholder="e.g. Venue hire, Translator, Printing"></div>'
+      :'<div class="field span2"><label>Source</label><input class="input" id="lnSrc" value="RBC"></div>')+'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save line</button>',
     onMount:(el,close)=>{
+      const catSel=el.querySelector('#lnCat'), otherWrap=el.querySelector('#lnCatOtherWrap');
+      if(catSel) catSel.onchange=()=>{ const isOther=catSel.value==='Other'; otherWrap.style.display=isOther?'':'none'; if(isOther) otherWrap.querySelector('input').focus(); };
       el.querySelector('[data-save]').onclick=()=>{
         if(!LS.auth.guard('revenue')) return;
         const amt=+el.querySelector('#lnAmt').value;
+        let catVal=catSel?catSel.value:'';
+        let custom=false;
+        if(catSel && catSel.value==='Other'){
+          const customLabel=(el.querySelector('#lnCatOther').value||'').trim();
+          if(!customLabel) return UI.toast('Name the custom expense category',{type:'warn'});
+          catVal=customLabel; custom=true;
+        }
         S.commit(d=>{ const x=d.trainingExpenses.find(y=>y.id===t.id); if(!x) return;
-          if(kind==='expense'){ x.expenses=x.expenses||[]; x.expenses.push({id:U.uid('x'),cat:el.querySelector('#lnCat').value,desc:el.querySelector('#lnDesc').value,amount:amt,date:el.querySelector('#lnDate').value}); }
+          if(kind==='expense'){ x.expenses=x.expenses||[]; x.expenses.push({id:U.uid('x'),cat:catVal,custom,desc:el.querySelector('#lnDesc').value,amount:amt,date:el.querySelector('#lnDate').value}); }
           else { x.reimbursements=x.reimbursements||[]; x.reimbursements.push({id:U.uid('r'),amount:amt,date:el.querySelector('#lnDate').value,source:el.querySelector('#lnSrc').value,note:el.querySelector('#lnDesc').value}); }
-        },{action:'revenue.'+kind,entity:'trainingExpenses',entityId:t.id,detail:kind+' RWF '+amt+' · '+t.title});
+        },{action:'revenue.'+kind,entity:'trainingExpenses',entityId:t.id,detail:kind+' RWF '+amt+' · '+(kind==='expense'?catLabel({cat:catVal,custom}):'')+' · '+t.title});
         close(); UI.closeAll(); UI.toast('Revenue line saved',{type:'ok'}); LS.shell.refresh();
       };
     }});
@@ -91,15 +109,27 @@ function addSession(){
      +'<div class="field"><label>Start</label><input class="input mono" type="date" id="rsStart" value="'+U.todayISO()+'"></div>'
      +'<div class="field"><label>End</label><input class="input mono" type="date" id="rsEnd" value="'+U.todayISO()+'"></div>'
      +'<div class="field"><label>Expense (RWF)</label><input class="input mono" id="rsExp" type="number" value="0"></div>'
+     +'<div class="field"><label>Expense category</label><select class="select" id="rsCat">'+catOptions('Transport')+'</select></div>'
+     +'<div class="field" id="rsCatOtherWrap" style="display:none"><label>Custom category</label><input class="input" id="rsCatOther" placeholder="e.g. Venue hire, Translator"></div>'
+     +'<div class="field"><label>Expense description</label><input class="input" id="rsExpDesc" placeholder="e.g. Fuel for 4 staff to Musanze"></div>'
      +'<div class="field"><label>Reimbursement (RWF)</label><input class="input mono" id="rsRei" type="number" value="0"></div></div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save session</button>',
     onMount:(el,close)=>{
+      const catSel=el.querySelector('#rsCat'), otherWrap=el.querySelector('#rsCatOtherWrap');
+      catSel.onchange=()=>{ const isOther=catSel.value==='Other'; otherWrap.style.display=isOther?'':'none'; if(isOther) otherWrap.querySelector('input').focus(); };
       el.querySelector('[data-save]').onclick=()=>{
         const title=el.querySelector('#rsTitle').value.trim(); if(!title) return UI.toast('Title required',{type:'warn'});
         const start=el.querySelector('#rsStart').value, end=el.querySelector('#rsEnd').value;
         const exp=+el.querySelector('#rsExp').value, rei=+el.querySelector('#rsRei').value;
+        let catVal=catSel.value, custom=false;
+        if(catVal==='Other'){
+          const customLabel=(el.querySelector('#rsCatOther').value||'').trim();
+          if(!customLabel) return UI.toast('Name the custom expense category',{type:'warn'});
+          catVal=customLabel; custom=true;
+        }
+        const desc=(el.querySelector('#rsExpDesc').value||'').trim()||'Recorded expense';
         const rec={id:U.uid('te'),title,organizer:el.querySelector('#rsOrg').value,location:el.querySelector('#rsLoc').value,start,end,linkedTraining:null,
-          expenses:exp?[{id:U.uid('x'),cat:'Other',desc:'Recorded expense',amount:exp,date:end}]:[],
+          expenses:exp?[{id:U.uid('x'),cat:catVal,custom,desc,amount:exp,date:end}]:[],
           reimbursements:rei?[{id:U.uid('r'),amount:rei,date:end,source:'RBC',note:''}]:[],note:''};
         S.commit(d=>{ d.trainingExpenses.unshift(rec); },{action:'revenue.session',entity:'trainingExpenses',entityId:rec.id,detail:title+' · RWF '+exp+'/'+rei});
         close(); UI.toast('Session logged',{type:'ok'}); LS.shell.refresh();

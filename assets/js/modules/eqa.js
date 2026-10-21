@@ -43,7 +43,7 @@ function scorecard(){
    +'<div class="c4">'+UI.card({title:'Overall standing',sub:'Traffic-light interpretation',icon:'shield-check',body:
       '<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">'+C.ring(composite(),{size:104,stroke:7})+'<div><div class="strong">'+(composite()>=95?'Excellent':composite()>=90?'Acceptable':'Action required')+'</div><div class="xs faint" style="margin-top:3px">ISO 15189 §7.7.3<br>Interlaboratory comparisons</div></div></div>'
       +schemes.map(s=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:12px">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.esc(s.e.code)+' · '+U.fmtDate(s.e.reported)+'</div></div><span class="pill '+(s.pct>=90?'teal':'amber')+'">'+s.pct+'%</span></div>').join('')})+'</div>'
-   +'<div class="c12">'+UI.card({title:'Per-scheme scorecard',sub:'Analyte-level z-scores with root-cause notes',icon:'award',tools:'<button class="btn xs" data-export>'+UI.ic('download',12)+'Export</button>',body:
+   +'<div class="c12">'+UI.card({title:'Per-scheme scorecard',sub:'Analyte-level z-scores with root-cause notes',icon:'award',tools:'<button class="btn xs" data-new-eqa>'+UI.ic('plus',12)+'New round</button><button class="btn xs" data-export>'+UI.ic('download',12)+'Export</button>',body:
       '<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Scheme</th><th>Quarter</th><th>Delivered</th><th>Reported</th><th>Score</th><th>Analytes</th><th>Verdict</th></tr></thead><tbody>'
       +db.eqa.map(e=>{ const pct=e.scorePercent!=null?e.scorePercent:Math.max(0,100-Math.abs(e.score||0)*25);
         return '<tr data-eqa="'+e.id+'"><td class="strong">'+U.esc(e.program)+'</td><td class="num">'+U.esc(e.code)+'</td><td class="num">'+U.fmtDate(e.delivered)+'</td><td class="num">'+U.fmtDate(e.reported)+'</td>'
@@ -98,6 +98,69 @@ function newCapa(){
       {action:'eqa.capa',entity:'eqa',detail:'CAPA opened: '+el.querySelector('#cpTitle').value});
     close(); capaList(); UI.toast('CAPA opened and assigned',{type:'ok'}); }; }});
 }
+/* ——— Record / edit an EQA-PT round ————————————————— */
+const PROGRAMS=['Hematology','Biochemistry','Serology','HIV','TB','Microbiology','Parasitology','Blood bank','Molecular'];
+function analyzeRow(a,v,scoring){
+  return '<div class="row gap-sm" data-analyte-row style="margin-bottom:6px">'
+    +'<input class="input mono" data-an="name" placeholder="Analyte" value="'+U.esc(a||'')+'" style="flex:1;min-width:110px">'
+    +'<input class="input mono" data-an="value" type="number" step="0.1" placeholder="'+(scoring==='%'?'%':'z')+'" value="'+(v==null?'':v)+'" style="width:96px">'
+    +'<button class="icon-btn" data-rm-row style="width:30px;height:30px" aria-label="Remove analyte">'+UI.ic('x',14)+'</button></div>';
+}
+function eqaModal(id){
+  if(!LS.auth.guard('edit')) return;
+  const e=id?S.db().eqa.find(x=>x.id===id):null;
+  const scoring=e?e.scoring:'SD';
+  const an=e?e.analytes||{}:{};
+  const rows=Object.keys(an).length?Object.keys(an).map(a=>analyzeRow(a,an[a],scoring)).join(''):analyzeRow('',null,scoring)+analyzeRow('',null,scoring);
+  const courses=U.uniq(PROGRAMS.concat(S.db().eqa.map(x=>x.program)));
+  UI.modal({title:e?'Edit EQA / PT round':'Record a new EQA / PT round',sub:'Scheme, round dates, per-analyte results and the verdict — writes straight to the EQA register.',width:'min(760px,100%)',
+    body:'<div class="form-grid">'
+      +'<div class="field"><label>Scheme / programme</label><select class="select" id="eqProgram">'+courses.map(c=>'<option'+(e&&e.program===c?' selected':'')+'>'+U.esc(c)+'</option>').join('')+'</select></div>'
+      +'<div class="field"><label>Round code</label><input class="input mono" id="eqCode" value="'+U.esc(e?e.code:'')+'" placeholder="Q3 2026/27"></div>'
+      +'<div class="field"><label>Scoring</label><select class="select" id="eqScoring"><option value="SD"'+(scoring==='SD'?' selected':'')+'>SD index (z-score)</option><option value="%"'+(scoring==='%'?' selected':'')+'>Percentage recovery</option></select></div>'
+      +'<div class="field"><label>Material delivered</label><input class="input" type="date" id="eqDelivered" value="'+(e&&e.delivered?String(e.delivered).slice(0,10):U.todayISO())+'"></div>'
+      +'<div class="field"><label>Tested on</label><input class="input" type="date" id="eqTested" value="'+(e&&e.tested?String(e.tested).slice(0,10):U.todayISO())+'"></div>'
+      +'<div class="field"><label>Results reported</label><input class="input" type="date" id="eqReported" value="'+(e&&e.reported?String(e.reported).slice(0,10):U.todayISO())+'"></div>'
+      +'<div class="field"><label>Score published</label><input class="input" type="date" id="eqPublished" value="'+(e&&e.scorePublished?String(e.scorePublished).slice(0,10):'')+'"></div>'
+      +'<div class="field"><label>Verdict</label><select class="select" id="eqOverall"><option'+(e&&e.overall==='Pass'?' selected':'')+'>Pass</option><option'+(e&&e.overall==='Review'?' selected':'')+'>Review</option><option'+(e&&/Fail/i.test(e.overall||'')?' selected':'')+'>Fail</option></select></div>'
+      +'<div class="field span2"><label>Analyte results <span class="xs faint">— z-score (SD) or recovery (%)</span></label><div id="eqAnalyteRows">'+rows+'</div>'
+      +'<button class="btn xs" data-add-analyte style="margin-top:4px">'+UI.ic('plus',12)+'Add analyte</button></div>'
+      +'<div class="field span2"><label>Note / root cause</label><textarea class="textarea" id="eqNote" rows="2">'+U.esc(e?e.note||'':'')+'</textarea></div></div>'
+      +'<div class="hint" style="margin-top:8px">The verdict you choose is stored as-is; z-scores still colour the scorecard and any |z| ≥ 3 is flagged for CAPA.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+(e?'Save round':'Record round')+'</button>',
+    onMount:(el,close)=>{
+      const host=el.querySelector('#eqAnalyteRows');
+      const scoringSel=el.querySelector('#eqScoring');
+      const bindRows=()=>host.querySelectorAll('[data-rm-row]').forEach(b=>b.onclick=()=>{ if(host.querySelectorAll('[data-analyte-row]').length>1) b.closest('[data-analyte-row]').remove(); });
+      bindRows();
+      el.querySelector('[data-add-analyte]').onclick=()=>{ host.insertAdjacentHTML('beforeend',analyzeRow('',null,scoringSel.value)); bindRows(); };
+      scoringSel.onchange=()=>host.querySelectorAll('[data-an="value"]').forEach(i=>i.placeholder=scoringSel.value==='%'?'%':'z');
+      el.querySelector('[data-save]').onclick=()=>{
+        const program=el.querySelector('#eqProgram').value;
+        const code=el.querySelector('#eqCode').value.trim()||'Round';
+        const scoring=scoringSel.value;
+        const analytes={};
+        host.querySelectorAll('[data-analyte-row]').forEach(row=>{
+          const name=row.querySelector('[data-an="name"]').value.trim();
+          const val=parseFloat(row.querySelector('[data-an="value"]').value);
+          if(name && !isNaN(val)) analytes[name]=val;
+        });
+        if(!Object.keys(analytes).length) return UI.toast('Enter at least one analyte result',{type:'warn'});
+        const vals=Object.values(analytes);
+        const rec={program,code,scoring,
+          delivered:el.querySelector('#eqDelivered').value,tested:el.querySelector('#eqTested').value,
+          reported:el.querySelector('#eqReported').value,scorePublished:el.querySelector('#eqPublished').value||null,
+          overall:el.querySelector('#eqOverall').value,analytes,note:el.querySelector('#eqNote').value.trim()};
+        rec.score=scoring==='SD'?Math.round(U.avg(vals.map(v=>Math.abs(v)))*10)/10:null;
+        rec.scorePercent=scoring==='%'?Math.round(U.avg(vals)):null;
+        S.commit(d=>{
+          if(e){ const x=d.eqa.find(y=>y.id===e.id); if(x) Object.assign(x,rec); }
+          else d.eqa.unshift(Object.assign({id:U.uid('eqa')},rec));
+        },{action:'eqa.round.'+(e?'edit':'add'),entity:'eqa',entityId:e?e.id:code,detail:program+' · '+code+' · '+Object.keys(analytes).length+' analytes · '+(rec.overall||'')});
+        close(); paint(); UI.toast(e?'EQA round updated':'EQA round recorded · '+Object.keys(analytes).length+' analytes',{type:'ok'});
+      };
+    }});
+}
 function paint(){
   const host=rootEl.querySelector('#eqaBody'); if(!host) return;
   host.innerHTML=tab==='scorecard'?scorecard():qcCalendar();
@@ -112,9 +175,10 @@ function wireBody(){
     C.line(r.querySelector('#eqaTrend'),{id:'eqaT',height:230,min:70,max:100,series:[{name:'Composite',color:'var(--gold)',values:tr.values}],labels:tr.labels,target:{value:90,label:'target 90%'},yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%',drawMs:1400});
     r.querySelectorAll('[data-eqa]').forEach(tr2=>tr2.onclick=()=>{ const e=S.db().eqa.find(x=>x.id===tr2.dataset.eqa); if(e) UI.drawer({title:e.program+' · '+e.code,eyebrow:'EQA round',body:'<div class="split-2">'+[['Delivered',U.fmtDate(e.delivered)],['Tested',U.fmtDate(e.tested)],['Reported',U.fmtDate(e.reported)],['Score published',U.fmtDate(e.scorePublished)],['Scoring',e.scoring==='%'?'Percentage':'Standard deviation index'],['Verdict',e.overall||'Pass']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
       +'<div class="section-head"><h2>Analyte detail</h2></div>'+Object.keys(e.analytes||{}).map(a=>{ const z=e.analytes[a]; const az=Math.abs(z); return '<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(a)+'</div><div class="lr-sub">'+(e.scoring==='%'?'recovery':'z-score')+' · '+(az>=3?'unsatisfactory':az>=2?'warning':'acceptable')+'</div></div><span class="pill '+(az>=3?'rose':az>=2?'amber':'teal')+' mono">'+(z>0?'+':'')+z+'</span></div>'; }).join('')
-      +'<div class="hint" style="margin-top:12px">'+U.esc(e.note||'')+'</div>',foot:'<button class="btn" data-close>Close</button><button class="btn primary" data-capa2>Open CAPA</button>',onMount:(p)=>{ p.querySelector('[data-capa2]').onclick=()=>{ UI.closeAll(); newCapa(); }; }}); });
+      +'<div class="hint" style="margin-top:12px">'+U.esc(e.note||'')+'</div>',foot:'<button class="btn" data-close>Close</button>'+'<button class="btn" data-edit-round>'+UI.ic('pencil',15)+'Edit round</button><button class="btn primary" data-capa2>Open CAPA</button>',onMount:(p)=>{ p.querySelector('[data-capa2]').onclick=()=>{ UI.closeAll(); newCapa(); }; p.querySelector('[data-edit-round]').onclick=()=>{ UI.closeAll(); eqaModal(e.id); }; }}); });
     capaList();
     r.querySelectorAll('[data-new-capa]').forEach(b=>b.onclick=newCapa);
+    r.querySelectorAll('[data-new-eqa]').forEach(b=>b.onclick=()=>eqaModal());
     r.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>{
       U.exportCSV('eqa-pt-scores-'+U.todayISO()+'.csv',[['Program','Quarter','Delivered','Reported','Score','Percent','Verdict','Analytes']].concat(S.db().eqa.map(e=>[e.program,e.code,e.delivered,e.reported,e.score!=null?e.score:'',e.scorePercent||'',e.overall||'',JSON.stringify(e.analytes||{})])),{title:'EQA / PT scorecard',actor:LS.auth.user.name});
       UI.toast('EQA scorecard exported',{type:'ok'});
@@ -127,7 +191,7 @@ function wireBody(){
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'scorecard';
   root.innerHTML='<div class="page-head"><div><h1>EQA / PT scores</h1><div class="sub">ISO 15189 as a product feature — proficiency testing, z-scores, Westgard rules and corrective action, in one auditable scorecard.</div></div>'
-   +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn primary" data-new-capa>'+UI.ic('plus',15)+' Open CAPA</button></div></div>'
+   +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-new-capa>'+UI.ic('clipboard-check',15)+' Open CAPA</button><button class="btn primary" data-new-eqa>'+UI.ic('plus',15)+' Record EQA round</button></div></div>'
    +kpis()
    +'<div class="filters" style="margin-bottom:12px">'+[['scorecard','Scorecard'],['qc','QC calendar']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-eqa-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="eqaBody"></div>';

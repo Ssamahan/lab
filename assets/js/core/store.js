@@ -309,7 +309,8 @@ function sampleTAT(test, settings, catalog){
   const t=(settings.tat||{})[test]; if(t) return t;
   const cat=((catalog||(DB&&DB.catalog)||{}).tests||[]).find(x=>x.name===test); return cat? cat.tat : 3;
 }
-function generateSamples(seedDB){
+function generateSamples(seedDB,opts){
+  opts=opts||{};
   const settings=seedDB.settings;
   const tests=seedDB.catalog.tests.filter(t=>t.bench);
   const testsAll=seedDB.catalog.tests;
@@ -318,13 +319,15 @@ function generateSamples(seedDB){
   const hospitals=seedDB.catalog.hospitals;
   const names=['MUKAMANA Alice','NSENGIMANA Eric','UWIMANA Claudine','HABIMANA Jean','UWAYO Solange','NIRERE Diane','MUGISHA Patrick','AKIMANA Yvonne','BIZIMANA Olivier','KAYITESI Grace','NSHUTI Samuel','Uwase Marie','HAGENIMANA Fiston','MUKARUGWIZA Josiane','NDAYISABA Clément','INGABIRE Peace','RUKUNDO Aimable','MUKANDOLI Béatrice','SIBOMANA Romain','UWAMAHORO Chantal','NKURUNZIZA Innocent','TUMUKUNDE Fabrice','MUTONI Sandrine','HABIYAREMYE Aline','GAHIGI Emmanuel','KAMIKAZI Rose','MBONIMPA Thierry','NSABIMANA Liliane','MURENZI Damascène','UWASE Chantal','BIZIMUNGU Alice','NZABONIMPA Eric'];
   const priorities=['Routine','Routine','Routine','STAT','Routine','Follow-up','STAT','Routine'];
-  const out=[]; let seq=120000;
-  for(let d=44; d>=0; d--){
+  const out=[]; let seq=opts.seq||120000; const span=opts.days||45; const tag=opts.tag||'';
+  const skipDates=opts.skipDates||null;
+  for(let d=span-1; d>=0; d--){
     const date=U.addDays(U.todayISO(),-d);
+    if(skipDates && skipDates.has(date)) continue;
     const dow=U.dow(date);
-    const r=U.rng('smp-'+date);
+    const r=U.rng('smp-'+tag+date);
     const base = dow>=5 ? 3 : 8;
-    const n = base + Math.floor(r()*4);
+    const n = Math.max(0,Math.round((base + Math.floor(r()*4))*(opts.rate||1)));
     for(let i=0;i<n;i++){
       const t=tests[Math.floor(r()*tests.length)];
       const pri=priorities[Math.floor(r()*priorities.length)];
@@ -348,7 +351,7 @@ function generateSamples(seedDB){
       const resultedAt = status==='Done'||status==='Resulted' ? new Date(new Date(collectedAt+'Z').getTime()+resultDelayH*3600*1000).toISOString() : null;
       const source = (d>=17 && out.length<6) ? 'register' : 'telemetry';
       const rec={
-        id:'sm'+seq, sampleId:'RDH-'+U.fyLabel().slice(-4)+'-'+String(seq).padStart(6,'0'), patientName:names[Math.floor(r()*names.length)],
+        id:'sm'+tag+seq, sampleId:'RDH-'+U.fyLabel().slice(-4)+'-'+String(seq).padStart(6,'0'), patientName:names[Math.floor(r()*names.length)],
         patientId:'4'+Math.floor(r()*900000+100000), dob:'', sex:r()<0.55?'Female':'Male',
         test, testCode:t.code, cat:t.cat, hospital:hosp, healthFacility:hc, district:'Gakenke',
         collectionDate:date, sentDate:date, collectionAt:collectedAt, receivedAt, resultedAt,
@@ -418,6 +421,8 @@ function normalize(db){
   db.trainingExpenses=db.trainingExpenses||[]; db.leaves=db.leaves||[]; db.holidays=db.holidays||[];
   db.workingPlans=db.workingPlans||{}; db.unitRosters=db.unitRosters||{};
   db.eqa=db.eqa||[]; db.staff=db.staff||[]; db.absences=db.absences||[]; db.versions=db.versions||[];
+  db.services=db.services||DEFAULT_SERVICES.map(x=>Object.assign({},x));
+  db.pbfVisits=db.pbfVisits||[];
   db.audit=db.audit||[]; db.notifRead=db.notifRead||[]; db.notifications=db.notifications||[];
   db.suppliers=db.suppliers||buildSuppliers();
   db.equipment=db.equipment||buildEquipment();
@@ -459,9 +464,25 @@ function normalize(db){
     db.meta.sampleSeq=Math.max.apply(null,seqs.concat([120000]));
     db.meta.telemetrySeeded=true;
   }
-  // current-month draft plan
-  const mk=U.monthKey();
-  if(!db.workingPlans[mk]) db.workingPlans[mk]={ primary:generatePlan(mk,db), versions:[] };
+  // Twelve months of collection history so the monthly throughput view can show
+  // slow assays (TB culture, viral load) that report months after registration.
+  if(!db.meta.throughputBackfill){
+    const have=new Set(db.samples.map(s=>s.collectionDate).filter(Boolean));
+    const hist=generateSamples(db,{days:395,seq:800000,tag:'h',skipDates:have,rate:0.35});
+    db.samples=db.samples.concat(hist);
+    db.meta.throughputBackfill=U.todayISO();
+  }
+  // Working plans are authoritative register data: never invent one here.
+  // A month without a stored plan stays empty until a human generates a draft.
+  db.workingPlans=db.workingPlans||{};
+  // Plans that came from a signed/attached register are flagged official so the
+  // console never regenerates them without archiving the previous version first.
+  Object.keys(db.workingPlans).forEach(k=>{
+    const e=db.workingPlans[k]; const p=e&&e.primary;
+    if(p&&p.meta&&typeof p.meta.official!=='boolean'){
+      p.meta.official=/official|pushed from attached|signed/i.test(p.meta.label||'')&&!p.meta.generated;
+    }
+  });
   // audit seed
   if(!db.audit.length){
     DB=db;
@@ -536,7 +557,10 @@ S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[t]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;
 S.buildPlan=mk=>generatePlan(mk,S.db());
-S.ensurePlan=function(mk){ const db=S.db(); if(!db.workingPlans[mk]){ db.workingPlans[mk]={ primary:generatePlan(mk,db), versions:[] }; S.save(); } return db.workingPlans[mk]; };
+S.ensurePlan=function(mk){ const db=S.db(); return db.workingPlans[mk]||null; };
+S.hasPlan=mk=>!!(S.db().workingPlans[mk]&&S.db().workingPlans[mk].primary);
+S.createPlan=function(mk){ const db=S.db(); db.workingPlans[mk]={ primary:generatePlan(mk,db), versions:[] }; S.save(); return db.workingPlans[mk]; };
+S.planMonths=function(){ return Object.keys(S.db().workingPlans||{}).filter(k=>S.db().workingPlans[k]&&S.db().workingPlans[k].primary).sort(); };
 S.planFor=mk=>S.db().workingPlans[mk]||null;
 
 /* TAT computation */
@@ -590,6 +614,103 @@ S.throughput=function(days){
   }
   return out;
 };
+/* Monthly throughput — the unit only refers a few samples a month, and slow
+   assays (TB culture, viral load) finish months later, so daily buckets hide them. */
+S.monthlyThroughput=function(months){
+  const db=S.db(); const n=months||12; const out=[]; const now=new Date();
+  const catOf=s=>s.cat||'Other';
+  for(let i=n-1;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const reg=db.samples.filter(s=>String(s.collectionDate||'').slice(0,7)===key);
+    const res=db.samples.filter(s=>s.resultedAt&&String(s.resultedAt).slice(0,7)===key);
+    const byCat={};
+    const bump=(s,field)=>{ const c=catOf(s); byCat[c]=byCat[c]||{registered:0,resulted:0}; byCat[c][field]++; };
+    reg.forEach(s=>bump(s,'registered'));
+    res.forEach(s=>bump(s,'resulted'));
+    out.push({key, label:U.M3[d.getMonth()]+' '+(''+d.getFullYear()).slice(2), year:d.getFullYear(),
+      registered:reg.length, resulted:res.length, stat:reg.filter(s=>s.priority==='STAT').length, byCat});
+  }
+  return out;
+};
+S.throughputCats=function(){ return U.uniq(S.db().samples.map(s=>s.cat||'Other')).sort(); };
+
+/* Plan lookups — a stored plan is the only source of truth for a day. */
+S.planForMonth=function(mk){ const e=S.db().workingPlans[mk]; return e&&e.primary?e.primary:null; };
+S.codeFor=function(staff, iso){
+  if(!staff) return null;
+  const p=S.planForMonth(String(iso).slice(0,7)); if(!p) return null;
+  const idx=(p.dates||[]).indexOf(iso); if(idx<0) return null;
+  const row=(p.staff||[]).find(s=>s.id===staff.id||s.name===staff.name); if(!row) return null;
+  return (row.codes&&row.codes[idx])||'';
+};
+S.planCovers=function(iso){
+  const p=S.planForMonth(String(iso).slice(0,7));
+  return !!(p&&(p.dates||[]).indexOf(iso)>=0&&(p.staff||[]).length);
+};
+
+/* One vocabulary for "where is this person today" — used by dashboard, roster, staff. */
+S.shiftState=function(who, iso){
+  iso=iso||U.todayISO();
+  const staff=typeof who==='string'?S.staffById(who):who;
+  const blank={code:'',kind:'unknown',label:'Unknown',tone:'slate',source:'none'};
+  if(!staff) return blank;
+  if(staff.status!=='active') return {code:'',kind:'exited',label:'Exited',tone:'slate',source:'record',
+    note:staff.exitDate?'exited '+U.fmtDate(staff.exitDate):'no longer on the establishment'};
+  const lv=S.leaves().find(l=>l.staffId===staff.id && !/declin|reject/i.test(l.status||'') && iso>=l.from && iso<=l.to);
+  if(lv) return {code:lv.type||'AL',kind:'leave',label:S.leaveTypeLabel(lv.type)+(lv.status==='Pending'?' (pending)':''),
+    tone:lv.status==='Pending'?'amber':'blue',source:'leave',requestId:lv.id};
+  const code=S.codeFor(staff,iso);
+  if(code){
+    if(code==='D')  return {code,kind:'day',label:'On duty · day',tone:'teal',source:'plan'};
+    if(code==='N')  return {code,kind:'night',label:'On duty · night',tone:'blue',source:'plan'};
+    if(code==='DN') return {code,kind:'daynight',label:'On duty · day + night',tone:'teal',source:'plan'};
+    if(code==='TR') return {code,kind:'training',label:'Training',tone:'gold',source:'plan'};
+    if(code==='AL'||code==='SICK') return {code,kind:'leave',label:S.leaveTypeLabel(code),tone:'blue',source:'plan'};
+    if(code==='OFF'||code==='W') return {code,kind:'off',label:'Off duty',tone:'slate',source:'plan'};
+  }
+  // No plan published for that day: fall back to the contract, clearly labelled.
+  const dow=U.dow(iso);
+  if(staff.weekendOnly) return dow>=5?{code:'DN',kind:'daynight',label:'On duty · day + night',tone:'teal',source:'pattern'}:{code:'OFF',kind:'off',label:'Off duty',tone:'slate',source:'pattern'};
+  if(staff.pattern==='manager'||staff.pattern==='dayonly') return dow>=5?{code:'OFF',kind:'off',label:'Off duty',tone:'slate',source:'pattern'}:{code:'D',kind:'day',label:'On duty · day',tone:'teal',source:'pattern'};
+  if(dow>=5) return {code:'OFF',kind:'off',label:'Off duty',tone:'slate',source:'pattern'};
+  // weekday: the night block alternates every two days across eligible staff
+  const eligible=S.activeStaff().filter(s=>!s.weekendOnly && s.nightPref!=='no' && (s.maxNights||0)>0);
+  if(staff.nightPref!=='no' && eligible.length){
+    const dayIndex=Math.floor(U.parseISO(iso)/86400000);
+    const crew=eligible[(Math.floor(dayIndex/2))%eligible.length];
+    if(crew && crew.id===staff.id) return {code:'N',kind:'night',label:'On duty · night',tone:'blue',source:'pattern'};
+  }
+  return {code:'D',kind:'day',label:'On duty · day',tone:'teal',source:'pattern'};
+};
+S.isOnDuty=function(who,iso){ const st=S.shiftState(who,iso); return st.kind==='day'||st.kind==='night'||st.kind==='daynight'; };
+S.onDuty=function(iso){
+  iso=iso||U.todayISO();
+  const source=S.planCovers(iso)?'plan':'pattern';
+  return S.activeStaff().map(s=>({staff:s, state:S.shiftState(s,iso)})).filter(x=>S.isOnDuty(x.staff,iso))
+    .map(x=>({staff:x.staff, shift:x.state.label, kind:x.state.kind, code:x.state.code, source, since:x.state.kind==='night'?'20:00':'08:00'}));
+};
+S.offDuty=function(iso){
+  iso=iso||U.todayISO();
+  return S.activeStaff().map(s=>({staff:s,state:S.shiftState(s,iso)})).filter(x=>x.state.kind==='off');
+};
+
+/* Laboratory services and weekly allocation (roster module). */
+const DEFAULT_SERVICES=[
+  {id:'svc1', name:'Sample reception', code:'REC', min:1, note:'Registration, accessioning, rejection'},
+  {id:'svc2', name:'Hematology', code:'HAE', min:1, note:'CBC, ESR, malaria slides'},
+  {id:'svc3', name:'Chemistry', code:'CHE', min:1, note:'Glucose, creatinine, ALT'},
+  {id:'svc4', name:'Serology', code:'SER', min:1, note:'HIV, syphilis, hepatitis'},
+  {id:'svc5', name:'Microbiology', code:'MIC', min:1, note:'Blood culture, TB, AFB'},
+  {id:'svc6', name:'Molecular (GeneXpert)', code:'MOL', min:1, note:'MTB/RIF, viral load'},
+  {id:'svc7', name:'Blood bank', code:'BBK', min:1, note:'Grouping, cross-match'}
+];
+S.services=function(){ const db=S.db(); db.services=db.services||DEFAULT_SERVICES.map(x=>({...x})); return db.services; };
+S.weekStart=function(iso){ const d=U.parseISO(iso||U.todayISO()); const dow=U.dow(U.isoLocal(d)); return U.addDays(U.isoLocal(d),-dow); };
+S.weekDates=function(start){ return Array.from({length:7},(_,i)=>U.addDays(start,i)); };
+S.unitWeek=function(start){ const db=S.db(); db.unitRosters=db.unitRosters||{}; if(!db.unitRosters[start]) db.unitRosters[start]={weekStart:start,assignments:{}}; const w=db.unitRosters[start]; w.assignments=w.assignments||{}; return w; };
+S.unitAssign=function(start,date,service){ const w=S.db().unitRosters&&S.db().unitRosters[start]; return w&&w.assignments&&w.assignments[date]?w.assignments[date][service]||'':''; };
+
 S.eqaLatest=function(){
   const db=S.db(); const byProg={};
   db.eqa.forEach(e=>{ const cur=byProg[e.program]; if(!cur || String(e.code)>String(cur.code)) byProg[e.program]=e; });
@@ -617,11 +738,6 @@ S.notifications=function(){
   return out.map(n=>Object.assign(n,{read:(db.notifRead||[]).includes(n.id)}));
 };
 S.markNotifsRead=function(ids){ const db=S.db(); ids.forEach(id=>{ if(!db.notifRead.includes(id)) db.notifRead.push(id); }); S.save(); };
-S.onDuty=function(){
-  const staff=S.activeStaff(); const now=new Date(); const hour=now.getHours();
-  const night=hour<8||hour>=20;
-  return staff.filter(s=>s.pattern!=='manager').slice(0,6).map((s,i)=>({staff:s, shift: s.weekendOnly?(U.dow(U.todayISO())>=5?'Day + Night':'Off duty'):(night&&s.nightPref!=='no'?'Night':'Day'), status:'on-duty', since: night?'20:00':'08:00'}));
-};
 S.feed=function(){
   const db=S.db();
   const fromAudit=(db.audit||[]).slice(0,8).map(a=>({icon:a.action.startsWith('stock')?'package':a.action.startsWith('sample')?'flask-conical':a.action.startsWith('leave')?'calendar-clock':'check-circle', tone:a.action.includes('reject')?'rose':a.action.startsWith('sample')?'teal':'gold', text:'<b>'+U.esc(a.actor)+'</b> — '+U.esc(a.detail||a.action), ts:a.ts}));

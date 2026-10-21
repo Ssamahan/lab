@@ -5,17 +5,19 @@
 'use strict';
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.roster=M;
-let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false;
+let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
 const CODES=[['D','Day 08–20'],['N','Night 20–08'],['DN','Day + Night'],['OFF','Off'],['AL','Annual leave'],['TR','Training'],['SICK','Sick leave'],['W','Weekend / rest']];
 
-function plan(){ const db=S.db(); const key=mk||U.monthKey(); if(!db.workingPlans[key]){ db.workingPlans[key]={primary:null,versions:[]}; } return db.workingPlans[key].primary; }
-function ensurePlan(){
-  const db=S.db(); const key=mk||U.monthKey();
-  if(!db.workingPlans[key] || !db.workingPlans[key].primary){
-    S.commit(d=>{ d.workingPlans[key]={primary:S.buildPlan(key),versions:[]}; },{action:'roster.generate',entity:'workingPlans',entityId:key,detail:'Draft plan generated for '+U.monthLabel(key)});
-  }
-  return plan();
+function plan(){ const e=S.db().workingPlans[mk||U.monthKey()]; return e&&e.primary?e.primary:null; }
+function ensurePlan(){ return plan(); }
+function planState(p){
+  if(!p) return {label:'No plan for '+U.monthLabel(mk),tone:'rose',official:false};
+  const official=p.meta&&p.meta.official;
+  if(official) return {label:'Official · '+U.monthLabel(mk),tone:'gold',official:true};
+  if(p.meta&&p.meta.generated) return {label:'Draft · '+U.monthLabel(mk),tone:'amber',official:false};
+  return {label:'Edited plan · '+U.monthLabel(mk),tone:'teal',official:false};
 }
+function monthKeyOf(){ return mk||U.monthKey(); }
 const codeOf=(p,si,di)=> (p&&p.staff[si]&&p.staff[si].codes[di])||'';
 
 function coverage(p){
@@ -49,22 +51,28 @@ function fairness(p){
 
 function header(){
   const p=plan();
-  const off=!p;
-  const label=p?p.label:U.monthLabel(mk);
-  return '<div class="page-head"><div><h1>Working plan</h1><div class="sub">A true calendar for the bench: staff × days, weekend shading, today marker, live coverage and a fairness ledger that survives scrutiny.</div></div>'
+  const st=planState(p);
+  const label=U.monthLabel(mk||U.monthKey());
+  return '<div class="page-head"><div><h1>Working plan</h1><div class="sub">A true calendar for the bench: staff × days, weekend shading, today marker, live coverage and a fairness ledger that survives scrutiny.</div>'
+   +'<div class="row wrap gap-sm" style="margin-top:8px"><span class="pill '+st.tone+'">'+UI.ic(st.official?'lock':'file-text',11)+U.esc(st.label)+'</span>'
+   +(p&&p.meta&&p.meta.label?'<span class="xs faint">'+U.esc(p.meta.label)+'</span>':'<span class="xs faint">Stored plans are never auto-generated — a month without a plan stays empty until someone creates one.</span>')+'</div></div>'
    +'<div class="actions">'
      +'<div class="seg" style="margin-right:4px"><button data-nav="-1" aria-label="Previous month">'+UI.ic('chevron-left',14)+'</button><button data-nav="0" style="font-family:var(--font-mono);font-size:11px;min-width:92px">'+U.esc(label)+'</button><button data-nav="1" aria-label="Next month">'+UI.ic('chevron-right',14)+'</button></div>'
      +'<button class="btn" data-generate>'+UI.ic('sparkles',15)+' Generate draft</button>'
      +'<button class="btn" data-patterns>'+UI.ic('layers',15)+' Patterns</button>'
      +'<button class="btn primary" data-print>'+UI.ic('printer',15)+' Print roster</button>'
    +'</div></div>'
-   +'<div class="filters" style="margin-bottom:12px">'+[['grid','Shift grid'],['fairness','Fairness'],['swaps','Swap requests']].map(([k,l])=>'<button class="filter-tab '+(view===k?'on':'')+'" data-view="'+k+'">'+l+'</button>').join('')+'</div>';
+   +'<div class="filters" style="margin-bottom:12px">'+[['grid','Shift grid'],['week','Weekly roster'],['services','Lab services'],['fairness','Fairness'],['swaps','Swap requests']].map(([k,l])=>'<button class="filter-tab '+(view===k?'on':'')+'" data-view="'+k+'">'+l+'</button>').join('')+'</div>';
 }
 function legend(){
   return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day</span><span class="shift-code N">N</span><span class="xs faint">Night</span><span class="shift-code DN">DN</span><span class="xs faint">Day+Night</span><span class="shift-code AL">AL</span><span class="xs faint">Leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">Off</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
 }
 function gridView(){
-  const p=ensurePlan(); if(!p) return UI.empty({art:'calendar',title:'No plan for this month',body:'Generate a draft from staff patterns and approved leave.'});
+  const p=plan();
+  if(!p) return '<div class="card pad">'+UI.empty({art:'calendar',title:'No working plan for '+U.monthLabel(mk),
+    body:'This month has never been generated or imported, and the console will not invent one — the plan in force is register data. Create a draft from staff patterns and approved leave, or add shifts cell by cell.',
+    action:'<div class="row gap-sm" style="justify-content:center;flex-wrap:wrap"><button class="btn primary" data-empty-generate>'+UI.ic('sparkles',15)+' Generate draft</button><button class="btn" data-empty-blank>'+UI.ic('square-pen',15)+' Start a blank month</button></div>'
+      +(S.planMonths().filter(k=>k!==mk).length?'<div class="row wrap gap-sm" style="justify-content:center;margin-top:14px"><span class="xs faint">Stored plans:</span>'+S.planMonths().filter(k=>k!==mk).map(k=>'<button class="btn xs" data-open-month="'+k+'">'+U.ic('calendar-days',12)+U.esc(U.monthLabel(k))+'</button>').join('')+'</div>':'')})+'</div>';
   const cov=coverage(p), rq=req();
   const head='<thead><tr><th class="staff-cell" style="z-index:4">Staff / day</th>'+p.dates.map(iso=>{
     const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
@@ -86,7 +94,7 @@ function gridView(){
   const under=p.dates.filter(iso=>cov[iso].day<required(iso).day||cov[iso].night<required(iso).night);
   return legend()
    +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal">'+head+'<tbody>'+body+'</tbody>'+footer+'</table></div>'
-   +'<div class="card-foot"><span>'+(p.meta&&p.meta.generated?'Draft generated from staff patterns':'Official published plan')+' · '+p.dates.length+' days</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div></div>'
+   +'<div class="card-foot"><span>'+(p.meta&&p.meta.official?'Official published plan — edits are audited':p.meta&&p.meta.generated?'Draft generated from staff patterns':'Edited plan')+' · '+p.dates.length+' days · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div></div>'
    +'<div class="c3"><div class="col" style="gap:14px">'
      +UI.card({title:'Coverage',sub:'Required vs assigned per day',icon:'gauge',body:function(){
         return '<div style="display:flex;flex-direction:column;gap:7px">'+p.dates.slice(0,12).map(iso=>{ const c=cov[iso], r=required(iso); const pctD=U.clamp(c.day/r.day*100,0,100), pctN=U.clamp(c.night/r.night*100,0,100);
@@ -97,7 +105,8 @@ function gridView(){
    +'</div></div></div>';
 }
 function fairnessView(){
-  const p=ensurePlan(); const f=fairness(p);
+  const p=plan(); if(!p) return '<div class="card pad">'+UI.empty({art:'calendar',title:'No plan to analyse',body:'Fairness is computed from a stored working plan. Create or import '+U.monthLabel(mk)+' first.',action:'<button class="btn primary" data-empty-generate>Generate draft</button>'})+'</div>';
+  const f=fairness(p);
   const names=Object.keys(f);
   const maxN=Math.max.apply(null,names.map(n=>f[n].nights).concat([1]));
   return '<div class="grid-12"><div class="c7">'+UI.card({title:'Fairness ledger',sub:'Distribution this month · a controlled, auditable record',icon:'scale',body:
@@ -121,9 +130,148 @@ function swapsView(){
      +[['No two consecutive nights beyond each staff cap','maxConsecN'],['No solo coverage — minimum staffing per shift','coverWeekdayDay'],['Approved leave blocks assignment','leave register'],['Weekend-only contracts respected','student pattern']].map(([t,s])=>'<div class="row gap-sm"><span class="pill teal">auto</span><div><div class="small">'+t+'</div><div class="xs faint">'+s+'</div></div></div>').join('')
      +'</div>'})+'</div></div>';
 }
+
+/* ——— Weekly roster: lab services × days, staff allocation ————— */
+function weekStart(){ return wk||S.weekStart(U.todayISO()); }
+function weekNavLabel(start){
+  const end=U.addDays(start,6);
+  return U.fmtDateShort(start)+' – '+U.fmtDateShort(end)+' '+U.parseISO(end).getFullYear();
+}
+function shiftWeek(delta){
+  const d=U.parseISO(weekStart()); wk=U.isoLocal(new Date(d.getFullYear(),d.getMonth(),d.getDate()+7*delta));
+  paint();
+}
+function allocationOf(start){ const w=S.db().unitRosters&&S.db().unitRosters[start]; return (w&&w.assignments)||{}; }
+function weekView(){
+  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
+  const p=plan();
+  const cellStaff=(iso,svc)=>alloc[iso]&&alloc[iso][svc]?alloc[iso][svc]:'';
+  const statusOf=(iso,name)=>{ const st=S.staffByName(name); return st?S.shiftState(st,iso):null; };
+  const unstaffed=dates.reduce((a,iso)=>a+svcs.filter(sv=>!cellStaff(iso,sv.name)).length,0);
+  const conflicts=[];
+  dates.forEach(iso=>svcs.forEach(sv=>{ const n=cellStaff(iso,sv.name); if(!n) return; const st=statusOf(iso,n);
+    if(st && (st.kind==='off'||st.kind==='leave'||st.kind==='exited')) conflicts.push({iso,svc:sv.name,staff:n,state:st}); }));
+  const head='<thead><tr><th class="staff-cell" style="z-index:4">Service</th>'+dates.map(iso=>{
+    const dow=U.dow(iso), today=iso===U.todayISO();
+    return '<th class="'+(dow>=5?'wkend':'')+'" style="'+(today?'color:var(--gold)':'')+'">'+U.DOWL[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
+  }).join('')+'</tr></thead>';
+  const body=svcs.map(sv=>'<tr><td class="staff-cell"><div class="nm">'+U.esc(sv.name)+'</div><div class="rl mono">'+U.esc(sv.code)+' · min '+sv.min+'</div></td>'
+    +dates.map(iso=>{
+      const name=cellStaff(iso,sv.name); const st=name?statusOf(iso,name):null;
+      const danger=st&&(st.kind==='off'||st.kind==='leave'||st.kind==='exited');
+      return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px">'
+        +(name?'<span class="small" style="display:block;line-height:1.25">'+U.esc(name.split(' ')[0])+' <span class="xs faint">'+U.esc(name.split(' ').slice(1).join(' '))+'</span></span>'
+          +'<span class="pill '+(danger?'amber':st&&st.kind==='night'?'blue':'teal')+'" style="margin-top:3px;font-size:8.5px">'+(danger?U.esc(st.label):st&&st.kind==='night'?'night':'day')+'</span>'
+          :'<span class="xs faint">—</span>')+'</td>';
+    }).join('')+'</tr>').join('');
+  const load={};
+  dates.forEach(iso=>svcs.forEach(sv=>{ const n=cellStaff(iso,sv.name); if(n) load[n]=(load[n]||0)+1; }));
+  const maxLoad=Math.max.apply(null,Object.values(load).concat([1]));
+  return '<div class="row between wrap gap-sm" style="margin-bottom:10px">'
+    +'<div class="seg"><button data-wknav="-1" aria-label="Previous week">'+UI.ic('chevron-left',14)+'</button><button data-wknav="0" style="font-family:var(--font-mono);font-size:11px;min-width:150px">'+U.esc(weekNavLabel(start))+'</button><button data-wknav="1" aria-label="Next week">'+UI.ic('chevron-right',14)+'</button></div>'
+    +'<div class="row gap-sm"><span class="pill '+(conflicts.length?'amber':'teal')+'">'+conflicts.length+' allocation conflict'+(conflicts.length===1?'':'s')+'</span>'
+    +'<span class="pill '+(unstaffed?'rose':'teal')+'">'+unstaffed+' empty slots</span>'
+    +'<button class="btn sm" data-auto-week>'+UI.ic('wand-sparkles',13)+' Auto-allocate</button>'
+    +'<button class="btn sm" data-print-week>'+UI.ic('printer',13)+' Print week</button></div></div>'
+    +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal"><thead>'+head.slice(7)+'<tbody>'+body+'</tbody></table></div>'
+    +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
+    +'<div class="c3"><div class="col" style="gap:14px">'
+      +UI.card({title:'Weekly allocation',sub:'Services covered per staff member',icon:'users',body:Object.keys(load).length?Object.keys(load).sort((a,b)=>load[b]-load[a]).map(n=>'<div style="margin-bottom:8px"><div class="row between"><span class="xs truncate">'+U.esc(n)+'</span><span class="mono xs faint">'+load[n]+'</span></div>'+UI.meter(load[n]/maxLoad*100,'teal')+'</div>').join(''):'<p class="xs faint">No allocations this week.</p>'})
+      +UI.card({title:'Services in this laboratory',sub:'Derived from the service register',icon:'flask-conical',body:svcs.map(sv=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(sv.name)+'</div><div class="lr-sub">'+U.esc(sv.code)+' · min '+sv.min+' staff</div></div><span class="pill '+(svcs.length?'slate':'rose')+'">'+U.esc(sv.note||'').slice(0,18)+'</span></div>').join('')+'<div style="margin-top:8px"><button class="btn xs" data-manage-services>'+UI.ic('settings-2',12)+'Manage services</button></div>'})
+    +'</div></div></div>';
+}
+function servicesView(){
+  const svcs=S.services();
+  const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start);
+  const used={}; dates.forEach(iso=>Object.keys(alloc[iso]||{}).forEach(sv=>{ used[sv]=(used[sv]||0)+1; }));
+  return '<div class="grid-12"><div class="c8"><div class="card table-card"><div class="toolbar"><div><div class="card-title">'+UI.ic('flask-conical',14,'ic')+'Laboratory services</div><div class="card-sub">The service menu staff are rostered against — reception, benches, blood bank, molecular</div></div><span class="grow"></span><button class="btn sm" data-add-svc>'+UI.ic('plus',13)+'Add service</button></div>'
+   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Service</th><th>Code</th><th>Minimum staff</th><th>Note</th><th>Filled this week</th><th></th></tr></thead><tbody>'
+   +svcs.map(sv=>'<tr><td><div class="primary-cell"><b>'+U.esc(sv.name)+'</b><small>'+U.esc(sv.note||'')+'</small></div></td><td class="mono xs">'+U.esc(sv.code)+'</td><td class="num">'+sv.min+'</td>'
+     +'<td class="small">'+U.esc(sv.note||'—')+'</td><td class="num">'+(used[sv.name]||0)+' / 7 days</td>'
+     +'<td><button class="icon-btn" style="width:26px;height:26px" data-edit-svc="'+sv.id+'">'+UI.ic('pencil',13)+'</button></td></tr>').join('')
+   +'</tbody></table></div><div class="card-foot"><span>Services drive the weekly roster and the print-out</span><span class="mono">'+svcs.length+' services</span></div></div></div>'
+   +'<div class="c4">'+UI.card({title:'Allocation this week',sub:weekNavLabel(start),icon:'calendar-days',body:svcs.map(sv=>{
+      const n=dates.filter(iso=>alloc[iso]&&alloc[iso][sv.name]).length;
+      return '<div style="margin-bottom:9px"><div class="row between"><span class="xs truncate">'+U.esc(sv.name)+'</span><span class="mono xs faint">'+n+'/7</span></div>'+UI.meter(n/7*100,n>=sv.min*1?n>=5?'teal':'amber':'rose')+'</div>';
+    }).join('')+'<div style="margin-top:8px"><button class="btn xs" data-view-jump="week">'+UI.ic('arrow-right',12)+'Open weekly roster</button></div>'})+'</div></div>';
+}
+function serviceModal(id){
+  if(!LS.auth.guard('edit')) return;
+  const svcs=S.services(); const sv=id?svcs.find(x=>x.id===id):null;
+  UI.modal({title:sv?'Edit laboratory service':'Add laboratory service',sub:'Services appear on the weekly roster, the allocation panel and the printed week.',width:'min(520px,100%)',
+    body:'<div class="form-grid"><div class="field span2"><label>Service name</label><input class="input" id="svName" value="'+U.esc(sv?sv.name:'')+'" placeholder="e.g. TB microscopy"></div>'
+      +'<div class="field"><label>Code</label><input class="input mono" id="svCode" maxlength="5" value="'+U.esc(sv?sv.code:'')+'" placeholder="TBM"></div>'
+      +'<div class="field"><label>Minimum staff per day</label><input class="input mono" type="number" min="1" id="svMin" value="'+(sv?sv.min:1)+'"></div>'
+      +'<div class="field span2"><label>Note</label><input class="input" id="svNote" value="'+U.esc(sv?sv.note:'')+'" placeholder="Assays, equipment or responsibility"></div></div>',
+    foot:'<button class="btn" data-close>Cancel</button>'+(sv?'<button class="btn danger" data-del>'+UI.ic('trash-2',15)+'Remove</button>':'')+'<button class="btn primary" data-save>'+UI.ic('check',15)+'Save service</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-save]').onclick=()=>{
+        const name=el.querySelector('#svName').value.trim();
+        if(!name) return UI.toast('Service name required',{type:'warn'});
+        const rec={id:sv?sv.id:U.uid('svc'),name,code:(el.querySelector('#svCode').value||'').trim().toUpperCase()||name.slice(0,3).toUpperCase(),min:Math.max(1,parseInt(el.querySelector('#svMin').value,10)||1),note:el.querySelector('#svNote').value.trim()};
+        S.commit(d=>{ d.services=d.services||S.services().slice(); if(sv){ const i=d.services.findIndex(x=>x.id===sv.id); if(i>=0) d.services[i]=rec; } else d.services.push(rec); },
+          {action:'roster.service.'+(sv?'edit':'add'),entity:'services',entityId:rec.id,detail:rec.name});
+        close(); paint(); UI.toast('Service '+(sv?'updated':'added'),{type:'ok'});
+      };
+      const del=el.querySelector('[data-del]');
+      if(del) del.onclick=()=>{
+        S.commit(d=>{ d.services=(d.services||[]).filter(x=>x.id!==sv.id); },{action:'roster.service.remove',entity:'services',entityId:sv.id,detail:sv.name});
+        close(); paint(); UI.toast('Service removed',{type:'warn'});
+      };
+    }});
+}
+function servicePicker(iso,svc){
+  if(!LS.auth.guard('edit')) return;
+  const start=weekStart(); const st=S.staffByName((allocationOf(start)[iso]||{})[svc]||'');
+  const onDuty=S.onDuty(iso).map(d=>d.staff);
+  const others=S.activeStaff().filter(s=>!onDuty.some(d=>d.id===s.id));
+  const opt=(s,sel)=>'<option value="'+U.esc(s.name)+'"'+(sel&&st&&st.id===s.id?' selected':'')+'>'+U.esc(s.name)+' · '+U.esc(S.shiftState(s,iso).label)+'</option>';
+  UI.modal({title:'Allocate '+svc,sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · week of '+weekNavLabel(start),width:'min(520px,100%)',
+    body:'<div class="field"><label>Staff member on this service</label><select class="select" id="alStaff"><option value="">— Unassigned —</option><optgroup label="On duty this day">'+onDuty.map(s=>opt(s,true)).join('')+'</optgroup><optgroup label="Off duty / leave">'+others.map(s=>opt(s,false)).join('')+'</optgroup></select></div>'
+      +'<div class="hint" style="margin-top:10px">Allocating someone who is off duty or on leave is allowed but flagged in amber on the weekly roster.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Allocate</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-save]').onclick=()=>{
+        const name=el.querySelector('#alStaff').value;
+        S.commit(d=>{ d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
+          const w=d.unitRosters[start]; w.assignments[iso]=w.assignments[iso]||{}; if(name) w.assignments[iso][svc]=name; else delete w.assignments[iso][svc]; },
+          {action:'roster.allocate',entity:'unitRosters',entityId:start,detail:svc+' · '+U.fmtDate(iso)+' → '+(name||'unassigned')});
+        close(); paint(); UI.toast(name?svc+' allocated to '+name:'Allocation cleared',{type:'ok'});
+      };
+    }});
+}
+function autoAllocate(){
+  if(!LS.auth.guard('edit')) return;
+  const start=weekStart(), dates=S.weekDates(start), svcs=S.services();
+  let filled=0;
+  S.commit(d=>{
+    d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
+    const w=d.unitRosters[start];
+    dates.forEach(iso=>{
+      const duty=S.onDuty(iso).map(x=>x.staff);
+      w.assignments[iso]=w.assignments[iso]||{};
+      svcs.forEach((sv,i)=>{
+        if(w.assignments[iso][sv.name]) return;
+        const pick=duty[i%duty.length];
+        if(pick){ w.assignments[iso][sv.name]=pick.name; filled++; }
+      });
+    });
+  },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,detail:'Auto-allocation from on-duty staff, week of '+start});
+  paint(); UI.toast(filled+' service slots allocated from the on-duty list',{type:'ok'});
+}
+function printWeek(){
+  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
+  const head='<tr><th>Service</th>'+dates.map(iso=>'<th style="font-size:7.5px;padding:2px">'+U.DOWL[U.dow(iso)]+' '+U.parseISO(iso).getDate()+'</th>').join('')+'</tr>';
+  const rows=svcs.map(sv=>'<tr><td style="font-size:8px;white-space:nowrap">'+U.esc(sv.name)+' <span style="color:#888">('+U.esc(sv.code)+')</span></td>'
+    +dates.map(iso=>{ const n=alloc[iso]&&alloc[iso][sv.name]; return '<td style="font-size:8px;padding:2px;text-align:center">'+U.esc(n||'')+'</td>'; }).join('')+'</tr>').join('');
+  const foot='<p style="font-size:7px;color:#666;margin-top:5px">Allocation is derived from the published working plan for '+U.monthLabel(mk||U.monthKey())+'. Empty cells mean the service is not staffed that day.</p>';
+  U.printDoc('Weekly laboratory roster — '+weekNavLabel(start),'<table>'+head+rows+'</table>'+foot,
+    {landscape:true,meta:'<span>Prepared by '+(LS.auth.user?U.esc(LS.auth.user.name):'')+'</span><span>Week of '+U.fmtDate(start)+'</span>',signatures:true});
+  S.audit({action:'roster.print.week',entity:'unitRosters',entityId:start,detail:'Printed weekly roster '+weekNavLabel(start)}); S.save();
+}
 function paint(){
   const host=rootEl.querySelector('#roBody'); if(!host) return;
-  host.innerHTML=view==='grid'?gridView():view==='fairness'?fairnessView():swapsView();
+  host.innerHTML=view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView();
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
   wireBody();
 }
@@ -142,13 +290,13 @@ function collision(p,si,fromDi,toDi){
 }
 function assign(si,di,code){
   if(!LS.auth.guard('edit')) return;
-  const p=ensurePlan(); const s=p.staff[si];
+  const p=plan(); if(!p) return; const s=p.staff[si];
   S.commit(d=>{ const pl=d.workingPlans[mk].primary; pl.staff[si].codes[di]=code; pl.meta.draft=true; pl.meta.edited=U.nowISO(); },
     {action:'roster.assign',entity:'workingPlans',entityId:mk,detail:s.name+' · '+U.fmtDate(p.dates[di])+' → '+code});
   paint();
 }
 function shiftPicker(si,di){
-  const p=ensurePlan(); const s=p.staff[si]; const cur=s.codes[di];
+  const p=plan(); if(!p) return; const s=p.staff[si]; const cur=s.codes[di];
   UI.modal({title:s.name,sub:U.fmtDateLong(U.parseISO(p.dates[di]))+' · current shift '+(cur||'—'),
     body:'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">'+CODES.map(([c,l])=>'<button class="choice '+(cur===c?'on':'')+'" data-code="'+c+'"><span class="shift-code '+c+'">'+c+'</span><span class="grow"><span class="ct">'+l+'</span></span></button>').join('')+'</div>'
       +'<div class="hint" style="margin-top:12px">Assignments are validated against consecutive-night caps, leave and minimum coverage. Every change is written to the audit trail.</div>',
@@ -168,9 +316,9 @@ function patternsModal(){
         const who=el.querySelector('#patWho').value; const tpl=templates[[...el.querySelectorAll('input[name=patTpl]')].findIndex(x=>x.checked)][0];
         const seq=tpl.split('-').filter(x=>!/^\s*OFF OFF$/.test(x));
         const codes=seq.length?seq:['D'];
-        const p=ensurePlan();
+        if(!plan()){ close(); return UI.toast('Create or import this month before applying a pattern',{type:'warn'}); }
         S.commit(d=>{
-          const pl=d.workingPlans[mk].primary;
+          const pl=d.workingPlans[mk].primary; if(!pl) return;
           pl.staff.forEach(s=>{ if(who!=='__all'&&s.name!==who) return;
             s.codes=s.codes.map((c,i)=>{ if(['AL','SICK','TR'].includes(c)) return c; return codes[i%codes.length]; });
           });
@@ -181,7 +329,7 @@ function patternsModal(){
     }});
 }
 function swapModal(){
-  const p=ensurePlan();
+  const p=plan(); if(!p) return UI.toast('No working plan for this month — create one first',{type:'warn'});
   UI.modal({title:'Request a shift swap',sub:'Sent to the Laboratory Manager for approval.',
     body:'<div class="form-grid"><div class="field"><label>From staff</label><select class="select" id="swFrom">'+p.staff.map(s=>'<option>'+U.esc(s.name)+'</option>').join('')+'</select></div>'
      +'<div class="field"><label>To staff</label><select class="select" id="swTo">'+p.staff.slice().reverse().map(s=>'<option>'+U.esc(s.name)+'</option>').join('')+'</select></div>'
@@ -196,12 +344,32 @@ function swapModal(){
     }; }});
 }
 function printRoster(){
-  const p=ensurePlan();
+  const p=plan(); if(!p) return UI.toast('Nothing to print — this month has no working plan',{type:'warn'});
   const head='<tr><th>Staff</th>'+p.dates.map(iso=>'<th style="font-size:7px;padding:2px">'+U.parseISO(iso).getDate()+'<br>'+U.DOW1[U.dow(iso)]+'</th>').join('')+'</tr>';
   const rows=p.staff.map(s=>'<tr><td style="font-size:7.5px;white-space:nowrap">'+U.esc(s.name)+'</td>'+s.codes.map(c=>'<td style="text-align:center;font-size:7.5px;padding:2px;background:'+(c==='OFF'?'#f4f4f4':c==='N'?'#e8eef8':c==='AL'?'#eef7f2':c==='TR'?'#f2eef8':'#fff')+'">'+U.esc(c||'')+'</td>').join('')+'</tr>').join('');
   U.printDoc('Monthly duty roster — '+p.label,'<table style="font-size:7.5px">'+head+rows+'</table><p style="font-size:7px;color:#666;margin-top:5px">D = Day 08:00–20:00 · N = Night 20:00–08:00 · DN = Day + night · AL = Annual leave · TR = Training · OFF = Rest day</p>',
     {landscape:true,meta:'<span>Prepared by '+(LS.auth.user?U.esc(LS.auth.user.name):'')+'</span><span>FY '+U.fyLabel()+'</span>',signatures:true});
   S.audit({action:'roster.print',entity:'workingPlans',entityId:mk,detail:'Printed roster '+p.label}); S.save();
+}
+async function generateMonth(){
+  if(!LS.auth.guard('edit')) return;
+  const key=mk, existing=plan();
+  const official=!!(existing&&existing.meta&&existing.meta.official);
+  const ok=await UI.confirm({
+    title:official?'Archive and regenerate '+U.monthLabel(key)+'?':'Generate a draft plan for '+U.monthLabel(key)+'?',
+    body:official
+      ? 'This month holds an official plan ('+(existing.meta.label||'published')+'). Generating a draft replaces the grid in force; the current version is archived under plan versions and can be restored. Screens and print-outs will show the new draft as unsigned until you publish it.'
+      : existing?'The current grid is archived first, then rebuilt from staff patterns and approved leave. Every cell stays editable.'
+        :'Built from staff patterns and approved leave. Nothing is published until you review and edit it.',
+    confirm:official?'Archive & regenerate':'Generate draft'});
+  if(!ok) return;
+  S.commit(d=>{
+    d.workingPlans[key]=d.workingPlans[key]||{versions:[]};
+    const cur=d.workingPlans[key].primary;
+    if(cur){ d.workingPlans[key].versions=(d.workingPlans[key].versions||[]).concat([cur]); }
+    d.workingPlans[key].primary=S.buildPlan(key);
+  },{action:official?'roster.regenerate.official':'roster.generate',entity:'workingPlans',entityId:key,detail:(official?'Archived official plan and generated draft for ':'Draft generated for ')+U.monthLabel(key)});
+  paint(); UI.toast('Draft generated · '+(plan()?plan().staff.length:0)+' staff · previous version archived',{type:'ok'});
 }
 function wireBody(){
   const r=rootEl;
@@ -211,12 +379,26 @@ function wireBody(){
     if(d===0){ mk=U.monthKey(); } else { const [y,m]=mk.split('-').map(Number); const dt=new Date(y,m-1+d,1); mk=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'); }
     paint();
   });
-  r.querySelectorAll('[data-generate]').forEach(b=>b.onclick=async()=>{
-    const ok=await UI.confirm({title:'Generate a draft plan?',body:'This replaces the current month with a pattern-balanced draft. Leave and training records are respected. You can still edit every cell.',confirm:'Generate draft'});
-    if(!ok) return;
-    S.commit(d=>{ delete d.workingPlans[mk]; },{action:'roster.regenerate',entity:'workingPlans',entityId:mk,detail:'Draft regenerated for '+U.monthLabel(mk)});
-    ensurePlan(); paint(); UI.toast('Draft generated · '+plan().staff.length+' staff',{type:'ok'});
+  r.querySelectorAll('[data-generate]').forEach(b=>b.onclick=generateMonth);
+  r.querySelectorAll('[data-empty-generate]').forEach(b=>b.onclick=generateMonth);
+  r.querySelectorAll('[data-open-month]').forEach(b=>b.onclick=()=>{ mk=b.dataset.openMonth; paint(); });
+  r.querySelectorAll('[data-empty-blank]').forEach(b=>b.onclick=()=>{
+    S.commit(d=>{ const key=mk; const days=U.monthRange(key);
+      d.workingPlans[key]=d.workingPlans[key]||{versions:[]};
+      const prev=d.workingPlans[key].primary; if(prev){ d.workingPlans[key].versions=(d.workingPlans[key].versions||[]).concat([prev]); }
+      d.workingPlans[key].primary={label:U.monthLabel(key),dates:days,staff:S.activeStaff().map(s=>({name:s.name,id:s.id,codes:days.map(()=>'')})),
+        meta:{date:U.todayISO(),fy:U.fyLabel(),period:U.monthLabel(key),generated:false,draft:true,blank:true}};
+    },{action:'roster.blank',entity:'workingPlans',entityId:mk,detail:'Blank month created for '+U.monthLabel(mk)});
+    paint(); UI.toast('Blank month created · click any cell to assign shifts',{type:'ok'});
   });
+  r.querySelectorAll('[data-wknav]').forEach(b=>b.onclick=()=>{ const d=+b.dataset.wknav; if(d===0){ wk=S.weekStart(U.todayISO()); paint(); } else shiftWeek(d); });
+  r.querySelectorAll('[data-wcell]').forEach(td=>td.onclick=()=>{ const [iso,svc]=td.dataset.wcell.split('|'); servicePicker(iso,svc); });
+  r.querySelectorAll('[data-auto-week]').forEach(b=>b.onclick=autoAllocate);
+  r.querySelectorAll('[data-print-week]').forEach(b=>b.onclick=printWeek);
+  r.querySelectorAll('[data-manage-services]').forEach(b=>b.onclick=()=>{ view='services'; paint(); });
+  r.querySelectorAll('[data-view-jump]').forEach(b=>b.onclick=()=>{ view=b.dataset.viewJump; paint(); });
+  r.querySelectorAll('[data-add-svc]').forEach(b=>b.onclick=()=>serviceModal(null));
+  r.querySelectorAll('[data-edit-svc]').forEach(b=>b.onclick=()=>serviceModal(b.dataset.editSvc));
   r.querySelectorAll('[data-patterns]').forEach(b=>b.onclick=patternsModal);
   r.querySelectorAll('[data-print]').forEach(b=>b.onclick=printRoster);
   r.querySelectorAll('[data-new-swap]').forEach(b=>b.onclick=swapModal);
@@ -235,7 +417,7 @@ function wireBody(){
         const si=+td.dataset.si, di=+td.dataset.di;
         if(si!==drag.si){ UI.toast('Shifts swap within one staff member’s row — use Swap requests for cross-staff trades.',{type:'warn'}); drag=null; return; }
         if(di===drag.di){ drag=null; return; }
-        const p=ensurePlan(); const err=collision(p,si,drag.di,di);
+        const p=plan(); if(!p){ drag=null; return; } const err=collision(p,si,drag.di,di);
         if(err){ UI.toast(err,{type:'warn',duration:6200}); drag=null; return; }
         const a=p.staff[si].codes[drag.di], b=p.staff[si].codes[di];
         S.commit(d=>{ const pl=d.workingPlans[mk].primary; pl.staff[si].codes[drag.di]=b; pl.staff[si].codes[di]=a; pl.meta.draft=true; },{action:'roster.drag',entity:'workingPlans',entityId:mk,detail:p.staff[si].name+' · '+p.dates[di]+' ⇄ '+p.dates[drag.di]});
@@ -244,7 +426,7 @@ function wireBody(){
     });
   }
   if(view==='fairness'){
-    const p=ensurePlan(); const f=fairness(p);
+    const p=plan(); if(!p) return; const f=fairness(p);
     C.hbars(r.querySelector('#fairNights'),{items:Object.keys(f).map(n=>({label:n.split(' ')[0],value:f[n].nights,tone:'blue'})).sort((a,b)=>b.value-a.value)});
     C.hbars(r.querySelector('#fairWeekend'),{items:Object.keys(f).map(n=>({label:n.split(' ')[0],value:f[n].weekends,tone:'gold'})).sort((a,b)=>b.value-a.value)});
   }

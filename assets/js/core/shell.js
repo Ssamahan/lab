@@ -191,7 +191,7 @@ SH.refresh=function(){ SH.route({keepScroll:true}); };
 SH.fail=function(err,id,host){
   const box=host||document.getElementById('page');
   if(!box) return;
-  const diag='Lab Systems v6.0.0\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
+  const diag='Lab Systems v6.1.0\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
   box.innerHTML='<div class="page"><div class="card pad" style="max-width:620px;margin:5vh auto">'
    +'<div class="row" style="gap:12px;margin-bottom:10px"><div class="kpi-ic" style="width:36px;height:36px;color:var(--crit);background:var(--crit-soft);border-color:var(--crit-border)">'+U.ic('alert-triangle',18)+'</div>'
    +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">This panel could not render</div><div class="xs faint">Your data is safe — nothing was written.</div></div></div>'
@@ -267,7 +267,8 @@ function shortcutMeta(){
 }
 SH.releaseNotes=function(){
   const rows=[
-    ['6.0','Flagship console','New shell, 15 modules, Ink/Porcelain themes, command palette, Kigali clock, security center, design system and this roadmap.','current'],
+    ['6.1','Register depth','12-month throughput, weekly service roster, editable sample/equipment records, past maintenance, EQA round entry, question-level PBF visits and custom training expenses.','current'],
+    ['6.0','Flagship console','New shell, 15 modules, Ink/Porcelain themes, command palette, Kigali clock, security center, design system and this roadmap.','prev'],
     ['5.3','Register depth','Referred-sample manifest printing, stock lot drill-down, leave Gantt, PBF draft scores.','prev'],
     ['5.0','Quality layer','ISO 15189 checklist, SOP register, incident log, EQA z-scores with traffic lights.','prev'],
     ['4.0','Foundation','Offline-first register, staff roster generator, revenue tracker, PWA install.','prev']
