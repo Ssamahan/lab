@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.0.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.1.0** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
 
@@ -78,23 +78,37 @@ honest to render in a demo. Generated data never overwrites register records.
 
 | Group | Module | What it does |
 | --- | --- | --- |
-| Operations | Command Center | KPIs, 14-day throughput, Levey–Jennings QC, TAT bars, referral board, activity feed, on-duty strip |
-| Operations | Referred Samples | 3-step register wizard, barcode IDs, custody timeline, results with reference ranges, manifests |
+| Operations | Command Center | KPIs, 12-month throughput, Levey–Jennings QC, TAT bars, referral board, activity feed, shift-state duty list |
+| Operations | Referred Samples | 3-step register wizard, barcode IDs, custody timeline, results with reference ranges, editable records, manifests |
 | Operations | Stock & Supplies | Lots & expiry, burn-rate forecasts, cold chain, FIFO allocation, supplier scorecards |
 | People | Training Roster | FIFO fairness queue, registry, certificates, history |
-| People | Training Revenue | Expenses vs reimbursements, cash-flow chart, printable statements |
-| Scheduling | Working Plan | Staff × day grid, drag-to-assign with collision checks, coverage, fairness, printable roster |
+| People | Training Revenue | Expenses vs reimbursements with meal, housing and custom categories, cash-flow chart, printable statements |
+| Scheduling | Working Plan | Staff × day grid, weekly service roster, drag-to-assign with collision checks, coverage, fairness, printable roster |
 | Scheduling | Leave & Timeline | Requests with coverage conflict detection, FY Gantt, approval write-back to the roster |
-| Quality | EQA / PT | Composite trend, z-scores, Westgard QC calendar, CAPA |
-| Quality | PBF Evaluation | Health-centre indices across six weighted domains |
+| Quality | EQA / PT | Composite trend, z-scores, Westgard QC calendar, new round entry, CAPA |
+| Quality | PBF Evaluation | Question-level marks, quarterly visit history per centre, six weighted domains |
 | Quality | Quality & Compliance | ISO 15189 readiness, SOP control, non-conformances |
-| Quality | Equipment | Uptime, preventive maintenance clock, cold-chain trace |
+| Quality | Equipment | Uptime, full service history (back-dateable), equipment editor, cold-chain trace |
 | Admin | Staff & Settings | Registry, roles, identity, TAT targets, data export/import |
 | Admin | Security Center | Posture, sessions, 2FA, append-only audit, restore points |
 | Admin | Design System | Live tokens, type, motion and components |
 | Admin | Premium Roadmap | The 100 upgrades behind v6, with the copyable brief |
 
 ---
+
+### Working-plan authority
+
+Stored plans are register data. The console never fabricates a plan for a month that has
+none: the month opens with an explicit empty state offering *generate draft*, *start blank*
+or a jump to a stored month. Regenerating or replacing an existing plan first archives the
+previous version under `workingPlans[month].versions`, and official plans (imported from a
+signed roster) are flagged in the header before anything is overwritten.
+
+### Shift states
+
+One vocabulary — `S.shiftState(staff, iso)` — drives the dashboard, roster and staff cards:
+day, night, day + night, leave, training, off duty, and *exited*. Exited staff are excluded
+from on-duty lists by construction; off-duty, day and night never share a colour.
 
 ## Keyboard
 

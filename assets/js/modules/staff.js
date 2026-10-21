@@ -32,12 +32,12 @@ function people(){
   return '<div class="grid-12 stagger">'+staff().map(s=>{
     const comp=S.db().competency.filter(c=>c.staffId===s.id);
     const full=comp.filter(c=>c.level==='full');
-    const lv=S.db().leaves.filter(l=>l.staffId===s.id&&l.status==='Approved'&&l.from<=U.todayISO()&&l.to>=U.todayISO())[0];
+    const shift=S.shiftState(s);
     const user=A.users.find(u=>u.staffId===s.id);
     return '<div class="c4"><div class="card hover pad" data-person="'+s.id+'" style="cursor:pointer">'
       +'<div class="row gap-sm" style="align-items:flex-start;margin-bottom:10px">'+U.avatar(s.name,'lg')
       +'<div style="min-width:0"><div class="card-title truncate">'+U.esc(s.name)+'</div><div class="card-sub truncate">'+U.esc(s.role)+'</div>'
-      +'<div class="row gap-xs" style="margin-top:5px">'+UI.roleBadge(roleFor(s))+(lv?'<span class="pill amber">away</span>':'<span class="pill teal"><span class="dot live"></span>on duty</span>')+'</div></div></div>'
+      +'<div class="row gap-xs wrap" style="margin-top:5px">'+UI.roleBadge(roleFor(s))+'<span class="pill '+shift.tone+'"><span class="dot '+((shift.kind==='day'||shift.kind==='night'||shift.kind==='daynight')?'live':'')+'"></span>'+U.esc(shift.label)+'</span>'+(s.status!=='active'?'<span class="pill slate">'+UI.ic('log-out',9)+' archived</span>':'')+'</div></div></div>'
       +'<div class="thread" style="margin:10px 0"></div>'
       +'<div class="row between"><span class="xs faint">Authorisations</span><span class="mono xs">'+full.length+' assays</span></div>'
       +UI.meter(comp.length?full.length/comp.length*100:0,full.length/comp.length>.6?'teal':'amber')
@@ -51,10 +51,12 @@ function personDrawer(id){
   const leaves=S.db().leaves.filter(l=>l.staffId===s.id);
   const roster=S.db().workingPlans[U.monthKey()];
   const row=roster&&roster.primary?roster.primary.staff.find(x=>x.id===s.id):null;
+  const shift=S.shiftState(s);
   const user=A.users.find(u=>u.staffId===s.id);
   UI.drawer({title:s.name,eyebrow:'Staff record',sub:s.role+' · since '+U.fmtDate(s.joinDate||'2019-01-01'),wide:true,body:
     '<div class="row gap-lg" style="align-items:center;margin-bottom:16px">'+U.avatar(s.name,'xl')
-    +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')+'</div>'
+    +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')+'</div>'
+    +(shift.note?'<div class="xs faint" style="margin-top:5px">'+U.esc(shift.note)+'</div>':'')
     +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(s.phone||'')+'</div></div></div>'
     +'<div class="split-4">'+[['Joined',U.fmtDateShort(s.joinDate)],['Pattern',s.pattern||'—'],['Max nights',(s.maxNights||0)+'/mo'],['Contract',s.contract||'Permanent']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
     +'<div class="section-head"><h2>This month</h2><span class="more">'+(row?row.codes.filter(c=>c==='D'||c==='N'||c==='DN').length:0)+' shifts</span></div>'

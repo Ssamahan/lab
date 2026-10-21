@@ -68,12 +68,15 @@ function hero(){
 }
 
 function throughputCard(){
-  const thr=S.throughput(14);
-  return UI.card({title:'Throughput — registered vs resulted',sub:'Rolling 14 days · all referral routes',icon:'chart-line',cls:'gold',
-    tools:'<span class="pill teal mono">'+U.sum(thr,d=>d.registered)+' registered</span>',
-    body:'<div class="legend" style="margin-bottom:6px"><span class="lg"><span class="sw" style="background:var(--gold)"></span>Registered</span><span class="lg"><span class="sw" style="background:var(--teal-400)"></span>Resulted</span><span class="lg" style="margin-left:auto"><span class="sw sq" style="background:var(--pos);opacity:.4"></span>7-day mean</span></div>'
-      +'<div id="thrChart"></div>',
-    foot:'<span>Hover the plot for a day-by-day readout</span><span class="mono">'+thr[thr.length-1].registered+' today</span>'});
+  const thr=S.monthlyThroughput(12);
+  const reg=U.sum(thr,d=>d.registered), res=U.sum(thr,d=>d.resulted);
+  const cats=S.throughputCats();
+  return UI.card({title:'Throughput — registered vs resulted',sub:'Past 12 months · monthly buckets, all referral routes',icon:'chart-line',cls:'gold',
+    tools:'<span class="pill teal mono">'+reg+' registered · 12 mo</span>',
+    body:'<div class="legend" style="margin-bottom:6px"><span class="lg"><span class="sw" style="background:var(--gold)"></span>Registered</span><span class="lg"><span class="sw" style="background:var(--teal-400)"></span>Resulted</span><span class="lg" style="margin-left:auto"><span class="sw sq" style="background:var(--pos);opacity:.4"></span>12-month mean</span></div>'
+      +'<div id="thrChart"></div>'
+      +'<div class="row wrap gap-sm" style="margin-top:10px">'+cats.map(c=>'<span class="chip">'+U.esc(c)+'</span>').join('')+'</div>',
+    foot:'<span>Monthly buckets — TB culture and viral load report months after registration, so a slow assay shows as a gap between the two lines</span><span class="mono">'+thr[thr.length-1].registered+' this month</span>'});
 }
 
 function ljCard(){
@@ -142,10 +145,30 @@ function feedCard(){
 }
 
 function dutyCard(){
-  const duty=S.onDuty();
-  return UI.card({title:'On duty now',sub:'Friday · day shift 08:00–20:00',icon:'users',
+  const iso=U.todayISO();
+  const rows=S.activeStaff().map(s=>({staff:s,state:S.shiftState(s,iso)}));
+  const order={daynight:0,night:1,day:2,training:3,leave:4,off:5};
+  rows.sort((a,b)=>(order[a.state.kind]??9)-(order[b.state.kind]??9));
+  const duty=rows.filter(r=>S.isOnDuty(r.staff,iso));
+  const source=duty[0]?duty[0].state.source:'none';
+  const off=rows.filter(r=>r.state.kind==='off').length;
+  const badge=st=>'<span class="pill '+st.tone+'"><span class="dot'+(st.kind==='day'||st.kind==='night'||st.kind==='daynight'?' live':'')+'"></span>'+U.esc(st.label)+'</span>';
+  return UI.card({title:'On duty now',sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · day 08:00–20:00 / night 20:00–08:00',icon:'users',
     tools:'<a class="more" href="#/roster" style="color:var(--gold)">Roster '+UI.ic('arrow-right',12)+'</a>',
-    body:'<div class="on-duty">'+duty.map(d=>'<div class="duty-card">'+U.avatar(d.staff.name,'sm')+'<div style="min-width:0"><div class="nm truncate">'+U.esc(d.staff.name)+'</div><div class="rl">'+U.esc(d.shift)+' · since '+d.since+'</div><span class="pill teal" style="margin-top:4px"><span class="dot live"></span> on duty</span></div></div>').join('')+'</div>'});
+    body:'<div class="row wrap gap-sm" style="margin-bottom:10px">'
+      +'<span class="pill teal">'+duty.length+' on duty</span>'
+      +'<span class="pill slate">'+off+' off duty</span>'
+      +'<span class="pill '+((source==='plan')?'blue':'amber')+'">'+(source==='plan'?'Working plan':'No plan · contract pattern')+'</span>'
+      +'</div>'
+      +'<div class="on-duty" style="flex-direction:column;gap:8px;align-items:stretch">'+rows.map(r=>{
+        const s=r.staff, st=r.state;
+        const tone=st.kind==='night'?'blue':st.kind==='day'?'teal':st.kind==='daynight'?'teal':st.kind==='leave'?'amber':'slate';
+        return '<div class="duty-card" data-duty-kind="'+st.kind+'" style="'+(st.kind==='off'||st.kind==='leave'?'opacity:.62;':'')+'">'+U.avatar(s.name,'sm')
+          +'<div style="min-width:0;flex:1"><div class="nm truncate">'+U.esc(s.name)+'</div><div class="rl truncate">'+U.esc(s.role)+'</div></div>'
+          +'<span class="pill '+tone+'"><span class="dot'+(S.isOnDuty(s,iso)?' live':'')+'"></span>'+U.esc(st.label)+'</span></div>';
+      }).join('')+'</div>'
+      +'<div class="hint" style="margin-top:10px">Exited staff never appear on duty. Shift codes come from the published working plan; a month with no plan is shown as contract pattern.</div>',
+    foot:'<span>Day shift 08:00–20:00 · night 20:00–08:00</span><span class="mono">'+duty.filter(d=>d.state.kind.indexOf('night')>=0).length+' on nights</span>'});
 }
 
 function worklistCard(){
@@ -203,11 +226,11 @@ M.render=function(root,params){
    +'</div>'+trustFooter();
 
   // throughput chart
-  const thr=S.throughput(14);
+  const thr=S.monthlyThroughput(12);
   C.line(root.querySelector('#thrChart'),{id:'thr',height:238,series:[
     {name:'Registered',color:'var(--gold)',values:thr.map(d=>d.registered)},
     {name:'Resulted',color:'var(--teal-400)',values:thr.map(d=>d.resulted)}
-  ],labels:thr.map(d=>U.fmtDateShort(d.date)),tipFmt:v=>U.fmtNum(v)+' samples',extraTip:i=>'<div class="tr" style="border-top:1px solid var(--border);margin-top:5px;padding-top:5px"><span class="k">STAT</span><span class="v">'+thr[i].stat+'</span></div>'});
+  ],labels:thr.map(d=>d.label),tipFmt:v=>U.fmtNum(v)+' samples',extraTip:i=>'<div class="tr"><span class="k">STAT</span><span class="v">'+thr[i].stat+'</span></div><div class="tr"><span class="k">Gap</span><span class="v">'+(thr[i].registered-thr[i].resulted)+'</span></div>'});
   // TAT bars
   C.hbars(root.querySelector('#tatBars'),{items:(function(){
     const samples=db.samples.filter(s=>s.resultedAt);

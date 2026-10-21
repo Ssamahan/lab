@@ -24,7 +24,8 @@ const FILTERS=[
   {k:'stat',label:'STAT'},
   {k:'overdue',label:'Overdue'},
   {k:'rbc',label:'Awaiting RBC'},
-  {k:'resulted',label:'Resulted'}
+  {k:'resulted',label:'Resulted'},
+  {k:'register',label:'Register data'}
 ];
 function base(){
   if(!st) st={q:'',filter:'all',selected:new Set(),limit:90,sort:'collected',dir:'desc'};
@@ -38,6 +39,7 @@ function filtered(){
   else if(s.filter==='overdue') list=list.filter(x=>!x.resultedAt&&S.tatFor(x).breached);
   else if(s.filter==='resulted') list=list.filter(x=>!!x.resultedAt);
   else if(s.filter==='rbc') list=list.filter(x=>/NRL|RBC/i.test(x.hospital||''));
+  else if(s.filter==='register') list=list.filter(x=>x.source!=='telemetry');
   if(s.q){
     const q=s.q.toLowerCase();
     list=list.filter(x=>[x.sampleId,x.patientName,x.test,x.healthFacility,x.hospital,x.transporter].join(' ').toLowerCase().indexOf(q)>=0);
@@ -53,7 +55,7 @@ function counts(){
   const db=S.db(); const all=db.samples;
   return {all:all.length, active:all.filter(x=>!x.resultedAt).length, stat:all.filter(x=>x.priority==='STAT'&&!x.resultedAt).length,
     overdue:all.filter(x=>!x.resultedAt&&S.tatFor(x).breached).length, resulted:all.filter(x=>!!x.resultedAt).length,
-    rbc:all.filter(x=>/NRL|RBC/i.test(x.hospital||'')).length};
+    rbc:all.filter(x=>/NRL|RBC/i.test(x.hospital||'')).length, register:all.filter(x=>x.source!=='telemetry').length};
 }
 function rowHTML(s,sel){
   const t=S.tatFor(s); const pct=U.clamp(t.ratio*100,2,100);
@@ -72,8 +74,8 @@ function rowHTML(s,sel){
    +'<td><span class="pill '+U.statusTone(s.status)+'">'+U.esc(s.status)+'</span></td>'
    +'<td>'+tatCell+'</td>'
    +'<td class="hide-lg">'+(s.flag?'<span class="pill rose">'+U.esc(s.flag)+'</span>':'<span class="xs faint">—</span>')+'</td>'
-   +'<td class="hide-sm">'+UI.audit({by:s.collector||'Register',date:s.collectionDate})+'</td>'
-   +'<td style="width:34px"><button class="icon-btn row-actions" style="width:26px;height:26px" data-open="'+s.id+'" aria-label="Open sample">'+UI.ic('chevron-right',14)+'</button></td></tr>';
+   +'<td class="hide-sm">'+UI.audit({by:s.collector||'Register',date:s.collectionDate})+(s.editedAt?' <span class="pill amber" data-tip="Edited '+U.fmtDT(s.editedAt)+' by '+U.esc(s.editedBy||'')+'">'+UI.ic('pencil',9)+'</span>':'')+'</td>'
+   +'<td style="width:60px"><span class="row" style="gap:2px"><button class="icon-btn row-actions" style="width:26px;height:26px" data-edit="'+s.id+'" aria-label="Edit sample">'+UI.ic('pencil',13)+'</button><button class="icon-btn row-actions" style="width:26px;height:26px" data-open="'+s.id+'" aria-label="Open sample">'+UI.ic('chevron-right',14)+'</button></span></td></tr>';
 }
 function tableHTML(){
   const s=base(); const list=filtered(); const shown=list.slice(0,s.limit); const cnt=counts();
@@ -94,7 +96,8 @@ function tableHTML(){
    +'<div class="dt-scroll" id="smpScroll"><table class="dt" id="smpTable">'
    +'<thead><tr><th style="width:34px"></th><th style="width:58px">Pri</th><th data-sort="id" class="sortable"><span class="sort">Sample '+UI.ic('chevron-down',10)+'</span></th><th>Test</th><th class="hide-sm">Origin → laboratory</th><th>Status</th><th data-sort="tat" class="sortable"><span class="sort">TAT '+UI.ic('chevron-down',10)+'</span></th><th class="hide-lg">Flag</th><th class="hide-sm">Audit</th><th></th></tr></thead>'
    +'<tbody id="smpBody">'+(rows||'<tr><td colspan="10">'+UI.empty({art:'samples',title: s.q?'No samples match “'+U.esc(s.q)+'”':'Nothing in this view',body: s.q?'Try a sample ID, patient surname or facility. Filters stay shareable by URL.':'Register a sample to begin the chain of custody. Every registration is stamped to the audit trail.',action:'<button class="btn primary" data-new>'+UI.ic('plus',14)+' Register sample</button>'})+'</td></tr>')+'</tbody></table>'
-   +'<div id="smpMore" style="padding:10px 14px;text-align:center">'+(list.length>s.limit?'<button class="btn sm" data-more>Load '+(Math.min(100,list.length-s.limit))+' more · '+list.length+' matching</button>':'<span class="xs faint">'+list.length+' samples · sorted by '+(s.sort==='tat'?'TAT pressure':'newest collection')+'</span>')+'</div>'
+   +'<div id="smpMore" style="padding:10px 14px;text-align:center">'+(list.length>s.limit?'<button class="btn sm" data-more>Load '+(Math.min(100,list.length-s.limit))+' more · '+list.length+' matching</button>':'<span class="xs faint">'+list.length+' samples · sorted by '+(s.sort==='tat'?'TAT pressure':'newest collection')+'</span>')
+     +'<div class="xs faint" style="margin-top:6px">'+S.db().samples.filter(x=>x.source!=='telemetry').length+' register records (editable, retained) · '+S.db().samples.filter(x=>x.source==='telemetry').length+' generated telemetry records</div></div>'
    +'</div></div>';
 }
 
@@ -157,7 +160,7 @@ function openSample(id){
      +'</div></div>'
    +'<div class="card pad" style="background:var(--surface-inset)"><div class="row between"><div class="xs faint">Created by '+U.esc(s.collector||'Register')+' · '+U.fmtDate(s.collectionDate)+'</div><div class="xs faint mono">'+U.esc(s.source||'register')+' · '+U.esc(s.id)+'</div></div></div>';
   const d=UI.drawer({title:s.patientName,eyebrow:'Sample record',sub:s.sampleId+' · '+s.test,wide:true,body:body,
-    foot:'<button class="btn" data-close>Close</button>'
+    foot:'<button class="btn" data-close>Close</button><button class="btn" data-edit-rec>'+UI.ic('pencil',15)+'Edit record</button>'
       +(s.manifestId?'<button class="btn" data-print-manifest>'+UI.ic('printer',15)+'Print manifest</button>':'<button class="btn" data-add-manifest>'+UI.ic('clipboard-list',15)+'Add to manifest</button>')
       +(s.resultedAt?'':'<button class="btn" data-quick-result>'+UI.ic('check',15)+'Quick result</button>')});
   const panel=d.panel;
@@ -183,8 +186,61 @@ function openSample(id){
     d.close(); LS.shell.refresh();
   });
   panel.querySelector('[data-quick-result]')?.addEventListener('click',()=>{ panel.querySelector('#resVal')?.focus(); panel.querySelector('#resVal')?.scrollIntoView({block:'center',behavior:'smooth'}); });
+  panel.querySelector('[data-edit-rec]')?.addEventListener('click',()=>{ d.close(); editSample(s.id); });
   panel.querySelector('[data-add-manifest]')?.addEventListener('click',()=>{ addToManifest([s.id]); });
   panel.querySelector('[data-print-manifest]')?.addEventListener('click',()=>{ const man=S.db().manifests.find(m=>m.id===s.manifestId); if(man) printManifest(man); });
+}
+
+/* ——— Manual correction of a register record ————————————————— */
+function editSample(id){
+  const s=S.db().samples.find(x=>x.id===id); if(!s) return;
+  if(!LS.auth.guard('edit')) return;
+  const opts=(list,cur)=>list.map(v=>'<option value="'+U.esc(v)+'"'+(v===cur?' selected':'')+'>'+U.esc(v)+'</option>').join('');
+  const tests=U.uniq(S.db().catalog.tests.map(t=>t.name).concat([s.test]));
+  const facilities=U.uniq(S.db().catalog.healthCenters.map(h=>h.name).concat([s.healthFacility||'Ruli DH']));
+  const labs=U.uniq(S.db().catalog.hospitals.map(h=>h.name).concat(['Ruli DH - GeneXpert',s.hospital||''])).filter(Boolean);
+  const statuses=['Registered','Received','Pending','Resulting','Resulted','Done','Positive','Negative','Rejected'];
+  UI.modal({title:'Edit sample record',sub:s.sampleId+' · corrections are written to the audit trail with your name.',width:'min(720px,100%)',
+    body:'<div class="form-grid">'
+      +'<div class="field"><label>Sample ID</label><input class="input mono" id="edSid" value="'+U.esc(s.sampleId)+'"></div>'
+      +'<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(s.patientName||'')+'"></div>'
+      +'<div class="field"><label>Patient ID</label><input class="input mono" id="edPid" value="'+U.esc(s.patientId||'')+'"></div>'
+      +'<div class="field"><label>Sex</label><select class="select" id="edSex">'+opts(['Female','Male','Other','Unknown'],s.sex||'Unknown')+'</select></div>'
+      +'<div class="field"><label>Test</label><select class="select" id="edTest">'+opts(tests,s.test)+'</select></div>'
+      +'<div class="field"><label>Priority</label><select class="select" id="edPri">'+opts(['Routine','Follow-up','STAT'],s.priority||'Routine')+'</select></div>'
+      +'<div class="field"><label>Origin health centre</label><select class="select" id="edFac">'+opts(facilities,s.healthFacility||'')+'</select></div>'
+      +'<div class="field"><label>Receiving laboratory</label><select class="select" id="edLab">'+opts(labs,s.hospital||'')+'</select></div>'
+      +'<div class="field"><label>Collected on</label><input class="input" type="date" id="edColl" value="'+U.esc(String(s.collectionDate||'').slice(0,10))+'"></div>'
+      +'<div class="field"><label>Sent / dispatched on</label><input class="input" type="date" id="edSent" value="'+U.esc(String(s.sentDate||'').slice(0,10))+'"></div>'
+      +'<div class="field"><label>Transporter / courier</label><input class="input" id="edTrans" value="'+U.esc(s.transporter||'')+'"></div>'
+      +'<div class="field"><label>Status</label><select class="select" id="edStatus">'+opts(statuses,s.status||'Registered')+'</select></div>'
+      +'<div class="field"><label>Target TAT (days)</label><input class="input mono" type="number" min="0" step="1" id="edTat" value="'+(s.tatTargetDays!=null?s.tatTargetDays:'')+'"></div>'
+      +'<div class="field"><label>Result value</label><input class="input mono" id="edVal" value="'+U.esc(s.resultValue||'')+'" placeholder="Leave blank to keep unreleased"></div>'
+      +'<div class="field span2"><label>Notes</label><textarea class="textarea" id="edNotes" rows="2">'+U.esc(s.notes||'')+'</textarea></div>'
+      +'</div><div class="hint" style="margin-top:8px">Editing dates re-computes TAT and the 12-month throughput view immediately. Nothing is deleted — the previous values stay in the audit log.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save changes</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-save]').onclick=()=>{
+        const g=k=>{ const n=el.querySelector(k); return n?n.value:''; };
+        const sampleId=g('#edSid').trim()||s.sampleId;
+        if(S.db().samples.some(x=>x.id!==s.id && x.sampleId===sampleId)) return UI.toast('Another sample already uses that ID',{type:'err'});
+        const changes={
+          sampleId, patientName:g('#edName').trim(), patientId:g('#edPid').trim(), sex:g('#edSex'),
+          test:g('#edTest'), priority:g('#edPri'), healthFacility:g('#edFac'), hospital:g('#edLab'),
+          collectionDate:g('#edColl'), sentDate:g('#edSent')||null, transporter:g('#edTrans').trim(),
+          status:g('#edStatus'), resultValue:g('#edVal').trim()||null, notes:g('#edNotes').trim()
+        };
+        const tatRaw=parseFloat(g('#edTat'));
+        if(!isNaN(tatRaw)) changes.tatTargetDays=tatRaw;
+        const t=S.db().catalog.tests.find(x=>x.name===changes.test);
+        changes.testCode=t?t.code:s.testCode; changes.cat=t?t.cat:s.cat;
+        if(changes.collectionDate) changes.collectionAt=changes.collectionDate+'T'+(String(s.collectionAt||'T09:00:00').slice(11)||'09:00:00');
+        S.commit(db2=>{ const x=db2.samples.find(y=>y.id===s.id); if(!x) return;
+          Object.assign(x,changes); x.editedAt=U.nowISO(); x.editedBy=LS.auth.user.name;
+        },{action:'sample.edit',entity:'samples',entityId:s.id,detail:'Record edited for '+sampleId});
+        close(); LS.shell.refresh(); UI.toast('Sample record updated · audit entry written',{type:'ok'});
+      };
+    }});
 }
 
 /* ——— Manifest ————————————————————————— */
@@ -345,6 +401,7 @@ function wire(){
   r.querySelectorAll('[data-more]').forEach(b=>b.onclick=()=>{ st.limit+=100; paintTable(); });
   r.querySelectorAll('[data-sort]').forEach(th=>th.onclick=()=>{ const k=th.dataset.sort; if(st.sort===k) st.dir=st.dir==='asc'?'desc':'asc'; else { st.sort=k; st.dir='desc'; } paintTable(); });
   r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); openSample(b.dataset.open); });
+  r.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); editSample(b.dataset.edit); });
   r.querySelectorAll('[data-row]').forEach(tr=>tr.onclick=e=>{ if(e.target.closest('[data-check]')) return; openSample(tr.dataset.row); });
   r.querySelectorAll('[data-check]').forEach(cb=>cb.onclick=e=>{ e.stopPropagation(); const id=cb.dataset.check; if(st.selected.has(id)) st.selected.delete(id); else st.selected.add(id); paintTable(); });
   r.querySelectorAll('[data-bulk-clear]').forEach(b=>b.onclick=()=>{ st.selected.clear(); paintTable(); });
