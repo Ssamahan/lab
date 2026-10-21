@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.1.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.2.0** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
 
@@ -115,7 +115,30 @@ from on-duty lists by construction; off-duty, day and night never share a colour
 `⌘K` / `Ctrl K` palette · `/` focus search · `N` new sample · `G` then `D/S/R/Q/L/T/E/P` jump ·
 `T` theme · `[` density · `?` shortcuts · `Esc` close layer.
 
-## Print
+## Print and export
 
 Roster, manifests, leave register, PBF scorecards and revenue statements print to A4
 (roster and district report in landscape) with letterhead drawn from **Settings**.
+
+### Working plan & weekly roster sheets
+
+The roster module ships two document sheets that reproduce the signed registers — the
+monthly **Working Plan** and the **Weekly Unit Roster**. Both are generated as one SVG
+in `assets/js/core/sheets.js`, so every output is the same document:
+
+| Output | How | Quality |
+|---|---|---|
+| **PNG** | SVG → canvas at ~430 dpi | crisp at A4, small file |
+| **PDF** | SVG → canvas → single JPEG page, 842 × 595 pt | one A4 landscape page, ~430 dpi |
+| **XLSX** | hand-written OOXML, landscape, fit-to-page, frozen headers | editable, prints on one page |
+| **Print** | same SVG in a print window | vector, fonts fall back to system |
+
+Exports are one file per sheet (`working-plan-october-2026.png`, `unit-roster-2026-10-19.pdf`,
+…). The raster path is capped at 15 Mpx / 8192 px per side — the iOS-Safari canvas ceiling —
+so a phone can export the same sheet as a desktop without a blank image. No CDN, no
+library: the SVG builder, the PNG/PDF encoder and the ZIP/OOXML writer are all local.
+
+The October 2026 plan is stored as **official** register data (transcribed from the signed
+sheet, 30 Sep – 6 Nov, 7 staff), with Bernadette MUHAWENIMANA and Marie Claudine
+UWAYISABA added to the register. Official plans are never overwritten by the generator:
+regeneration archives the current version first.
