@@ -3,7 +3,7 @@
    ========================================================================== */
 (function(){
 'use strict';
-const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
+const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SH=LS.sheets;
 const M={}; LS.modules.roster=M;
 let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
 const CODES=[['D','Day 08–20'],['N','Night 20–08'],['DN','Day + Night'],['OFF','Off'],['AL','Annual leave'],['TR','Training'],['SICK','Sick leave'],['W','Weekend / rest']];
@@ -60,9 +60,10 @@ function header(){
      +'<div class="seg" style="margin-right:4px"><button data-nav="-1" aria-label="Previous month">'+UI.ic('chevron-left',14)+'</button><button data-nav="0" style="font-family:var(--font-mono);font-size:11px;min-width:92px">'+U.esc(label)+'</button><button data-nav="1" aria-label="Next month">'+UI.ic('chevron-right',14)+'</button></div>'
      +'<button class="btn" data-generate>'+UI.ic('sparkles',15)+' Generate draft</button>'
      +'<button class="btn" data-patterns>'+UI.ic('layers',15)+' Patterns</button>'
-     +'<button class="btn primary" data-print>'+UI.ic('printer',15)+' Print roster</button>'
+     +'<button class="btn" data-print>'+UI.ic('printer',15)+' Print roster</button>'
+     +'<button class="btn primary" data-sheet>'+UI.ic('file-down',15)+' Export sheet</button>'
    +'</div></div>'
-   +'<div class="filters" style="margin-bottom:12px">'+[['grid','Shift grid'],['week','Weekly roster'],['services','Lab services'],['fairness','Fairness'],['swaps','Swap requests']].map(([k,l])=>'<button class="filter-tab '+(view===k?'on':'')+'" data-view="'+k+'">'+l+'</button>').join('')+'</div>';
+   +'<div class="filters" style="margin-bottom:12px">'+[['sheet','Official sheet'],['grid','Shift grid'],['week','Weekly roster'],['services','Lab services'],['fairness','Fairness'],['swaps','Swap requests']].map(([k,l])=>'<button class="filter-tab '+(view===k?'on':'')+'" data-view="'+k+'">'+l+'</button>').join('')+'</div>';
 }
 function legend(){
   return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day</span><span class="shift-code N">N</span><span class="xs faint">Night</span><span class="shift-code DN">DN</span><span class="xs faint">Day+Night</span><span class="shift-code AL">AL</span><span class="xs faint">Leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">Off</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
@@ -142,6 +143,21 @@ function shiftWeek(delta){
   paint();
 }
 function allocationOf(start){ const w=S.db().unitRosters&&S.db().unitRosters[start]; return (w&&w.assignments)||{}; }
+
+/* the sheet is authored at 3200 px wide — let it shrink to the card on phones */
+function fitSVG(svg){ return svg.replace('<svg ','<svg style="max-width:100%;height:auto;display:block" ',1); }
+function sheetView(){
+  const p=plan();
+  const svg=SH.monthlySVG(monthSheetPlan());
+  return '<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('file-text',14,'ic')+'Official sheet — '+(p?((p.meta&&p.meta.period)||p.label):U.monthLabel(mk))+'</div>'
+    +'<div class="card-sub">'+(p?(p.meta&&p.meta.official?'Transcribed from the signed register · edits are audited':'Working draft — publish before circulating'):'No plan stored for this month — the sheet shows the register only')+'</div></div>'
+    +'<div class="card-tool row gap-sm"><button class="btn xs" data-sheet-png>'+UI.ic('image',12)+'PNG</button>'
+    +'<button class="btn xs" data-sheet-pdf>'+UI.ic('file-text',12)+'PDF</button>'
+    +'<button class="btn xs" data-sheet-xlsx>'+UI.ic('table-2',12)+'XLSX</button>'
+    +'<button class="btn xs primary" data-sheet-print>'+UI.ic('printer',12)+'Print</button></div></div>'
+    +'<div class="card-body" style="padding:10px;background:#fff"><div style="overflow:auto;border:1px solid var(--border);border-radius:8px">'+fitSVG(svg)+'</div></div>'
+    +'<div class="card-foot"><span>Same layout is used for PNG, PDF, XLSX and print — one A4 landscape page</span><span class="mono">'+(p?p.dates.length+' days · '+p.staff.length+' staff':'—')+'</span></div></div>';
+}
 function weekView(){
   const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
   const p=plan();
@@ -172,7 +188,8 @@ function weekView(){
     +'<div class="row gap-sm"><span class="pill '+(conflicts.length?'amber':'teal')+'">'+conflicts.length+' allocation conflict'+(conflicts.length===1?'':'s')+'</span>'
     +'<span class="pill '+(unstaffed?'rose':'teal')+'">'+unstaffed+' empty slots</span>'
     +'<button class="btn sm" data-auto-week>'+UI.ic('wand-sparkles',13)+' Auto-allocate</button>'
-    +'<button class="btn sm" data-print-week>'+UI.ic('printer',13)+' Print week</button></div></div>'
+    +'<button class="btn sm" data-print-week>'+UI.ic('printer',13)+' Print week</button>'
+    +'<button class="btn sm primary" data-week-sheet>'+UI.ic('file-down',13)+' Export sheet</button></div></div>'
     +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal"><thead>'+head.slice(7)+'<tbody>'+body+'</tbody></table></div>'
     +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
@@ -260,18 +277,12 @@ function autoAllocate(){
   paint(); UI.toast(filled+' service slots allocated from the on-duty list',{type:'ok'});
 }
 function printWeek(){
-  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
-  const head='<tr><th>Service</th>'+dates.map(iso=>'<th style="font-size:7.5px;padding:2px">'+U.DOWL[U.dow(iso)]+' '+U.parseISO(iso).getDate()+'</th>').join('')+'</tr>';
-  const rows=svcs.map(sv=>'<tr><td style="font-size:8px;white-space:nowrap">'+U.esc(sv.name)+' <span style="color:#888">('+U.esc(sv.code)+')</span></td>'
-    +dates.map(iso=>{ const n=alloc[iso]&&alloc[iso][sv.name]; return '<td style="font-size:8px;padding:2px;text-align:center">'+U.esc(n||'')+'</td>'; }).join('')+'</tr>').join('');
-  const foot='<p style="font-size:7px;color:#666;margin-top:5px">Allocation is derived from the published working plan for '+U.monthLabel(mk||U.monthKey())+'. Empty cells mean the service is not staffed that day.</p>';
-  U.printDoc('Weekly laboratory roster — '+weekNavLabel(start),'<table>'+head+rows+'</table>'+foot,
-    {landscape:true,meta:'<span>Prepared by '+(LS.auth.user?U.esc(LS.auth.user.name):'')+'</span><span>Week of '+U.fmtDate(start)+'</span>',signatures:true});
-  S.audit({action:'roster.print.week',entity:'unitRosters',entityId:start,detail:'Printed weekly roster '+weekNavLabel(start)}); S.save();
+  SH.printSVG(SH.weeklySVG(weekData()),{title:'Weekly unit roster — week of '+U.fmtDateShort(weekStart())});
+  S.audit({action:'roster.print.week',entity:'unitRosters',entityId:weekStart(),detail:'Printed weekly roster week of '+weekStart()}); S.save();
 }
 function paint(){
   const host=rootEl.querySelector('#roBody'); if(!host) return;
-  host.innerHTML=view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView();
+  host.innerHTML=view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView();
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
   wireBody();
 }
@@ -343,12 +354,103 @@ function swapModal(){
       close(); view='swaps'; paint(); UI.toast('Swap request submitted for approval',{type:'ok'});
     }; }});
 }
+
+/* ——— Official sheet: preview and export (PNG · PDF · XLSX) ————————— */
+function monthSheetPlan(){
+  const p=plan();
+  if(p) return p;
+  // No stored plan: render the empty sheet honestly rather than inventing shifts.
+  const key=mk||U.monthKey();
+  return {label:U.monthLabel(key),dates:U.monthRange(key),staff:S.activeStaff().map(s=>({name:s.name,id:s.id,codes:[]})),
+    meta:{period:U.monthLabel(key),date:U.todayISO(),fy:U.fyLabel(),official:false,draft:true}};
+}
+function monthSheetName(){
+  const p=plan();
+  const key=(p&&p.meta&&p.meta.period)?p.meta.period:(mk||U.monthKey());
+  return 'working-plan-'+(key||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+function openMonthSheet(){
+  const p=plan();
+  const svg=SH.monthlySVG(monthSheetPlan());
+  const filename=monthSheetName();
+  UI.modal({title:'Working plan sheet — '+(p?(p.meta&&p.meta.period)||p.label:'no plan stored'),sub:'Exactly what PNG, PDF, XLSX and print produce — one A4 landscape page.',width:'min(1180px,96vw)',
+    body:'<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;background:#fff;max-height:60vh">'+fitSVG(svg)+'</div>'
+      +(p?'':'<div class="hint" style="margin-top:8px">This month has no stored plan, so the sheet shows the staff register with empty days. Create or import a plan first if you need it signed.</div>'),
+    foot:'<button class="btn" data-close>Close</button><button class="btn" data-export-png>'+UI.ic('image',15)+' PNG</button>'
+      +'<button class="btn" data-export-pdf>'+UI.ic('file-text',15)+' PDF</button>'
+      +'<button class="btn" data-export-xlsx>'+UI.ic('table-2',15)+' XLSX</button>'
+      +'<button class="btn primary" data-export-print>'+UI.ic('printer',15)+' Print</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-export-png]').onclick=()=>{ close(); exportSheet('png',svg,filename); };
+      el.querySelector('[data-export-pdf]').onclick=()=>{ close(); exportSheet('pdf',svg,filename); };
+      el.querySelector('[data-export-xlsx]').onclick=()=>{ close(); exportSheet('xlsx',svg,filename); };
+      el.querySelector('[data-export-print]').onclick=()=>{ close(); SH.printSVG(svg,{title:'Working plan — '+monthSheetName()}); };
+    }});
+}
+async function exportSheet(fmt,svg,filename){
+  try{
+    if(fmt==='print'){ SH.printSVG(svg,{title:filename}); return; }
+    UI.toast('Preparing '+fmt.toUpperCase()+'…',{type:'info',duration:1500});
+    let blob,name=filename+'.'+fmt;
+    if(fmt==='png') blob=await SH.toPNG(svg,2);
+    else if(fmt==='pdf') blob=await SH.toPDF(svg,{scale:3});
+    else blob=SH.monthlyXLSX(monthSheetPlan());
+    U.download(name,blob);
+    UI.toast(name+' saved',{type:'ok'});
+    S.audit({action:'roster.export.'+fmt,entity:'workingPlans',entityId:mk,detail:'Working plan exported as '+fmt.toUpperCase()});
+    S.save();
+  }catch(e){ UI.toast('Export failed · '+(e&&e.message||e),{type:'err',duration:7000}); }
+}
+function openWeekSheet(){
+  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
+  const night={}; dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
+  const data={weekStart:start,dates,services:svcs,alloc,night};
+  const svg=SH.weeklySVG(data);
+  const filename='unit-roster-'+start;
+  UI.modal({title:'Weekly unit roster — week of '+U.fmtDateShort(start),sub:'Allocated units, weekend shading and the night shift row, on one A4 landscape page.',width:'min(1180px,96vw)',
+    body:'<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;background:#fff;max-height:60vh">'+svg+'</div>'
+      +'<div class="hint" style="margin-top:8px">Night shift names come from this week\'s allocation; where none is set, the person on the night code in the working plan is used.</div>',
+    foot:'<button class="btn" data-close>Close</button><button class="btn" data-wpng>'+UI.ic('image',15)+' PNG</button>'
+      +'<button class="btn" data-wpdf>'+UI.ic('file-text',15)+' PDF</button>'
+      +'<button class="btn" data-wxlsx>'+UI.ic('table-2',15)+' XLSX</button>'
+      +'<button class="btn primary" data-wprint>'+UI.ic('printer',15)+' Print</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-wpng]').onclick=()=>{ close(); exportWeek('png',svg,filename,data); };
+      el.querySelector('[data-wpdf]').onclick=()=>{ close(); exportWeek('pdf',svg,filename); };
+      el.querySelector('[data-wxlsx]').onclick=()=>{ close(); exportWeek('xlsx',svg,filename,data); };
+      el.querySelector('[data-wprint]').onclick=()=>{ close(); SH.printSVG(svg,{title:'Weekly unit roster'}); };
+    }});
+}
+async function exportWeek(fmt,svg,filename,data){
+  try{
+    UI.toast('Preparing '+fmt.toUpperCase()+'…',{type:'info',duration:1500});
+    let blob,name=filename+'.'+fmt;
+    if(fmt==='png') blob=await SH.toPNG(svg,2);
+    else if(fmt==='pdf') blob=await SH.toPDF(svg,{scale:3});
+    else blob=SH.weeklyXLSX(data||weekData());
+    U.download(name,blob); UI.toast(name+' saved',{type:'ok'});
+    S.audit({action:'roster.export.'+fmt,entity:'unitRosters',entityId:weekStart(),detail:'Weekly roster exported as '+fmt.toUpperCase()}); S.save();
+  }catch(e){ UI.toast('Export failed · '+(e&&e.message||e),{type:'err',duration:7000}); }
+}
+function weekData(){
+  const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={};
+  dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
+  return {weekStart:start,dates,services:S.services(),alloc,night};
+}
+function onDutyName(iso){
+  const p=planForDate(iso);
+  const row=p&&p.staff?p.staff.find(s=>(s.codes||[])[p.dates.indexOf(iso)]==='N'):null;
+  if(row) return row.name;
+  return '';
+}
+function planForDate(iso){
+  const e=S.db().workingPlans[String(iso).slice(0,7)];
+  return e&&e.primary?e.primary:null;
+}
 function printRoster(){
-  const p=plan(); if(!p) return UI.toast('Nothing to print — this month has no working plan',{type:'warn'});
-  const head='<tr><th>Staff</th>'+p.dates.map(iso=>'<th style="font-size:7px;padding:2px">'+U.parseISO(iso).getDate()+'<br>'+U.DOW1[U.dow(iso)]+'</th>').join('')+'</tr>';
-  const rows=p.staff.map(s=>'<tr><td style="font-size:7.5px;white-space:nowrap">'+U.esc(s.name)+'</td>'+s.codes.map(c=>'<td style="text-align:center;font-size:7.5px;padding:2px;background:'+(c==='OFF'?'#f4f4f4':c==='N'?'#e8eef8':c==='AL'?'#eef7f2':c==='TR'?'#f2eef8':'#fff')+'">'+U.esc(c||'')+'</td>').join('')+'</tr>').join('');
-  U.printDoc('Monthly duty roster — '+p.label,'<table style="font-size:7.5px">'+head+rows+'</table><p style="font-size:7px;color:#666;margin-top:5px">D = Day 08:00–20:00 · N = Night 20:00–08:00 · DN = Day + night · AL = Annual leave · TR = Training · OFF = Rest day</p>',
-    {landscape:true,meta:'<span>Prepared by '+(LS.auth.user?U.esc(LS.auth.user.name):'')+'</span><span>FY '+U.fyLabel()+'</span>',signatures:true});
+  const p=plan();
+  if(!p) return UI.toast('Nothing to print — this month has no working plan',{type:'warn'});
+  SH.printSVG(SH.monthlySVG(p),{title:'Working plan — '+(p.meta&&p.meta.period||p.label||'')});
   S.audit({action:'roster.print',entity:'workingPlans',entityId:mk,detail:'Printed roster '+p.label}); S.save();
 }
 async function generateMonth(){
@@ -395,12 +497,21 @@ function wireBody(){
   r.querySelectorAll('[data-wcell]').forEach(td=>td.onclick=()=>{ const [iso,svc]=td.dataset.wcell.split('|'); servicePicker(iso,svc); });
   r.querySelectorAll('[data-auto-week]').forEach(b=>b.onclick=autoAllocate);
   r.querySelectorAll('[data-print-week]').forEach(b=>b.onclick=printWeek);
+  r.querySelectorAll('[data-week-sheet]').forEach(b=>b.onclick=openWeekSheet);
+  if(view==='sheet'){
+    const svg=SH.monthlySVG(monthSheetPlan()), fn=monthSheetName();
+    r.querySelectorAll('[data-sheet-png]').forEach(b=>b.onclick=()=>exportSheet('png',svg,fn));
+    r.querySelectorAll('[data-sheet-pdf]').forEach(b=>b.onclick=()=>exportSheet('pdf',svg,fn));
+    r.querySelectorAll('[data-sheet-xlsx]').forEach(b=>b.onclick=()=>exportSheet('xlsx',svg,fn));
+    r.querySelectorAll('[data-sheet-print]').forEach(b=>b.onclick=()=>SH.printSVG(svg,{title:'Working plan — '+fn}));
+  }
   r.querySelectorAll('[data-manage-services]').forEach(b=>b.onclick=()=>{ view='services'; paint(); });
   r.querySelectorAll('[data-view-jump]').forEach(b=>b.onclick=()=>{ view=b.dataset.viewJump; paint(); });
   r.querySelectorAll('[data-add-svc]').forEach(b=>b.onclick=()=>serviceModal(null));
   r.querySelectorAll('[data-edit-svc]').forEach(b=>b.onclick=()=>serviceModal(b.dataset.editSvc));
   r.querySelectorAll('[data-patterns]').forEach(b=>b.onclick=patternsModal);
   r.querySelectorAll('[data-print]').forEach(b=>b.onclick=printRoster);
+  r.querySelectorAll('[data-sheet]').forEach(b=>b.onclick=openMonthSheet);
   r.querySelectorAll('[data-new-swap]').forEach(b=>b.onclick=swapModal);
   r.querySelectorAll('[data-swap-approve]').forEach(b=>b.onclick=()=>{ if(!LS.auth.guard('approve'))return; S.commit(d=>{ const sw=(d.swaps||[]).find(x=>x.id===b.dataset.swapApprove); if(sw){ sw.status='Approved'; sw.approvedBy=LS.auth.user.name; sw.approvedAt=U.nowISO(); } },{action:'roster.swap.approve',entity:'workingPlans',detail:'Swap approved: '+b.dataset.swapApprove}); paint(); UI.toast('Swap approved · roster updated',{type:'ok'}); });
   r.querySelectorAll('[data-swap-decline]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ const sw=(d.swaps||[]).find(x=>x.id===b.dataset.swapDecline); if(sw) sw.status='Declined'; },{action:'roster.swap.decline',entity:'workingPlans',detail:'Swap declined'}); paint(); UI.toast('Swap declined',{type:'warn'}); });

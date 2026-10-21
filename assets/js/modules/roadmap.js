@@ -185,7 +185,7 @@ M.render=function(root,params){
    +'<div id="rmRing"></div><div class="grow"><div class="serif" style="font-size:1.5rem;letter-spacing:-.03em">Lab Systems v6.0 — the 100-upgrade release.</div>'
    +'<div class="small muted" style="margin-top:6px;max-width:52ch">'+done+' shipped, '+partial+' partial, '+(ALL.length-done-partial)+' planned. Nothing here is a mock-up: each line maps to a screen, a token or an interaction in this console.</div></div></div></div></div>'
    +'<div class="c4"><div class="card pad" style="display:flex;flex-direction:column;justify-content:center;height:100%"><div class="eyebrow">Release train</div>'
-   +'<div class="rm-ticks">'+[['v5.0','Foundation'],['v5.3','Register'],['v6.0','Flagship'],['v6.1','Cloud delta sync']].map(([v,l],i)=>'<div class="rm-tick '+(i===2?'on':'')+'"><i></i><b class="mono">'+v+'</b><span>'+l+'</span></div>').join('')+'</div>'
+   +'<div class="rm-ticks">'+[['v5.0','Foundation'],['v5.3','Register'],['v6.0','Flagship'],['v6.1','Cloud delta sync'],['v6.2','Document sheets']].map(([v,l],i)=>'<div class="rm-tick '+(i===4?'on':'')+'"><i></i><b class="mono">'+v+'</b><span>'+l+'</span></div>').join('')+'</div>'
    +'<div class="xs faint" style="margin-top:12px" id="rmPct"></div></div></div></div>'
    +'<div class="filters" style="margin-bottom:12px"><button class="filter-tab '+(filter==='all'?'on':'')+'" data-rm="all">All 100</button>'
    +'<button class="filter-tab '+(filter==='done'?'on':'')+'" data-rm="done">Shipped</button>'

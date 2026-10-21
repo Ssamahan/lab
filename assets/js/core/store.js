@@ -483,6 +483,55 @@ function normalize(db){
       p.meta.official=/official|pushed from attached|signed/i.test(p.meta.label||'')&&!p.meta.generated;
     }
   });
+  // Official October 2026 working plan and the staff it names. The plan is
+  // register data, transcribed once from the signed sheet; it is never generated.
+  if(!db.meta.october2026Seeded){
+    const extra=[
+      {id:'s10',name:'Bernadette MUHAWENIMANA',sex:'Female',dob:'1995-03-14',role:'Laboratory Technician',
+       phone:'0781942405',email:'',contract:'statute',pattern:'normal',nightPref:'3',maxNights:12,maxConsecN:3,
+       status:'active',joinDate:'2024-02-12',exitDate:null,note:'Joins the day and night rotation across reception, phlebotomy and TB/molecular'},
+      {id:'s11',name:'Marie Claudine UWAYISABA',sex:'Female',dob:'1993-08-21',role:'Laboratory Technologist',
+       phone:'',email:'',contract:'statute',pattern:'normal',nightPref:'no',maxNights:0,maxConsecN:0,
+       status:'active',joinDate:'2022-11-07',exitDate:null,note:'Bench cover for biochemistry, serology and parasitology'}
+    ];
+    extra.forEach(x=>{ if(!db.staff.find(y=>y.name===x.name)) db.staff.push(x); });
+    if(!db.workingPlans['2026-10']){
+      db.workingPlans['2026-10']={"primary":{"staff":[{"name":"Kelvin SAMAHANI","codes":["D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D"]},{"name":"Beatrice NGEZEKURE","codes":["D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","OFF","D","D","OFF","D","D","D","D"]},{"name":"Aurelie YANSONEYE","codes":["OFF","OFF","OFF","DN","DN","OFF","OFF","OFF","OFF","OFF","DN","DN","OFF","OFF","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL"]},{"name":"Patrick ISHIMWE","codes":["AL","AL","D","OFF","OFF","D","D","D","N","N","OFF","OFF","N","N","N","OFF","OFF","","","N","N","N","OFF","OFF","D","D","OFF","OFF","OFF","N","N","","","D","D","D","D","OFF"]},{"name":"Jean Paul NSENGIYUMVA","codes":["N","OFF","OFF","","","D","D","D","D","D","","","D","D","D","OFF","D","N","N","OFF","OFF","D","D","D","","","N","N","N","OFF","OFF","","","D","D","D","D","D"]},{"name":"Dieudonne NIYIDUHABYOSE","codes":["D","N","N","","","N","N","N","OFF","OFF","","","OFF","D","D","D","OFF","D","D","OFF","D","D","N","N","","","D","D","OFF","D","D","N","N","OFF","OFF","N","N","N"]},{"name":"Bernadette MUHAWENIMANA","codes":["D","D","D","","","D","D","D","D","D","","","D","D","D","N","N","","","D","D","D","D","OFF","N","N","OFF","OFF","D","D","D","OFF","OFF","N","N","OFF","OFF","D"]}],"dates":["2026-09-30","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-10","2026-10-11","2026-10-12","2026-10-13","2026-10-14","2026-10-15","2026-10-16","2026-10-17","2026-10-18","2026-10-19","2026-10-20","2026-10-21","2026-10-22","2026-10-23","2026-10-24","2026-10-25","2026-10-26","2026-10-27","2026-10-28","2026-10-29","2026-10-30","2026-10-31","2026-11-01","2026-11-02","2026-11-03","2026-11-04","2026-11-05","2026-11-06"],"meta":{"label":"Official October 2026 - transcribed from the signed working-plan image (no fabricated shifts)","date":"2026-09-28","fy":"2026/2027","period":"October 2026","revised":false,"official":true}},"versions":[]};
+    }
+    db.meta.october2026Seeded=U.todayISO();
+  }
+  // v6.2: the benches are renamed to the unit-roster wording printed on the sheets
+  // (Reception, Phlebotomy, Hematology, Biochemistry, Serology, Parasitology,
+  // TB/Molecular). Each rename only fires when the stored name is still the old
+  // default for that id, so fresh installs and customised benches are untouched;
+  // week allocations keyed by the old names move across so nothing is orphaned.
+  if(!db.meta.servicesV62){
+    const RENAME={
+      svc1:['Sample reception','Reception','REC'],
+      svc2:['Hematology','Phlebotomy','PHL'],
+      svc3:['Chemistry','Hematology','HAE'],
+      svc4:['Serology','Biochemistry','BIO'],
+      svc5:['Microbiology','Serology','SER'],
+      svc6:['Molecular (GeneXpert)','Parasitology','PAR'],
+      svc7:['Blood bank','TB/Molecular','TBM']
+    };
+    const moved={};
+    (db.services||[]).forEach(sv=>{
+      const r=RENAME[sv.id];
+      if(r&&sv.name===r[0]){ moved[r[0]]=r[1]; sv.name=r[1]; sv.code=r[2]; }
+    });
+    if(Object.keys(moved).length){
+      Object.keys(db.unitRosters||{}).forEach(w=>{
+        const as=(db.unitRosters[w]&&db.unitRosters[w].assignments)||{};
+        Object.keys(as).forEach(iso=>{
+          const day=as[iso]||{}, next={};
+          Object.keys(day).forEach(k=>{ next[moved[k]||k]=day[k]; });
+          as[iso]=next;
+        });
+      });
+    }
+    db.meta.servicesV62=1;
+  }
   // audit seed
   if(!db.audit.length){
     DB=db;
@@ -697,18 +746,27 @@ S.offDuty=function(iso){
 
 /* Laboratory services and weekly allocation (roster module). */
 const DEFAULT_SERVICES=[
-  {id:'svc1', name:'Sample reception', code:'REC', min:1, note:'Registration, accessioning, rejection'},
-  {id:'svc2', name:'Hematology', code:'HAE', min:1, note:'CBC, ESR, malaria slides'},
-  {id:'svc3', name:'Chemistry', code:'CHE', min:1, note:'Glucose, creatinine, ALT'},
-  {id:'svc4', name:'Serology', code:'SER', min:1, note:'HIV, syphilis, hepatitis'},
-  {id:'svc5', name:'Microbiology', code:'MIC', min:1, note:'Blood culture, TB, AFB'},
-  {id:'svc6', name:'Molecular (GeneXpert)', code:'MOL', min:1, note:'MTB/RIF, viral load'},
-  {id:'svc7', name:'Blood bank', code:'BBK', min:1, note:'Grouping, cross-match'}
+  {id:'svc1', name:'Reception', code:'REC', min:1, note:'Registration, accessioning, referral dispatch'},
+  {id:'svc2', name:'Phlebotomy', code:'PHL', min:1, note:'Bleeding bay and sample collection'},
+  {id:'svc3', name:'Hematology', code:'HAE', min:1, note:'CBC, ESR, malaria slides'},
+  {id:'svc4', name:'Biochemistry', code:'BIO', min:1, note:'Glucose, creatinine, ALT, electrolytes'},
+  {id:'svc5', name:'Serology', code:'SER', min:1, note:'HIV, syphilis, hepatitis'},
+  {id:'svc6', name:'Parasitology', code:'PAR', min:1, note:'Stool, urine and malaria microscopy'},
+  {id:'svc7', name:'TB/Molecular', code:'TBM', min:1, note:'GeneXpert MTB/RIF, TB culture, viral load'}
 ];
 S.services=function(){ const db=S.db(); db.services=db.services||DEFAULT_SERVICES.map(x=>({...x})); return db.services; };
 S.weekStart=function(iso){ const d=U.parseISO(iso||U.todayISO()); const dow=U.dow(U.isoLocal(d)); return U.addDays(U.isoLocal(d),-dow); };
 S.weekDates=function(start){ return Array.from({length:7},(_,i)=>U.addDays(start,i)); };
 S.unitWeek=function(start){ const db=S.db(); db.unitRosters=db.unitRosters||{}; if(!db.unitRosters[start]) db.unitRosters[start]={weekStart:start,assignments:{}}; const w=db.unitRosters[start]; w.assignments=w.assignments||{}; return w; };
+S.unitNight=function(start,date){
+  const w=S.db().unitRosters&&S.db().unitRosters[start];
+  return (w&&w.night&&w.night[date])||'';
+};
+S.unitSetNight=function(start,date,name){
+  const w=S.unitWeek(start); w.night=w.night||{};
+  if(name) w.night[date]=name; else delete w.night[date];
+  return w;
+};
 S.unitAssign=function(start,date,service){ const w=S.db().unitRosters&&S.db().unitRosters[start]; return w&&w.assignments&&w.assignments[date]?w.assignments[date][service]||'':''; };
 
 S.eqaLatest=function(){
