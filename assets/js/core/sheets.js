@@ -40,6 +40,13 @@ const styleOf=c=>CODE[c]||null;
 
 /* ——— Small SVG helpers ————————————————————————————— */
 const esc=s=>U.esc(String(s==null?'':s));
+/* Font-size that keeps a string inside a box. Advance is approximated at 0.58 em
+   (bold sans, which is the widest we set) so a substituted font never spills. */
+function fitSize(str,maxWidth,preferred,min){
+  const len=String(str||'').length||1;
+  const byWidth=maxWidth/(len*0.58);
+  return Math.max(min||10,Math.min(preferred,byWidth));
+}
 const r2=n=>Math.round(n*100)/100;
 function rect(x,y,w,h,fill,o){
   o=o||{};
@@ -107,18 +114,18 @@ function letterhead(s,opts){
   let g='';
   if(crest) g+='<image x="'+cx0+'" y="'+cy0+'" width="'+cs+'" height="'+cs+'" href="'+esc(crest)+'" preserveAspectRatio="xMidYMid meet"/>';
   else g+=crestMark(cx0,cy0,cs);
-  g+=text(cx0+cs/2,cy0+cs+34,'Republic of Rwanda',{size:19,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
+  g+=text(cx0+cs/2,cy0+cs+40,'Republic of Rwanda',{size:26,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
 
   const lx=W-pad-70-cs*0.95, ly=cy0+10, ls=cs*0.95;
   if(logo) g+='<image x="'+lx+'" y="'+ly+'" width="'+ls+'" height="'+ls+'" href="'+esc(logo)+'" preserveAspectRatio="xMidYMid meet"/>';
   else g+=logoMark(lx,ly,ls);
-  g+=text(lx+ls/2,cy0+cs+34,'Ruli District Hospital',{size:19,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
+  g+=text(lx+ls/2,cy0+cs+40,'Ruli District Hospital',{size:26,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
 
   const mid=W/2;
-  g+=text(mid,cy0+78,(s.hospital||'Ruli District Hospital').toUpperCase(),{size:44,weight:700,anchor:'middle',fill:'#12203C',family:FONT.serif,ls:'1'});
-  g+=text(mid,cy0+114,s.dept||'Laboratory Department',{size:22,weight:600,anchor:'middle',fill:'#26303F'});
-  if(s.email) g+=text(mid,cy0+142,s.email,{size:17,anchor:'middle',fill:'#3D4759'});
-  if(s.phone) g+=text(mid,cy0+166,s.phone,{size:17,anchor:'middle',fill:'#3D4759'});
+  g+=text(mid,cy0+82,(s.hospital||'Ruli District Hospital').toUpperCase(),{size:54,weight:700,anchor:'middle',fill:'#12203C',family:FONT.serif,ls:'1'});
+  g+=text(mid,cy0+122,s.dept||'Laboratory Department',{size:28,weight:600,anchor:'middle',fill:'#26303F'});
+  if(s.email) g+=text(mid,cy0+156,s.email,{size:23,anchor:'middle',fill:'#3D4759'});
+  if(s.phone) g+=text(mid,cy0+186,s.phone,{size:23,anchor:'middle',fill:'#3D4759'});
 
   g+=rect(pad,opts.rule1||272,W-pad*2,6,C.goldLine);
   return g;
@@ -144,9 +151,9 @@ SH.monthlySVG=function(plan,opts){
   const W=3200, H=1876, pad=96;
   const rows=(plan.staff||[]);
   const cols=monthCols(plan);
-  const labelW=415, gridX=pad+labelW;
+  const labelW=485, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
-  const gridTop=opts.gridTop||442, bandH=34, dateH=26, rowH=Math.max(40,Math.min(62,(opts.gridBottom||1012)-gridTop-bandH-dateH)/Math.max(1,rows.length));
+  const gridTop=opts.gridTop||454, bandH=42, dateH=32, rowH=Math.max(46,Math.min(74,(opts.gridBottom||1082)-gridTop-bandH-dateH)/Math.max(1,rows.length));
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
 
   let g='';
@@ -154,19 +161,19 @@ SH.monthlySVG=function(plan,opts){
   g+=letterhead(s,{width:W,pad:pad,top:18,rule1:288});
 
   const title=(plan.meta&&plan.meta.period)?('Working Plan — '+plan.meta.period):(plan.label||'Working Plan');
-  g+=text(W/2,358,title,{size:31,weight:700,anchor:'middle',fill:'#12203C'});
+  g+=text(W/2,368,title,{size:44,weight:700,anchor:'middle',fill:'#12203C'});
   const metaBits=[];
   if(plan.meta&&plan.meta.date) metaBits.push('Date: '+plan.meta.date);
   if(plan.meta&&plan.meta.fy) metaBits.push('FY: '+plan.meta.fy);
   if(plan.meta&&plan.meta.revised) metaBits.push('Revised');
-  g+=text(W/2,392,metaBits.join('    '),{size:17,anchor:'middle',fill:'#3D4759'});
-  g+=rect(pad,398,W-pad*2,2,C.goldLine);
+  g+=text(W/2,412,metaBits.join('      '),{size:25,anchor:'middle',fill:'#3D4759'});
+  g+=rect(pad,424,W-pad*2,2,C.goldLine);
 
   /* header bands */
   g+=rect(pad,gridTop,labelW,bandH,C.band);
-  g+=text(pad+22,gridTop+bandH/2+7,'STAFF',{size:20,weight:700,fill:'#FFFFFF',ls:'1'});
+  g+=text(pad+24,gridTop+bandH/2+9,'STAFF',{size:25,weight:700,fill:'#FFFFFF',ls:'1'});
   g+=rect(pad,gridTop+bandH,labelW,dateH,'#FFFFFF');
-  g+=text(pad+22,gridTop+bandH+dateH/2+7,'Name',{size:18,weight:600,fill:'#3D4759'});
+  g+=text(pad+24,gridTop+bandH+dateH/2+9,'Name',{size:23,weight:600,fill:'#3D4759'});
   g+=rect(pad,gridTop,labelW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
   cols.forEach((c,i)=>{
     const x=gridX+i*colW;
@@ -174,25 +181,32 @@ SH.monthlySVG=function(plan,opts){
     g+=rect(x,gridTop,colW,bandH,fill);
     g+=rect(x,gridTop+bandH,colW,dateH,c.weekend?'#FBF1DA':'#F4F6FA');
     g+=rect(x,gridTop,colW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
-    g+=text(x+colW/2,gridTop+bandH/2+7,SH.dowLetter(c.dow),{size:20,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
-    g+=text(x+colW/2,gridTop+bandH+dateH/2+7,String(c.day),{size:19,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,gridTop+bandH/2+9,SH.dowLetter(c.dow),{size:25,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
+    g+=text(x+colW/2,gridTop+bandH+dateH/2+9,String(c.day),{size:24,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
   });
 
   /* body */
   rows.forEach((r,ri)=>{
     const y=gridTop+bandH+dateH+ri*rowH;
     g+=rect(pad,y,labelW,rowH,ri%2?'#FAFBFD':'#FFFFFF');
-    g+=text(pad+22,y+rowH/2+7,r.name,{size:22,weight:600,fill:'#12203C'});
+    g+=text(pad+24,y+rowH/2+9,r.name,{size:fitSize(r.name,labelW-44,27,19),weight:600,fill:'#12203C'});
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
-      const code=(codes[i]||'').trim();
-      const st=styleOf(code);
+      let code=(codes[i]||'').trim();
+      let st=styleOf(code);
+      // Approved leave is printed over the stored plan; the plan itself is never
+      // rewritten by an approval.
+      const LEAVE_CODES=['AL','SL','CL','ML','TR','W','ABS','H'];
+      if(!st || LEAVE_CODES.indexOf(code)<0){
+        const lv=LS.store.approvedLeaveCodeFor && LS.store.approvedLeaveCodeFor(r.name,c.iso);
+        if(lv){ code=lv; st=styleOf(lv); }
+      }
       const x=gridX+i*colW;
       const bg=st?st.bg:(c.weekend?C.creamBand:'#FFFFFF');
       g+=rect(x,y,colW,rowH,bg);
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       if(st && code){
-        g+=text(x+colW/2,y+rowH/2+(code.length>2?5:7),st.label,{size:code.length>2?16:21,weight:700,anchor:'middle',fill:st.fg});
+        g+=text(x+colW/2,y+rowH/2+(code.length>2?7:9),st.label,{size:code.length>2?20:27,weight:700,anchor:'middle',fill:st.fg});
       }
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
@@ -210,38 +224,44 @@ SH.monthlySVG=function(plan,opts){
 
   /* keys */
   let y=gridBottom+66;
-  g+=text(pad,y,'Keys:',{size:21,weight:700,fill:'#12203C'});
-  y+=26;
+  g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
+  y+=30;
   const keys=SH.keyOrder.map(c=>CODE[c].key);
-  const keyCols=4, keyW=(W-pad*2)/keyCols, keyH=50;
+  const keyCols=4, keyW=(W-pad*2)/keyCols, keyH=54;
   keys.forEach((k,i)=>{
     const col=i%keyCols, row=Math.floor(i/keyCols);
-    const x=pad+col*keyW, yy=y+row*(keyH+10);
+    const x=pad+col*keyW, yy=y+row*(keyH+8);
     g+=rect(x,yy,keyW-14,keyH,'#F7F9FD',{rx:6,stroke:'#E3E8F1',sw:1});
     const code=k.split(' ')[0];
     const st=styleOf(code)||{bg:'#EEF1F7',fg:C.ink};
-    g+=rect(x+10,yy+14,24,24,st.bg,{rx:4,stroke:'#DCE2EC',sw:1});
-    g+=text(x+44,yy+32,k,{size:19.5,fill:'#26303F'});
+    g+=rect(x+12,yy+15,26,26,st.bg,{rx:4,stroke:'#DCE2EC',sw:1});
+    g+=text(x+50,yy+35,k,{size:23,fill:'#26303F'});
   });
-  y+=Math.ceil(keys.length/keyCols)*(keyH+10)+26;
+  y+=Math.ceil(keys.length/keyCols)*(keyH+8)+22;
 
   /* staff contacts */
-  g+=text(pad,y,'Staff contacts:',{size:21,weight:700,fill:'#12203C'});
-  y+=24;
+  g+=text(pad,y,'Staff contacts:',{size:26,weight:700,fill:'#12203C'});
+  y+=28;
   /* contact cards: name + number, two columns, gold left bar — measured off the
      printed register (66 px tall, 76 px pitch, 12 px inside padding) */
-  const contactH=66, contactGap=10, contactRows=Math.max(1,Math.ceil(rows.length/2));
+  /* card height fills the run down to the signature block (max 92 px) so the page
+     never opens a white gap between contacts and signatures */
+  /* Cards are spread down to the signature block, as on the printed register:
+     pitch fills the run, the card itself stays compact and legible. */
+  const sigTop0=1612, contactRows=Math.max(1,Math.ceil(rows.length/2));
+  const contactPitch=Math.max(76,(sigTop0-24-y)/contactRows);
+  const contactH=Math.min(88,contactPitch-16);
   const colWid=(W-pad*2)/2;
   rows.forEach((r,i)=>{
     const col=i%2, row=Math.floor(i/2);
-    const x=pad+col*colWid, yy=y+row*(contactH+contactGap);
+    const x=pad+col*colWid, yy=y+row*contactPitch+(contactPitch-contactH)/2;
     const st=LS.store.staffByName(r.name)||{};
     g+=rect(x,yy,4,contactH,C.goldLine);
     g+=rect(x+4,yy,colWid-24,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
-    g+=text(x+22,yy+26,r.name,{size:20.5,weight:600,fill:'#12203C'});
-    g+=text(x+22,yy+50,st.phone||'—',{size:17,fill:'#5B6474'});
+    g+=text(x+24,yy+28,r.name,{size:fitSize(r.name,colWid-52,25,16),weight:600,fill:'#12203C'});
+    g+=text(x+24,yy+55,st.phone||'—',{size:21,fill:'#5B6474'});
   });
-  y+=contactRows*contactH+(contactRows-1)*contactGap+10;
+  y+=contactRows*contactPitch+10;
 
   /* signatures */
   const sigTop=1612;
@@ -253,11 +273,10 @@ SH.monthlySVG=function(plan,opts){
   ];
   sigs.forEach(([label,name,role],i)=>{
     const x=pad+i*((W-pad*2)/3);
-    g+=text(x,1652,label,{size:16,weight:600,fill:'#12203C'});
-    g+=text(x,1678,name,{size:17,weight:700,fill:'#12203C'});
-    g+=text(x,1700,role,{size:15,fill:'#5B6474'});
+    g+=text(x,1656,label,{size:21,weight:600,fill:'#12203C'});
+    g+=text(x,1688,name,{size:23,weight:700,fill:'#12203C'});
+    g+=text(x,1718,role,{size:19,fill:'#5B6474'});
   });
-  g+=text(pad,H-28,'Lab Systems v6.2 · Ruli District Hospital Laboratory · ISO 15189 document control · uncontrolled when printed',{size:12,fill:'#9AA3B2'});
 
   return svgDoc(W,H,g);
 };
@@ -273,8 +292,8 @@ SH.weeklySVG=function(data,opts){
   const night=data.night||{};
   const labelW=560, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,dates.length);
-  const headH=34, dateH=30, rowH=76, nightH=64;
-  const top=430;
+  const headH=44, dateH=34, rowH=84, nightH=72;
+  const top=446;
   const H=top+headH+dateH+rowH*services.length+nightH+150;
 
   let g='';
@@ -282,15 +301,15 @@ SH.weeklySVG=function(data,opts){
   g+=letterhead(s,{width:W,pad:pad,top:14,rule1:272});
 
   const title='Weekly Unit Roster — Week of '+U.fmtDateShort(data.weekStart)+' '+U.parseISO(data.weekStart).getFullYear();
-  g+=text(W/2,352,title,{size:30,weight:700,anchor:'middle',fill:'#12203C'});
-  g+=rect(pad,382,W-pad*2,2,C.goldLine);
-  g+=rect(pad,392,W-pad*2,6,C.goldLine);
+  g+=text(W/2,372,title,{size:42,weight:700,anchor:'middle',fill:'#12203C'});
+  g+=rect(pad,398,W-pad*2,2,C.goldLine);
+  g+=rect(pad,408,W-pad*2,6,C.goldLine);
 
   /* header: navy label block + two light rows of day then date, weekends in cream */
   g+=rect(pad,top,labelW,headH,C.band);
-  g+=text(pad+22,top+headH/2+8,'Unit / Day',{size:20,weight:700,fill:'#FFFFFF'});
+  g+=text(pad+24,top+headH/2+9,'Unit / Day',{size:26,weight:700,fill:'#FFFFFF'});
   g+=rect(pad,top+headH,labelW,dateH,'#FFFFFF');
-  g+=text(pad+22,top+headH+dateH/2+8,'Date',{size:20,weight:700,fill:'#12203C'});
+  g+=text(pad+24,top+headH+dateH/2+9,'Date',{size:25,weight:700,fill:'#12203C'});
   g+=rect(pad,top+headH,labelW,dateH,'none',{stroke:C.line,sw:1});
   g+=rect(pad,top,labelW,headH+dateH,'none',{stroke:C.line,sw:1});
   dates.forEach((iso,i)=>{
@@ -299,38 +318,38 @@ SH.weeklySVG=function(data,opts){
     g+=rect(x,top,colW,headH,we?C.creamBand:'#FFFFFF');
     g+=rect(x,top+headH,colW,dateH,we?'#F7E9C9':'#F4F6FA');
     g+=rect(x,top,colW,headH+dateH,'none',{stroke:C.line,sw:1});
-    g+=text(x+colW/2,top+headH/2+8,U.DOWL[(d.getDay()+6)%7],{size:19,weight:700,anchor:'middle',fill:we?C.alInk:'#12203C'});
-    g+=text(x+colW/2,top+headH+dateH/2+8,String(d.getDate()),{size:19,weight:600,anchor:'middle',fill:we?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,top+headH/2+9,U.DOWL[(d.getDay()+6)%7],{size:25,weight:700,anchor:'middle',fill:we?C.alInk:'#12203C'});
+    g+=text(x+colW/2,top+headH+dateH/2+9,String(d.getDate()),{size:24,weight:600,anchor:'middle',fill:we?C.alInk:'#12203C',mono:true});
   });
 
   services.forEach((sv,ri)=>{
     const y=top+headH+dateH+ri*rowH;
     g+=rect(pad,y,labelW,rowH,'#FFFFFF');
-    g+=text(pad+22,y+rowH/2+7,sv.name,{size:21,weight:600,fill:'#12203C'});
+    g+=text(pad+24,y+rowH/2+9,sv.name,{size:fitSize(sv.name,labelW-44,26,16),weight:600,fill:'#12203C'});
     dates.forEach((iso,i)=>{
       const d=U.parseISO(iso), we=d.getDay()===0||d.getDay()===6;
       const x=gridX+i*colW;
       g+=rect(x,y,colW,rowH,we?C.creamBand:'#FFFFFF');
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       const who=(alloc[iso]&&alloc[iso][sv.name])||'';
-      if(who) g+=text(x+colW/2,y+rowH/2+7,who,{size:18,weight:600,anchor:'middle',fill:'#12203C'});
+      if(who) g+=text(x+colW/2,y+rowH/2+9,who,{size:fitSize(who,colW-18,21,12),weight:600,anchor:'middle',fill:'#12203C'});
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
   });
 
   const ny=top+headH+dateH+services.length*rowH;
   g+=rect(pad,ny,labelW,nightH,C.nightBand);
-  g+=text(pad+22,ny+nightH/2+8,'Night Shift',{size:20,weight:700,fill:'#E9D9A7'});
+  g+=text(pad+24,ny+nightH/2+9,'Night Shift',{size:26,weight:700,fill:'#E9D9A7'});
   dates.forEach((iso,i)=>{
     const x=gridX+i*colW;
     g+=rect(x,ny,colW,nightH,C.nightBand);
     g+=rect(x,ny,colW,nightH,'none',{stroke:'#2A3A5C',sw:1});
     const who=night[iso]||'';
-    if(who) g+=text(x+colW/2,ny+nightH/2+8,who,{size:18,weight:600,anchor:'middle',fill:'#FFFFFF'});
+    if(who) g+=text(x+colW/2,ny+nightH/2+9,who,{size:fitSize(who,colW-18,21,12),weight:600,anchor:'middle',fill:'#FFFFFF'});
   });
   g+=rect(pad,ny+nightH,W-pad*2,3,C.goldLine);
 
-  g+=text(W/2,H-96,'Week of '+U.fmtDateShort(data.weekStart)+' · Generated '+U.todayISO()+' · Ruli District Hospital Laboratory',{size:16,anchor:'middle',fill:'#3D4759'});
+  g+=text(W/2,H-86,'Week of '+U.fmtDateShort(data.weekStart)+' · Generated '+U.todayISO()+' · Ruli District Hospital Laboratory',{size:22,anchor:'middle',fill:'#3D4759'});
   return svgDoc(W,H,g);
 };
 

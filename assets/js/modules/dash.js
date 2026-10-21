@@ -153,11 +153,11 @@ function dutyCard(){
   const source=duty[0]?duty[0].state.source:'none';
   const off=rows.filter(r=>r.state.kind==='off').length;
   const badge=st=>'<span class="pill '+st.tone+'"><span class="dot'+(st.kind==='day'||st.kind==='night'||st.kind==='daynight'?' live':'')+'"></span>'+U.esc(st.label)+'</span>';
-  return UI.card({title:'On duty now',sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · day 08:00–20:00 / night 20:00–08:00',icon:'users',
+  return UI.card({title:'On duty now',sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · day 08:00–17:00 / night 17:00–08:00',icon:'users',
     tools:'<a class="more" href="#/roster" style="color:var(--gold)">Roster '+UI.ic('arrow-right',12)+'</a>',
     body:'<div class="row wrap gap-sm" style="margin-bottom:10px">'
       +'<span class="pill teal">'+duty.length+' on duty</span>'
-      +'<span class="pill slate">'+off+' off duty</span>'
+      +'<span class="pill slate">'+off+' at home</span>'
       +'<span class="pill '+((source==='plan')?'blue':'amber')+'">'+(source==='plan'?'Working plan':'No plan · contract pattern')+'</span>'
       +'</div>'
       +'<div class="on-duty" style="flex-direction:column;gap:8px;align-items:stretch">'+rows.map(r=>{
@@ -166,9 +166,8 @@ function dutyCard(){
         return '<div class="duty-card" data-duty-kind="'+st.kind+'" style="'+(st.kind==='off'||st.kind==='leave'?'opacity:.62;':'')+'">'+U.avatar(s.name,'sm')
           +'<div style="min-width:0;flex:1"><div class="nm truncate">'+U.esc(s.name)+'</div><div class="rl truncate">'+U.esc(s.role)+'</div></div>'
           +'<span class="pill '+tone+'"><span class="dot'+(S.isOnDuty(s,iso)?' live':'')+'"></span>'+U.esc(st.label)+'</span></div>';
-      }).join('')+'</div>'
-      +'<div class="hint" style="margin-top:10px">Exited staff never appear on duty. Shift codes come from the published working plan; a month with no plan is shown as contract pattern.</div>',
-    foot:'<span>Day shift 08:00–20:00 · night 20:00–08:00</span><span class="mono">'+duty.filter(d=>d.state.kind.indexOf('night')>=0).length+' on nights</span>'});
+      }).join('')+'</div>',
+    foot:'<span>Day shift 08:00–17:00 · night 17:00–08:00</span><span class="mono">'+duty.filter(d=>d.state.kind.indexOf('night')>=0).length+' on nights</span>'});
 }
 
 function worklistCard(){

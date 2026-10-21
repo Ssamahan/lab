@@ -191,7 +191,7 @@ SH.refresh=function(){ SH.route({keepScroll:true}); };
 SH.fail=function(err,id,host){
   const box=host||document.getElementById('page');
   if(!box) return;
-  const diag='Lab Systems v6.2.0\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
+  const diag='Lab Systems v6.3.0\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
   box.innerHTML='<div class="page"><div class="card pad" style="max-width:620px;margin:5vh auto">'
    +'<div class="row" style="gap:12px;margin-bottom:10px"><div class="kpi-ic" style="width:36px;height:36px;color:var(--crit);background:var(--crit-soft);border-color:var(--crit-border)">'+U.ic('alert-triangle',18)+'</div>'
    +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">This panel could not render</div><div class="xs faint">Your data is safe — nothing was written.</div></div></div>'
