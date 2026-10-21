@@ -101,22 +101,78 @@ function tableHTML(){
    +'</div></div>';
 }
 
+/* ——— Referral network: the partner laboratories, editable ———————— */
+function labName(l){ return typeof l==='string'?l:(l&&l.name)||''; }
+function labs(){ const db=S.db(); return db.catalog.hospitals||[]; }
+function usedLabs(){
+  const cnt={};
+  S.db().samples.forEach(s=>{ const h=s.hospital||'Ruli DH'; cnt[h]=(cnt[h]||0)+1; });
+  return cnt;
+}
 function referralPanel(){
-  const db=S.db();
-  const items=U.uniq(db.samples.map(s=>s.hospital)).filter(h=>/NRL|CHUK|Kibagabaga|GeneXpert/i.test(h)).map(h=>{
-    const list=db.samples.filter(s=>s.hospital===h);
+  const cnt=usedLabs();
+  const known=U.uniq(labs().map(labName).concat(Object.keys(cnt).filter(h=>/NRL|CHUK|Kibagabaga|GeneXpert/i.test(h)))).filter(Boolean);
+  const items=known.map(h=>{
+    const list=S.db().samples.filter(s=>s.hospital===h);
     const transit={'NRL':72,'CHUK':48,'Kibagabaga':36,'Ruli DH - GeneXpert':0}[h]||24;
-    return {label:h,value:list.length,transit,avgTat:Math.round(U.avg(list.map(s=>S.tatFor(s).elapsedH)))};
+    return {label:h,value:list.length,transit,avgTat:list.length?Math.round(U.avg(list.map(s=>S.tatFor(s).elapsedH))):0};
   }).sort((a,b)=>b.value-a.value);
-  const max=items[0]?items[0].value:1;
+  const max=items[0]?items[0].value||1:1;
   return UI.card({title:'Referral network',sub:'Partner laboratories · volume & transit SLA',icon:'truck',
+    tools:'<button class="btn xs" data-edit-labs>'+UI.ic('pencil',12)+'Edit</button>',
     body:'<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">'
-      +'<span class="pill gold">'+items.reduce((a,b)=>a+b.value,0)+' referred</span><span class="pill teal">96% on-time dispatch</span><span class="pill slate">3 routes</span></div>'
+      +'<span class="pill gold">'+items.reduce((a,b)=>a+b.value,0)+' referred</span><span class="pill slate">'+items.length+' routes</span></div>'
       +'<div style="display:flex;flex-direction:column;gap:9px">'+items.map(it=>'<div>'
         +'<div class="row between" style="margin-bottom:4px"><span class="small truncate">'+U.esc(it.label)+'</span><span class="mono xs faint">'+it.transit+'h SLA</span></div>'
         +'<div style="height:6px;border-radius:99px;background:var(--surface-3);overflow:hidden"><div style="height:100%;width:'+Math.round(it.value/max*100)+'%;background:linear-gradient(90deg,var(--gold-700),var(--gold-300));border-radius:99px"></div></div>'
-        +'<div class="row between" style="margin-top:3px"><span class="xs faint">'+it.value+' samples</span><span class="xs '+(it.avgTat>it.transit?'':'')+'" style="color:'+(it.avgTat>it.transit?'var(--warn)':'var(--pos)')+'">avg '+it.avgTat+'h</span></div></div>').join('')+'</div>',
-    foot:'<a class="more" href="#/stock" style="color:var(--gold)">Manage referral routes '+UI.ic('arrow-right',12)+'</a>'});
+        +'<div class="row between" style="margin-top:3px"><span class="xs faint">'+it.value+' samples</span><span class="xs" style="color:'+(it.avgTat>it.transit?'var(--warn)':'var(--pos)')+'">avg '+it.avgTat+'h</span></div></div>').join('')
+        +(items.length?'':'<p class="xs faint">No receiving laboratories recorded yet.</p>')+'</div>',
+    foot:'<button class="btn xs" data-edit-labs>'+UI.ic('settings-2',12)+'Manage laboratories</button><span class="xs faint">Rename fixes misspellings everywhere</span>'});
+}
+function labEditor(){
+  if(!LS.auth.guard('edit')) return;
+  const cnt=usedLabs();
+  const rowHtml=(l)=>'<div class="row gap-sm" data-lab-row>'
+    +'<input type="hidden" data-lab-id value="'+U.esc((l&&l.id)||'')+'">'
+    +'<input class="input grow" data-lab-name value="'+U.esc(l?labName(l):'')+'" placeholder="Laboratory name">'
+    +'<input class="input mono" data-lab-type value="'+U.esc(l?l.type||'Hospital':'Hospital')+'" placeholder="Type" style="max-width:130px">'
+    +'<span class="pill slate mono" data-lab-count>'+((l&&cnt[labName(l)])||0)+'</span>'
+    +'<button class="icon-btn" data-lab-del style="width:30px;height:30px" aria-label="Remove">'+UI.ic('trash-2',13)+'</button></div>';
+  UI.modal({title:'Referral network',sub:'Rename a laboratory to fix a misspelling — every sample that names it is re-pointed. Routes can be added or removed.',width:'min(680px,100%)',
+    body:'<div id="labRows" style="display:flex;flex-direction:column;gap:8px">'+labs().map(rowHtml).join('')+'</div>'
+      +'<button class="btn xs" data-lab-add style="margin-top:10px">'+UI.ic('plus',12)+'Add laboratory</button>'
+      +'<div class="hint" style="margin-top:10px">Edits apply to the sample register, the referral wizard and every manifest that names the laboratory.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-labs>'+UI.ic('check',15)+'Save network</button>',
+    onMount:(el,close)=>{
+      const bindDel=()=>el.querySelectorAll('[data-lab-del]').forEach(b=>b.onclick=()=>b.closest('[data-lab-row]').remove());
+      bindDel();
+      el.querySelector('[data-lab-add]').onclick=()=>{
+        el.querySelector('#labRows').insertAdjacentHTML('beforeend',rowHtml(null));
+        bindDel();
+        const rows=el.querySelectorAll('[data-lab-row]');
+        const last=rows[rows.length-1]; if(last) last.querySelector('[data-lab-name]').focus();
+      };
+      el.querySelector('[data-save-labs]').onclick=()=>{
+        const existing={}; labs().forEach(l=>{ existing[l.id]=labName(l); });
+        const next=[], renamed={};
+        el.querySelectorAll('[data-lab-row]').forEach(row=>{
+          const name=row.querySelector('[data-lab-name]').value.trim();
+          if(!name) return;
+          const id=row.querySelector('[data-lab-id]').value||U.uid('h');
+          const type=row.querySelector('[data-lab-type]').value.trim()||'Hospital';
+          if(existing[id] && existing[id]!==name) renamed[existing[id]]=name;
+          next.push({id,name,type});
+        });
+        let moved=0;
+        S.commit(d=>{
+          d.catalog.hospitals=next;
+          if(Object.keys(renamed).length){
+            d.samples.forEach(s=>{ if(s.hospital&&renamed[s.hospital]){ s.hospital=renamed[s.hospital]; moved++; } });
+          }
+        },{action:'samples.labs.edit',entity:'catalog',detail:'Referral network updated · '+next.length+' laboratories'+(moved?' · '+moved+' samples re-pointed':'')});
+        close(); LS.shell.refresh(); UI.toast('Referral network saved'+(moved?' · '+moved+' samples re-pointed':''),{type:'ok'});
+      };
+    }});
 }
 
 /* ——— Drawer: sample detail + chain of custody ————— */
@@ -438,6 +494,7 @@ M.render=function(root,params){
     const buckets=[['> 100% (breached)',active.filter(s=>S.tatFor(s).ratio>1).length,'rose'],['80–100% (at risk)',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.8&&r<=1;}).length,'amber'],['40–80%',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.4&&r<=.8;}).length,'gold'],['< 40%',active.filter(s=>S.tatFor(s).ratio<=.4).length,'teal']];
     return buckets.map(([label,value,tone])=>({label,value:Math.max(value,0),display:value+'',tone}));
   })()});
+  root.querySelectorAll('[data-edit-labs]').forEach(b=>b.onclick=labEditor);
   wire();
   if(M._nsHandler) document.removeEventListener('ls:new-sample',M._nsHandler);
   M._nsHandler=()=>newWizard();

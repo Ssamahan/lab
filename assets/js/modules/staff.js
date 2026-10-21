@@ -41,7 +41,7 @@ function people(){
       +'<div class="thread" style="margin:10px 0"></div>'
       +'<div class="row between"><span class="xs faint">Authorisations</span><span class="mono xs">'+full.length+' assays</span></div>'
       +UI.meter(comp.length?full.length/comp.length*100:0,full.length/comp.length>.6?'teal':'amber')
-      +'<div class="row between" style="margin-top:9px"><span class="xs faint">'+U.esc(s.pattern||'—')+'</span><span class="xs faint mono">'+U.esc(s.phone||'')+'</span></div>'
+      +'<div class="row between" style="margin-top:9px"><span class="xs faint">'+U.esc(S.leaveEntitlement(s).label)+(s.sponsor?' · '+U.esc(s.sponsor):'')+'</span><span class="xs faint mono">'+U.esc(s.phone||'')+'</span></div>'
       +'</div></div>';
   }).join('')+'</div>';
 }
@@ -58,7 +58,8 @@ function personDrawer(id){
     +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')+'</div>'
     +(shift.note?'<div class="xs faint" style="margin-top:5px">'+U.esc(shift.note)+'</div>':'')
     +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(s.phone||'')+'</div></div></div>'
-    +'<div class="split-4">'+[['Joined',U.fmtDateShort(s.joinDate)],['Pattern',s.pattern||'—'],['Max nights',(s.maxNights||0)+'/mo'],['Contract',s.contract||'Permanent']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
+    +'<div class="split-4">'+[['Joined',U.fmtDateShort(s.joinDate)],['Pattern',s.pattern||'—'],['Max nights',(s.maxNights||0)+'/mo'],['Contract',S.leaveEntitlement(s).label]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
+    +'<div class="split-3" style="margin-top:12px">'+[['Sponsor',S.leaveEntitlement(s).sponsor],['Leave entitlement',S.leaveEntitlement(s).days+(S.contractOf(s)==='contractual'?' weekdays':' days')],['Leave taken',S.leaveUsed(s).days+' days']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
     +'<div class="section-head"><h2>This month</h2><span class="more">'+(row?row.codes.filter(c=>c==='D'||c==='N'||c==='DN').length:0)+' shifts</span></div>'
     +(row?'<div class="row wrap gap-xs">'+row.codes.map(c=>'<span class="shift-code '+(c||'OFF')+'" data-tip="'+U.fmtDateShort(roster.primary.dates[row.codes.indexOf(c)])+'">'+(c||'·')+'</span>').join('')+'</div>':'<p class="xs faint">No working plan for this month yet.</p>')
     +'<div class="section-head"><h2>Competency</h2><span class="more">'+comp.filter(c=>c.level==='full').length+' full</span></div>'
@@ -81,17 +82,19 @@ function editStaff(id){
      +'<div class="field"><label>Phone</label><input class="input" id="sfPhone" value="'+U.esc(s.phone||'')+'"></div>'
      +'<div class="field"><label>Email</label><input class="input" id="sfEmail" value="'+U.esc(s.email||'')+'"></div>'
      +'<div class="field"><label>Shift pattern</label><input class="input" id="sfPattern" value="'+U.esc(s.pattern||'D D N N OFF')+'"></div>'
-     +'<div class="field"><label>Contract</label><select class="select" id="sfContract"><option>Permanent</option><option>Fixed-term</option><option>Locum</option><option>Intern</option></select></div>'
+     +'<div class="field"><label>Contract</label><select class="select" id="sfContract"><option value="statute"'+(s.contract!=='contractual'?' selected':'')+'>Under statute · 30 days</option><option value="contractual"'+(s.contract==='contractual'?' selected':'')+'>Contractual · 21 weekdays</option></select></div>'
+     +'<div class="field"><label>Contract sponsor</label><select class="select" id="sfSponsor">'+S.SPONSORS.map(sp=>'<option'+(sp===s.sponsor?' selected':'')+'>'+U.esc(sp)+'</option>').join('')+'</select></div>'
      +'<div class="field"><label>Joined</label><input class="input" type="date" id="sfJoin" value="'+(s.joinDate||U.todayISO())+'"></div>'
      +'<div class="field"><label>Max nights / month</label><input class="input" type="number" id="sfNights" min="0" max="20" value="'+(s.maxNights==null?8:s.maxNights)+'"></div>'
-     +'<div class="field"><label>Status</label><select class="select" id="sfStatus"><option value="active">Active</option><option value="exited"'+(s.status==='exited'?' selected':'')+'>Exited</option></select></div></div>',
+     +'<div class="field"><label>Status</label><select class="select" id="sfStatus"><option value="active">Active</option><option value="exited"'+(s.status==='exited'?' selected':'')+'>Exited</option></select></div></div>'
+     +'<div class="hint" style="margin-top:8px">Annual leave follows the contract: <b>under statute 30 calendar days</b>, <b>contractual 21 working days</b> (Mon–Fri). The sponsor records who funds the post — Global Fund, own revenue, MoH/RBC or a partner.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save record</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save]').onclick=()=>{
         const name=el.querySelector('#sfName').value.trim(); if(!name){ UI.toast('Name is required',{type:'err'}); return; }
         const rec={name, role:el.querySelector('#sfRole').value, sex:el.querySelector('#sfSex').value, phone:el.querySelector('#sfPhone').value, email:el.querySelector('#sfEmail').value,
-          pattern:el.querySelector('#sfPattern').value, contract:el.querySelector('#sfContract').value, joinDate:el.querySelector('#sfJoin').value,
-          maxNights:+el.querySelector('#sfNights').value, status:el.querySelector('#sfStatus').value};
+          pattern:el.querySelector('#sfPattern').value, contract:el.querySelector('#sfContract').value, sponsor:el.querySelector('#sfSponsor').value,
+          joinDate:el.querySelector('#sfJoin').value, maxNights:+el.querySelector('#sfNights').value, status:el.querySelector('#sfStatus').value};
         S.commit(d=>{ if(id){ Object.assign(d.staff.find(x=>x.id===id),rec); } else { d.staff.push(Object.assign({id:U.uid('s'), maxConsecN:2, nightPref:'neutral'},rec)); } },
           {action:id?'staff.update':'staff.create',entity:'staff',entityId:id||name,detail:(id?'Updated ':'Created ')+name});
         close(); LS.shell.refresh(); UI.toast(id?'Staff record updated':'Staff member added',{type:'ok'});

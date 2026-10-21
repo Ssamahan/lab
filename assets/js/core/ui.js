@@ -76,6 +76,14 @@ UI.toast=function(msg,opts){
 function pushLayer(fn){ layers.push(fn); document.body.style.overflow='hidden'; }
 function popLayer(){ const fn=layers.pop(); if(fn) fn(); if(!layers.length) document.body.style.overflow=''; }
 UI.closeTop=()=>{ if(layers.length) popLayer(); };
+/* Every [data-close] closes the top layer — the X, footer buttons and any button
+   rendered later into a modal or drawer. Delegated so nothing is missed. */
+document.addEventListener('click',e=>{
+  const b=e.target&&e.target.closest?e.target.closest('[data-close]'):null;
+  if(!b||!layers.length) return;
+  e.preventDefault();
+  popLayer();
+},true);
 UI.closeAll=()=>{ while(layers.length) popLayer(); };
 document.addEventListener('keydown',e=>{ if(e.key==='Escape' && layers.length){ e.preventDefault(); popLayer(); } });
 
@@ -102,7 +110,6 @@ UI.drawer=function(o){
   host.appendChild(scrim); host.appendChild(panel);
   const close=()=>{ panel.style.animation='none'; panel.style.transform='translateX(24px)'; panel.style.opacity='0'; panel.style.transition='all .18s ease'; scrim.style.opacity='0'; scrim.style.transition='opacity .18s'; setTimeout(()=>{ scrim.remove(); panel.remove(); }, 180); };
   scrim.onclick=()=>popLayer();
-  panel.querySelector('[data-close]').onclick=()=>popLayer();
   pushLayer(()=>{ close(); });
   trap(panel);
   if(o.onMount) setTimeout(()=>o.onMount(panel,close),0);
@@ -120,7 +127,6 @@ UI.modal=function(o){
   host.appendChild(wrap);
   const close=()=>{ wrap.style.opacity='0'; wrap.style.transition='opacity .16s'; setTimeout(()=>wrap.remove(),160); };
   wrap.addEventListener('mousedown',e=>{ if(e.target===wrap) popLayer(); });
-  wrap.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>popLayer());
   pushLayer(close);
   trap(wrap);
   if(o.onMount) setTimeout(()=>o.onMount(wrap,close),0);

@@ -369,6 +369,9 @@ function generateSamples(seedDB,opts){
 function generatePlan(monthKey, seedDB){
   const days=U.monthRange(monthKey);
   const staff=seedDB.staff.filter(s=>s.status==='active');
+  // The manager covers the bench only when a weekday would otherwise be down to
+  // two people or fewer — the rule the department actually works to.
+  const reserve=staff.filter(s=>s.pattern==='manager');
   const leaves=(seedDB.leaves||[]);
   const eligibleNights=staff.filter(s=>!s.weekendOnly && (s.nightPref!=='no') && s.maxNights>0);
   const weekendOnly=staff.filter(s=>s.weekendOnly);
@@ -380,10 +383,11 @@ function generatePlan(monthKey, seedDB){
     days.forEach((iso,idx)=>{
       const dow=U.dow(iso);
       const isWeekend=dow>=5;
-      const onLeave=leaves.find(l=>l.staffId===s.id && iso>=l.from && iso<=l.to);
+      const onLeave=leaves.find(l=>l.staffId===s.id && !/declin|reject/i.test(l.status||'') && iso>=l.from && iso<=l.to);
       if(onLeave){ codes.push(onLeave.type==='TR'?'TR':onLeave.type==='SICK'?'SICK':onLeave.type||'AL'); return; }
       if(s.weekendOnly){ codes.push(isWeekend?'DN':'OFF'); return; }
-      if(s.pattern==='manager'||s.pattern==='dayonly'){ codes.push(isWeekend?'OFF':'D'); return; }
+      if(s.pattern==='manager'){ codes.push('OFF'); return; }   // reserve: filled in below if the bench is short
+      if(s.pattern==='dayonly'){ codes.push(isWeekend?'OFF':'D'); return; }
       if(isWeekend){
         // one rotating day-cover on weekends
         const wk=Math.floor(idx/7);
@@ -401,6 +405,17 @@ function generatePlan(monthKey, seedDB){
     });
     plan.staff.push({name:s.name, id:s.id, codes});
   });
+  // Reserve cover: a manager shift appears only on weekdays where the day-shift
+  // count would otherwise be two or fewer.
+  if(reserve.length){
+    days.forEach((iso,idx)=>{
+      if(U.dow(iso)>=5) return;
+      const dayNow=plan.staff.filter(r=>r.codes[idx]==='D'||r.codes[idx]==='DN').length;
+      if(dayNow>2) return;
+      const pick=reserve.find(s=>plan.staff.find(r=>r.id===s.id));
+      if(pick){ const row=plan.staff.find(r=>r.id===pick.id); if(row && row.codes[idx]==='OFF') row.codes[idx]='D'; }
+    });
+  }
   return plan;
 }
 
@@ -532,6 +547,43 @@ function normalize(db){
     }
     db.meta.servicesV62=1;
   }
+  // v6.3: contract terms (under statute vs contractual), sponsor, bench
+  // preferences, and the removal of the two demo leave requests that older
+  // builds seeded. Real leave is entered by the manager, never invented.
+  if(!db.meta.workforceV63){
+    db.staff.forEach(st=>{
+      st.contract = st.contract==='contractual' ? 'contractual' : 'statute';
+      if(!st.sponsor) st.sponsor='Government of Rwanda';
+    });
+    const bench=db.staff.find(x=>x.name==='Beatrice NGEZEKURE');
+    if(bench){
+      bench.homeBench='Reception';
+      bench.altBench='Parasitology';
+      bench.altMaxMonth=2;
+      bench.avoidBench=['Phlebotomy','TB/Molecular'];
+    }
+    const manager=db.staff.find(x=>/manager/i.test(x.role||''));
+    if(manager){ manager.reserveOnly=true; manager.reserveMinDay=2; }
+    db.leaves=(db.leaves||[]).filter(l=>['lreq1','lreq2'].indexOf(l.id)<0);
+    db.meta.workforceV63=1;
+  }
+  // v6.3: two PT rounds received today (Hematology, Biochemistry) are recorded as
+  // dispatched-and-submitted with no results yet, so the wait to report is measured.
+  if(!db.meta.eqaAwaitingV63){
+    const today=U.todayISO();
+    [['Hematology','Q3 2026/27'],['Biochemistry','Q3 2026/27']].forEach(([program,code])=>{
+      const exists=db.eqa.some(e=>e.program===program&&e.code===code);
+      db.eqaAnalytes=db.eqaAnalytes||{};
+      db.eqaAnalytes[program]=db.eqaAnalytes[program]||{};
+      if(!exists){
+        db.eqa.unshift({id:U.uid('eqa'),program,code,scoring:'SD',stage:'awaiting',
+          delivered:today,tested:today,reported:null,scorePublished:null,overall:'',
+          analytes:{},note:'Material received and tested on '+today+' — awaiting the provider report.',
+          kpiBasis:'dispatch'});
+      }
+    });
+    db.meta.eqaAwaitingV63=today;
+  }
   // audit seed
   if(!db.audit.length){
     DB=db;
@@ -605,6 +657,89 @@ S.tatTarget=test=>sampleTAT(test,S.db().settings);
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[t]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;
+
+/* Leave that is in force — anything not declined/rejected. Approvals can be
+   entered weeks ahead and are applied as an overlay; the stored working plan is
+   never rewritten (register data stays exactly as signed). */
+S.leaveInForce=()=>S.leaves().filter(l=>!/declin|reject/i.test(l.status||''));
+S.leaveFor=function(who,iso){
+  const staff=typeof who==='string'?S.staffById(who):who;
+  if(!staff) return null;
+  return S.leaveInForce().find(l=>l.staffId===staff.id && iso>=l.from && iso<=l.to)||null;
+};
+/* Printed documents carry approved leave only — a pending request is never
+   signed onto the sheet. The screen uses the broader helper above. */
+S.approvedLeaveFor=function(who,iso){
+  const staff=typeof who==='string'?S.staffById(who):who;
+  if(!staff) return null;
+  return S.leaves().find(l=>l.staffId===staff.id && /^(approved|planned)$/i.test(l.status||'Approved') && iso>=l.from && iso<=l.to)||null;
+};
+S.approvedLeaveCodeFor=function(who,iso){
+  const lv=S.approvedLeaveFor(who,iso); if(!lv) return '';
+  return lv.type==='SICK'?'SL':lv.type==='MAT'?'ML':lv.type==='COMP'||lv.type==='UNPAID'?'CL':lv.type==='STUDY'?'TR':lv.type==='W'?'W':'AL';
+};
+/* Working-plan code for an approved/pending leave, in the printed vocabulary. */
+S.leaveCodeFor=function(who,iso){
+  const lv=S.leaveFor(who,iso); if(!lv) return '';
+  return lv.type==='SICK'?'SL':lv.type==='MAT'?'ML':lv.type==='COMP'||lv.type==='UNPAID'?'CL':lv.type==='STUDY'?'TR':lv.type==='W'?'W':'AL';
+};
+/* Contract terms: under statute 30 calendar days a year, contractual 21 working
+   days (Mon–Fri). Sponsor names who pays: Global Fund, own revenue, MoH, partner. */
+S.CONTRACTS=['statute','contractual'];
+S.SPONSORS=['Government of Rwanda','Global Fund','Own revenue','MoH / RBC','Partner / NGO'];
+S.contractOf=function(staff){ return (staff&&staff.contract==='contractual')?'contractual':'statute'; };
+S.leaveEntitlement=function(staff, fy){
+  const kind=S.contractOf(staff);
+  return {kind, label:kind==='contractual'?'Contractual':'Under statute',
+    days:kind==='contractual'?21:30, workingDays:kind==='contractual',
+    sponsor:(staff&&staff.sponsor)||'Government of Rwanda'};
+};
+S.leaveUsed=function(staff, fy){
+  fy=fy||U.fyLabel();
+  const rows=S.leaveInForce().filter(l=>l.staffId===staff.id && l.type!=='SICK' && l.type!=='W' && l.fy===fy);
+  const days=U.sum(rows,l=>{
+    if(S.contractOf(staff)!=='contractual') return U.daysBetween(l.from,l.to)+1;
+    let n=0; const d=U.parseISO(l.from), end=U.parseISO(l.to);
+    while(d<=end){ const w=d.getDay(); if(w!==0&&w!==6) n++; d.setDate(d.getDate()+1); }
+    return n;
+  });
+  return {days,records:rows.length};
+};
+/* Absence forecast built from the register, not from invented data: monthly
+   leave/absence rates observed across every stored month plus recorded leave. */
+S.absenceHistory=function(){
+  const months=S.planMonths();
+  const out=[];
+  months.forEach(k=>{
+    const p=S.planForMonth(k); if(!p||!p.staff||!p.staff.length) return;
+    let abs=0, cells=0;
+    p.staff.forEach(r=>(r.codes||[]).forEach(c=>{ if(!c) return; cells++; if(['AL','SL','SICK','CL','ML','TR','ABS'].indexOf(c)>=0) abs++; }));
+    if(cells) out.push({month:k,rate:abs/cells,abs,cells,staff:p.staff.length});
+  });
+  const leaveRows=S.leaveInForce();
+  const byMonth={};
+  leaveRows.forEach(l=>{ const k=String(l.from).slice(0,7); byMonth[k]=(byMonth[k]||0)+(U.daysBetween(l.from,l.to)+1); });
+  const leaveMonths=Object.keys(byMonth).length;
+  const avgRate=out.length?U.avg(out.map(o=>o.rate)):0;
+  const avgLeaveDays=leaveMonths?U.avg(Object.values(byMonth)):0;
+  return {months:out.length, from:out.length?out[0].month:null, to:out.length?out[out.length-1].month:null,
+    rate:avgRate, leaveMonths, avgLeaveDays, leaveRecords:leaveRows.length, series:out};
+};
+/* Expected absences in the next N days: the historical rate applied to the
+   staff × day count, floored at nothing and labelled with its own basis. */
+S.absenceForecast=function(days){
+  const h=S.absenceHistory();
+  const n=days||30;
+  const planned=S.leaveInForce().filter(l=>l.to>=U.todayISO()&&l.from<=U.addDays(U.todayISO(),n));
+  const plannedDays=U.sum(planned,l=>{
+    const from=l.from<U.todayISO()?U.todayISO():l.from, to=l.to>U.addDays(U.todayISO(),n)?U.addDays(U.todayISO(),n):l.to;
+    return to>=from?U.daysBetween(from,to)+1:0;
+  });
+  const staffCount=S.activeStaff().length;
+  const expected=Math.round(h.rate*staffCount*n*10)/10;
+  return {days:n, expected, plannedDays, planned:planned.length, history:h,
+    hasHistory:h.months>0||h.leaveRecords>0};
+};
 S.buildPlan=mk=>generatePlan(mk,S.db());
 S.ensurePlan=function(mk){ const db=S.db(); return db.workingPlans[mk]||null; };
 S.hasPlan=mk=>!!(S.db().workingPlans[mk]&&S.db().workingPlans[mk].primary);
@@ -711,33 +846,33 @@ S.shiftState=function(who, iso){
     tone:lv.status==='Pending'?'amber':'blue',source:'leave',requestId:lv.id};
   const code=S.codeFor(staff,iso);
   if(code){
-    if(code==='D')  return {code,kind:'day',label:'On duty · day',tone:'teal',source:'plan'};
-    if(code==='N')  return {code,kind:'night',label:'On duty · night',tone:'blue',source:'plan'};
+    if(code==='D')  return {code,kind:'day',label:'On duty · day 08:00–17:00',tone:'teal',source:'plan'};
+    if(code==='N')  return {code,kind:'night',label:'On duty · night 17:00–08:00',tone:'blue',source:'plan'};
     if(code==='DN') return {code,kind:'daynight',label:'On duty · day + night',tone:'teal',source:'plan'};
     if(code==='TR') return {code,kind:'training',label:'Training',tone:'gold',source:'plan'};
     if(code==='AL'||code==='SICK') return {code,kind:'leave',label:S.leaveTypeLabel(code),tone:'blue',source:'plan'};
-    if(code==='OFF'||code==='W') return {code,kind:'off',label:'Off duty',tone:'slate',source:'plan'};
+    if(code==='OFF'||code==='W') return {code,kind:'off',label:'At home',tone:'slate',source:'plan'};
   }
   // No plan published for that day: fall back to the contract, clearly labelled.
   const dow=U.dow(iso);
-  if(staff.weekendOnly) return dow>=5?{code:'DN',kind:'daynight',label:'On duty · day + night',tone:'teal',source:'pattern'}:{code:'OFF',kind:'off',label:'Off duty',tone:'slate',source:'pattern'};
-  if(staff.pattern==='manager'||staff.pattern==='dayonly') return dow>=5?{code:'OFF',kind:'off',label:'Off duty',tone:'slate',source:'pattern'}:{code:'D',kind:'day',label:'On duty · day',tone:'teal',source:'pattern'};
-  if(dow>=5) return {code:'OFF',kind:'off',label:'Off duty',tone:'slate',source:'pattern'};
+  if(staff.weekendOnly) return dow>=5?{code:'DN',kind:'daynight',label:'On duty · day + night',tone:'teal',source:'pattern'}:{code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'};
+  if(staff.pattern==='manager'||staff.pattern==='dayonly') return dow>=5?{code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'}:{code:'D',kind:'day',label:'On duty · day 08:00–17:00',tone:'teal',source:'pattern'};
+  if(dow>=5) return {code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'};
   // weekday: the night block alternates every two days across eligible staff
   const eligible=S.activeStaff().filter(s=>!s.weekendOnly && s.nightPref!=='no' && (s.maxNights||0)>0);
   if(staff.nightPref!=='no' && eligible.length){
     const dayIndex=Math.floor(U.parseISO(iso)/86400000);
     const crew=eligible[(Math.floor(dayIndex/2))%eligible.length];
-    if(crew && crew.id===staff.id) return {code:'N',kind:'night',label:'On duty · night',tone:'blue',source:'pattern'};
+    if(crew && crew.id===staff.id) return {code:'N',kind:'night',label:'On duty · night 17:00–08:00',tone:'blue',source:'pattern'};
   }
-  return {code:'D',kind:'day',label:'On duty · day',tone:'teal',source:'pattern'};
+  return {code:'D',kind:'day',label:'On duty · day 08:00–17:00',tone:'teal',source:'pattern'};
 };
 S.isOnDuty=function(who,iso){ const st=S.shiftState(who,iso); return st.kind==='day'||st.kind==='night'||st.kind==='daynight'; };
 S.onDuty=function(iso){
   iso=iso||U.todayISO();
   const source=S.planCovers(iso)?'plan':'pattern';
   return S.activeStaff().map(s=>({staff:s, state:S.shiftState(s,iso)})).filter(x=>S.isOnDuty(x.staff,iso))
-    .map(x=>({staff:x.staff, shift:x.state.label, kind:x.state.kind, code:x.state.code, source, since:x.state.kind==='night'?'20:00':'08:00'}));
+    .map(x=>({staff:x.staff, shift:x.state.label, kind:x.state.kind, code:x.state.code, source, since:x.state.kind==='night'?'17:00':'08:00', until:x.state.kind==='night'?'08:00':'17:00'}));
 };
 S.offDuty=function(iso){
   iso=iso||U.todayISO();

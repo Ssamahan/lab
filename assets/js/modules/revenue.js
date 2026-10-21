@@ -38,12 +38,16 @@ function table(){
       +'<td class="num">'+U.fmtNum(e)+'</td><td class="num" style="color:var(--pos)">'+U.fmtNum(r)+'</td><td class="num" style="color:'+(net>=0?'var(--pos)':'var(--crit)')+'">'+(net>=0?'+':'')+U.fmtNum(net)+'</td>'
       +'<td>'+(r>=e?'<span class="pill teal">settled</span>':'<span class="pill amber">pending</span>')+'</td></tr>'; }).join('')
    +'</tbody></table></div><div class="card-foot"><span>All amounts in RWF · admin-only module</span><span class="mono strong" style="color:'+(d.balance>=0?'var(--pos)':'var(--crit)')+'">Net '+U.fmtRWF(d.balance)+'</span></div></div></div>'
-   +'<div class="c4"><div class="col" style="gap:14px">'+UI.card({title:'Monthly cash flow',sub:'Expenses vs reimbursements',icon:'chart-line',body:'<div id="revChart"></div>'})
+   +'<div class="c4"><div class="col" style="gap:14px">'
     +UI.card({title:'Reimbursement sources',sub:'Where funds came from',icon:'building-2',body:(function(){
       const g={}; d.list.forEach(t=>(t.reimbursements||[]).forEach(r=>{ g[r.source||'Other']=(g[r.source||'Other']||0)+(r.amount||0); }));
       const keys=Object.keys(g); const max=Math.max.apply(null,keys.map(k=>g[k]).concat([1]));
       return keys.length?keys.map(k=>'<div style="margin-bottom:9px"><div class="row between"><span class="xs">'+U.esc(k)+'</span><span class="mono xs faint">'+U.fmtNum(g[k])+'</span></div><div class="meter teal" style="margin-top:4px"><i style="width:'+(g[k]/max*100)+'%"></i></div></div>').join(''):'<p class="xs faint">No reimbursements recorded.</p>';
-    })()})+'</div></div></div>';
+    })()})+'</div></div></div>'
+   +'<div class="grid-12" style="margin-top:14px"><div class="c12">'+UI.card({title:'Monthly cash flow',sub:'Expenses against reimbursements, month by month',icon:'chart-line',
+      tools:'<span class="pill gold">RWF</span><span class="pill teal">reimbursed</span><span class="pill amber">expenses</span>',
+      body:'<div id="revChart"></div>',
+      foot:'<span>Hover a month for exact figures</span><span class="mono">'+d.list.length+' sessions</span>'})+'</div></div>';
 }
 function drawer(id){
   const t=data().list.find(x=>x.id===id); if(!t) return;
@@ -156,9 +160,9 @@ M.render=function(root,params){
   // chart by year-month of sessions
   const g=U.groupBy(d.list,t=>String(t.start).slice(0,7));
   const keys=Object.keys(g).sort();
-  C.line(root.querySelector('#revChart'),{id:'revC',height:168,padLeft:34,series:[
+  C.line(root.querySelector('#revChart'),{id:'revC',height:320,padLeft:64,series:[
     {name:'Expenses',color:'var(--amber)',values:keys.map(k=>U.sum(g[k],sumExp))},
     {name:'Reimbursed',color:'var(--pos)',values:keys.map(k=>U.sum(g[k],sumReimb))}
-  ],labels:keys.map(k=>U.M3[+k.slice(5,7)-1]+' '+k.slice(2,4)),yFmt:v=>Math.round(v/1000)+'k',tipFmt:v=>U.fmtRWF(v)});
+  ],labels:keys.map(k=>U.M3[+k.slice(5,7)-1]+' '+k.slice(2,4)),yFmt:v=>Math.round(v/1000)+'k RWF',tipFmt:v=>U.fmtRWF(v)});
 };
 })();

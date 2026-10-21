@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.2.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.3.0** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
 
@@ -120,6 +120,58 @@ from on-duty lists by construction; off-duty, day and night never share a colour
 Roster, manifests, leave register, PBF scorecards and revenue statements print to A4
 (roster and district report in landscape) with letterhead drawn from **Settings**.
 
+### Shift times and what "off" means
+
+One vocabulary across the dashboard, roster and staff cards:
+
+| Code | Meaning |
+|---|---|
+| **D** | On duty · day **08:00–17:00** |
+| **N** | On duty · night **17:00–08:00** (next day) |
+| **DN** | Day + night |
+| **OFF** | **At home** — not on leave, not on shift |
+| AL / SL / CL / ML | Approved leave, printed over the plan |
+
+### Reserves and bench rules
+
+- The Laboratory Manager is **not** rostered while the bench is covered. A manager
+  shift is drafted only on a weekday that would otherwise have **two people or fewer**
+  on day shift.
+- Bench preferences drive auto-allocation: Beatrice NGEZEKURE works **Reception**, and
+  **Parasitology** only when the bench is empty and only up to **two days a month**
+  (`homeBench`, `altBench`, `altMaxMonth`, `avoidBench` on the staff record).
+
+### Leave — real records only
+
+No request is ever seeded: an empty inbox says so. Requests are entered by the
+manager and decided **in the week before the leave starts**; each request shows that
+window. Approving leave **never rewrites the working plan** — the approval is an
+overlay, drawn on screen and on the printed sheet, and the stored plan stays exactly
+as signed.
+
+Entitlement follows the contract: **under statute — 30 calendar days** a year,
+**contractual — 21 working days** (Mon–Fri). Each post records its **sponsor**
+(Government of Rwanda, Global Fund, own revenue, MoH/RBC, partner). The absence
+forecast is computed from the register's own history — the leave/absence rate across
+every stored month and every recorded leave block — and says how many months it saw.
+
+### EQA / PT — record now, results later
+
+A round is stored the day the panel is tested and sent off: material date, submission
+date, and the analytes that scheme has used before (**pre-filled, extensible, never
+asked for twice**). Results are added later on the same record, so the console can
+measure **dispatch → report** turnaround per round and per scheme, count rounds still
+awaiting a report, and flag the ones running past 30 days. The scorecard is grouped by
+scheme, newest round first, with one column per analyte that scheme has ever reported.
+
+### Referral network & training
+
+Partner laboratories are editable — renaming one fixes the spelling everywhere and
+re-points every sample that names it. In the training queue, a staff member who has
+never trained waits **from their first day of employment** (treated as their training
+day), so new joiners queue behind colleagues who have been waiting longer.
+**Training by year** is the landing chart; money figures sit on a full-width chart.
+
 ### Working plan & weekly roster sheets
 
 The roster module ships two document sheets that reproduce the signed registers — the
@@ -128,13 +180,14 @@ in `assets/js/core/sheets.js`, so every output is the same document:
 
 | Output | How | Quality |
 |---|---|---|
-| **PNG** | SVG → canvas at ~430 dpi | crisp at A4, small file |
+| **PNG** | SVG → canvas at ~430 dpi | crisp at A4, small file · also a one-click button on the weekly roster |
 | **PDF** | SVG → canvas → single JPEG page, 842 × 595 pt | one A4 landscape page, ~430 dpi |
 | **XLSX** | hand-written OOXML, landscape, fit-to-page, frozen headers | editable, prints on one page |
 | **Print** | same SVG in a print window | vector, fonts fall back to system |
 
 Exports are one file per sheet (`working-plan-october-2026.png`, `unit-roster-2026-10-19.pdf`,
-…). The raster path is capped at 15 Mpx / 8192 px per side — the iOS-Safari canvas ceiling —
+…), and the monthly sheet carries **no** running footer — the only text on the page is the
+register itself. The raster path is capped at 15 Mpx / 8192 px per side — the iOS-Safari canvas ceiling —
 so a phone can export the same sheet as a desktop without a blank image. No CDN, no
 library: the SVG builder, the PNG/PDF encoder and the ZIP/OOXML writer are all local.
 

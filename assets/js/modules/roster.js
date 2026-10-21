@@ -6,7 +6,7 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SH=LS.sheets;
 const M={}; LS.modules.roster=M;
 let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
-const CODES=[['D','Day 08–20'],['N','Night 20–08'],['DN','Day + Night'],['OFF','Off'],['AL','Annual leave'],['TR','Training'],['SICK','Sick leave'],['W','Weekend / rest']];
+const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00'],['DN','Day + night'],['OFF','At home'],['AL','Annual leave'],['TR','Training'],['SICK','Sick leave'],['W','Weekend / rest']];
 
 function plan(){ const e=S.db().workingPlans[mk||U.monthKey()]; return e&&e.primary?e.primary:null; }
 function ensurePlan(){ return plan(); }
@@ -66,7 +66,7 @@ function header(){
    +'<div class="filters" style="margin-bottom:12px">'+[['sheet','Official sheet'],['grid','Shift grid'],['week','Weekly roster'],['services','Lab services'],['fairness','Fairness'],['swaps','Swap requests']].map(([k,l])=>'<button class="filter-tab '+(view===k?'on':'')+'" data-view="'+k+'">'+l+'</button>').join('')+'</div>';
 }
 function legend(){
-  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day</span><span class="shift-code N">N</span><span class="xs faint">Night</span><span class="shift-code DN">DN</span><span class="xs faint">Day+Night</span><span class="shift-code AL">AL</span><span class="xs faint">Leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">Off</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
+  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
 }
 function gridView(){
   const p=plan();
@@ -84,8 +84,11 @@ function gridView(){
     return '<tr><td class="staff-cell"><div class="nm">'+U.esc(s.name)+'</div><div class="rl">'+U.esc(st.role||'')+'</div></td>'
      +p.dates.map((iso,di)=>{
         const c=s.codes[di]||''; const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
+        const lv=S.leaveCodeFor(s.name,iso);
+        const show=lv&&!['AL','SL','CL','ML','W','TR'].includes(c)?lv:c;
         const cls=['day',dow>=5?'wkend':'',today?'today':'',hol?'holiday':'',c==='OFF'?'off':''].filter(Boolean).join(' ');
-        return '<td class="'+cls+'" data-cell="'+si+'-'+di+'" data-si="'+si+'" data-di="'+di+'" '+(c?'draggable="true"':'')+'><span class="shift-code '+c+'" style="pointer-events:none">'+U.esc(c||'·')+'</span></td>';
+        return '<td class="'+cls+'" data-cell="'+si+'-'+di+'" data-si="'+si+'" data-di="'+di+'" '+(c?'draggable="true"':'')+(lv?' data-tip="Approved leave — the stored plan is unchanged"':'')+'><span class="shift-code '+show+'" style="pointer-events:none'+(lv?'':';')+'">'+U.esc(show||'·')+'</span>'
+          +(lv?'<i style="position:absolute;inset:2px;border:1px dashed var(--gold);border-radius:4px;pointer-events:none"></i>':'')+'</td>';
      }).join('')+'</tr>';
   }).join('');
   const footer='<tfoot><tr class="cov-footer"><td class="staff-cell" style="background:var(--surface-inset);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)">Day cover</td>'
@@ -189,7 +192,10 @@ function weekView(){
     +'<span class="pill '+(unstaffed?'rose':'teal')+'">'+unstaffed+' empty slots</span>'
     +'<button class="btn sm" data-auto-week>'+UI.ic('wand-sparkles',13)+' Auto-allocate</button>'
     +'<button class="btn sm" data-print-week>'+UI.ic('printer',13)+' Print week</button>'
-    +'<button class="btn sm primary" data-week-sheet>'+UI.ic('file-down',13)+' Export sheet</button></div></div>'
+    +'<button class="btn sm" data-week-png>'+UI.ic('image',13)+' PNG</button>'
+    +'<button class="btn sm" data-week-pdf>'+UI.ic('file-text',13)+' PDF</button>'
+    +'<button class="btn sm" data-week-xlsx>'+UI.ic('table-2',13)+' XLSX</button>'
+    +'<button class="btn sm primary" data-week-sheet>'+UI.ic('file-down',13)+' Sheet</button></div></div>'
     +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal"><thead>'+head.slice(7)+'<tbody>'+body+'</tbody></table></div>'
     +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
@@ -257,24 +263,61 @@ function servicePicker(iso,svc){
       };
     }});
 }
+/* Bench preferences: a staff member's home bench comes first, the alternative
+   bench only when the bench would otherwise be empty and the monthly quota
+   (e.g. two days a month in Parasitology) allows it. */
+function benchPlan(){
+  const out={};
+  S.activeStaff().forEach(s=>{ out[s.name]={home:s.homeBench||'',alt:s.altBench||'',altMax:s.altMaxMonth==null?0:s.altMaxMonth,avoid:s.avoidBench||[]}; });
+  return out;
+}
+function altUsedThisMonth(name, bench, monthKey){
+  const db=S.db(); let n=0;
+  Object.keys(db.unitRosters||{}).forEach(w=>{
+    if(String(w).slice(0,7)!==monthKey) return;
+    const as=db.unitRosters[w].assignments||{};
+    Object.keys(as).forEach(iso=>{ if((as[iso]||{})[bench]===name) n++; });
+  });
+  return n;
+}
 function autoAllocate(){
   if(!LS.auth.guard('edit')) return;
-  const start=weekStart(), dates=S.weekDates(start), svcs=S.services();
-  let filled=0;
+  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), prefs=benchPlan(), mkOf=String(start).slice(0,7);
+  let filled=0, skipped=0;
   S.commit(d=>{
     d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
     const w=d.unitRosters[start];
+    const altTally={};
     dates.forEach(iso=>{
       const duty=S.onDuty(iso).map(x=>x.staff);
       w.assignments[iso]=w.assignments[iso]||{};
-      svcs.forEach((sv,i)=>{
-        if(w.assignments[iso][sv.name]) return;
-        const pick=duty[i%duty.length];
-        if(pick){ w.assignments[iso][sv.name]=pick.name; filled++; }
+      const day=w.assignments[iso];
+      const taken=Object.keys(day).map(k=>day[k]);
+      svcs.forEach(sv=>{
+        if(day[sv.name]) return;
+        const free=duty.filter(s=>taken.indexOf(s.name)<0);
+        if(!free.length) return;
+        const prefsOf=s=>prefs[s.name]||{home:'',alt:'',altMax:0,avoid:[]};
+        const okFor=s=>prefsOf(s).avoid.indexOf(sv.name)<0;
+        // 1) home bench, 2) staff with no bench preference, 3) quota-limited alt bench
+        let pick=free.find(s=>okFor(s)&&prefsOf(s).home===sv.name);
+        if(!pick) pick=free.find(s=>okFor(s)&&!prefsOf(s).home&&!prefsOf(s).alt);
+        if(!pick) pick=free.find(s=>{
+          const p=prefsOf(s);
+          if(!okFor(s)||p.alt!==sv.name) return false;
+          const used=(altUsedThisMonth(s.name,sv.name,mkOf)+(altTally[s.name+'|'+sv.name]||0));
+          return used<p.altMax;
+        });
+        if(!pick) pick=free.find(s=>prefsOf(s).home!==sv.name && okFor(s) && svcs.length>free.length);
+        if(!pick){ skipped++; return; }
+        const p=prefsOf(pick);
+        if(p.alt===sv.name) altTally[pick.name+'|'+sv.name]=(altTally[pick.name+'|'+sv.name]||0)+1;
+        day[sv.name]=pick.name; taken.push(pick.name); filled++;
       });
     });
-  },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,detail:'Auto-allocation from on-duty staff, week of '+start});
-  paint(); UI.toast(filled+' service slots allocated from the on-duty list',{type:'ok'});
+  },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,detail:'Auto-allocation from on-duty staff and bench preferences, week of '+start});
+  paint();
+  UI.toast(filled+' slots allocated'+(skipped?' · '+skipped+' left open (no one free on that bench)':'')+' — bench preferences respected',{type:'ok'});
 }
 function printWeek(){
   SH.printSVG(SH.weeklySVG(weekData()),{title:'Weekly unit roster — week of '+U.fmtDateShort(weekStart())});
@@ -498,6 +541,12 @@ function wireBody(){
   r.querySelectorAll('[data-auto-week]').forEach(b=>b.onclick=autoAllocate);
   r.querySelectorAll('[data-print-week]').forEach(b=>b.onclick=printWeek);
   r.querySelectorAll('[data-week-sheet]').forEach(b=>b.onclick=openWeekSheet);
+  const wkSvg=function(){ const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start), night={};
+    dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
+    return {start,dates,data:{weekStart:start,dates,services:svcs,alloc,night},svg:SH.weeklySVG({weekStart:start,dates,services:svcs,alloc,night})}; };
+  r.querySelectorAll('[data-week-png]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('png',o.svg,'unit-roster-'+o.start,o.data); });
+  r.querySelectorAll('[data-week-pdf]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('pdf',o.svg,'unit-roster-'+o.start,o.data); });
+  r.querySelectorAll('[data-week-xlsx]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('xlsx',o.svg,'unit-roster-'+o.start,o.data); });
   if(view==='sheet'){
     const svg=SH.monthlySVG(monthSheetPlan()), fn=monthSheetName();
     r.querySelectorAll('[data-sheet-png]').forEach(b=>b.onclick=()=>exportSheet('png',svg,fn));

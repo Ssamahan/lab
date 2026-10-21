@@ -11,6 +11,20 @@ const lastNameTraining=id=>{
   const list=S.db().trainings.filter(t=>(t.attendees||[]).includes(id));
   return list.sort((a,b)=>String(b.start).localeCompare(String(a.start)))[0]||null;
 };
+/* Waiting time is measured from the last training. A staff member who has never
+   been trained waits from their first day of employment — the day is treated as
+   the training day — so a new joiner does not jump the queue ahead of colleagues
+   who have been waiting for a year. */
+function waitingSince(s){
+  const last=lastNameTraining(s.id);
+  if(last) return last.start;
+  return s.joinDate||null;
+}
+function waitingDays(s){
+  const since=waitingSince(s);
+  if(!since) return 999;
+  return Math.max(0,U.daysBetween(since,U.todayISO()));
+}
 function scope(){
   return S.db().trainings.filter(t=>!q || [t.title,t.organizer,t.location,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join(' ')].join(' ').toLowerCase().indexOf(q)>=0);
 }
@@ -19,7 +33,7 @@ function kpis(){
   const year=U.fyLabel().slice(0,4);
   const ytd=db.trainings.filter(t=>String(t.start).startsWith(year));
   const certified=db.trainings.filter(t=>/cert/i.test(t.certificate||'')).length;
-  const waiting=active.map(s=>{ const last=lastNameTraining(s.id); return last?U.daysBetween(last.start,U.todayISO()):999; });
+  const waiting=active.map(s=>waitingDays(s));
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
    +'<div class="c3">'+UI.stat({label:'Trainings this FY',value:ytd.length,icon:'graduation-cap',formatted:'0',delta:12,note:U.sum(ytd,t=>(t.attendees||[]).length)+' attendances',spark:C.spark([3,5,4,7,6,8,7,9,8,10],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Staff trained',value:U.uniq(db.trainings.flatMap(t=>t.attendees||[])).length,icon:'users',formatted:'0',note:'Across '+db.trainings.length+' sessions',spark:C.spark([2,3,3,4,5,5,6,6,6,6],{color:'var(--pos)'})})+'</div>'
@@ -27,18 +41,18 @@ function kpis(){
    +'<div class="c3">'+UI.stat({label:'FIFO wait (max)',value:Math.min(Math.max.apply(null,waiting),999),unit:'days',icon:'hourglass',formatted:'0',note:'Longest since last training',spark:C.spark(waiting.slice(0,10),{color:'var(--amber)'})})+'</div></div>';
 }
 function fifoView(){
-  const staff=S.activeStaff().map(s=>{ const last=lastNameTraining(s.id); const days=last?U.daysBetween(last.start,U.todayISO()):999;
+  const staff=S.activeStaff().map(s=>{ const last=lastNameTraining(s.id); const days=waitingDays(s);
     return {s,last,days,count:S.db().trainings.filter(t=>(t.attendees||[]).includes(s.id)).length}; }).sort((a,b)=>b.days-a.days);
   return '<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Longest wait first · fairness across the bench',icon:'git-branch',
       tools:'<button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
       body:'<div style="display:flex;flex-direction:column;gap:2px">'+staff.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
         return '<div class="list-row"><div style="width:22px;font-family:var(--font-mono);font-size:10px;color:var(--text-faint)">'+(i+1)+'</div>'+U.avatar(x.s.name,'sm')
         +'<div class="lr-main"><div class="lr-title">'+U.esc(x.s.name)+'</div><div class="lr-sub">'+U.esc(x.s.role)+' · '+x.count+' sessions</div></div>'
-        +'<div style="width:96px"><div class="meter '+(x.days>365?'rose':x.days>240?'amber':'teal')+'"><i style="width:'+Math.min(100,pct)+'%"></i></div><div class="xs faint" style="margin-top:3px">'+(x.last?U.fmtDate(x.last.start):'never')+'</div></div>'
+        +'<div style="width:96px"><div class="meter '+(x.days>365?'rose':x.days>240?'amber':'teal')+'"><i style="width:'+Math.min(100,pct)+'%"></i></div><div class="xs faint" style="margin-top:3px">'+(x.last?U.fmtDate(x.last.start):(x.s.joinDate?'since '+U.fmtDate(x.s.joinDate):'never'))+'</div></div>'
         +'<span class="mono xs" style="width:52px;text-align:right;color:'+(x.days>365?'var(--crit)':'var(--text-muted)')+'">'+(x.days>=999?'—':x.days+'d')+'</span></div>'; }).join('')+'</div>',
       foot:'<span>FIFO = first to have waited longest</span><span class="mono">'+staff.length+' staff</span>'})+'</div>'
    +'<div class="c5"><div class="col" style="gap:14px">'
-     +UI.card({title:'Coverage by category',sub:'Sessions recorded per discipline',icon:'layers',body:'<div id="trCats"></div>'})
+     +UI.card({title:'Training by year',sub:'Sessions recorded, year by year',icon:'chart-bar',tools:'<a class="more" href="#/training?tab=history" style="color:var(--gold)">History '+UI.ic('arrow-right',12)+'</a>',body:'<div id="trYears"></div>'})
      +UI.card({title:'Upcoming & planned',sub:'Scheduled competency activity',icon:'calendar-days',body:(function(){
         const up=S.db().trainings.filter(t=>t.start>=U.todayISO()).sort((a,b)=>String(a.start).localeCompare(String(b.start))).slice(0,4);
         return up.length?up.map(t=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(t.title)+'</div><div class="lr-sub">'+U.fmtDate(t.start)+' · '+U.esc(t.organizer||'—')+'</div></div><span class="pill gold">'+U.daysBetween(U.todayISO(),t.start)+'d</span></div>').join(''):'<p class="xs faint">No sessions scheduled. Use “Schedule training” to plan the next competency block.</p>';
@@ -126,16 +140,16 @@ function wireBody(){
   r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); trainingDrawer(b.dataset.open); });
   const search=r.querySelector('#trSearch');
   if(search){ search.addEventListener('input',U.debounce(()=>{ q=search.value; paint(); const s=rootEl.querySelector('#trSearch'); if(s){ s.focus(); s.setSelectionRange(q.length,q.length); } },220)); }
-  if(tab==='fifo'){
-    const cats=r.querySelector('#trCats');
-    if(cats){ const g=U.groupBy(S.db().trainings,t=>/micro|bacter|parasit/i.test(t.title)?'Microbiology':/quality|qc|eqa/i.test(t.title)?'Quality':/hiv|viral|cd4/i.test(t.title)?'HIV / Viral':/supply|chain/i.test(t.title)?'Supply chain':'General');
-      const items=Object.keys(g).map(k=>({label:k,value:g[k].length,tone:'gold'})); C.hbars(cats,{items}); }
-  }
-  if(tab==='history'){
-    const y=r.querySelector('#trYears');
-    if(y){ const g=U.groupBy(S.db().trainings,t=>String(t.start).slice(0,4)); const years=Object.keys(g).sort();
-      C.line(y,{id:'trYr',height:170,series:[{name:'Sessions',color:'var(--gold)',values:years.map(k=>g[k].length)}],labels:years,yFmt:v=>Math.round(v),padLeft:22,drawMs:900}); }
-  }
+  const drawYears=(el,id)=>{
+    if(!el) return;
+    const g=U.groupBy(S.db().trainings,t=>String(t.start).slice(0,4));
+    const years=Object.keys(g).sort();
+    if(!years.length){ el.innerHTML='<div class="chart-empty">No training sessions recorded yet</div>'; return; }
+    C.line(el,{id,height:210,series:[{name:'Sessions',color:'var(--gold)',values:years.map(k=>g[k].length)}],labels:years,
+      yFmt:v=>Math.round(v),padLeft:30,tipFmt:v=>v+' session'+(v===1?'':'s'),drawMs:900});
+  };
+  if(tab==='fifo') drawYears(r.querySelector('#trYears'),'trYrMain');
+  if(tab==='history') drawYears(r.querySelector('#trYears'),'trYrHist');
 }
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'fifo'; q=params.q||'';

@@ -7,21 +7,35 @@ const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.leave=M;
 let rootEl=null, tab='requests';
 const TYPE={AL:{label:'Annual',cls:'al'},SICK:{label:'Sick',cls:'sick'},MAT:{label:'Maternity',cls:'mat'},TR:{label:'Training',cls:'tr'},STUDY:{label:'Study',cls:'tr'},W:{label:'Weekend',cls:'w'},COMP:{label:'Compassionate',cls:'al'},UNPAID:{label:'Unpaid',cls:'w'}};
-function ensureRequests(){
-  const db=S.db();
-  if(db.meta.leaveReqSeeded) return;
-  db.meta.leaveReqSeeded=true;
-  if(!db.leaves.some(l=>l.status==='Pending')){
-    db.leaves.push(
-      {id:'lreq1',staffId:'s6',type:'AL',from:U.addDays(U.todayISO(),12),to:U.addDays(U.todayISO(),16),backOn:U.addDays(U.todayISO(),17),status:'Pending',fy:U.fyLabel(),note:'Family event — requested 3 weeks ahead',requested:U.nowISO()},
-      {id:'lreq2',staffId:'s3',type:'SICK',from:U.addDays(U.todayISO(),1),to:U.addDays(U.todayISO(),2),backOn:U.addDays(U.todayISO(),3),status:'Pending',fy:U.fyLabel(),note:'Medical certificate submitted',requested:U.nowISO()}
-    );
-  }
-  S.save();
-}
+/* Requests are entered by people. The module never seeds demo requests: an
+   empty inbox stays empty and says so. */
+function ensureRequests(){ /* no-op by design — see the empty state instead */ }
 function days(l){ return U.daysBetween(l.from,l.to)+1; }
 function onLeaveToday(){ const t=U.todayISO(); return S.leaves().filter(l=>l.status!=='Declined'&&l.status!=='Rejected'&&t>=l.from&&t<=l.to); }
 function pending(){ return S.leaves().filter(l=>l.status==='Pending'); }
+/* Approvals are normally decided in the week before the leave starts. */
+function approvalWindow(l){
+  const start=U.daysBetween(U.todayISO(),l.from);
+  if(start<0) return {state:'running',label:'Already started',tone:'blue'};
+  if(start<=7) return {state:'due',label:'Approval due — starts in '+start+'d',tone:'amber'};
+  return {state:'later',label:'Starts in '+start+'d',tone:'slate'};
+}
+function entitlementCard(){
+  const fy=U.fyLabel();
+  const rows=S.activeStaff().map(s=>{ const e=S.leaveEntitlement(s,fy), used=S.leaveUsed(s,fy);
+    return {s,e,used,left:Math.max(0,e.days-used.days)}; });
+  return UI.card({title:'Leave entitlement',sub:'Under statute · 30 calendar days — Contractual · 21 working days',icon:'scale',
+    tools:'<span class="pill slate">FY '+fy+'</span>',
+    body:'<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Staff</th><th>Contract</th><th>Sponsor</th><th class="num">Entitlement</th><th class="num">Taken</th><th class="num">Balance</th></tr></thead><tbody>'
+      +rows.map(r=>'<tr><td><div class="row gap-sm">'+U.avatar(r.s.name,'sm')+'<span class="small">'+U.esc(r.s.name)+'</span></div></td>'
+        +'<td><span class="pill '+(r.e.kind==='contractual'?'blue':'teal')+'">'+U.esc(r.e.label)+'</span></td>'
+        +'<td class="small">'+U.esc(r.e.sponsor)+'</td>'
+        +'<td class="num">'+r.e.days+' '+(r.e.workingDays?'weekdays':'days')+'</td>'
+        +'<td class="num">'+r.used.days+'</td>'
+        +'<td class="num"><b style="color:'+(r.left>0?'var(--pos)':'var(--crit)')+'">'+r.left+'</b></td></tr>').join('')
+      +'</tbody></table></div>',
+    foot:'<span>Entitlement follows the contract; the sponsor names who pays for it.</span><span class="mono">'+rows.length+' staff</span>'});
+}
 function conflicts(l){
   const active=S.activeStaff();
   const overlapping=active.filter(s=>s.id!==l.staffId && S.leaves().some(x=>x.staffId===s.id&&x.status!=='Declined'&&!(x.to<l.from||x.from>l.to)));
@@ -41,7 +55,7 @@ function kpis(){
    +'<div class="c3">'+UI.stat({label:'Off today',value:onLeaveToday().length,icon:'plane-takeoff',formatted:'0',note:onLeaveToday().map(l=>(S.staffById(l.staffId)||{}).name||'').map(n=>n.split(' ')[0]).filter(Boolean).join(', ')||'Full bench',spark:C.spark([1,0,1,2,1,0,1,1,2,1,1,onLeaveToday().length],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Pending requests',value:pending().length,icon:'calendar-clock',formatted:'0',note:pending().length?'Awaiting approval':'Inbox zero',spark:C.spark([2,1,3,2,1,2,1,2,3,2,1,pending().length],{color:'var(--amber)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Leave days this FY',value:daysTaken,icon:'calendar-check',formatted:'0',note:taken.length+' records',spark:C.spark([2,5,8,12,14,18,20,24,28,31],{color:'var(--pos)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Absences next 30d',value:upcoming,icon:'calendar-days',formatted:'0',note:'Forecast from approved leave',spark:C.spark([1,2,1,3,2,1,2,3,2,2,3,upcoming],{color:'var(--info)'})})+'</div></div>';
+   +'<div class="c3">'+UI.stat({label:'Absences next 30d',value:upcoming,icon:'calendar-days',formatted:'0',note:'Modelled on '+S.absenceHistory().months+' months of plans',spark:C.spark([1,2,1,3,2,1,2,3,2,2,3,upcoming],{color:'var(--info)'})})+'</div></div>';
 }
 function requestsView(){
   const list=pending().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
@@ -53,19 +67,28 @@ function requestsView(){
        +'<div class="row gap-sm">'+U.avatar(s.name,'sm')+'<div><div class="strong" style="font-size:12.5px">'+U.esc(s.name)+'</div><div class="xs faint">'+U.esc(s.role||'')+' · requested '+U.relTime(l.requested||l.from)+'</div></div></div>'
        +'<div class="row gap-sm"><span class="gantt-bar '+t.cls+'" style="position:static;height:20px;padding:0 8px;font-size:9px">'+U.esc(t.label)+'</span><span class="pill slate mono">'+days(l)+'d</span></div></div>'
        +'<div class="row between wrap" style="margin-top:10px"><span class="small">'+U.fmtDate(l.from)+' → '+U.fmtDate(l.to)+'</span><span class="xs faint">back on '+U.fmtDate(l.backOn||U.addDays(l.to,1))+'</span></div>'
-       +'<div class="row gap-sm" style="margin-top:8px"><span class="pill '+(c.level==='ok'?'teal':c.level==='warn'?'amber':'rose')+'">'+UI.ic(c.level==='ok'?'check':'alert-triangle',10)+c.level+'</span><span class="xs" style="color:var(--text-muted)">'+U.esc(c.text)+'</span></div>'
+       +'<div class="row gap-sm wrap" style="margin-top:8px"><span class="pill '+(c.level==='ok'?'teal':c.level==='warn'?'amber':'rose')+'">'+UI.ic(c.level==='ok'?'check':'alert-triangle',10)+c.level+'</span><span class="xs" style="color:var(--text-muted)">'+U.esc(c.text)+'</span><span class="pill '+approvalWindow(l).tone+'">'+UI.ic('calendar-clock',10)+U.esc(approvalWindow(l).label)+'</span></div>'
        +(l.note?'<div class="hint" style="margin-top:6px">'+U.esc(l.note)+'</div>':'')
        +'<div class="row gap-sm" style="margin-top:10px;justify-content:flex-end"><button class="btn xs" data-decline="'+l.id+'">Decline</button><button class="btn xs primary" data-approve="'+l.id+'" '+(c.level==='block'?'aria-disabled="true"':'')+'>'+UI.ic('check',12)+'Approve</button></div></div>';
-    }).join(''):UI.empty({art:'calendar',title:'Inbox zero',body:'Every request has been reviewed. New requests appear here with an automatic coverage check.'}),
+    }).join(''):UI.empty({art:'calendar',title:'No leave requests',body:'No leave request has been recorded yet. Requests entered here wait for your decision — approve them in the week before the leave starts; the working plan is never rewritten, the approval is applied as an overlay.',action:'<button class="btn primary" data-new>'+UI.ic('plus',14)+' Record a request</button>'}),
     foot:'<span>Approvals update the Working Plan immediately</span><button class="btn xs" data-new>'+UI.ic('plus',12)+'New request</button>'})+'</div>'
    +'<div class="c4"><div class="col" style="gap:14px">'
      +UI.card({title:"Who's off today",sub:U.fmtDateLong(),icon:'users',body:today.length?today.map(l=>{ const s=S.staffById(l.staffId)||{name:'—'};
         return '<div class="list-row">'+U.avatar(s.name,'sm')+'<div class="lr-main"><div class="lr-title">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.esc((TYPE[l.type]||{}).label||l.type)+' · returns '+U.fmtDate(l.backOn||U.addDays(l.to,1))+'</div></div></div>'; }).join(''):'<p class="xs faint">Full bench is on duty today.</p>'})
-     +UI.card({title:'Absence forecast',sub:'Next 30 days',icon:'calendar-days',body:(function(){
-        const up=S.leaves().filter(l=>l.status!=='Declined'&&l.to>=U.todayISO()&&l.from<=U.addDays(U.todayISO(),30)).sort((a,b)=>String(a.from).localeCompare(String(b.from))).slice(0,6);
-        return up.length?up.map(l=>{ const s=S.staffById(l.staffId)||{name:'—'}; return '<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.5px">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.fmtDateShort(l.from)+' – '+U.fmtDateShort(l.to)+'</div></div><span class="pill '+(l.status==='Pending'?'amber':'slate')+'">'+days(l)+'d</span></div>'; }).join(''):'<p class="xs faint">No absences forecast.</p>';
+     +UI.card({title:'Absence forecast',sub:'Next 30 days · from the register\'s own history',icon:'calendar-days',body:(function(){
+        const f=S.absenceForecast(30), h=f.history;
+        const up=S.leaveInForce().filter(l=>l.to>=U.todayISO()&&l.from<=U.addDays(U.todayISO(),30)).sort((a,b)=>String(a.from).localeCompare(String(b.from))).slice(0,5);
+        if(!h.months && !h.leaveRecords) return '<p class="xs faint">No history to forecast from yet — record a month of the working plan or a leave entry and the forecast starts here.</p>';
+        const basis=[];
+        if(h.months) basis.push(h.months+' stored month'+(h.months===1?'':'s')+(h.from?' ('+U.monthLabel(h.from)+' → '+U.monthLabel(h.to)+')':''));
+        if(h.leaveRecords) basis.push(h.leaveRecords+' leave records');
+        return '<div class="row between" style="margin-bottom:8px"><span class="xs faint">Expected absent days</span><span class="mono strong">'+f.expected+'</span></div>'
+          +UI.meter(Math.min(100,f.expected/Math.max(1,S.activeStaff().length*30)*100*4),'teal')
+          +'<div class="xs faint" style="margin-top:6px">'+Math.round(h.rate*1000)/10+'% of rostered days were leave or absence across '+basis.join(' · ')+'. '+f.planned+' approved block'+(f.planned===1?'':'s')+' already booked ('+f.plannedDays+'d).</div>'
+          +(up.length?'<div class="thread" style="margin:10px 0"></div>'+up.map(l=>{ const s=S.staffById(l.staffId)||{name:'—'}; return '<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.5px">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.fmtDateShort(l.from)+' – '+U.fmtDateShort(l.to)+'</div></div><span class="pill '+(l.status==='Pending'?'amber':'slate')+'">'+days(l)+'d</span></div>'; }).join(''):'');
       })()})
-   +'</div></div></div>';
+   +'</div></div></div>'
+   +'<div class="grid-12" style="margin-top:14px"><div class="c12">'+entitlementCard()+'</div></div>';
 }
 function timelineView(){
   const staff=S.activeStaff();
@@ -127,12 +150,8 @@ function decide(id, approve){
   const l=S.leaves().find(x=>x.id===id); if(!l) return;
   const c=conflicts(l);
   if(approve && c.level==='block') return UI.toast(c.text,{type:'err',duration:6000});
-  S.commit(d=>{ const x=d.leaves.find(y=>y.id===id); if(x){ x.status=approve?'Approved':'Declined'; x.decidedBy=LS.auth.user.name; x.decidedAt=U.nowISO(); }
-    if(approve){ const key=U.monthKey(l.from); const pl=d.workingPlans[key]&&d.workingPlans[key].primary;
-      if(pl){ const st=pl.staff.find(s=>{ const k=S.staffById(l.staffId); return k&&s.name===k.name; });
-        if(st) pl.dates.forEach((iso,di)=>{ if(iso>=l.from&&iso<=l.to) st.codes[di]=l.type==='TR'?'TR':l.type==='SICK'?'SICK':'AL'; }); }
-    }
-  },{action:'leave.'+(approve?'approve':'decline'),entity:'leave',entityId:id,detail:(approve?'Approved':'Declined')+' leave for '+(S.staffById(l.staffId)||{}).name+' · '+U.fmtDate(l.from)+'–'+U.fmtDate(l.to)});
+  S.commit(d=>{ const x=d.leaves.find(y=>y.id===id); if(x){ x.status=approve?'Approved':'Declined'; x.decidedBy=LS.auth.user.name; x.decidedAt=U.nowISO(); } },
+    {action:'leave.'+(approve?'approve':'decline'),entity:'leave',entityId:id,detail:(approve?'Approved':'Declined')+' leave for '+(S.staffById(l.staffId)||{}).name+' · '+U.fmtDate(l.from)+'–'+U.fmtDate(l.to)});
   paint(); UI.toast(approve?'Leave approved · roster updated':'Request declined',{type:approve?'ok':'warn',actions:approve?[{label:'Undo',onClick:()=>{ S.commit(d=>{ const x=d.leaves.find(y=>y.id===id); if(x) x.status='Pending'; },{action:'leave.undo',entity:'leave',entityId:id,detail:'Approval reverted'}); paint(); UI.toast('Approval reverted',{type:'info'}); }}]:undefined});
 }
 function paint(){
