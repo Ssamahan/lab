@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.3.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.4.0** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
 
@@ -163,6 +163,31 @@ asked for twice**). Results are added later on the same record, so the console c
 measure **dispatch → report** turnaround per round and per scheme, count rounds still
 awaiting a report, and flag the ones running past 30 days. The scorecard is grouped by
 scheme, newest round first, with one column per analyte that scheme has ever reported.
+
+### Equipment — preventive **and** curative maintenance
+
+The equipment register covers the whole maintenance cycle, not only the manufacturer's
+preventive schedule:
+
+| Capability | Where |
+|---|---|
+| Preventive plan (PM, calibration, next due) | *Preventive plan* tab |
+| Curative log — breakdowns, supplier call-outs, off-site repair | *Curative & downtime* tab |
+| **Previous maintenance history** — back-fill many past visits in one dialog | *Previous history* button (page, plan tab or the asset drawer) |
+| Supplier **response speed** — email time → intervention time, mean / median / fastest / slowest | KPI card + per-asset figures |
+| **Off-site repair** — shipment date and the backup analyser handed over | recorded on the case; the backup pool updates itself |
+| **Downtime** — counts from the shipment date and keeps accruing until *Mark returned* | fleet cards, inventory tab, drawer |
+
+A curative case captures when the supplier was emailed and when they actually intervened;
+the response time is calculated and rolled into the supplier-response KPI (both for new
+records and for back-filled history). When an analyser cannot be repaired on site, the
+shipment date and the backup analyser are recorded — the backup is marked *deployed* in
+the backup inventory and released when the analyser is marked returned. A shipped-out
+analyser **stays in the downtime calculation** for the whole period it is away, and the
+return itself is recorded so the ledger closes on a real date.
+
+Back-dated events are additive: they never move the next-PM date backwards, and no
+maintenance record is ever fabricated — an empty log shows an honest empty state.
 
 ### Referral network & training
 

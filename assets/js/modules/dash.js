@@ -126,15 +126,17 @@ function referralCard(){
 }
 
 function equipmentCard(){
-  const eq=S.db().equipment;
+  const eq=S.db().equipment.filter(e=>e.role!=='backup');
   const tone=s=>s==='operational'?'teal':s==='maintenance'?'amber':s==='warning'?'amber':'rose';
   return UI.card({title:'Equipment readiness',sub:'Uptime · next preventive maintenance',icon:'microscope',
     tools:'<a class="more" href="#/equipment" style="color:var(--gold)">All '+eq.length+' '+UI.ic('arrow-right',12)+'</a>',
     body:'<div style="display:flex;flex-direction:column;gap:9px">'+eq.slice(0,4).map(e=>{
-      const due=U.daysBetween(U.todayISO(),e.nextPM);
+      const due=e.nextPM? U.daysBetween(U.todayISO(),e.nextPM):null;
+      const oc=(e.services||[]).find(x=>x.shippedOn&&!x.returnedOn);
+      const up=(e.uptime==null?100:Number(e.uptime));
       return '<div class="list-row"><div class="fic" style="width:26px;height:26px;border-radius:7px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--'+(tone(e.status)==='teal'?'pos':'warn')+')">'+UI.ic('activity',13)+'</div>'
-       +'<div class="lr-main"><div class="lr-title truncate">'+U.esc(e.name)+'</div><div class="lr-sub">'+(e.uptime).toFixed(1)+'% uptime · '+U.esc(e.location)+'</div></div>'
-       +'<div style="text-align:right"><span class="pill '+tone(e.status)+'">'+U.esc(e.status)+'</span><div class="xs '+(due<0?'':due<20?'':'faint')+'" style="margin-top:3px;color:'+(due<0?'var(--crit)':due<20?'var(--warn)':'var(--text-faint)')+'">'+(due<0?'overdue':'PM in '+due+'d')+'</div></div></div>';
+       +'<div class="lr-main"><div class="lr-title truncate">'+U.esc(e.name)+'</div><div class="lr-sub">'+up.toFixed(1)+'% uptime · '+U.esc(e.location)+'</div></div>'
+       +'<div style="text-align:right"><span class="pill '+(oc?'rose':tone(e.status))+'">'+(oc?'off site':U.esc(e.status))+'</span><div class="xs '+(due==null?'faint':due<0?'':due<20?'':'faint')+'" style="margin-top:3px;color:'+(due==null?'var(--text-faint)':due<0?'var(--crit)':due<20?'var(--warn)':'var(--text-faint)')+'">'+(due==null?'no PM set':due<0?'overdue':'PM in '+due+'d')+'</div></div></div>';
     }).join('')+'</div>'});
 }
 
