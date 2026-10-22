@@ -13,7 +13,28 @@
   background:var(--rail-bg); border-right:1px solid rgba(255,255,255,.06);
   z-index:40; overflow:hidden;
 }
-[data-theme="porcelain"] .rail{box-shadow:1px 0 0 rgba(9,14,26,.06)}
+[data-theme="porcelain"] .rail{
+  background:linear-gradient(185deg,#FBFAF6 0%,#F7F4EC 55%,#F1EDE3 100%);
+  border-right:1px solid rgba(9,14,26,.10);
+  box-shadow:1px 0 0 rgba(9,14,26,.05), 0 0 40px -30px rgba(9,14,26,.35);
+}
+[data-theme="porcelain"] .wordmark{color:#131A28}
+[data-theme="porcelain"] .rail-brand-text small{color:rgba(19,26,40,.45)}
+[data-theme="porcelain"] .rail-brand .crest{filter:drop-shadow(0 4px 10px rgba(177,143,56,.22))}
+[data-theme="porcelain"] .nav-group-label{color:rgba(19,26,40,.38)}
+[data-theme="porcelain"] .nav-group-label::after{background:linear-gradient(90deg,rgba(9,14,26,.14),transparent)}
+[data-theme="porcelain"] .nav-item{color:rgba(19,26,40,.74)}
+[data-theme="porcelain"] .nav-item:hover{background:rgba(9,14,26,.055); color:#090E1A}
+[data-theme="porcelain"] .nav-item.active{color:#090E1A}
+[data-theme="porcelain"] .nav-item .n-count{background:rgba(9,14,26,.07); color:rgba(19,26,40,.62)}
+[data-theme="porcelain"] .rail-foot{border-top:1px solid rgba(9,14,26,.09)}
+[data-theme="porcelain"] .rail-user{background:rgba(9,14,26,.035); border:1px solid rgba(9,14,26,.08)}
+[data-theme="porcelain"] .rail-user:hover{background:rgba(9,14,26,.06)}
+[data-theme="porcelain"] .rail-user .nm{color:#131A28}
+[data-theme="porcelain"] .rail-user .rl{color:rgba(19,26,40,.50)}
+[data-theme="porcelain"] .rail-toggle{color:rgba(19,26,40,.50); border:1px solid rgba(9,14,26,.13)}
+[data-theme="porcelain"] .rail-toggle:hover{color:#090E1A; background:rgba(9,14,26,.05)}
+[data-theme="porcelain"] .rail-close{color:rgba(19,26,40,.6)}
 .rail-brand{display:flex; align-items:center; gap:11px; padding:18px 18px 16px; min-height:var(--topbar-h); position:relative}
 .rail-brand .crest{flex:0 0 auto; width:34px; height:34px; filter:drop-shadow(0 4px 12px rgba(201,168,76,.28))}
 .rail-brand-text{min-width:0; display:flex; flex-direction:column; gap:1px}
@@ -63,12 +84,26 @@
 .rail-mini .rail-brand{padding:18px 0 16px; justify-content:center}
 .rail-mini .rail-brand-text,.rail-mini .nav-group-label,.rail-mini .nav-item span.lbl,
 .rail-mini .nav-item .n-count,.rail-mini .rail-user .txt,.rail-mini .rail-meta,.rail-mini .rail-foot .rail-user{display:none}
-.rail-mini .rail-scroll{padding:6px 10px}
-.rail-mini .nav-item{justify-content:center; padding:11px 0}
+.rail-mini .rail-scroll{padding:6px 6px}
+.rail-mini .nav-item{justify-content:center; padding:11px 0; gap:0}
 .rail-mini .nav-item svg{width:19px; height:19px}
-.rail-mini .nav-item[data-tip]:hover::after{content:attr(data-tip); position:absolute; left:calc(100% + 10px); top:50%; transform:translateY(-50%); white-space:nowrap; background:var(--ink-800); border:1px solid var(--border-strong); color:var(--text); padding:5px 9px; border-radius:7px; font-size:11px; z-index:60; box-shadow:var(--shadow-2); letter-spacing:0; font-weight:500}
-.rail-mini .rail-foot{align-items:center; padding:10px 8px}
+.rail-mini .rail-foot{align-items:center; padding:10px 6px}
 .rail-mini .rail-toggle{margin-top:4px}
+.rail-toggle svg{transition:transform var(--dur-2) var(--ease)}
+.rail-toggle.is-mini svg{transform:rotate(180deg)}
+
+/* Module label flyout while the rail is minimised. The rail scrolls, so a CSS
+   tooltip would be clipped — the chip is a fixed layer positioned from JS. */
+.rail-tip{
+  position:fixed; z-index:120; pointer-events:none;
+  padding:6px 10px; border-radius:8px; white-space:nowrap;
+  font-size:11.6px; font-weight:600; letter-spacing:-.005em;
+  color:var(--text-strong); background:var(--surface-2);
+  border:1px solid var(--border-strong); box-shadow:var(--shadow-3);
+  opacity:0; transform:translate(-4px,-50%); transition:opacity .12s var(--ease), transform .12s var(--ease);
+}
+.rail-tip.on{opacity:1; transform:translate(0,-50%)}
+.rail-tip small{display:block; font-size:9.4px; font-weight:500; color:var(--text-faint); letter-spacing:.05em; text-transform:uppercase; margin-top:1px}
 
 /* ——— 3. Topbar ————————————————————————————————————— */
 .topbar{
@@ -217,6 +252,7 @@
 .role-badge.admin{color:var(--gold-bright); border-color:rgba(201,168,76,.35); background:rgba(201,168,76,.10)}
 .role-badge.manager{color:var(--info); border-color:var(--info-border); background:var(--info-soft)}
 .role-badge.tech{color:var(--pos); border-color:var(--pos-border); background:var(--pos-soft)}
+.role-badge.reviewer{color:var(--info); border-color:var(--info-border); background:var(--info-soft)}
 .role-badge.viewer{color:var(--text-faint); border-color:var(--border); background:var(--surface-inset)}
 
 /* ——— 8. Avatars ————————————————————————————————— */
@@ -509,4 +545,18 @@ html.scroll-lock, body.scroll-lock{overflow:hidden!important; overscroll-behavio
   .app{grid-template-columns:1fr}
   body{background:#fff; color:#000}
   .card{box-shadow:none; border:1px solid #ccc; break-inside:avoid}
+}
+
+select.role-select{height:28px; font-size:11.4px; padding:0 26px 0 9px; width:auto; min-width:112px; cursor:pointer}
+select.role-select:hover{border-color:var(--border-strong)}
+
+/* ——— 18. Reader roles (reviewer / viewer) ————————————————————
+   The console keeps the records visible and drops the explanatory copy that only
+   the people administering it need: page subtitles, the hero paragraph and the
+   compliance strip. Admin and Manager see everything. */
+.role-limited .page-head .sub,
+.role-limited .hero .lede,
+.role-limited .role-admin-only{display:none!important}
+@media (max-width:760px){
+  .rail-tip{display:none}
 }

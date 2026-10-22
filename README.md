@@ -5,7 +5,38 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.7.2** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.8.0** · FY 2026/2027 · works with no network, installs as a PWA.
+
+---
+
+## What changed in 6.8.0
+
+**A smaller rail, a cleaner register, and roles for the people who only read.**
+
+- **Referred samples carry the referral menu only.** CBC, malaria RDT and blood
+  slide, fasting glucose, creatinine, sputum AFB and the HIV rapid test are done on
+  the bench here, not sent away, so they are gone from the referral test picker.
+  The reference-laboratory line — blood culture, HIV recency viral load, TB culture,
+  the outbreak PCRs and hepatitis — is untouched. Local registers prune the old
+  entries on load.
+- **The status strip is gone.** *All systems operational · Synced · Saved 17:46 ·
+  PROD · v6.7.2 · RW · Kigali* no longer sits under the content, for any role. What's
+  new and install moved into the command palette (⌘K) for administrators.
+- **Viewer and Reviewer are real roles.** Security Center → Accounts & two-factor
+  now has a role selector on every row. A **Viewer** reads the register and exports;
+  a **Reviewer** reads, records and signs off assessments but sees no revenue,
+  security, design system or roadmap. Changes apply on the next action and land in
+  the audit trail. The owner account stays Admin.
+- **Modules a viewer must not see stay hidden.** The rail, the command palette and
+  the mobile *More* sheet all filter by permission, so Training Revenue, Security
+  Center, Design System and Premium Roadmap never appear for reader roles.
+- **The rail collapses to the width of the hamburger.** 46 px instead of 74, and the
+  module name appears in a small chip beside the icon on hover or focus — including
+  for the active module, which the old CSS tooltip could never show.
+- **The rail follows the theme.** Mini nav, brand and user block now render in
+  Porcelain's light palette instead of staying dark.
+- Page subtitles, hero paragraphs and the compliance strip are hidden for viewer and
+  reviewer sessions — same records, less briefing text.
 
 ---
 

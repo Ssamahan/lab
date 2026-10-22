@@ -13,7 +13,7 @@ UI.pill=(label,tone,icon)=>'<span class="pill '+(tone||'slate')+'">'+(icon?U.ic(
 UI.chip=(label,cls,icon)=>'<span class="chip '+(cls||'')+'">'+(icon?U.ic(icon,12):'')+U.esc(label)+'</span>';
 UI.eyebrow=t=>'<div class="eyebrow">'+U.esc(t)+'</div>';
 UI.avatar=U.avatar;
-UI.roleBadge=r=>{ const k=/admin/i.test(r)?'admin':/manager/i.test(r)?'manager':/read|viewer/i.test(r)?'viewer':'tech'; return '<span class="role-badge '+k+'">'+U.esc(r||'—')+'</span>'; };
+UI.roleBadge=r=>{ const k=/admin/i.test(r)?'admin':/manager/i.test(r)?'manager':/reviewer/i.test(r)?'reviewer':/read|viewer/i.test(r)?'viewer':'tech'; return '<span class="role-badge '+k+'">'+U.esc(r||'—')+'</span>'; };
 UI.card=(o)=>{
   const c=o||{};
   return '<section class="card '+(c.cls||'')+'" '+(c.id?'id="'+c.id+'"':'')+'>'

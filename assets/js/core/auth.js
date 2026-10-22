@@ -9,9 +9,11 @@ const USERS=[
   {id:'u1', name:'Kelvin SAMAHANI', role:'Admin', username:'kelvin', password:'ruli2026', email:'rulidhlab@gmail.com', staffId:'s1', title:'Laboratory Manager', twoFactor:false},
   {id:'u2', name:'Aurelie YANSONEYE', role:'Manager', username:'aurelie', password:'lab2026', email:'aurelieyansoneye@gmail.com', staffId:'s4', title:'HIV Lab Quality Corp', twoFactor:false},
   {id:'u3', name:'Jean Paul NSENGIYUMVA', role:'Technologist', username:'jeanpaul', password:'lab2026', email:'nsengiyuma4@gmail.com', staffId:'s6', title:'Laboratory Technician', twoFactor:true},
-  {id:'u4', name:'District Reviewer', role:'Read-only', username:'viewer', password:'view2026', email:'pbf@gakenke.gov.rw', staffId:null, title:'PBF assessment team', twoFactor:false}
+  {id:'u4', name:'District Reviewer', role:'Viewer', username:'viewer', password:'view2026', email:'pbf@gakenke.gov.rw', staffId:null, title:'PBF assessment team', twoFactor:false},
+  {id:'u5', name:'Gakenke Review Panel', role:'Reviewer', username:'reviewer', password:'review2026', email:'review@gakenke.gov.rw', staffId:null, title:'District review panel', twoFactor:false}
 ];
 A.users=USERS;
+A.ROLES=['Admin','Manager','Technologist','Reviewer','Viewer'];
 A.user=null;
 A.session=null;
 
@@ -19,7 +21,37 @@ const PERMS={
   Admin:['view','edit','approve','revenue','staff','settings','security','export','delete'],
   Manager:['view','edit','approve','revenue','export'],
   Technologist:['view','edit','export'],
+  /* Reviewers read the register and can act on what they are asked to verify —
+     they sign off assessments but never see revenue, security or settings. */
+  Reviewer:['view','edit','approve','export'],
+  Viewer:['view','export'],
   'Read-only':['view']
+};
+const ROLE_KEY='labSystems.roles.v1';
+function savedRoles(){ try{ return JSON.parse(localStorage.getItem(ROLE_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function persistRoles(){ const map={}; USERS.forEach(u=>{ map[u.id]={role:u.role, twoFactor:!!u.twoFactor}; }); try{ localStorage.setItem(ROLE_KEY,JSON.stringify(map)); }catch(e){} }
+A.applySavedRoles=function(){
+  const map=savedRoles();
+  USERS.forEach(u=>{ const o=map[u.id]; if(!o) return; if(o.role && A.ROLES.indexOf(o.role)>=0) u.role=o.role; if(typeof o.twoFactor==='boolean') u.twoFactor=o.twoFactor; });
+};
+/* Admin-only: change what an account may do. The session keeps working, the
+   next permission check simply answers differently. */
+A.setRole=function(id, role){
+  const u=USERS.find(x=>x.id===id); if(!u) return {ok:false, reason:'Unknown account.'};
+  if(A.ROLES.indexOf(role)<0) return {ok:false, reason:'Unknown role.'};
+  if(u.id==='u1' && role!=='Admin') return {ok:false, reason:'The owner account must stay Admin.'};
+  if(!A.user || A.user.role!=='Admin') return {ok:false, reason:'Only an Admin can change roles.'};
+  const from=u.role; u.role=role; persistRoles();
+  LS.store.audit({action:'auth.role_change', entity:'users', entityId:u.id, actor:A.user.name, role:A.user.role, detail:u.name+' · '+from+' → '+role});
+  LS.store.save();
+  return {ok:true, from, to:role};
+};
+A.setTwoFactor=function(id, on){
+  const u=USERS.find(x=>x.id===id); if(!u) return false;
+  u.twoFactor=!!on; persistRoles();
+  LS.store.audit({action:on?'auth.2fa_enabled':'auth.2fa_disabled', entity:'users', entityId:u.id, actor:A.user&&A.user.name, role:A.user&&A.user.role, detail:u.name});
+  LS.store.save();
+  return true;
 };
 A.can=function(action){
   if(!A.user) return false;
@@ -27,6 +59,7 @@ A.can=function(action){
   return (PERMS[A.user.role]||['view']).indexOf(action)>=0;
 };
 A.init=function(){
+  A.applySavedRoles();
   let s=null;
   try{ s=JSON.parse(localStorage.getItem(SESSION_KEY)||sessionStorage.getItem(SESSION_KEY)||'null'); }catch(e){}
   if(s && s.expires && s.expires>Date.now()){
