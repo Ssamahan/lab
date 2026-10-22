@@ -1,6 +1,6 @@
 /* ============================================================================
    MODULE · EQUIPMENT & FACILITIES — uptime, preventive + curative maintenance,
-   supplier response time, off-site repair, backup analyser pool, cold chain
+   supplier response time, off-site repair and backup analyser pool
    ========================================================================== */
 (function(){
 'use strict';
@@ -573,7 +573,7 @@ function eqDrawer(id){
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'fleet';
   if(['fleet','pm','curative','inventory'].indexOf(tab)<0) tab='fleet';
-  root.innerHTML='<div class="page-head"><div><h1>Equipment &amp; facilities</h1><div class="sub">Every analyser, its preventive and curative maintenance, supplier response time, off-site repairs and the cold chain that keeps results valid — in one register.</div></div>'
+  root.innerHTML='<div class="page-head"><div><h1>Equipment &amp; facilities</h1><div class="sub">Every analyser, its preventive and curative maintenance, supplier response time and off-site repairs — in one register.</div></div>'
    +'<div class="actions"><button class="btn" data-history>'+UI.ic('history',15)+' Previous history</button><button class="btn" data-logpm>'+UI.ic('wrench',15)+' Record maintenance</button><button class="btn" data-addeq>'+UI.ic('plus',15)+' Add equipment</button><button class="btn primary" data-export>'+UI.ic('download',15)+' Export register</button></div></div>'
    +kpis()
    +'<div class="filters" style="margin-bottom:12px;flex-wrap:wrap">'+[['fleet','Fleet'],['pm','Preventive plan'],['curative','Curative & downtime'],['inventory','Backup inventory']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-e-tab="'+k+'">'+l+'</button>').join('')+'</div>'
@@ -590,11 +590,6 @@ M.render=function(root,params){
       const eqs=primaries().slice(0,4);
       const trend=host.querySelector('#eqTrend');
       if(trend) C.line(trend,{id:'eqTrend',height:240,min:60,max:100,labels:months,series:eqs.map((e,i)=>({name:e.name,color:'var(--chart-'+(i+1)+')',values:[e.uptime-3,e.uptime-2,e.uptime-1.4,e.uptime-0.8,e.uptime-0.4,uptimeOf(e)].map(v=>+Number(v||0).toFixed(1))})),yFmt:v=>Math.round(v)+'%'});
-      const cold=host.querySelector('#coldTrend');
-      if(cold){
-        const temps=[2.4,3.1,4.8,5.2,6.9,7.1,6.2,5.4,4.1,3.8,3.2,2.9,9.4,8.6,6.1,5.2,4.4,3.9,3.5,3.1,2.8,2.6,2.4,2.3];
-        C.line(cold,{id:'coldTrend',height:190,min:0,max:12,labels:temps.map((_,i)=>i+':00'),series:[{name:'Fridge °C',color:'var(--chart-1)',values:temps}],yFmt:v=>v+'°',bands:[{from:2,to:8,color:'rgba(63,211,182,.08)'}],target:8,targetLabel:'Upper limit'});
-      }
     }
     host.querySelectorAll('[data-eq],[data-eqrow]').forEach(el=>el.onclick=()=>eqDrawer(el.dataset.eq||el.dataset.eqrow));
     U.$$('[data-logpm]',root).forEach(b=>b.onclick=()=>serviceModal());
@@ -630,7 +625,6 @@ function uptimeChart(){
       return items.map(e=>{ const d=daysToPM(e); const late=overdue(e);
         return '<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(e.name)+'</div><div class="lr-sub">'+U.esc(e.manufacturer)+' · '+(late?'overdue':'in '+d+' days')+'</div></div><span class="pill '+(late?'rose':'slate')+'">'+U.fmtDateShort(e.nextPM)+'</span></div>'; }).join('');
     })()})+'</div>'
-   +'<div class="c12">'+UI.card({title:'Cold chain · 24 h trace',sub:'Blood bank fridge · excursion flags trigger a non-conformance',icon:'thermometer',
-      tools:'<a class="btn xs" href="#/stock">Stock</a>',body:'<div id="coldTrend"></div><div class="row wrap gap-sm" style="margin-top:10px">'+S.db().coldChain.slice(0,4).map(c=>'<span class="pill '+(c.temp>c.max||c.temp<c.min?'rose':'teal')+'">'+U.esc(c.device)+' · '+c.temp+' °C · '+U.relTime(c.at)+'</span>').join('')+'</div>'})+'</div></div>';
++'</div></div>';
 }
 })();

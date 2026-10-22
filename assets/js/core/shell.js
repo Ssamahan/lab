@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.5.0';
+const APP_VERSION='6.6.0';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -15,7 +15,7 @@ const ICON={
 const ROUTES={
   dash:{title:'Command Center',sub:'Live laboratory operations · Ruli District Hospital',group:'Operations',icon:ICON.dash,file:'dash'},
   samples:{title:'Referred Samples',sub:'Register · chain of custody · manifest · TAT',group:'Operations',icon:ICON.samples,file:'samples'},
-  stock:{title:'Stock & Supplies',sub:'Consumables · lots · cold chain · forecasts',group:'Operations',icon:ICON.stock,file:'stock'},
+  stock:{title:'Stock & Supplies',sub:'Consumables · lots · expiry · forecasts',group:'Operations',icon:ICON.stock,file:'stock'},
   training:{title:'Training Roster',sub:'FIFO queue · registry · competency history',group:'People',icon:ICON.training,file:'training'},
   revenue:{title:'Training Revenue',sub:'Expenses · reimbursements · balance',group:'People',icon:ICON.revenue,file:'revenue',permission:'revenue'},
   roster:{title:'Working Plan',sub:'Shift grid · coverage · fairness',group:'Scheduling',icon:ICON.roster,file:'roster'},

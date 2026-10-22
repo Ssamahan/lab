@@ -45,7 +45,7 @@ function awaitingRounds(){ return S.db().eqa.filter(e=>stageOf(e)==='awaiting');
 function kpis(){
   const latest=S.eqaLatest();
   const schemes=Object.keys(latest);
-  const passing=schemes.filter(k=>{ const e=latest[k]; return e.overall==='Pass'||e.scorePercent>=90; }).length;
+  const passing=schemes.filter(k=>{ const e=latest[k]; return e.overall==='Pass'&&e.scorePercent>=S.EQA_MIN; }).length;
   const zs=[];
   Object.values(S.db().eqa).forEach(e=>Object.values(e.analytes||{}).forEach(v=>zs.push(Math.abs(v))));
   const waiting=awaitingRounds();
@@ -84,7 +84,7 @@ function scorecard(){
   const val=e=>e.scorePercent!=null?e.scorePercent+'%':(e.score!=null?e.score+' SD':'—');
   const cellPill=(v,scoring)=>{
     if(v==null) return '<span class="xs faint">—</span>';
-    const bad=scoring==='%'?(v<90):(Math.abs(v)>=3), warn=scoring==='%'?(v<95):(Math.abs(v)>=2);
+    const bad=scoring==='%'?(v<S.EQA_MIN):(Math.abs(v)>=3), warn=scoring==='%'?(v<S.EQA_MIN):(Math.abs(v)>=2);
     return '<span class="pill '+(bad?'rose':warn?'amber':'teal')+' mono">'+(scoring==='%'?v+'%':(v>0?'+':'')+v)+'</span>';
   };
   const schemeTables = groups.map(g=>{
@@ -108,13 +108,13 @@ function scorecard(){
   }).join('');
 
   return '<div class="grid-12">'
-   +'<div class="c8">'+UI.card({title:'Quarterly composite',sub:'Target band 90% · EQAS proficiency rounds',icon:'chart-line',cls:'gold',
-      tools:'<span class="pill '+(composite()>=90?'teal':'amber')+'">'+composite()+'% composite</span>',
+   +'<div class="c8">'+UI.card({title:'Quarterly composite',sub:'Minimum acceptable '+(S.EQA_MIN)+'% · EQAS proficiency rounds',icon:'chart-line',cls:'gold',
+      tools:'<span class="pill '+(composite()>=S.EQA_MIN?'teal':'amber')+'">'+composite()+'% composite</span>',
       body:'<div id="eqaTrend"></div>',
-      foot:'<span>Band = minimum acceptable performance (90%)</span><span class="mono">5 rounds shown</span>'})+'</div>'
+      foot:'<span>Band = minimum acceptable performance ('+(S.EQA_MIN)+'%)</span><span class="mono">5 rounds shown</span>'})+'</div>'
    +'<div class="c4">'+UI.card({title:'Overall standing',sub:'Traffic-light interpretation',icon:'shield-check',body:
-      '<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">'+C.ring(composite(),{size:104,stroke:7})+'<div><div class="strong">'+(composite()>=95?'Excellent':composite()>=90?'Acceptable':'Action required')+'</div><div class="xs faint" style="margin-top:3px">ISO 15189 §7.7.3<br>Interlaboratory comparisons</div></div></div>'
-      +schemes.map(s=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:12px">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.esc(s.e.code)+' · '+(s.stage==='awaiting'?'awaiting results':U.fmtDate(s.e.reported))+'</div></div><span class="pill '+(s.stage==='awaiting'?'amber':s.pct>=90?'teal':'amber')+'">'+(s.stage==='awaiting'?'pending':s.pct+'%')+'</span></div>').join('')})+'</div>'
+      '<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">'+C.ring(composite(),{size:104,stroke:7})+'<div><div class="strong">'+(composite()>=(S.EQA_MIN+3)?'Excellent':composite()>=S.EQA_MIN?'Acceptable':'Action required')+'</div><div class="xs faint" style="margin-top:3px">ISO 15189 §7.7.3<br>Interlaboratory comparisons</div></div></div>'
+      +schemes.map(s=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:12px">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.esc(s.e.code)+' · '+(s.stage==='awaiting'?'awaiting results':U.fmtDate(s.e.reported))+'</div></div><span class="pill '+(s.stage==='awaiting'?'amber':s.pct>=S.EQA_MIN?'teal':'amber')+'">'+(s.stage==='awaiting'?'pending':s.pct+'%')+'</span></div>').join('')})+'</div>'
    +'<div class="c12"><div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('award',14,'ic')+'Per-scheme scorecard</div>'
       +'<div class="card-sub">One table per scheme, newest round first · every analyte that has data for that scheme is shown · analysts can be added from any round</div></div>'
       +'<div class="card-tool row gap-sm"><button class="btn xs" data-new-eqa>'+UI.ic('plus',12)+'New round</button><button class="btn xs" data-export>'+UI.ic('download',12)+'Export</button></div></div>'
@@ -270,7 +270,7 @@ function wireBody(){
   r.querySelectorAll('[data-eqa-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.eqaTab; paint(); });
   if(tab==='scorecard'){
     const tr=trend();
-    C.line(r.querySelector('#eqaTrend'),{id:'eqaT',height:230,min:70,max:100,series:[{name:'Composite',color:'var(--gold)',values:tr.values}],labels:tr.labels,target:{value:90,label:'target 90%'},yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%',drawMs:1400});
+    C.line(r.querySelector('#eqaTrend'),{id:'eqaT',height:230,min:70,max:100,series:[{name:'Composite',color:'var(--gold)',values:tr.values}],labels:tr.labels,target:{value:S.EQA_MIN,label:'minimum '+S.EQA_MIN+'%'},yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%',drawMs:1400});
     r.querySelectorAll('[data-eqa]').forEach(tr2=>tr2.onclick=()=>{ const e=S.db().eqa.find(x=>x.id===tr2.dataset.eqa); if(!e) return;
       const st=stageOf(e), tu=turnaround(e), waiting=U.daysBetween(e.delivered||U.todayISO(),U.todayISO());
       UI.drawer({title:e.program+' · '+e.code,eyebrow:'EQA round',body:'<div class="row wrap gap-sm" style="margin-bottom:12px"><span class="pill '+STAGE[st].tone+'">'+STAGE[st].label+'</span>'

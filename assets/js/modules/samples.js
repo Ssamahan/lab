@@ -104,6 +104,16 @@ function tableHTML(){
 /* ——— Referral network: the partner laboratories, editable ———————— */
 function labName(l){ return typeof l==='string'?l:(l&&l.name)||''; }
 function labs(){ const db=S.db(); return db.catalog.hospitals||[]; }
+function retiredLabs(){ return (S.db().catalog.retiredHospitals||[]); }
+function restoreLabEntry(id){
+  S.commit(d=>{
+    const rec=(d.catalog.retiredHospitals||[]).find(x=>x.id===id); if(!rec) return;
+    d.catalog.hospitals=d.catalog.hospitals||[];
+    d.catalog.hospitals.push({id:rec.id,name:rec.name,type:rec.type||'Hospital'});
+    d.catalog.retiredHospitals=(d.catalog.retiredHospitals||[]).filter(x=>x.id!==id);
+  },{action:'samples.lab.restore',entity:'catalog',entityId:id,detail:'Laboratory restored to the referral network'});
+  UI.toast('Laboratory restored',{type:'ok'}); LS.shell.refresh();
+}
 function usedLabs(){
   const cnt={};
   S.db().samples.forEach(s=>{ const h=s.hospital||'Ruli DH'; cnt[h]=(cnt[h]||0)+1; });
@@ -165,6 +175,14 @@ function throughputMini(){
     foot:'<span><b>Registered</b> gold · <b>Resulted</b> teal · a gap means the result has not come back</span><span class="mono">'+U.sum(series,x=>x.resulted)+' resulted</span>'});
 }
 
+function retiredBlock(){
+  const list=retiredLabs();
+  if(!list.length) return '<div class="xs faint">No laboratory has been removed from the network.</div>';
+  return '<div class="eyebrow" style="margin-bottom:6px">Removed from the network</div>'
+    +list.map(l=>'<div class="list-row" style="padding:5px 0"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(l.name)+'</div>'
+      +'<div class="lr-sub">'+U.esc(l.type||'Hospital')+(l.samples?' · '+l.samples+' sample'+(l.samples===1?'':'s')+' still name it':'')+'</div></div>'
+      +'<button class="btn xs" data-lab-restore="'+l.id+'">'+UI.ic('rotate-ccw',11)+'Restore</button></div>').join('');
+}
 function labEditor(){
   if(!LS.auth.guard('edit')) return;
   const cnt=usedLabs();
@@ -177,36 +195,62 @@ function labEditor(){
   UI.modal({title:'Referral network',sub:'Rename a laboratory to fix a misspelling — every sample that names it is re-pointed. Routes can be added or removed.',width:'min(680px,100%)',
     body:'<div id="labRows" style="display:flex;flex-direction:column;gap:8px">'+labs().map(rowHtml).join('')+'</div>'
       +'<button class="btn xs" data-lab-add style="margin-top:10px">'+UI.ic('plus',12)+'Add laboratory</button>'
-      +'<div class="hint" style="margin-top:10px">Edits apply to the sample register, the referral wizard and every manifest that names the laboratory.</div>',
+      +'<div class="hint" style="margin-top:10px">Edits apply to the sample register, the referral wizard and every manifest that names the laboratory.</div>'
+      +'<div id="labRetired" style="margin-top:14px">'+retiredBlock()+'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-labs>'+UI.ic('check',15)+'Save network</button>',
     onMount:(el,close)=>{
       const bindDel=()=>el.querySelectorAll('[data-lab-del]').forEach(b=>b.onclick=()=>b.closest('[data-lab-row]').remove());
       bindDel();
+      const bindRestore=()=>el.querySelectorAll('[data-lab-restore]').forEach(b=>b.onclick=()=>{
+        const rec=retiredLabs().find(x=>x.id===b.dataset.labRestore); if(!rec) return;
+        el.querySelector('#labRows').insertAdjacentHTML('beforeend',rowHtml({id:rec.id,name:rec.name,type:rec.type||'Hospital'}));
+        bindDel(); b.closest('.list-row').remove(); UI.toast(rec.name+' queued for restore — save the network',{type:'info'});
+      });
+      bindRestore();
       el.querySelector('[data-lab-add]').onclick=()=>{
         el.querySelector('#labRows').insertAdjacentHTML('beforeend',rowHtml(null));
         bindDel();
         const rows=el.querySelectorAll('[data-lab-row]');
         const last=rows[rows.length-1]; if(last) last.querySelector('[data-lab-name]').focus();
       };
-      el.querySelector('[data-save-labs]').onclick=()=>{
-        const existing={}; labs().forEach(l=>{ existing[l.id]=labName(l); });
+      el.querySelector('[data-save-labs]').onclick=async()=>{
+        const existing={}; labs().forEach(l=>{ existing[l.id]=l; });
         const next=[], renamed={};
         el.querySelectorAll('[data-lab-row]').forEach(row=>{
           const name=row.querySelector('[data-lab-name]').value.trim();
           if(!name) return;
           const id=row.querySelector('[data-lab-id]').value||U.uid('h');
           const type=row.querySelector('[data-lab-type]').value.trim()||'Hospital';
-          if(existing[id] && existing[id]!==name) renamed[existing[id]]=name;
+          if(existing[id] && labName(existing[id])!==name) renamed[labName(existing[id])]=name;
           next.push({id,name,type});
         });
+        const keptIds=next.map(l=>l.id);
+        const removed=Object.keys(existing).filter(id=>keptIds.indexOf(id)<0).map(id=>existing[id]);
+        const usedIn={}; S.db().samples.forEach(s=>{ usedIn[s.hospital||'']=(usedIn[s.hospital||'']||0)+1; });
+        const inUse=removed.filter(l=>(usedIn[labName(l)]||0)>0);
+        if(inUse.length){
+          const total=U.sum(inUse,l=>usedIn[labName(l)]);
+          const ok=await UI.confirm({title:'Remove '+inUse.length+' laboratory'+(inUse.length===1?'':'ies')+' from the network?',
+            body:total+' sample'+(total===1?'':'s')+' still name '+inUse.map(l=>labName(l)).join(', ')+'. Their records keep the name exactly as referred — nothing is rewritten. The laboratory can be restored later from this dialog.',
+            confirm:'Remove from network',danger:true});
+          if(!ok) return;
+        }
         let moved=0;
         S.commit(d=>{
+          d.catalog.retiredHospitals=d.catalog.retiredHospitals||[];
+          removed.forEach(l=>{
+            if(!d.catalog.retiredHospitals.some(x=>x.id===l.id)){
+              d.catalog.retiredHospitals.push({id:l.id,name:labName(l),type:l.type||'Hospital',samples:usedIn[labName(l)]||0,at:U.nowISO(),by:LS.auth.user.name});
+            }
+          });
+          d.catalog.retiredHospitals=d.catalog.retiredHospitals.filter(x=>keptIds.indexOf(x.id)<0);
           d.catalog.hospitals=next;
           if(Object.keys(renamed).length){
             d.samples.forEach(s=>{ if(s.hospital&&renamed[s.hospital]){ s.hospital=renamed[s.hospital]; moved++; } });
           }
-        },{action:'samples.labs.edit',entity:'catalog',detail:'Referral network updated · '+next.length+' laboratories'+(moved?' · '+moved+' samples re-pointed':'')});
-        close(); LS.shell.refresh(); UI.toast('Referral network saved'+(moved?' · '+moved+' samples re-pointed':''),{type:'ok'});
+        },{action:'samples.labs.edit',entity:'catalog',detail:'Referral network updated · '+next.length+' laboratories'+(removed.length?' · '+removed.length+' removed':'')+(moved?' · '+moved+' samples re-pointed':'')});
+        close(); LS.shell.refresh();
+        UI.toast('Referral network saved'+(removed.length?' · '+removed.length+' removed':'' )+(moved?' · '+moved+' samples re-pointed':''),{type:'ok'});
       };
     }});
 }

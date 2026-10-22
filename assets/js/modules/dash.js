@@ -90,12 +90,12 @@ function eqaCard(){
   const progs=S.eqaPrograms();
   const rows=S.eqaSeries('__all');
   const latest=U.avg(rows.map(x=>x.score));
-  return UI.card({title:'EQA performance',sub:'External quality assessment score per PT round',icon:'award',
+  return UI.card({title:'EQA performance',sub:'External quality assessment · minimum acceptable '+S.EQA_MIN+'%',icon:'award',
     tools:'<select class="select" id="eqaProgram" style="height:28px;font-size:11px;width:auto"><option value="__all" selected>All PTs</option>'
       +progs.map(p=>'<option value="'+U.esc(p)+'">'+U.esc(p)+'</option>').join('')+'</select>',
     body:'<div id="eqaChart"></div>'
       +'<div class="legend" style="margin-top:8px"><span class="lg"><span class="sw" style="background:var(--gold)"></span>PT score</span>'
-      +'<span class="lg"><span class="sw sq" style="background:var(--pos-soft)"></span>≥ 80 % acceptable</span>'
+      +'<span class="lg"><span class="sw sq" style="background:var(--pos-soft)"></span>≥ '+S.EQA_MIN+' % acceptable</span>'
       +'<span class="lg" style="margin-left:auto;color:var(--text-faint)">'+(rows.length?rows.length+' round'+(rows.length===1?'':'s')+' scored':'No scored round yet')+'</span></div>',
     foot:'<span>'+(rows.length?'Mean score '+(Math.round(latest*10)/10)+'% across '+progs.length+' scheme'+(progs.length===1?'':'s'):'Scores appear as soon as a PT round is reported')+'</span><a class="more" href="#/eqa" style="color:var(--gold)">EQA workspace '+UI.ic('arrow-right',12)+'</a>'});
 }
@@ -149,7 +149,7 @@ function equipmentCard(){
 function feedCard(){
   return UI.card({title:'Live activity',sub:'Chain of custody · signed actions',icon:'radio',
     tools:'<span class="pill teal"><span class="dot live"></span> live</span>',
-    body:'<div class="feed" id="liveFeed">'+S.feed().map(f=>'<div class="feed-item"><div class="fic '+f.tone+'">'+UI.ic(f.icon,12)+'</div><div class="grow" style="min-width:0"><div class="ftxt">'+f.text+'</div></div><time>'+U.relTime(f.ts)+'</time></div>').join('')+'</div>'});
+    body:'<div class="feed feed-fill" id="liveFeed" style="overflow:auto">'+S.feed().map(f=>'<div class="feed-item"><div class="fic '+f.tone+'">'+UI.ic(f.icon,12)+'</div><div class="grow" style="min-width:0"><div class="ftxt">'+f.text+'</div></div><time>'+U.relTime(f.ts)+'</time></div>').join('')+'</div>'});
 }
 
 function dutyCard(){
@@ -168,7 +168,7 @@ function dutyCard(){
       +'<span class="pill slate">'+off+' at home</span>'
       +'<span class="pill '+((source==='plan')?'blue':'amber')+'">'+(source==='plan'?'Working plan':'No plan · contract pattern')+'</span>'
       +'</div>'
-      +'<div class="on-duty" style="flex-direction:column;gap:8px;align-items:stretch">'+rows.map(r=>{
+      +'<div class="on-duty duty-fill" style="align-items:stretch">'+rows.map(r=>{
         const s=r.staff, st=r.state;
         const tone=st.kind==='night'?'blue':st.kind==='day'?'teal':st.kind==='daynight'?'teal':st.kind==='leave'?'amber':'slate';
         return '<div class="duty-card" data-duty-kind="'+st.kind+'" style="'+(st.kind==='off'||st.kind==='leave'?'opacity:.62;':'')+'">'+U.avatar(s.name,'sm')
@@ -219,18 +219,27 @@ function trustFooter(){
 M.render=function(root,params){
   clearTimers();
   const db=S.db();
+  /* Two independent columns instead of a 12-column row grid. On a wide screen the
+     old grid aligned every row to its tallest card, so a short card (On duty now,
+     Live activity) left a block of white space underneath it. Columns stack each
+     card directly under the previous one, so there is nothing to leave a gap. */
   root.innerHTML=hero()+kpiRow()
-   +'<div class="grid-12">'
-     +'<div class="c8">'+throughputCard()+'</div>'
-     +'<div class="c4">'+dutyCard()+'</div>'
-     +'<div class="c7" style="margin-top:2px">'+tatCard()+'</div>'
-     +'<div class="c5" style="margin-top:2px">'+referralCard()+'</div>'
-     +'<div class="c8" style="margin-top:2px">'+eqaCard()+'</div>'
-     +'<div class="c4" style="margin-top:2px">'+equipmentCard()+'</div>'
-     +'<div class="c8" style="margin-top:2px">'+worklistCard()+'</div>'
-     +'<div class="c4" style="margin-top:2px" id="feedCol">'+feedCard()+'</div>'
-     +'<div class="c12" style="margin-top:2px" id="obCol">'+onboardingCard()+'</div>'
-   +'</div>'+trustFooter();
+   +'<div class="dash-flow">'
+     +'<div class="dash-col">'
+       +'<div class="dash-card" style="--o:1">'+throughputCard()+'</div>'
+       +'<div class="dash-card" style="--o:3">'+tatCard()+'</div>'
+       +'<div class="dash-card" style="--o:5">'+eqaCard()+'</div>'
+       +'<div class="dash-card" style="--o:7">'+worklistCard()+'</div>'
+     +'</div>'
+     +'<div class="dash-col">'
+       +'<div class="dash-card" style="--o:2">'+dutyCard()+'</div>'
+       +'<div class="dash-card" style="--o:4">'+referralCard()+'</div>'
+       +'<div class="dash-card" style="--o:6">'+equipmentCard()+'</div>'
+       +'<div class="dash-card" style="--o:8" id="feedCol">'+feedCard()+'</div>'
+     +'</div>'
+   +'</div>'
+   +'<div style="margin-top:16px" id="obCol">'+onboardingCard()+'</div>'
+   +trustFooter();
 
   // throughput chart
   const thr=S.monthlyThroughput(12);
@@ -256,8 +265,8 @@ M.render=function(root,params){
     }
     C.line(host,{id:'eqa',height:236,labels:rows.map(x=>x.code),yFmt:v=>Math.round(v)+'%',
       series:[{name:'PT score',color:'var(--gold)',values:rows.map(x=>x.score)}],
-      bands:[{from:0,to:80,color:'rgba(226,109,109,.08)'}],
-      min:0,max:100,target:{value:80,label:'80 % threshold'},
+      bands:[{from:0,to:S.EQA_MIN,color:'rgba(226,109,109,.08)'}],
+      min:0,max:100,target:{value:S.EQA_MIN,label:S.EQA_MIN+' % minimum'},
       tipFmt:v=>v+'%',extraTip:i=>'<div class="tr"><span class="k">Scheme</span><span class="v">'+U.esc(rows[i].program)+'</span></div><div class="tr"><span class="k">Reported</span><span class="v">'+U.fmtDate(String(rows[i].at||'').slice(0,10))+'</span></div>'});
   };
   if(eqaSel){ eqaSel.value='__all'; eqaSel.onchange=()=>drawEqa(eqaSel.value); }

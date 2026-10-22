@@ -20,13 +20,38 @@ function data(){
   const exp=U.sum(list,sumExp), reimb=U.sum(list,sumReimb);
   return {list,exp,reimb,balance:reimb-exp,pending:U.sum(list.filter(t=>sumReimb(t)<sumExp(t)),t=>sumExp(t)-sumReimb(t))};
 }
-function kpis(){
+/* Every figure on this page is read back off the recorded ledger rows — the
+   monthly series feeds the KPI sparks, the deltas and the cash-flow chart. */
+function monthly(){
   const d=data();
+  const g=U.groupBy(d.list,t=>String(t.start||'').slice(0,7));
+  return Object.keys(g).sort().map(k=>({key:k,exp:U.sum(g[k],sumExp),reimb:U.sum(g[k],sumReimb),
+    net:U.sum(g[k],sumReimb)-U.sum(g[k],sumExp)}));
+}
+function mov(series){
+  if(series.length<2) return null;
+  const last=series[series.length-1], prev=series[series.length-2];
+  if(!prev) return last?100:0;
+  return Math.round((last-prev)/Math.abs(prev)*100);
+}
+function reconciliation(){
+  const d=data();
+  const registry=(S.db().trainings||[]).length;
+  const covered=d.list.length;
+  return {registry,covered,missing:Math.max(0,registry-covered),exp:d.exp,reimb:d.reimb,net:d.balance};
+}
+function kpis(){
+  const d=data(), m=monthly(), reconciled=reconciliation();
+  const spark=(vals,color)=>C.spark(vals.length?vals:[0],{color});
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
-   +'<div class="c3">'+UI.stat({label:'Reimbursed',value:Math.round(d.reimb/1000),unit:'k RWF',icon:'banknote',formatted:'0',delta:18,note:d.list.length+' sessions',spark:C.spark([20,26,22,34,30,42,38,45,48,52],{color:'var(--pos)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Expenses',value:Math.round(d.exp/1000),unit:'k RWF',icon:'receipt',formatted:'0',delta:6,note:'Transport, per-diem, materials',spark:C.spark([10,14,12,18,16,20,22,19,24,26],{color:'var(--amber)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Net balance',value:Math.round(d.balance/1000),unit:'k RWF',icon:'wallet',formatted:'0',delta:d.balance>=0?9:-9,note:d.balance>=0?'Positive return':'Awaiting reimbursement',spark:C.spark([4,6,5,9,8,12,10,14,13,16],{color:'var(--gold)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Pending claims',value:Math.round(d.pending/1000),unit:'k RWF',icon:'clock',formatted:'0',note:d.list.filter(t=>sumReimb(t)<sumExp(t)).length+' sessions open',spark:C.spark([18,14,16,10,12,8,9,6,7,4],{color:'var(--crit)'})})+'</div></div>';
+   +'<div class="c3">'+UI.stat({label:'Reimbursed',value:Math.round(d.reimb/1000),unit:'k RWF',icon:'banknote',formatted:'0',delta:mov(m.map(x=>x.reimb)),note:d.list.length+' sessions · '+reconciled.registry+' in the registry',spark:spark(m.map(x=>x.reimb),'var(--pos)')})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Expenses',value:Math.round(d.exp/1000),unit:'k RWF',icon:'receipt',formatted:'0',delta:mov(m.map(x=>x.exp)),note:'Transport, per-diem, materials',spark:spark(m.map(x=>x.exp),'var(--amber)')})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Net balance',value:Math.round(d.balance/1000),unit:'k RWF',icon:'wallet',formatted:'0',delta:mov(m.map(x=>x.net)),note:d.balance>=0?'Reimbursed less expenses':'Expenses exceed reimbursements',spark:spark(m.map(x=>x.net),'var(--gold)')})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Pending claims',value:Math.round(d.pending/1000),unit:'k RWF',icon:'clock',formatted:'0',note:d.list.filter(t=>sumReimb(t)<sumExp(t)).length+' sessions open',spark:spark(m.map(x=>Math.max(0,x.exp-x.reimb)),'var(--crit)')})+'</div></div>'
+   +'<div class="card pad" style="margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
+     +'<span class="pill teal">'+UI.ic('check-check',12)+'Reconciled</span>'
+     +'<span class="small grow">'+U.fmtNum(reconciled.exp)+' RWF recorded expenses · '+U.fmtNum(reconciled.reimb)+' RWF reimbursed · <b class="mono">net '+U.fmtNum(reconciled.net)+' RWF</b> across '+reconciled.covered+' ledger sessions.</span>'
+     +'<span class="xs faint">'+reconciled.missing+' of '+reconciled.registry+' registry trainings carry no revenue lines'+(reconciled.missing?' — <a href="#/training">open the registry</a>':'')+'</span></div>';
 }
 function table(){
   const d=data();
