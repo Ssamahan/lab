@@ -39,17 +39,26 @@ const DEFAULT_SETTINGS = {
   provenance:'Register data carried forward from v5.3.1. Throughput, QC and TAT telemetry are generated locally for the console.'
 };
 
-/* The referral register carries the reference-laboratory menu only. Routine bench
-   work (haematology, malaria, chemistry, TB microscopy, HIV rapid) is done on site
-   and is not a referred sample, so it is not offered in the referral test picker. */
-const EXTRA_TESTS = [
-  {id:'t15',name:'ALT (SGPT)',cat:'Biochemistry',code:'ALT',tat:1,bench:true,price:2000},
-  {id:'t17',name:'Syphilis (RPR)',cat:'Serology',code:'RPR',tat:1,bench:true,price:1000},
-  {id:'t18',name:'Urinalysis',cat:'Parasitology',code:'URIN',tat:1,bench:true,price:800}
+/* The referral register carries the reference-laboratory menu only — the tests
+   Ruli DH actually sends to NRL, CHUK and Kibagabaga. Everything else on the
+   request form is bench work done on site, so it is not offered as a referred
+   test. The bench panel below is kept for competency records, which are about the
+   work performed here, not about referrals. */
+const BENCH_PANEL = [
+  {code:'CBC', name:'CBC (Full Blood Count)',        cat:'Hematology'},
+  {code:'MRDT',name:'Malaria RDT',                   cat:'Parasitology'},
+  {code:'BSM', name:'Blood Slide for Malaria',       cat:'Parasitology'},
+  {code:'GLU', name:'Fasting Blood Glucose',         cat:'Biochemistry'},
+  {code:'CREA',name:'Serum Creatinine',              cat:'Biochemistry'},
+  {code:'ALT', name:'ALT (SGPT)',                    cat:'Biochemistry'},
+  {code:'HIVR',name:'HIV Rapid Test (Determine)',    cat:'Serology'},
+  {code:'RPR', name:'Syphilis (RPR)',                cat:'Serology'},
+  {code:'URIN',name:'Urinalysis',                    cat:'Parasitology'},
+  {code:'AFB', name:'Sputum AFB (Ziehl-Neelsen)',    cat:'Microbiology'}
 ];
 /* Tests withdrawn from the referral menu in v6.8. Existing installations keep a
    local copy of the catalogue, so the ids are pruned on load as well. */
-const RETIRED_TESTS=['t11','t12','t13','t14','t16','t19','t20'];
+const RETIRED_TESTS=['t11','t12','t13','t14','t15','t16','t17','t18','t19','t20'];
 const SUPPLIERS = [
   {id:'s1', name:'RBC — National Medical Stores', leadDays:18, fillRate:96, priceVariance:2.1, region:'Kigali', rating:96},
   {id:'s2', name:'CHUK Laboratory Supply', leadDays:11, fillRate:88, priceVariance:6.4, region:'Huye', rating:88},
@@ -172,7 +181,7 @@ function buildQC(){
 function buildCompetency(db){
   const r=U.rng('competency-2026');
   const staff=(db.staff||[]).filter(s=>s.status==='active');
-  const tests=((db.catalog||{}).tests||[]).filter(t=>t.bench);
+  const tests=BENCH_PANEL;
   const out=[];
   const assessors=['Kelvin SAMAHANI','Aurelie YANSONEYE'];
   tests.forEach(t=>{
@@ -275,7 +284,7 @@ function sampleTAT(test, settings, catalog){
 function generateSamples(seedDB,opts){
   opts=opts||{};
   const settings=seedDB.settings;
-  const tests=seedDB.catalog.tests.filter(t=>t.bench);
+  const tests=BENCH_PANEL;
   const testsAll=seedDB.catalog.tests;
   const staff=seedDB.staff.filter(s=>s.status==='active');
   const hcs=seedDB.catalog.healthCenters.map(h=>h.name);
@@ -391,7 +400,6 @@ function normalize(db){
   db.catalog.hospitals=db.catalog.hospitals||[];
   db.catalog.healthCenters=db.catalog.healthCenters||[];
   db.catalog.tests=db.catalog.tests||[];
-  EXTRA_TESTS.forEach(t=>{ if(!db.catalog.tests.find(x=>x.id===t.id)) db.catalog.tests.push(Object.assign({},t)); });
   if(db.catalog.tests.some(t=>RETIRED_TESTS.indexOf(t.id)>=0)){
     db.catalog.tests=db.catalog.tests.filter(t=>RETIRED_TESTS.indexOf(t.id)<0);
     db.meta=db.meta||{}; db.meta.retiredTestsV68=true;

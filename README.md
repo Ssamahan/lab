@@ -5,20 +5,31 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.8.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.8.1** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.8.1
+
+- **The referral test picker is now exactly the reference-laboratory menu.** ALT,
+  RPR and urinalysis followed CBC, malaria RDT and blood slide, fasting glucose,
+  creatinine, sputum AFB and the HIV rapid test out of the catalogue. What remains
+  is the ten tests Ruli DH actually refers: blood culture, HIV recency viral load,
+  TB culture, measles & rubella PCR, monkeypox, Marburg, polio, Rift Valley and
+  yellow fever PCR, and hepatitis. Local registers prune the retired entries on
+  load.
+- Bench competency records still cover the on-site panel (CBC, malaria, glucose,
+  creatinine, ALT, HIV rapid, RPR, urinalysis, AFB) — that register is about work
+  done here, not about referrals.
 
 ## What changed in 6.8.0
 
 **A smaller rail, a cleaner register, and roles for the people who only read.**
 
-- **Referred samples carry the referral menu only.** CBC, malaria RDT and blood
-  slide, fasting glucose, creatinine, sputum AFB and the HIV rapid test are done on
-  the bench here, not sent away, so they are gone from the referral test picker.
-  The reference-laboratory line — blood culture, HIV recency viral load, TB culture,
-  the outbreak PCRs and hepatitis — is untouched. Local registers prune the old
-  entries on load.
+- **Referred samples carry the referral menu only.** The referral test picker no
+  longer offers bench work done on site; it holds the reference-laboratory line —
+  blood culture, HIV recency viral load, TB culture, the outbreak PCRs and
+  hepatitis — untouched. Local registers prune the old entries on load.
 - **The status strip is gone.** *All systems operational · Synced · Saved 17:46 ·
   PROD · v6.7.2 · RW · Kigali* no longer sits under the content, for any role. What's
   new and install moved into the command palette (⌘K) for administrators.
