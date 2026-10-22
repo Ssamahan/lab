@@ -34,7 +34,7 @@ function itemRow(x){
   const expiry=x.nearest?U.daysBetween(U.todayISO(),x.nearest.expiry):null;
   const expTone=expiry==null?'slate':expiry<=0?'rose':expiry<=30?'amber':'teal';
   return '<tr data-item="'+x.id+'">'
-   +'<td><div class="primary-cell"><b>'+U.esc(x.name)+'</b><small>'+U.esc(x.unit)+(x.coldChain?' · cold chain 2–8 °C':'')+'</small></div></td>'
+   +'<td><div class="primary-cell"><b>'+U.esc(x.name)+'</b><small>'+U.esc(x.unit)+'</small></div></td>'
    +'<td class="num">'+U.fmtNum(x.onHand)+'</td>'
    +'<td class="num hide-sm">'+U.fmtNum(x.threshold||0)+'</td>'
    +'<td style="width:130px"><div class="meter '+tone+'"><i style="width:'+U.clamp(x.onHand/Math.max(1,(x.max||x.threshold*3))*100,2,100)+'%"></i></div><div class="xs faint" style="margin-top:3px">'+x.burn.toFixed(1)+'/day</div></td>'
@@ -68,18 +68,8 @@ function overview(){
      +archivedStrip()+'</div>'
    +'<div class="c4"><div class="col" style="gap:14px">'
      +UI.card({title:'Reorder radar',sub:'Suggested purchase quantities',icon:'alert-triangle',body:'<div id="reorderList"></div>',foot:'<button class="btn xs primary" data-pr>'+UI.ic('file-text',12)+' Generate request</button>'})
-     +coldCard()+supplierMini()
+     +supplierMini()
    +'</div></div></div>';
-}
-function coldCard(){
-  const cc=S.db().coldChain||[];
-  const last=cc[0];
-  return UI.card({title:'Cold chain',sub:'2–8 °C · excursion history',icon:'thermometer',
-    tools:'<button class="btn xs" data-cold-log>'+UI.ic('plus',12)+'Log temp</button>',
-    body:'<div class="row between" style="padding:10px 12px;border-radius:9px;background:'+(last.temp>last.max?'var(--crit-soft)':'var(--pos-soft)')+';border:1px solid '+(last.temp>last.max?'var(--crit-border)':'var(--pos-border)')+';margin-bottom:10px">'
-      +'<div><div class="eyebrow">Blood bank fridge</div><div class="serif" style="font-size:1.45rem;color:'+(last.temp>last.max?'var(--crit)':'var(--pos)')+'">'+last.temp+' °C</div></div>'
-      +'<div style="text-align:right"><span class="pill '+(last.temp>last.max?'rose':'teal')+'">'+(last.temp>last.max?'Excursion':'In range')+'</span><div class="xs faint" style="margin-top:4px">'+U.relTime(last.at)+'</div></div></div>'
-      +cc.slice(0,4).map(c=>'<div class="list-row"><div class="fic" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:'+(c.temp>c.max?'var(--crit)':'var(--text-faint)')+'">'+UI.ic(c.temp>c.max?'alert-triangle':'thermometer',12)+'</div><div class="lr-main"><div class="lr-title" style="font-size:11.5px">'+U.esc(c.device)+'</div><div class="lr-sub">'+c.temp+' °C on '+U.fmtDate(String(c.at).slice(0,10))+(c.duration?' · '+c.duration+' min':'')+'</div></div></div>').join('')});
 }
 function supplierMini(){
   const sups=S.db().suppliers;
@@ -190,7 +180,6 @@ function lotDrawer(cid){
   const entries=S.db().stock.entries.filter(e=>e.cid===cid).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const body='<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="row between"><div><div class="eyebrow">On hand</div><div class="serif" style="font-size:2rem;color:var(--text-strong);letter-spacing:-.03em">'+U.fmtNum(x.onHand)+' <span class="xs faint" style="font-family:var(--font-ui);letter-spacing:.06em">'+U.esc(x.unit)+'</span></div></div><div style="text-align:right"><span class="pill '+(x.low?'rose':'teal')+'">'+(x.low?'Below minimum':'Healthy')+'</span><div class="xs faint" style="margin-top:4px">'+x.daysLeft+' days cover at '+x.burn.toFixed(1)+'/day</div></div></div>'
     +'<div class="thread" style="margin:12px 0"></div><div class="split-3">'+[['Daily burn',x.burn.toFixed(2)],['Minimum',x.threshold||0],['Supplier',(S.db().suppliers.find(s=>s.id===x.supplier)||{}).name||'—']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')+'</div></div>'
-   +(x.coldChain?'<div class="row gap-sm" style="margin-bottom:14px"><span class="pill teal">'+UI.ic('thermometer',11)+'Cold chain '+(x.minTemp||2)+'–'+(x.maxTemp||8)+' °C</span><span class="pill slate">Excursion log retained</span></div>':'')
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('boxes',14,'ic')+'Lots (FEFO)</div><div class="card-sub">First-expiry-first-out allocation</div></div></div><div class="card-body">'
      +(x.batches.length?x.batches.map(b=>'<div class="list-row"><div class="lr-main"><div class="lr-title mono" style="font-size:11.5px">'+U.esc(b.id.toUpperCase())+'</div><div class="lr-sub">Received '+U.fmtDate(b.received)+' · expires '+U.fmtDate(b.expiry)+'</div></div><div class="lr-val">'+b.qty+' '+U.esc(x.unit)+'</div></div>').join(''):'<p class="xs faint">No lots on hand.</p>')
    +'</div></div>'
@@ -202,18 +191,6 @@ function lotDrawer(cid){
     foot:'<button class="btn danger" data-del-line>'+UI.ic('trash-2',15)+'Delete line</button><button class="btn" data-close>Close</button><button class="btn primary" data-pr>'+UI.ic('file-text',15)+'Purchase request</button>',
     onMount:(panel)=>{ panel.querySelectorAll('[data-pr]').forEach(b=>b.onclick=purchaseRequest);
       const del=panel.querySelector('[data-del-line]'); if(del) del.onclick=()=>{ UI.closeAll(); deleteLine(cid); }; }});
-}
-function coldLog(){
-  UI.modal({title:'Log cold-chain temperature',sub:'Every reading is appended to the excursion register.',
-    body:'<div class="form-grid"><div class="field span2"><label>Device</label><select class="select" id="ccDev"><option>Blood Bank Fridge</option><option>Chemistry Reagent Fridge</option><option>VTM Cold Box</option></select></div>'
-     +'<div class="field"><label>Temperature (°C)</label><input class="input mono" id="ccTemp" type="number" step="0.1" value="6.2"></div>'
-     +'<div class="field"><label>Action taken</label><input class="input" id="ccAct" placeholder="In range / door closed…"></div></div>',
-    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-cc-save>Log reading</button>',
-    onMount:(el,close)=>{ el.querySelector('[data-cc-save]').onclick=()=>{
-      const dev=el.querySelector('#ccDev').value, temp=parseFloat(el.querySelector('#ccTemp').value), act=el.querySelector('#ccAct').value;
-      S.commit(d=>{ d.coldChain.unshift({id:U.uid('cc'),at:U.nowISO(),device:dev,temp,min:2,max:8,duration:temp>8?15:0,action:act||(temp>8?'Excursion — action required':'In range'),actor:LS.auth.user.name}); },{action:'coldchain.log',entity:'stock',detail:dev+' · '+temp+' °C'});
-      close(); UI.toast(temp>8?'Excursion logged — CAPA suggested':'Reading logged',{type:temp>8?'warn':'ok'}); LS.shell.refresh();
-    }; }});
 }
 function fifo(){
   const reagents=S.stockOverview().filter(x=>/reagent|cartridge|diluent|VTM|Bottle/i.test(x.name)&&x.batches.length);
@@ -281,7 +258,6 @@ function wireBody(){
   }
   r.querySelectorAll('[data-receive]').forEach(b=>b.onclick=receiveModal);
   r.querySelectorAll('[data-pr]').forEach(b=>b.onclick=purchaseRequest);
-  r.querySelectorAll('[data-cold-log]').forEach(b=>b.onclick=coldLog);
   r.querySelectorAll('[data-tab-stock]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tabStock; paint(); syncTabs(); });
   r.querySelectorAll('[data-sup-orders]').forEach(b=>b.onclick=()=>{ const sup=S.db().suppliers.find(s=>s.id===b.dataset.supOrders); UI.drawer({title:sup.name,eyebrow:'Supplier scorecard',body:'<div class="split-2">'+[['Lead time',sup.leadDays+' days'],['Fill rate',sup.fillRate+'%'],['Price variance','±'+sup.priceVariance+'%'],['Region',sup.region]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl">'+U.esc(v)+'</span></div>').join('')+'</div><div class="section-head"><h2>Recent orders</h2></div>'+UI.empty({art:'boxes',title:'No open orders',body:'Purchase requests raised from this console appear here with their GRN references.'}),foot:'<button class="btn" data-close>Close</button>'}); });
 }
@@ -297,8 +273,8 @@ M.render=function(root,params){
   root.querySelector('[data-export]').onclick=()=>{
     const items=S.stockOverview();
     const trend={}; S.stockTrend().forEach(t=>trend[t.id]=t);
-    const rows=[['Consumable','Unit','On hand','Min','Burn/day','Days cover','Projected stock-out','Consumption trend %','Last issue','Nearest expiry','Supplier','Cold chain']]
-      .concat(items.map(x=>{ const t=trend[x.id]||{}; return [x.name,x.unit,x.onHand,x.threshold,(t.burn||x.burn).toFixed(2),t.daysLeft==null?'':t.daysLeft,t.stockOut||'',t.trend==null?'':t.trend,t.lastIssue||'',x.nearest?x.nearest.expiry:'',(S.db().suppliers.find(s=>s.id===x.supplier)||{}).name||'',x.coldChain?'2–8 °C':'ambient']; }));
+    const rows=[['Consumable','Unit','On hand','Min','Burn/day','Days cover','Projected stock-out','Consumption trend %','Last issue','Nearest expiry','Supplier']]
+      .concat(items.map(x=>{ const t=trend[x.id]||{}; return [x.name,x.unit,x.onHand,x.threshold,(t.burn||x.burn).toFixed(2),t.daysLeft==null?'':t.daysLeft,t.stockOut||'',t.trend==null?'':t.trend,t.lastIssue||'',x.nearest?x.nearest.expiry:'',(S.db().suppliers.find(s=>s.id===x.supplier)||{}).name||'']; }));
     U.exportCSV('stock-register-'+U.todayISO()+'.csv',rows,{title:'Stock & supply register',actor:LS.auth.user.name});
     UI.toast('Stock register exported',{type:'ok'});
   };

@@ -20,6 +20,9 @@ const SHIFT = {
   night: {code:'N',  label:'Night 17:00–08:00 next day',        start:'17:00', end:'08:00', nextDay:true},
   both:  {code:'DN', label:'Day + night 08:00–17:00 / 17:00–08:00 next day', start:'08:00', end:'08:00', nextDay:true}
 };
+/* Minimum acceptable performance, set by the department:
+   EQA/PT schemes must reach 95 %, PBF evaluation must reach 80 %. */
+const EQA_MIN = 95, PBF_MIN = 80;
 const SHIFT_LINE = 'Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day';
 
 /* ——— default settings extensions ————————————————— */
@@ -66,7 +69,7 @@ function buildEquipment(){
     mk('eq2','Sysmex XN-330','Automated Hematology','Hematology Bench','operational',99.1,'2026-12-02','XN330-8841','Sysmex'),
     mk('eq3','Mindray BS-240','Clinical Chemistry','Chemistry Bench','maintenance',91.6,'2026-10-27','BS240-1173','Mindray'),
     mk('eq4','Hettich Rotina 420','Centrifuge','Sample Reception','operational',99.7,'2027-01-19','RT420-5520','Hettich'),
-    mk('eq5','Labcold Blood Bank Fridge','2–8 °C Cold Chain','Blood Bank','warning',87.2,'2026-10-24','LC-RLF-0912','Labcold'),
+    mk('eq5','Labcold Blood Bank Fridge','2–8 °C Refrigeration','Blood Bank','warning',87.2,'2026-10-24','LC-RLF-0912','Labcold'),
     mk('eq6','Pima CD4 Analyser','Point-of-care CD4','HIV Clinic','offline',62.4,'2026-11-30','PIMA-3341','Abbott'),
     mk('eq7','Mindray BA-88A','Semi-auto Chemistry','Chemistry Bench','operational',96.8,'2027-02-08','BA88-7721','Mindray'),
     mk('eq8','ZEISS Primo Star','Binocular Microscope','Microbiology','operational',99.9,'2027-03-11','PS-4410','ZEISS')
@@ -410,11 +413,10 @@ function normalize(db){
   db.qc=db.qc||buildQC();
   db.sessions=db.sessions||buildSessions();
   db.loginHistory=db.loginHistory||buildLoginHistory();
-  db.coldChain=db.coldChain||[
-    {id:'cc1', at:new Date(Date.now()-3600e3*5).toISOString(), device:'Blood Bank Fridge', temp:9.4, min:2,max:8, duration:42, action:'Door closed; contents assessed, no discard', actor:'Beatrice NGEZEKURE'},
-    {id:'cc2', at:new Date(Date.now()-86400e3*9).toISOString(), device:'Chemistry Reagent Fridge', temp:7.8, min:2,max:8, duration:0, action:'In range', actor:'System'},
-    {id:'cc3', at:new Date(Date.now()-86400e3*16).toISOString(), device:'Blood Bank Fridge', temp:2.9, min:2,max:8, duration:0, action:'In range', actor:'System'}
-  ];
+  /* Cold-chain readings are not recorded in this console — the ward monitor owns
+     the fridge log. Anything already stored is left untouched, but nothing new is
+     created here. */
+  db.coldChain=db.coldChain||[];
   db.stockEntriesMeta=db.stockEntriesMeta||{};
   db.savedViews=db.savedViews||[
     {id:'sv1', name:'My STAT samples', module:'samples', filter:{priority:'STAT'}, owner:'Kelvin SAMAHANI'},
@@ -627,6 +629,7 @@ function load(){
   S._persist();
   return DB;
 }
+S.EQA_MIN=EQA_MIN; S.PBF_MIN=PBF_MIN;
 S.init=function(){ if(!DB) load(); return DB; };
 S.db=function(){ return DB||load(); };
 S.data=S.db;
@@ -664,9 +667,9 @@ S.audit=function(entry){
 /* ——— Selectors ————————————————————————————————— */
 S.staff=()=>S.db().staff;
 S.activeStaff=()=>S.db().staff.filter(s=>s.status==='active');
+S.tests=()=>S.db().catalog.tests;
 S.staffById=id=>S.db().staff.find(s=>s.id===id);
 S.staffByName=n=>S.db().staff.find(s=>s.name===n);
-S.tests=()=>S.db().catalog.tests;
 S.consumables=()=>S.db().catalog.consumables.filter(c=>!c.deleted);
 S.consumable=id=>S.db().catalog.consumables.find(c=>c.id===id&&!c.deleted);
 S.batchesFor=cid=>S.db().stock.batches.filter(b=>b.cid===cid && (b.qty||0)>0);
@@ -1170,8 +1173,6 @@ S.notifications=function(){
   exp.forEach(x=>out.push({id:'n-exp-'+x.id,group:'Supply chain',tone:'amber',title:x.name+' batch expires in '+U.daysBetween(today,x.nearest.expiry)+' days',detail:'Lot expires '+U.fmtDate(x.nearest.expiry)+' · qty '+x.nearest.qty,ts:new Date(Date.now()-1000*60*60*5).toISOString(),href:'#/stock?tab=expiry',icon:'alert-triangle'}));
   const pending=S.db().leaves.filter(l=>l.status==='Pending');
   if(pending.length) out.push({id:'n-leave',group:'People',tone:'blue',title:pending.length+' leave request'+(pending.length>1?'s':'')+' awaiting approval',detail:'Conflict check completed · no coverage block',ts:new Date(Date.now()-1000*60*60*8).toISOString(),href:'#/leave?tab=requests',icon:'calendar-clock'});
-  const cc=S.db().coldChain.find(c=>c.temp>c.max);
-  if(cc) out.push({id:'n-cold',group:'Quality',tone:'rose',title:'Cold-chain excursion recorded — '+cc.device,detail:cc.temp+' °C for '+cc.duration+' min · corrective action logged',ts:cc.at,href:'#/stock?tab=coldchain',icon:'thermometer'});
   const nc=S.db().incidents.filter(i=>i.status!=='Closed').slice(0,2);
   nc.forEach(i=>out.push({id:'n-'+i.id,group:'Quality',tone:i.severity==='Critical'?'rose':'blue',title:i.ref+' · '+i.title,detail:i.severity+' · owner '+i.owner+' · due '+U.fmtDate(i.due),ts:i.opened,href:'#/quality?tab=incidents',icon:'shield-alert'}));
   out.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));

@@ -382,3 +382,22 @@
 /* ——— small utilities used across modules ——— */
 .gap-xs{gap:6px}
 .lr-ic{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface-inset);color:var(--text-muted)}
+
+/* ——— Command Center flow ————————————————————————————————
+   The dashboard used to be a 12-column row grid, so every row was as tall as its
+   tallest card and a short card (On duty now, Live activity) left a large blank
+   block under it on wide screens. Two independent columns stack cards directly,
+   and on a phone the columns dissolve so the original reading order is kept. */
+.dash-flow{display:grid; grid-template-columns:minmax(0,1.72fr) minmax(0,1fr); gap:16px; align-items:start}
+.dash-col{display:flex; flex-direction:column; gap:16px; min-width:0}
+.dash-col > .dash-card{min-width:0}
+.dash-col > .dash-card > .card{height:100%}
+@media (max-width:1180px){ .dash-flow{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:760px){
+  .dash-flow{display:flex; flex-direction:column; gap:14px}
+  .dash-col{display:contents}
+  .dash-card{order:var(--o,0)}
+}
+/* the two lists that looked empty now use the height they are given */
+.duty-fill{display:flex; flex-direction:column; height:100%; gap:8px; justify-content:space-between}
+.feed-fill{display:flex; flex-direction:column; height:100%}

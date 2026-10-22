@@ -21,6 +21,70 @@ function roleFor(s){
 /* On authorised leave today — annual leave, sick leave, maternity or any other
    approved leave type. Nobody is described as absent without an unexcused record. */
 function onLeaveNow(){ const t=U.todayISO(); const ids=S.db().leaves.filter(l=>l.status!=='Declined'&&t>=l.from&&t<=l.to).map(l=>l.staffId); return staff().filter(s=>ids.indexOf(s.id)>=0); }
+/* Result release is not a per-person switch: every active member of staff may
+   authorise release. The single exception is a new joiner still inside the
+   30-day orientation window, whose work is countersigned until it ends. */
+const ORIENTATION_DAYS=30;
+function orientationDays(s){
+  if(s.status!=='active'||!s.joinDate) return null;
+  return Math.max(0,U.daysBetween(s.joinDate,U.todayISO()));
+}
+function releaseStatus(s){
+  if(s.status!=='active') return {ok:false,label:'Archived record',tone:'slate'};
+  const d=orientationDays(s);
+  if(d!=null&&d<ORIENTATION_DAYS) return {ok:false,label:'Orientation · day '+Math.max(1,d+1)+' of '+ORIENTATION_DAYS,tone:'amber'};
+  return {ok:true,label:'Releases results',tone:'teal'};
+}
+function inOrientation(){ return staff().filter(s=>releaseStatus(s).tone==='amber'); }
+function ageOf(s){
+  if(!s.dob) return null;
+  const b=U.parseISO(s.dob), t=U.parseISO(U.todayISO());
+  let a=t.getFullYear()-b.getFullYear();
+  const m=t.getMonth()-b.getMonth();
+  if(m<0||(m===0&&t.getDate()<b.getDate())) a--;
+  return a;
+}
+function tenureYears(s){
+  if(!s.joinDate) return null;
+  const end=(s.status!=='active'&&s.exitDate)?s.exitDate:U.todayISO();
+  return Math.max(0,Math.round(U.daysBetween(s.joinDate,end)/365.25*10)/10);
+}
+function exitForecast(months){
+  const horizon=U.addDays(U.todayISO(),Math.round(months*30.4));
+  return staff().filter(s=>s.exitDate&&s.exitDate>=U.todayISO()&&s.exitDate<=horizon)
+    .sort((a,b)=>String(a.exitDate).localeCompare(String(b.exitDate)));
+}
+function workforce(){
+  const a=active();
+  const ages=a.map(ageOf).filter(v=>v!=null);
+  const bands=[['Under 30',ages.filter(v=>v<30).length],['30–39',ages.filter(v=>v>=30&&v<40).length],['40–49',ages.filter(v=>v>=40&&v<50).length],['50 and over',ages.filter(v=>v>=50).length]];
+  const female=a.filter(s=>/^f/i.test(s.sex||'')).length, male=a.length-female;
+  const forecast=exitForecast(12);
+  return '<div class="section-head" style="margin-top:18px"><h2>Workforce profile</h2><span class="more">Read from birth dates, join dates and exit dates on the staff records</span></div>'
+   +'<div class="grid-12 stagger">'
+   +'<div class="c4">'+UI.card({title:'Age distribution',sub:a.length+' active staff · '+ages.length+' with a birth date',icon:'cake',body:'<div id="staffAge"></div>'})+'</div>'
+   +'<div class="c4">'+UI.card({title:'Sex ratio',sub:female+' female · '+male+' male',icon:'users',body:'<div id="staffSex"></div>'})+'</div>'
+   +'<div class="c4">'+UI.card({title:'Tenure',sub:'Measured to exit date, or to today',icon:'hourglass',body:'<div id="staffTenure"></div>'})+'</div>'
+   +'<div class="c12">'+UI.card({title:'Exit forecast · next 12 months',sub:forecast.length+' recorded exit'+(forecast.length===1?'':'s')+' in the window',icon:'calendar-x',
+      body:forecast.length?'<div class="dt-scroll"><table class="dt"><thead><tr><th>Name</th><th>Role</th><th>Exit date</th><th>Tenure</th><th>In</th></tr></thead><tbody>'
+        +forecast.map(s=>'<tr><td class="strong">'+U.esc(s.name)+'</td><td class="small">'+U.esc(s.role)+'</td><td class="num mono xs">'+U.fmtDate(s.exitDate)+'</td><td class="num mono xs">'+tenureYears(s)+' yrs</td><td class="num xs">'+U.daysBetween(U.todayISO(),s.exitDate)+' days</td></tr>').join('')
+        +'</tbody></table></div>':'<p class="xs faint" style="margin:0">No exit dates recorded in the next 12 months.</p>',
+      foot:'<span>Set an exit date on a staff record to bring it into this forecast.</span><span class="mono">'+a.length+' active</span>'})+'</div>'
+   +'</div>';
+}
+function paintWorkforceCharts(){
+  const a=active();
+  const ages=a.map(ageOf).filter(v=>v!=null);
+  const el=rootEl.querySelector('#staffAge');
+  if(el) C.hbars(el,{items:[['Under 30',ages.filter(v=>v<30).length,'teal'],['30–39',ages.filter(v=>v>=30&&v<40).length,'gold'],['40–49',ages.filter(v=>v>=40&&v<50).length,'blue'],['50 and over',ages.filter(v=>v>=50).length,'rose']].map(([label,value,tone])=>({label,value,display:value+'',tone}))});
+  const sx=rootEl.querySelector('#staffSex');
+  if(sx){ const female=a.filter(s=>/^f/i.test(s.sex||'')).length, male=a.length-female;
+    C.hbars(sx,{items:[{label:'Female',value:female,display:female+' · '+Math.round(female/(a.length||1)*100)+'%',tone:'gold'},{label:'Male',value:male,display:male+' · '+Math.round(male/(a.length||1)*100)+'%',tone:'teal'}]}); }
+  const tn=rootEl.querySelector('#staffTenure');
+  if(tn){ const t=a.map(tenureYears).filter(x=>x!=null);
+    C.hbars(tn,{items:[{label:'Under 2 years',value:t.filter(x=>x<2).length,tone:'blue'},{label:'2–4 years',value:t.filter(x=>x>=2&&x<4).length,tone:'teal'},{label:'4–6 years',value:t.filter(x=>x>=4&&x<6).length,tone:'gold'},{label:'6 years and over',value:t.filter(x=>x>=6).length,tone:'rose'}].map(i=>Object.assign(i,{display:i.value+''}))}); }
+}
+
 function kpis(){
   const a=active(); const leave=onLeaveNow();
   const exp=A.users.filter(u=>!u.twoFactor).length;
@@ -36,16 +100,27 @@ function people(){
     const full=comp.filter(c=>c.level==='full');
     const shift=S.shiftState(s);
     const user=A.users.find(u=>u.staffId===s.id);
+    const release=releaseStatus(s);
     return '<div class="c4"><div class="card hover pad" data-person="'+s.id+'" style="cursor:pointer">'
       +'<div class="row gap-sm" style="align-items:flex-start;margin-bottom:10px">'+U.avatar(s.name,'lg')
       +'<div style="min-width:0"><div class="card-title truncate">'+U.esc(s.name)+'</div><div class="card-sub truncate">'+U.esc(s.role)+'</div>'
       +'<div class="row gap-xs wrap" style="margin-top:5px">'+UI.roleBadge(roleFor(s))+'<span class="pill '+shift.tone+'"><span class="dot '+((shift.kind==='day'||shift.kind==='night'||shift.kind==='daynight')?'live':'')+'"></span>'+U.esc(shift.label)+'</span>'+(s.status!=='active'?'<span class="pill slate">'+UI.ic('log-out',9)+' archived</span>':'')+'</div></div></div>'
       +'<div class="thread" style="margin:10px 0"></div>'
-      +'<div class="row between"><span class="xs faint">Authorisations</span><span class="mono xs">'+full.length+' assays</span></div>'
+      +'<div class="row between"><span class="xs faint">Competency</span><span class="mono xs">'+full.length+' of '+comp.length+' assays</span></div>'
       +UI.meter(comp.length?full.length/comp.length*100:0,full.length/comp.length>.6?'teal':'amber')
+      +'<div class="row between" style="margin-top:7px"><span class="xs faint">Result release</span><span class="pill '+release.tone+'">'+U.esc(release.label)+'</span></div>'
       +'<div class="row between" style="margin-top:9px"><span class="xs faint">'+U.esc(S.leaveEntitlement(s).label)+(s.sponsor?' · '+U.esc(s.sponsor):'')+'</span><span class="xs faint mono">'+U.esc(s.phone||'')+'</span></div>'
       +'</div></div>';
-  }).join('')+'</div>';
+  }).join('')+'</div>'+orientationNote()+workforce();
+}
+function orientationNote(){
+  const list=inOrientation();
+  return '<div class="card pad" style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+   +'<span class="pill '+(list.length?'amber':'teal')+'">'+UI.ic(list.length?'hourglass':'check-check',12)+(list.length?list.length+' in orientation':'Everyone cleared')+'</span>'
+   +'<span class="small grow">Every active member of staff authorises result release. '+(list.length
+     ? 'Only '+list.map(s=>U.esc(s.name)+' (day '+Math.max(1,orientationDays(s)+1)+' of '+ORIENTATION_DAYS+')').join(', ')+' is still inside the 30-day orientation window, so their results are countersigned.'
+     : 'No one is inside the 30-day orientation window today.')+'</span>'
+   +'<span class="xs faint">Nobody is marked absent — leave is always authorised leave.</span></div>';
 }
 function personDrawer(id){
   const s=staff().find(x=>x.id===id); if(!s) return;
@@ -87,6 +162,8 @@ function editStaff(id){
      +'<div class="field"><label>Contract</label><select class="select" id="sfContract"><option value="statute"'+(s.contract!=='contractual'?' selected':'')+'>Under statute · 30 days</option><option value="contractual"'+(s.contract==='contractual'?' selected':'')+'>Contractual · 21 weekdays</option></select></div>'
      +'<div class="field"><label>Contract sponsor</label><select class="select" id="sfSponsor">'+S.SPONSORS.map(sp=>'<option'+(sp===s.sponsor?' selected':'')+'>'+U.esc(sp)+'</option>').join('')+'</select></div>'
      +'<div class="field"><label>Joined</label><input class="input" type="date" id="sfJoin" value="'+(s.joinDate||U.todayISO())+'"></div>'
+     +'<div class="field"><label>Date of birth</label><input class="input" type="date" id="sfDob" value="'+(s.dob||'')+'"></div>'
+     +'<div class="field"><label>Exit date</label><input class="input" type="date" id="sfExit" value="'+(s.exitDate||'')+'"><div class="xs faint" style="margin-top:4px">Drives tenure and the exit forecast</div></div>'
      +'<div class="field"><label>Max nights / month</label><input class="input" type="number" id="sfNights" min="0" max="20" value="'+(s.maxNights==null?8:s.maxNights)+'"></div>'
      +'<div class="field"><label>Status</label><select class="select" id="sfStatus"><option value="active">Active</option><option value="exited"'+(s.status==='exited'?' selected':'')+'>Exited</option></select></div></div>'
      +'<div class="hint" style="margin-top:8px">Annual leave follows the contract: <b>under statute 30 calendar days</b>, <b>contractual 21 working days</b> (Mon–Fri). The sponsor records who funds the post — Global Fund, own revenue, MoH/RBC or a partner.</div>',
@@ -96,7 +173,8 @@ function editStaff(id){
         const name=el.querySelector('#sfName').value.trim(); if(!name){ UI.toast('Name is required',{type:'err'}); return; }
         const rec={name, role:el.querySelector('#sfRole').value, sex:el.querySelector('#sfSex').value, phone:el.querySelector('#sfPhone').value, email:el.querySelector('#sfEmail').value,
           pattern:el.querySelector('#sfPattern').value, contract:el.querySelector('#sfContract').value, sponsor:el.querySelector('#sfSponsor').value,
-          joinDate:el.querySelector('#sfJoin').value, maxNights:+el.querySelector('#sfNights').value, status:el.querySelector('#sfStatus').value};
+          joinDate:el.querySelector('#sfJoin').value, dob:el.querySelector('#sfDob').value,
+          exitDate:el.querySelector('#sfExit').value||'', maxNights:+el.querySelector('#sfNights').value, status:el.querySelector('#sfStatus').value};
         S.commit(d=>{ if(id){ Object.assign(d.staff.find(x=>x.id===id),rec); } else { d.staff.push(Object.assign({id:U.uid('s'), maxConsecN:2, nightPref:'neutral'},rec)); } },
           {action:id?'staff.update':'staff.create',entity:'staff',entityId:id||name,detail:(id?'Updated ':'Created ')+name});
         close(); LS.shell.refresh(); UI.toast(id?'Staff record updated':'Staff member added',{type:'ok'});
@@ -172,6 +250,7 @@ function wire(){
   const r=rootEl;
   r.querySelectorAll('[data-st-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.stTab; paint(); });
   r.querySelectorAll('[data-person]').forEach(c=>c.onclick=()=>personDrawer(c.dataset.person));
+  if(tab==='people') paintWorkforceCharts();
   const add=r.querySelector('[data-add]'); if(add) add.onclick=()=>editStaff(null);
   const si=r.querySelector('[data-save-identity]');
   if(si) si.onclick=()=>{ const g=id=>{ const el=r.querySelector('#'+id); return el?el.value:''; };

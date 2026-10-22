@@ -5,7 +5,45 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.5.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.6.0** · FY 2026/2027 · works with no network, installs as a PWA.
+
+---
+
+## What changed in 6.6
+
+**Say only what the records say.** 6.6 removes the last places where the console
+spoke for people or kept a register nobody asks for.
+
+- **No cold chain.** The department does not log fridge temperatures here, so the
+  cold-chain card, the temperature log modal, the excursion notification, the
+  equipment trace chart and the stock "2–8 °C" pills are all gone, along with the
+  cold-chain indicator in the PBF question bank. Specimen transport notes on a
+  referral manifest are the only remaining mention.
+- **PBF questions are yours.** Every question carries its own maximum — **25 marks by
+  default**, editable — and the domain score is marks earned over marks available, so
+  the percentage is computed, never typed. Questions can be deleted; deleted ones
+  stop scoring immediately, keep their recorded marks for audit and can be restored.
+- **Not yet visited is not missed.** Each quarter's visits now have a schedule. A
+  centre whose visit is still ahead of it reads **not yet visited**; **not visited** is
+  a separate statement you confirm, and can undo. Visits can be scheduled at any time
+  during the open quarter, and recording a visit settles its slot automatically.
+- **Result release is not a per-person switch.** Everyone authorises release. The one
+  exception is a joiner still inside the 30-day orientation window, whose results are
+  countersigned — shown on their card and once per page.
+- **Workforce profile.** Age distribution, sex ratio, tenure (measured to the exit
+  date or today) and a 12-month exit forecast, all read off birth dates, join dates
+  and exit dates on the staff records. Exit date is now editable.
+- **Referral network delete & restore.** Removing a laboratory warns when samples
+  still name it, keeps those samples exactly as referred, files the laboratory under
+  *Removed from the network*, and can put it back in one click.
+- **Revenue reconciles.** KPI sparks and deltas are computed from the monthly ledger
+  instead of being typed in, and a reconciliation strip states the expenses,
+  reimbursements and net balance the rows add up to.
+- **Thresholds are constants.** EQA/PT **95 %**, PBF **80 %** — declared once in the
+  store (`S.EQA_MIN`, `S.PBF_MIN`) and used by every pill, band, meter and legend.
+- **Dashboard has no dead space.** The Command Center is two independent columns, so
+  a short card no longer leaves a block of white space under it; on a phone the
+  columns dissolve into the original reading order.
 
 ---
 
