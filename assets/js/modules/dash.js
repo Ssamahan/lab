@@ -24,14 +24,21 @@ function kpiRow(){
   const thr=S.throughput(30);
   const reg=thr.map(d=>d.registered);
   const res=thr.map(d=>d.resulted);
-  const stockVal=U.sum(S.stockOverview(),x=>x.value);
-  const eqaCmp=Math.round(U.avg(Object.values(S.eqaLatest()).map(e=>e.scorePercent!=null?e.scorePercent:(e.score!=null?Math.max(0,100-Math.abs(e.score)*25):90))));
-  const complianceSpark=S.throughput(30).map((d,i)=>Math.max(60,Math.round(st.tatCompliance+Math.sin(i/2.4)*4)));
+  const cover=S.stockCover();
+  const covTrend=S.stockTrend();
+  const eqaRows=S.eqaSeries('__all');
+  const eqaCmp=eqaRows.length?Math.round(U.avg(eqaRows.map(x=>x.score))*10)/10:null;
+  const complianceSpark=st.tatCompliance==null?[0,0,0,0,0,0,0,0]:S.throughput(30).map(()=>Math.round(st.tatCompliance));
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
    +'<div class="c3">'+UI.stat({label:'Active worklist',value:st.active,icon:'flask-conical',formatted:'0',delta:trend(reg),note:st.today+' registered today',spark:C.spark(reg,{color:'var(--gold)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'TAT compliance · 30d',value:st.tatCompliance,dec:1,unit:'%',icon:'timer',formatted:'0.0',delta:trend(res),note:st.overdue+' past target now',spark:C.spark(complianceSpark,{color:'var(--pos)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Stock on hand',value:Math.round(stockVal/1000),unit:'k RWF',icon:'package',formatted:'0',delta:-3.4,note:'Forecast burn 38 days',spark:C.spark([...Array(30)].map((_,i)=>60+Math.sin(i/3)*9+ (30-i)*0.5),{color:'var(--amber)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'EQA composite',value:eqaCmp,dec:1,unit:'%',icon:'target',formatted:'0.0',delta:2.1,note:'All schemes passing',spark:C.spark([82,84,83,87,89,88,91,93,92,94,95,96],{color:'var(--pos)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'TAT compliance · '+st.tatWindow+'d',value:st.tatCompliance==null?0:st.tatCompliance,dec:1,unit:'%',icon:'timer',formatted:'0.0',delta:trend(res),
+      note:st.tatCompliance==null?'No result on the register yet':st.overdue+' past target now',spark:C.spark(complianceSpark,{color:'var(--pos)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Days of stock cover',value:cover.median===null?0:cover.median,unit:'median days',icon:'package',formatted:'0',
+      note:cover.soonest?cover.soonest.name.split(' ')[0]+' in '+cover.soonest.daysLeft+'d':'No consumption logged yet',
+      spark:C.spark(covTrend.filter(x=>x.daysLeft!=null).map(x=>Math.min(x.daysLeft,180)).slice(0,14),{color:'var(--amber)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'EQA composite',value:eqaCmp===null?0:eqaCmp,dec:1,unit:'%',icon:'target',formatted:'0.0',
+      note:eqaRows.length?eqaRows.length+' PT rounds scored':'No PT round scored yet',
+      spark:eqaRows.length?C.spark(eqaRows.map(x=>x.score),{color:'var(--pos)'}):C.spark([0,0,0,0,0,0],{color:'var(--pos)'})})+'</div>'
    +'</div>';
 }
 
@@ -79,11 +86,18 @@ function throughputCard(){
     foot:'<span>Monthly buckets — TB culture and viral load report months after registration, so a slow assay shows as a gap between the two lines</span><span class="mono">'+thr[thr.length-1].registered+' this month</span>'});
 }
 
-function ljCard(){
-  return UI.card({title:'Levey–Jennings · internal QC',sub:'±1/2/3 SD lanes · Westgard rules evaluated per run',icon:'activity',
-    tools:'<select class="select" id="ljAnalyte" style="height:28px;font-size:11px;width:auto"></select>',
-    body:'<div id="ljChart"></div><div class="legend" style="margin-top:8px"><span class="lg"><span class="sw sq" style="background:rgba(63,211,182,.35)"></span>±1 SD</span><span class="lg"><span class="sw sq" style="background:rgba(63,211,182,.16)"></span>±2 SD</span><span class="lg"><span class="sw" style="background:var(--gold)"></span>Run</span><span class="lg"><span class="sw sq" style="background:var(--crit)"></span>1-3s violation</span><span class="lg" style="margin-left:auto;color:var(--text-faint)">Updated '+U.fmtTime(S.db().qc.updated)+'</span></div>',
-    foot:'<span>Last 28 runs · level 2 control material</span><a class="more" href="#/quality?tab=qc" style="color:var(--gold)">QC calendar '+UI.ic('arrow-right',12)+'</a>'});
+function eqaCard(){
+  const progs=S.eqaPrograms();
+  const rows=S.eqaSeries('__all');
+  const latest=U.avg(rows.map(x=>x.score));
+  return UI.card({title:'EQA performance',sub:'External quality assessment score per PT round',icon:'award',
+    tools:'<select class="select" id="eqaProgram" style="height:28px;font-size:11px;width:auto"><option value="__all" selected>All PTs</option>'
+      +progs.map(p=>'<option value="'+U.esc(p)+'">'+U.esc(p)+'</option>').join('')+'</select>',
+    body:'<div id="eqaChart"></div>'
+      +'<div class="legend" style="margin-top:8px"><span class="lg"><span class="sw" style="background:var(--gold)"></span>PT score</span>'
+      +'<span class="lg"><span class="sw sq" style="background:var(--pos-soft)"></span>≥ 80 % acceptable</span>'
+      +'<span class="lg" style="margin-left:auto;color:var(--text-faint)">'+(rows.length?rows.length+' round'+(rows.length===1?'':'s')+' scored':'No scored round yet')+'</span></div>',
+    foot:'<span>'+(rows.length?'Mean score '+(Math.round(latest*10)/10)+'% across '+progs.length+' scheme'+(progs.length===1?'':'s'):'Scores appear as soon as a PT round is reported')+'</span><a class="more" href="#/eqa" style="color:var(--gold)">EQA workspace '+UI.ic('arrow-right',12)+'</a>'});
 }
 
 function tatCard(){
@@ -102,27 +116,19 @@ function tatCard(){
 }
 
 function referralCard(){
-  const db=S.db();
-  const cutoff=U.addDays(U.todayISO(),-7), prev=U.addDays(U.todayISO(),-14);
-  const groups=U.groupBy(db.samples.filter(s=>s.source==='telemetry'||true),s=>s.hospital||'Internal');
-  const items=Object.keys(groups).map(h=>{
-    const list=groups[h];
-    const recent=list.filter(s=>s.collectionDate>=cutoff).length;
-    const before=list.filter(s=>s.collectionDate>=prev&&s.collectionDate<cutoff).length;
-    const avgTat=Math.round(U.avg(list.map(s=>S.tatFor(s).elapsedH)));
-    return {label:h,value:list.length,recent,before,avgTat,share:Math.round(list.length/db.samples.length*100)};
-  }).sort((a,b)=>b.value-a.value).slice(0,6);
-  const max=items[0]?items[0].value:1;
-  return UI.card({title:'Referral network leaderboard',sub:'Volume by receiving laboratory',icon:'truck',
-    body:'<div style="display:flex;flex-direction:column;gap:11px">'+items.map((it,i)=>{
-      const dir=it.recent>it.before?'up':it.recent<it.before?'down':'flat';
+  const rows=S.referralTAT(12);
+  const max=rows.length?rows[0].registered:1;
+  const total=U.sum(rows,r=>r.registered);
+  return UI.card({title:'Referral network',sub:'Who we refer to · registered vs resulted · last 12 months',icon:'truck',
+    body:rows.length?'<div style="display:flex;flex-direction:column;gap:11px">'+rows.map((r,i)=>{
+      const tone=r.compliance==null?'slate':r.compliance>=90?'teal':r.compliance>=70?'amber':'rose';
       return '<div class="row" style="gap:10px"><div style="width:20px;font-family:var(--font-mono);font-size:10px;color:var(--text-faint)">'+(i+1)+'</div>'
-       +'<div class="grow" style="min-width:0"><div class="row between" style="margin-bottom:4px"><span style="font-size:11.8px;color:var(--text)" class="truncate">'+U.esc(it.label)+'</span><span class="mono xs faint">'+it.recent+' this wk</span></div>'
-       +'<div style="height:5px;border-radius:99px;background:var(--surface-3)"><div style="height:100%;width:'+Math.round(it.value/max*100)+'%;border-radius:99px;background:linear-gradient(90deg,var(--gold-700),var(--gold-300))"></div></div></div>'
-       +'<div style="text-align:right;width:74px"><div class="mono xs" style="color:var(--text)">'+it.value+'</div><div class="xs faint">'+it.share+'% share</div></div>'
-       +'<div class="xs" style="width:34px;text-align:right;color:'+(dir==='up'?'var(--pos)':dir==='down'?'var(--crit)':'var(--text-faint)')+'">'+UI.ic(dir==='up'?'arrow-up':dir==='down'?'arrow-down':'arrow-right',11)+'</div></div>';
-    }).join('')+'</div>',
-    foot:'<span>Transit SLA · CHUK 48h · NRL 72h</span><span class="mono">'+items.reduce((a,b)=>a+b.value,0)+' samples</span>'});
+       +'<div class="grow" style="min-width:0"><div class="row between" style="margin-bottom:4px"><span style="font-size:11.8px;color:var(--text)" class="truncate">'+U.esc(r.lab)+'</span>'
+       +'<span class="mono xs faint">'+r.registered+' sent · '+r.resulted+' back</span></div>'
+       +'<div style="height:5px;border-radius:99px;background:var(--surface-3)"><div style="height:100%;width:'+Math.round(r.registered/max*100)+'%;border-radius:99px;background:linear-gradient(90deg,var(--gold-700),var(--gold-300))"></div></div></div>'
+       +'<div style="text-align:right;width:62px"><span class="pill '+tone+' mono">'+(r.compliance==null?'—':r.compliance+'%')+'</span><div class="xs faint" style="margin-top:3px">'+(r.avgH!=null?r.avgH+'h avg':'no result')+'</div></div></div>';
+    }).join('')+'</div>':'<div class="chart-empty">No referred sample on the register yet</div>',
+    foot:'<span>Compliance = result inside the test target · NRL 72h · CHUK 48h</span><span class="mono">'+total+' referrals</span>'});
 }
 
 function equipmentCard(){
@@ -155,7 +161,7 @@ function dutyCard(){
   const source=duty[0]?duty[0].state.source:'none';
   const off=rows.filter(r=>r.state.kind==='off').length;
   const badge=st=>'<span class="pill '+st.tone+'"><span class="dot'+(st.kind==='day'||st.kind==='night'||st.kind==='daynight'?' live':'')+'"></span>'+U.esc(st.label)+'</span>';
-  return UI.card({title:'On duty now',sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · day 08:00–17:00 / night 17:00–08:00',icon:'users',
+  return UI.card({title:'On duty now',sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · day 08:00–17:00 / night 17:00–08:00 the next day',icon:'users',
     tools:'<a class="more" href="#/roster" style="color:var(--gold)">Roster '+UI.ic('arrow-right',12)+'</a>',
     body:'<div class="row wrap gap-sm" style="margin-bottom:10px">'
       +'<span class="pill teal">'+duty.length+' on duty</span>'
@@ -169,7 +175,7 @@ function dutyCard(){
           +'<div style="min-width:0;flex:1"><div class="nm truncate">'+U.esc(s.name)+'</div><div class="rl truncate">'+U.esc(s.role)+'</div></div>'
           +'<span class="pill '+tone+'"><span class="dot'+(S.isOnDuty(s,iso)?' live':'')+'"></span>'+U.esc(st.label)+'</span></div>';
       }).join('')+'</div>',
-    foot:'<span>Day shift 08:00–17:00 · night 17:00–08:00</span><span class="mono">'+duty.filter(d=>d.state.kind.indexOf('night')>=0).length+' on nights</span>'});
+    foot:'<span>Day shift 08:00–17:00 · night 17:00–08:00 the next day</span><span class="mono">'+duty.filter(d=>d.state.kind.indexOf('night')>=0).length+' on nights</span>'});
 }
 
 function worklistCard(){
@@ -219,7 +225,7 @@ M.render=function(root,params){
      +'<div class="c4">'+dutyCard()+'</div>'
      +'<div class="c7" style="margin-top:2px">'+tatCard()+'</div>'
      +'<div class="c5" style="margin-top:2px">'+referralCard()+'</div>'
-     +'<div class="c8" style="margin-top:2px">'+ljCard()+'</div>'
+     +'<div class="c8" style="margin-top:2px">'+eqaCard()+'</div>'
      +'<div class="c4" style="margin-top:2px">'+equipmentCard()+'</div>'
      +'<div class="c8" style="margin-top:2px">'+worklistCard()+'</div>'
      +'<div class="c4" style="margin-top:2px" id="feedCol">'+feedCard()+'</div>'
@@ -239,12 +245,23 @@ M.render=function(root,params){
     return Object.keys(byCat).map(cat=>{ const list=byCat[cat]; const tat=U.avg(list.map(s=>S.tatFor(s).elapsedH)); const target=U.avg(list.map(s=>S.tatFor(s).targetH));
       return {label:cat,value:Math.round(tat),display:Math.round(tat)+'h',suffix:'avg',target:Math.round(target),tone:tat>target?'amber':'teal'}; }).sort((a,b)=>b.value-a.value).slice(0,7);
   })()});
-  // LJ
-  const qc=db.qc; const sel=root.querySelector('#ljAnalyte');
-  sel.innerHTML=Object.keys(qc.runs).map(k=>'<option value="'+k+'">'+U.esc(qc.runs[k].analyte.key)+' · '+U.esc(qc.runs[k].analyte.unit)+'</option>').join('');
-  const drawLj=(key)=>{ const r=qc.runs[key]; C.lj(root.querySelector('#ljChart'),{points:r.points,mean:r.analyte.mean,sd:r.analyte.sd,height:236}); };
-  drawLj(Object.keys(qc.runs)[0]);
-  sel.onchange=()=>drawLj(sel.value);
+  // EQA — an external-quality score chart, all PTs by default
+  const eqaSel=root.querySelector('#eqaProgram');
+  const drawEqa=(prog)=>{
+    const rows=S.eqaSeries(prog||'__all');
+    const host=root.querySelector('#eqaChart'); if(!host) return;
+    if(!rows.length){
+      host.innerHTML='<div class="chart-empty">No PT round has been scored yet. Record a round in the EQA workspace and its score appears here.</div>';
+      return;
+    }
+    C.line(host,{id:'eqa',height:236,labels:rows.map(x=>x.code),yFmt:v=>Math.round(v)+'%',
+      series:[{name:'PT score',color:'var(--gold)',values:rows.map(x=>x.score)}],
+      bands:[{from:0,to:80,color:'rgba(226,109,109,.08)'}],
+      min:0,max:100,target:{value:80,label:'80 % threshold'},
+      tipFmt:v=>v+'%',extraTip:i=>'<div class="tr"><span class="k">Scheme</span><span class="v">'+U.esc(rows[i].program)+'</span></div><div class="tr"><span class="k">Reported</span><span class="v">'+U.fmtDate(String(rows[i].at||'').slice(0,10))+'</span></div>'});
+  };
+  if(eqaSel){ eqaSel.value='__all'; eqaSel.onchange=()=>drawEqa(eqaSel.value); }
+  drawEqa('__all');
 
   // hero actions
   root.querySelector('[data-hero-register]').onclick=()=>{ location.hash='#/samples?new=1'; };
@@ -264,29 +281,15 @@ M.render=function(root,params){
       b.addEventListener('mouseleave',()=>{ b.style.transform=''; });
     });
   }
-  // live feed ticker (simulated operational pulse, every 14s)
-  let n=0;
-  const events=[
-    () => ({icon:'flask-conical',tone:'teal',text:'<b>Sample '+db.samples[db.samples.length-1].sampleId+'</b> received at CHUK · chain of custody signed'}),
-    () => ({icon:'package',tone:'gold',text:'<b>Beatrice NGEZEKURE</b> — VTM lot issued to Nyange HC (10 vials)'}),
-    () => ({icon:'thermometer',tone:'gold',text:'Cold chain <b>2–8 °C</b> verified · all probes in range'}),
-    () => ({icon:'check-circle',tone:'teal',text:'QC run accepted · <b>WBC</b> within ±1 SD'}),
-    () => ({icon:'clock',tone:'gold',text:'<b>Kelvin SAMAHANI</b> reviewed the STAT queue · 0 breaches'})
-  ];
-  timers.push(setInterval(()=>{
-    const host=document.getElementById('liveFeed'); if(!host) return;
-    const ev=events[n++%events.length]();
-    const el=U.el('<div class="feed-item"><div class="fic '+ev.tone+'">'+UI.ic(ev.icon,12)+'</div><div class="grow" style="min-width:0"><div class="ftxt">'+ev.text+'</div></div><time>just now</time></div>');
-    host.prepend(el);
-    while(host.children.length>8) host.lastElementChild.remove();
-  },14000));
 };
 M.exportBriefing=function(){
   const st=S.sampleStats();
   const rows=[['Metric','Value','Window'],
-    ['Active worklist',st.active,'now'],['Registered today',st.today,'today'],['TAT compliance',st.tatCompliance+'%','30 days'],
-    ['Past TAT target',st.overdue,'now'],['STAT awaiting',st.stat,'now'],['Stock value (RWF)',U.sum(S.stockOverview(),x=>x.value),'now'],
-    ['ISO 15189 readiness',S.compliance().pct+'%','current'],['EQA composite',Math.round(U.avg(Object.values(S.eqaLatest()).map(e=>e.scorePercent||90)))+'%','latest quarter']];
+    ['Active worklist',st.active,'now'],['Registered today',st.today,'today'],['TAT compliance',st.tatCompliance==null?'no result on the register yet':st.tatCompliance+'%',st.tatWindow+' days'],
+    ['Past TAT target',st.overdue,'now'],['STAT awaiting',st.stat,'now'],
+    ['Median days of stock cover',S.stockCover().median===null?'no consumption logged':S.stockCover().median,'now'],
+    ['ISO 15189 readiness',S.compliance().pct+'%','current'],
+    ['EQA composite',(function(){ const r=S.eqaSeries('__all'); return r.length?Math.round(U.avg(r.map(x=>x.score)))+'%':'no PT round scored'; })(),'all PT rounds']];
   U.exportCSV('ruli-lab-briefing-'+U.todayISO()+'.csv',rows,{title:'Command Center briefing',actor:LS.auth.user?LS.auth.user.name:''});
   UI.toast('Briefing exported with letterhead metadata',{type:'ok',actions:[{label:'Undo',onClick:()=>UI.toast('Export cannot be undone',{type:'info'})}]});
 };

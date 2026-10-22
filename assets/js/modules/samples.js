@@ -97,7 +97,7 @@ function tableHTML(){
    +'<thead><tr><th style="width:34px"></th><th style="width:58px">Pri</th><th data-sort="id" class="sortable"><span class="sort">Sample '+UI.ic('chevron-down',10)+'</span></th><th>Test</th><th class="hide-sm">Origin → laboratory</th><th>Status</th><th data-sort="tat" class="sortable"><span class="sort">TAT '+UI.ic('chevron-down',10)+'</span></th><th class="hide-lg">Flag</th><th class="hide-sm">Audit</th><th></th></tr></thead>'
    +'<tbody id="smpBody">'+(rows||'<tr><td colspan="10">'+UI.empty({art:'samples',title: s.q?'No samples match “'+U.esc(s.q)+'”':'Nothing in this view',body: s.q?'Try a sample ID, patient surname or facility. Filters stay shareable by URL.':'Register a sample to begin the chain of custody. Every registration is stamped to the audit trail.',action:'<button class="btn primary" data-new>'+UI.ic('plus',14)+' Register sample</button>'})+'</td></tr>')+'</tbody></table>'
    +'<div id="smpMore" style="padding:10px 14px;text-align:center">'+(list.length>s.limit?'<button class="btn sm" data-more>Load '+(Math.min(100,list.length-s.limit))+' more · '+list.length+' matching</button>':'<span class="xs faint">'+list.length+' samples · sorted by '+(s.sort==='tat'?'TAT pressure':'newest collection')+'</span>')
-     +'<div class="xs faint" style="margin-top:6px">'+S.db().samples.filter(x=>x.source!=='telemetry').length+' register records (editable, retained) · '+S.db().samples.filter(x=>x.source==='telemetry').length+' generated telemetry records</div></div>'
+     +'<div class="xs faint" style="margin-top:6px">'+S.db().samples.length+' referred samples on the register — every one was sent by Ruli DH to NRL, CHUK or Kibagabaga. Nothing is generated.</div></div>'
    +'</div></div>';
 }
 
@@ -110,25 +110,61 @@ function usedLabs(){
   return cnt;
 }
 function referralPanel(){
-  const cnt=usedLabs();
-  const known=U.uniq(labs().map(labName).concat(Object.keys(cnt).filter(h=>/NRL|CHUK|Kibagabaga|GeneXpert/i.test(h)))).filter(Boolean);
-  const items=known.map(h=>{
-    const list=S.db().samples.filter(s=>s.hospital===h);
-    const transit={'NRL':72,'CHUK':48,'Kibagabaga':36,'Ruli DH - GeneXpert':0}[h]||24;
-    return {label:h,value:list.length,transit,avgTat:list.length?Math.round(U.avg(list.map(s=>S.tatFor(s).elapsedH))):0};
-  }).sort((a,b)=>b.value-a.value);
-  const max=items[0]?items[0].value||1:1;
-  return UI.card({title:'Referral network',sub:'Partner laboratories · volume & transit SLA',icon:'truck',
+  const rows=S.referralTAT(12);
+  const total=U.sum(rows,r=>r.registered);
+  return UI.card({title:'Referral network',sub:'Receiving laboratories we actually refer to · last 12 months',icon:'truck',
     tools:'<button class="btn xs" data-edit-labs>'+UI.ic('pencil',12)+'Edit</button>',
     body:'<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">'
-      +'<span class="pill gold">'+items.reduce((a,b)=>a+b.value,0)+' referred</span><span class="pill slate">'+items.length+' routes</span></div>'
-      +'<div style="display:flex;flex-direction:column;gap:9px">'+items.map(it=>'<div>'
-        +'<div class="row between" style="margin-bottom:4px"><span class="small truncate">'+U.esc(it.label)+'</span><span class="mono xs faint">'+it.transit+'h SLA</span></div>'
-        +'<div style="height:6px;border-radius:99px;background:var(--surface-3);overflow:hidden"><div style="height:100%;width:'+Math.round(it.value/max*100)+'%;background:linear-gradient(90deg,var(--gold-700),var(--gold-300));border-radius:99px"></div></div>'
-        +'<div class="row between" style="margin-top:3px"><span class="xs faint">'+it.value+' samples</span><span class="xs" style="color:'+(it.avgTat>it.transit?'var(--warn)':'var(--pos)')+'">avg '+it.avgTat+'h</span></div></div>').join('')
-        +(items.length?'':'<p class="xs faint">No receiving laboratories recorded yet.</p>')+'</div>',
-    foot:'<button class="btn xs" data-edit-labs>'+UI.ic('settings-2',12)+'Manage laboratories</button><span class="xs faint">Rename fixes misspellings everywhere</span>'});
+      +'<span class="pill gold">'+total+' referred</span><span class="pill slate">'+rows.length+' route'+(rows.length===1?'':'s')+'</span></div>'
+      +'<div style="display:flex;flex-direction:column;gap:10px">'+rows.map(r=>{
+        const ok=r.compliance==null?null:r.compliance>=90?'teal':r.compliance>=70?'amber':'rose';
+        return '<div>'
+          +'<div class="row between" style="margin-bottom:4px"><span class="small truncate">'+U.esc(r.lab)+'</span>'
+          +(ok?'<span class="pill '+ok+' mono">'+r.compliance+'% on time</span>':'<span class="pill slate">no result yet</span>')+'</div>'
+          +'<div style="height:6px;border-radius:99px;background:var(--surface-3);overflow:hidden"><div style="height:100%;width:'+Math.round(r.registered/Math.max(1,rows[0].registered)*100)+'%;background:linear-gradient(90deg,var(--gold-700),var(--gold-300));border-radius:99px"></div></div>'
+          +'<div class="row between" style="margin-top:3px"><span class="xs faint">'+r.registered+' registered · '+r.resulted+' resulted'+(r.open?' · '+r.open+' open':'')+'</span>'
+          +'<span class="xs faint">'+(r.avgH!=null?'avg '+r.avgH+'h':'—')+'</span></div></div>';
+      }).join('')
+      +(rows.length?'':'<p class="xs faint">No referred sample is on the register yet. Register one and it will appear here.</p>')+'</div>',
+    foot:'<button class="btn xs" data-edit-labs>'+UI.ic('settings-2',12)+'Manage laboratories</button><span class="xs faint">NRL · CHUK · Kibagabaga</span>'});
 }
+
+/* 12 months of registered → resulted and TAT compliance, per receiving laboratory. */
+function tatByLabCard(){
+  const rows=S.referralTAT(12);
+  return UI.card({title:'TAT compliance by receiving laboratory',sub:'Rolling 12 months · registered vs resulted for referred samples only',icon:'timer',
+    tools:'<span class="pill slate">12 months</span>',
+    body:'<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Receiving laboratory</th><th class="num">Registered</th><th class="num">Resulted</th><th class="num">Open</th><th>Compliance</th><th class="num">Mean TAT</th><th class="num">Target</th></tr></thead><tbody>'
+      +rows.map(r=>{
+        const ok=r.compliance==null?null:r.compliance>=90?'teal':r.compliance>=70?'amber':'rose';
+        return '<tr><td><div class="primary-cell"><b>'+U.esc(r.lab)+'</b><small>'+r.resulted+' of '+r.registered+' returned</small></div></td>'
+          +'<td class="num">'+r.registered+'</td><td class="num">'+r.resulted+'</td><td class="num">'+r.open+'</td>'
+          +'<td style="width:130px">'+(ok?'<div class="row gap-sm"><span class="mono xs" style="width:34px">'+r.compliance+'%</span><div style="width:66px">'+UI.meter(r.compliance,ok)+'</div></div>':'<span class="xs faint">—</span>')+'</td>'
+          +'<td class="num mono">'+(r.avgH!=null?r.avgH+'h':'—')+'</td><td class="num mono faint">'+(r.targetH!=null?r.targetH+'h':'—')+'</td></tr>';
+      }).join('')
+      +(rows.length?'':'<tr><td colspan="7" class="xs faint" style="padding:16px">No referred samples in the last 12 months.</td></tr>')
+      +'</tbody></table></div>',
+    foot:'<span>Compliance counts a sample as on time when the result lands inside its own test target</span><span class="mono">'+U.sum(rows,r=>r.registered)+' referrals</span>'});
+}
+
+/* Monthly registered vs resulted for referred samples — the honest register, not telemetry. */
+function throughputMini(){
+  const series=[];
+  for(let i=11;i>=0;i--){
+    const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const rows=S.referredSamples().filter(x=>String(x.collectionDate||'').slice(0,7)===key);
+    series.push({label:U.M3[d.getMonth()],registered:rows.length,resulted:rows.filter(x=>x.resultedAt).length});
+  }
+  const max=Math.max.apply(null,series.map(x=>Math.max(x.registered,x.resulted)).concat([1]));
+  return UI.card({title:'Registered vs resulted',sub:'Referred samples only · last 12 months',icon:'chart-line',
+    tools:'<span class="pill slate mono">'+U.sum(series,x=>x.registered)+' registered</span>',
+    body:series.map(x=>'<div style="margin-bottom:8px"><div class="row between"><span class="xs faint mono">'+x.label+'</span><span class="xs faint">'+x.registered+' / '+x.resulted+'</span></div>'
+      +'<div class="row gap-sm" style="margin-top:3px"><div class="grow" style="height:5px;border-radius:99px;background:var(--surface-3)"><div style="height:100%;width:'+Math.round(x.registered/max*100)+'%;background:var(--gold);border-radius:99px"></div></div>'
+      +'<div class="grow" style="height:5px;border-radius:99px;background:var(--surface-3)"><div style="height:100%;width:'+Math.round(x.resulted/max*100)+'%;background:var(--teal-400);border-radius:99px"></div></div></div></div>').join(''),
+    foot:'<span><b>Registered</b> gold · <b>Resulted</b> teal · a gap means the result has not come back</span><span class="mono">'+U.sum(series,x=>x.resulted)+' resulted</span>'});
+}
+
 function labEditor(){
   if(!LS.auth.guard('edit')) return;
   const cnt=usedLabs();
@@ -488,7 +524,9 @@ M.render=function(root,params){
   root.innerHTML='<div class="page-head"><div><h1>Referred samples</h1><div class="sub">Chain of custody you can feel — every registration, handoff and result is signed. '+cnt.active+' active samples, '+cnt.overdue+' past target.</div></div>'
    +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-saved>'+UI.ic('book-marked',15)+' Saved views</button><button class="btn primary magnetic" data-new>'+UI.ic('plus',15)+' Register sample</button></div></div>'
    +'<div class="grid-12" style="margin-bottom:14px"><div class="c8"><div id="smpTableWrap">'+tableHTML()+'</div></div><div class="c4">'+referralPanel()
-     +'<div style="margin-top:14px">'+UI.card({title:'TAT pressure',sub:'Active samples by % of target consumed',icon:'gauge',body:'<div id="smpPressure"></div>'})+'</div></div></div>';
+     +'<div style="margin-top:14px">'+UI.card({title:'TAT pressure',sub:'Active samples by % of target consumed',icon:'gauge',body:'<div id="smpPressure"></div>'})+'</div>'
+     +'<div style="margin-top:14px">'+throughputMini()+'</div></div></div>'
+   +'<div style="margin-top:14px">'+tatByLabCard()+'</div>';
   C.hbars(root.querySelector('#smpPressure'),{items:(function(){
     const active=S.db().samples.filter(s=>!s.resultedAt);
     const buckets=[['> 100% (breached)',active.filter(s=>S.tatFor(s).ratio>1).length,'rose'],['80–100% (at risk)',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.8&&r<=1;}).length,'amber'],['40–80%',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.4&&r<=.8;}).length,'gold'],['< 40%',active.filter(s=>S.tatFor(s).ratio<=.4).length,'teal']];

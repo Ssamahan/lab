@@ -6,7 +6,7 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SH=LS.sheets;
 const M={}; LS.modules.roster=M;
 let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
-const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00'],['DN','Day + night'],['OFF','At home'],['AL','Annual leave'],['TR','Training'],['SICK','Sick leave'],['W','Weekend / rest']];
+const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],['OFF','At home (not on shift)'],['AL','Annual leave'],['TR','Training'],['SICK','Sick leave'],['W','Wedding day']];
 
 function plan(){ const e=S.db().workingPlans[mk||U.monthKey()]; return e&&e.primary?e.primary:null; }
 function ensurePlan(){ return plan(); }
@@ -66,7 +66,7 @@ function header(){
    +'<div class="filters" style="margin-bottom:12px">'+[['sheet','Official sheet'],['grid','Shift grid'],['week','Weekly roster'],['services','Lab services'],['fairness','Fairness'],['swaps','Swap requests']].map(([k,l])=>'<button class="filter-tab '+(view===k?'on':'')+'" data-view="'+k+'">'+l+'</button>').join('')+'</div>';
 }
 function legend(){
-  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
+  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00 next day</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Annual leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
 }
 function gridView(){
   const p=plan();
@@ -149,16 +149,22 @@ function allocationOf(start){ const w=S.db().unitRosters&&S.db().unitRosters[sta
 
 /* the sheet is authored at 3200 px wide — let it shrink to the card on phones */
 function fitSVG(svg){ return svg.replace('<svg ','<svg style="max-width:100%;height:auto;display:block" ',1); }
+/* The sheet is a 3200 px drawing with a few thousand nodes. It used to be built
+   inside render(), so on a slow phone the module looked dead and the shell's
+   watchdog reported "This panel could not render". The card is laid out first and
+   the drawing is dropped in on the next frame, with a visible failure that stays
+   inside the card instead of taking the panel down. */
+let sheetSVG=null, sheetFailed=false;
 function sheetView(){
   const p=plan();
-  const svg=SH.monthlySVG(monthSheetPlan());
   return '<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('file-text',14,'ic')+'Official sheet — '+(p?((p.meta&&p.meta.period)||p.label):U.monthLabel(mk))+'</div>'
     +'<div class="card-sub">'+(p?(p.meta&&p.meta.official?'Transcribed from the signed register · edits are audited':'Working draft — publish before circulating'):'No plan stored for this month — the sheet shows the register only')+'</div></div>'
     +'<div class="card-tool row gap-sm"><button class="btn xs" data-sheet-png>'+UI.ic('image',12)+'PNG</button>'
     +'<button class="btn xs" data-sheet-pdf>'+UI.ic('file-text',12)+'PDF</button>'
     +'<button class="btn xs" data-sheet-xlsx>'+UI.ic('table-2',12)+'XLSX</button>'
     +'<button class="btn xs primary" data-sheet-print>'+UI.ic('printer',12)+'Print</button></div></div>'
-    +'<div class="card-body" style="padding:10px;background:#fff"><div style="overflow:auto;border:1px solid var(--border);border-radius:8px">'+fitSVG(svg)+'</div></div>'
+    +'<div class="card-body" style="padding:10px;background:#fff"><div style="overflow:auto;border:1px solid var(--border);border-radius:8px">'
+      +'<div id="sheetHost" style="min-height:220px;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:12px">Drawing the sheet…</div></div></div>'
     +'<div class="card-foot"><span>Same layout is used for PNG, PDF, XLSX and print — one A4 landscape page</span><span class="mono">'+(p?p.dates.length+' days · '+p.staff.length+' staff':'—')+'</span></div></div>';
 }
 function weekView(){
@@ -323,7 +329,8 @@ function printWeek(){
   SH.printSVG(SH.weeklySVG(weekData()),{title:'Weekly unit roster — week of '+U.fmtDateShort(weekStart())});
   S.audit({action:'roster.print.week',entity:'unitRosters',entityId:weekStart(),detail:'Printed weekly roster week of '+weekStart()}); S.save();
 }
-function paint(){
+function paint(){ sheetSVG=null;
+
   const host=rootEl.querySelector('#roBody'); if(!host) return;
   host.innerHTML=view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView();
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
@@ -548,11 +555,25 @@ function wireBody(){
   r.querySelectorAll('[data-week-pdf]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('pdf',o.svg,'unit-roster-'+o.start,o.data); });
   r.querySelectorAll('[data-week-xlsx]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('xlsx',o.svg,'unit-roster-'+o.start,o.data); });
   if(view==='sheet'){
-    const svg=SH.monthlySVG(monthSheetPlan()), fn=monthSheetName();
-    r.querySelectorAll('[data-sheet-png]').forEach(b=>b.onclick=()=>exportSheet('png',svg,fn));
-    r.querySelectorAll('[data-sheet-pdf]').forEach(b=>b.onclick=()=>exportSheet('pdf',svg,fn));
-    r.querySelectorAll('[data-sheet-xlsx]').forEach(b=>b.onclick=()=>exportSheet('xlsx',svg,fn));
-    r.querySelectorAll('[data-sheet-print]').forEach(b=>b.onclick=()=>SH.printSVG(svg,{title:'Working plan — '+fn}));
+    const host=r.querySelector('#sheetHost');
+    const fn=monthSheetName();
+    const getSVG=()=>{
+      if(sheetSVG) return sheetSVG;
+      try{ sheetSVG=SH.monthlySVG(monthSheetPlan()); sheetFailed=false; return sheetSVG; }
+      catch(e){ sheetFailed=true; return null; }
+    };
+    setTimeout(()=>{
+      const svg=getSVG(), el=rootEl&&rootEl.querySelector('#sheetHost');
+      if(!el) return;
+      if(svg) el.innerHTML=fitSVG(svg);
+      else el.innerHTML='<div style="padding:22px;text-align:center"><b>This sheet could not be drawn.</b>'
+        +'<div class="xs faint" style="margin-top:6px">The roster data is intact — switch to the grid, then come back, or try the PNG export.</div></div>';
+    },16);
+    const go=(fnName)=>()=>{ const svg=getSVG(); if(!svg){ UI.toast('Sheet could not be drawn — the plan data is intact',{type:'err'}); return; } fnName(svg); };
+    r.querySelectorAll('[data-sheet-png]').forEach(b=>b.onclick=go(svg=>exportSheet('png',svg,fn)));
+    r.querySelectorAll('[data-sheet-pdf]').forEach(b=>b.onclick=go(svg=>exportSheet('pdf',svg,fn)));
+    r.querySelectorAll('[data-sheet-xlsx]').forEach(b=>b.onclick=()=>exportSheet('xlsx',getSVG(),fn));
+    r.querySelectorAll('[data-sheet-print]').forEach(b=>b.onclick=go(svg=>SH.printSVG(svg,{title:'Working plan — '+fn})));
   }
   r.querySelectorAll('[data-manage-services]').forEach(b=>b.onclick=()=>{ view='services'; paint(); });
   r.querySelectorAll('[data-view-jump]').forEach(b=>b.onclick=()=>{ view=b.dataset.viewJump; paint(); });

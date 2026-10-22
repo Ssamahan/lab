@@ -5,7 +5,47 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.4.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.5.0** · FY 2026/2027 · works with no network, installs as a PWA.
+
+---
+
+## What changed in 6.5
+
+**Truth before decoration.** A screen that shows a number the department never
+recorded is worse than an empty one, so 6.5 deletes the invented data rather than
+dressing it up.
+
+- **Referrals only.** The sample register holds only what Ruli DH actually referred
+  to **NRL, CHUK or Kibagabaga**. Synthetic telemetry samples from health centres are
+  purged on first load (`meta.samplesPurgedV65`), and *registered vs resulted* counts
+  referrals only.
+- **TAT by receiving laboratory.** A new card shows, for the last 12 months, who we
+  send to, how many came back, and each laboratory's TAT compliance against its own
+  target — plus a per-month registered/resulted strip.
+- **Stock is measured in days, not francs.** There is no money on the stock screen.
+  Every line carries days of cover from the recorded issue log (30/90-day blend),
+  a projected stock-out date and a consumption trend. Lines with no issues yet say so.
+- **Consumables you can delete.** Invented reagent lines are gone
+  (`meta.stockPurgedV65`), and every line has a delete button that soft-deletes it,
+  logs the actor, and can be restored from *Archived lines*.
+- **EQA replaces Levey–Jennings** on the Command Center: PT scores over time with an
+  **All PTs** selector as the default, an 80 % band, and no invented composite score.
+- **Leave vocabulary.** Never "absent" for a person. The forecast says *annual leave*,
+  *authorised leave* or *unexcused absence* — the last only when a record exists. Shift
+  times read 08:00–17:00 and 17:00–08:00 **the next day** everywhere.
+- **Leave planning by fiscal year.** Add, edit and delete annual-leave plans per FY,
+  with the contract's entitlement (statute 30 days / contractual 21 weekdays), taken,
+  running, planned, balance and an overlap warning — last FY's plan can be entered
+  this November, this FY's in March.
+- **Who's off today** lists people on leave *and* people who are OFF or blank on the
+  working plan.
+- **Sheets fixed.** Weekly roster and working plan names are set two-line and larger
+  (no more 6 pt names), the rostering exceptions are printed on the sheet, and the
+  working plan no longer reports *"This panel could not render"* — the drawing is
+  deferred and any failure stays inside the card.
+- **Scrolling and Close.** Scroll locking is reference-counted, every modal binds its
+  own Close handler, and a route change closes any open layer. JS/CSS are served
+  network-first, with a *Force update* action in the account drawer.
 
 ---
 

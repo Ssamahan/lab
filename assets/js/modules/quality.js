@@ -11,8 +11,8 @@ function metrics(){
   const st=S.sampleStats();
   const db=S.db();
   return {
-    rejection:1.8, repeat:2.4, errorPer10k:6.2, tat:st.tatCompliance,
-    eqa:Math.round(U.avg(Object.values(S.eqaLatest()).map(e=>e.scorePercent!=null?e.scorePercent:Math.max(0,100-Math.abs(e.score||0)*25)))),
+    rejection:st.rejectionRate, repeat:st.repeatRate, tat:st.tatCompliance, tatWindow:st.tatWindow,
+    eqa:(function(){ const r=S.eqaSeries('__all'); return r.length?Math.round(U.avg(r.map(x=>x.score))*10)/10:null; })(),
     openIncidents:db.incidents.filter(i=>i.status!=='Closed').length,
     overdueIncidents:db.incidents.filter(i=>i.status!=='Closed'&&i.due<U.todayISO()).length,
     sopOverdue:db.sops.filter(s=>s.review<U.todayISO()).length,
@@ -23,18 +23,24 @@ function kpis(){
   const m=metrics();
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
    +'<div class="c3">'+UI.stat({label:'ISO 15189 readiness',value:S.compliance().pct,unit:'%',icon:'shield-check',formatted:'0',delta:4,note:S.compliance().done+' of '+S.compliance().total+' controls met',spark:C.spark([62,66,70,73,76,80,82,S.compliance().pct],{color:'var(--gold)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'TAT compliance',value:m.tat,dec:1,unit:'%',icon:'timer',formatted:'0.0',delta:1.8,note:'30-day rolling',spark:C.spark([88,91,90,93,92,95,94,m.tat],{color:'var(--pos)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Rejection rate',value:m.rejection,dec:1,unit:'%',icon:'circle-x',formatted:'0.0',delta:-0.4,note:'Target ≤ 2.0%',spark:C.spark([3.1,2.8,2.6,2.4,2.3,2.1,1.9,m.rejection],{color:'var(--amber)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'EQA composite',value:m.eqa,dec:1,unit:'%',icon:'target',formatted:'0.0',delta:2.1,note:'All schemes passing',spark:C.spark([84,86,88,87,90,92,94,m.eqa],{color:'var(--pos)'})})+'</div></div>';
+   +'<div class="c3">'+UI.stat({label:'TAT compliance',value:m.tat==null?0:m.tat,dec:1,unit:'%',icon:'timer',formatted:'0.0',
+      note:m.tat==null?'No result on the register yet':m.tatWindow+'-day window · target per test',
+      spark:C.spark(m.tat==null?[0,0,0,0,0,0,0,0]:[m.tat,m.tat,m.tat,m.tat,m.tat,m.tat,m.tat,m.tat],{color:'var(--pos)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Rejection rate',value:m.rejection==null?0:m.rejection,dec:1,unit:'%',icon:'circle-x',formatted:'0.0',
+      note:m.rejection==null?'No rejection recorded on the register':'Target ≤ 2.0%',
+      spark:C.spark(m.rejection==null?[0,0,0,0,0,0,0,0]:[m.rejection,m.rejection,m.rejection,m.rejection,m.rejection,m.rejection,m.rejection,m.rejection],{color:'var(--amber)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'EQA composite',value:m.eqa==null?0:m.eqa,dec:1,unit:'%',icon:'target',formatted:'0.0',
+      note:m.eqa==null?'No PT round scored yet':'Mean across every PT round',
+      spark:C.spark(m.eqa==null?[0,0,0,0,0,0,0,0]:[m.eqa,m.eqa,m.eqa,m.eqa,m.eqa,m.eqa,m.eqa,m.eqa],{color:'var(--pos)'})})+'</div></div>';
 }
 function overview(){
   const m=metrics(); const db=S.db();
   return '<div class="grid-12">'
-   +'<div class="c8">'+UI.card({title:'Quality KPI trendlines',sub:'TAT compliance · EQA composite · rejection rate — 12 months',icon:'chart-line',cls:'gold',body:'<div id="qTrend"></div><div class="legend" style="margin-top:8px"><span class="lg"><span class="sw" style="background:var(--pos)"></span>TAT compliance %</span><span class="lg"><span class="sw" style="background:var(--gold)"></span>EQA composite %</span><span class="lg"><span class="sw" style="background:var(--crit)"></span>Rejection rate %</span></div>'})+'</div>'
-   +'<div class="c4">'+UI.card({title:'Continuous improvement',sub:'Error rate per 10,000 samples',icon:'trending-up',body:
-      '<div class="scorecard" style="padding:0"><div class="meta"><div class="eyebrow">Error rate / 10k</div><div class="serif" style="font-size:2.2rem;color:var(--text-strong);letter-spacing:-.03em">'+m.errorPer10k+'</div><div class="xs faint">↓ 18% year on year</div></div>'+C.ring(82,{size:76,stroke:6})+'</div>'
+   +'<div class="c8">'+UI.card({title:'Quality KPI trendlines',sub:'Referral TAT compliance and PT scores · 12 months',icon:'chart-line',cls:'gold',body:'<div id="qTrend"></div><div class="legend" style="margin-top:8px"><span class="lg"><span class="sw" style="background:var(--pos)"></span>TAT compliance %</span><span class="lg"><span class="sw" style="background:var(--gold)"></span>EQA composite %</span><span class="lg" style="margin-left:auto;color:var(--text-faint)">Blank months mean the register holds no result for that month</span></div>'})+'</div>'
+   +'<div class="c4">'+UI.card({title:'Continuous improvement',sub:'Computed from the referral register',icon:'trending-up',body:
+      '<div class="scorecard" style="padding:0"><div class="meta"><div class="eyebrow">TAT compliance</div><div class="serif" style="font-size:2.2rem;color:var(--text-strong);letter-spacing:-.03em">'+(m.tat==null?'—':m.tat)+'%</div><div class="xs faint">'+(m.tat==null?'No result on the register yet':m.tatWindow+'-day window')+'</div></div>'+C.ring(m.tat==null?0:m.tat,{size:76,stroke:6})+'</div>'
       +'<div class="thread" style="margin:12px 0"></div>'
-      +[['Repeat rate',m.repeat+'%','teal'],['Rejection rate',m.rejection+'%','amber'],['Sample loss','0.3%','teal']].map(([k,v,t])=>'<div class="row between" style="padding:6px 0"><span class="small">'+k+'</span><span class="pill '+t+' mono">'+v+'</span></div>').join('')})+'</div>'
+      +[['Repeat rate',m.repeat==null?'no record':m.repeat+'%','teal'],['Rejection rate',m.rejection==null?'no record':m.rejection+'%','amber'],['Referred samples',S.referredSamples().length+'','slate']].map(([k,v,t])=>'<div class="row between" style="padding:6px 0"><span class="small">'+k+'</span><span class="pill '+t+' mono">'+v+'</span></div>').join('')})+'</div>'
    +'<div class="c7">'+UI.card({title:'ISO 15189 readiness',sub:'Live compliance percentage across the control set',icon:'shield-check',
       tools:'<a class="btn xs" href="#/quality?tab=iso">Open checklist</a>',body:(function(){
         const g=U.groupBy(S.db().checklist,c=>c.section);
@@ -129,12 +135,14 @@ function wireBody(){
   const r=rootEl;
   r.querySelectorAll('[data-q-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.qTab; paint(); });
   if(tab==='overview'){
-    const months=[]; for(let i=11;i>=0;i--){ const d=new Date(); d.setMonth(d.getMonth()-i); months.push(U.M3[d.getMonth()]); }
-    const m=metrics();
-    C.line(r.querySelector('#qTrend'),{id:'qTrend',height:250,min:60,max:100,series:[
-      {name:'TAT compliance',color:'var(--pos)',values:[88,91,90,93,92,95,94,96,95,96,m.tat,m.tat]},
-      {name:'EQA composite',color:'var(--gold)',values:[84,86,88,87,90,92,94,93,95,96,97,m.eqa]},
-      {name:'Rejection rate',color:'var(--crit)',values:[3.1,2.8,2.6,2.4,2.3,2.1,1.9,2.0,1.8,1.9,1.7,m.rejection]}
+    /* Both lines come from the register: referral TAT month by month, and the EQA
+       scores in the order they were reported. Nothing is smoothed or invented. */
+    const tatSeries=S.referralTATSeries(null,12);
+    const eqaRows=S.eqaSeries('__all');
+    const months=tatSeries.map(x=>x.label);
+    C.line(r.querySelector('#qTrend'),{id:'qTrend',height:250,min:0,max:100,zeroBase:true,series:[
+      {name:'TAT compliance',color:'var(--pos)',values:tatSeries.map(x=>x.compliance)},
+      {name:'PT score',color:'var(--gold)',values:tatSeries.map((x,i)=>{ const r=eqaRows[i]; return r?r.score:null; })}
     ],labels:months,yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%'});
   }
   if(tab==='iso'){

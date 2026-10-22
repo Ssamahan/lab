@@ -13,6 +13,15 @@ LS.store = S;
 
 const LS_TYPES = {AL:'Annual leave', W:'Weekend', TR:'Training', SICK:'Sick leave', MAT:'Maternity', STUDY:'Study', COMP:'Compassionate', UNPAID:'Unpaid'};
 
+/* One vocabulary for shift times: day 08:00–17:00, night 17:00–08:00 of the
+   NEXT day. Anything that prints a shift time reads it from here. */
+const SHIFT = {
+  day:   {code:'D',  label:'Day 08:00–17:00',                  start:'08:00', end:'17:00', nextDay:false},
+  night: {code:'N',  label:'Night 17:00–08:00 next day',        start:'17:00', end:'08:00', nextDay:true},
+  both:  {code:'DN', label:'Day + night 08:00–17:00 / 17:00–08:00 next day', start:'08:00', end:'08:00', nextDay:true}
+};
+const SHIFT_LINE = 'Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day';
+
 /* ——— default settings extensions ————————————————— */
 const DEFAULT_SETTINGS = {
   theme:'ink', density:'comfortable', lang:'en',
@@ -38,16 +47,6 @@ const EXTRA_TESTS = [
   {id:'t18',name:'Urinalysis',cat:'Parasitology',code:'URIN',tat:1,bench:true,price:800},
   {id:'t19',name:'Sputum AFB (Ziehl-Neelsen)',cat:'Microbiology',code:'AFB',tat:2,bench:true,price:1200},
   {id:'t20',name:'Blood Slide for Malaria',cat:'Parasitology',code:'BSM',tat:1,bench:true,price:800}
-];
-const EXTRA_CONSUMABLES = [
-  {id:'c6',name:'CBC Diluent',unit:'L',threshold:2,ageGroup:false,coldChain:false,unitCost:38000,supplier:'s1',min:2,max:8},
-  {id:'c7',name:'Chemistry Reagent Pack',unit:'packs',threshold:4,ageGroup:false,coldChain:true,minTemp:2,maxTemp:8,unitCost:64000,supplier:'s2',min:4,max:12},
-  {id:'c8',name:'GeneXpert MTB Cartridges',unit:'cartridges',threshold:20,ageGroup:false,coldChain:true,minTemp:15,maxTemp:28,unitCost:12500,supplier:'s3',min:20,max:80},
-  {id:'c9',name:'EDTA Blood Tubes',unit:'tubes',threshold:150,ageGroup:false,coldChain:false,unitCost:220,supplier:'s1',min:150,max:600},
-  {id:'c10',name:'Sodium Citrate Tubes',unit:'tubes',threshold:80,ageGroup:false,coldChain:false,unitCost:280,supplier:'s1',min:80,max:300},
-  {id:'c11',name:'Glucose Test Strips',unit:'strips',threshold:100,ageGroup:false,coldChain:false,unitCost:180,supplier:'s4',min:100,max:500},
-  {id:'c12',name:'Sharps Disposal Boxes',unit:'boxes',threshold:10,ageGroup:false,coldChain:false,unitCost:3200,supplier:'s4',min:10,max:40},
-  {id:'c13',name:'Nitrile Examination Gloves',unit:'boxes',threshold:20,ageGroup:false,coldChain:false,unitCost:9500,supplier:'s4',min:20,max:80}
 ];
 const SUPPLIERS = [
   {id:'s1', name:'RBC — National Medical Stores', leadDays:18, fillRate:96, priceVariance:2.1, region:'Kigali', rating:96},
@@ -186,9 +185,6 @@ function buildCompetency(db){
   });
   return out;
 }
-const COSTS={c1:8500,c2:1200,c3:14500,c4:14500,c5:16000};
-const BURN={c1:1.8,c2:7.4,c3:0.55,c4:0.42,c5:1.15,c6:0.23,c7:0.31,c8:2.2,c9:9.5,c10:3.1,c11:4.6,c12:0.22,c13:0.55};
-const DAYS=[42,12,68,25,9,55,18,120,36,75,27,90,48];
 function buildChecklist(){
   const rows=[
     ['ORG','Organisation & management','Quality manual and scope statement approved',5,true],
@@ -243,51 +239,16 @@ function buildIncidents(){
     {id:'nc6',ref:'NC-2026-033',title:'Two samples rejected for insufficient volume',severity:'Minor',type:'Pre-analytical',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-41),due:U.addDays(t,-28),status:'Closed',root:'Paediatric draw technique',capa:'Microtainer training completed'}
   ];
 }
-function buildStockTelemetry(db){
-  const today=U.todayISO();
-  db.catalog.consumables.forEach((c,i)=>{
-    if(c.unitCost==null) c.unitCost=COSTS[c.id]||(1800+i*900);
-    if(!c.supplier) c.supplier='s'+((i%4)+1);
+/* Real stock only. The previous build generated a 12-month issue log and three
+   lots per consumable so the charts looked busy; those were invented numbers and
+   are no longer created. Everything below fills catalogue defaults the UI needs
+   (unit, minimum, maximum) and never invents a movement or a lot. */
+function ensureStockFields(db){
+  db.catalog.consumables.forEach(c=>{
     if(c.min==null) c.min=c.threshold||10;
     if(c.max==null) c.max=(c.threshold||10)*3;
-    if(c.leadDays==null) c.leadDays=SUPPLIERS[i%4].leadDays;
   });
-  const entries=[]; const batches=[];
-  db.catalog.consumables.forEach((c,i)=>{
-    const r=U.rng('stock-'+c.id);
-    const burn=BURN[c.id]||0.5;
-    const target=Math.max(2,Math.round(burn*DAYS[i%DAYS.length]));
-    // 12 months of issue log
-    for(let m=11;m>=0;m--){
-      const base=new Date(); base.setDate(1); base.setMonth(base.getMonth()-m);
-      const monthQty=Math.max(1,Math.round(burn*30*(0.75+r()*0.55)));
-      const n=Math.min(3,Math.max(1,Math.round(monthQty/6)));
-      let left=monthQty;
-      for(let k=0;k<n;k++){
-        const qty=k===n-1?left:Math.max(1,Math.round(left*(0.35+r()*0.3)));
-        left-=qty;
-        const day=Math.min(27,3+Math.floor(r()*24));
-        const d=new Date(base.getFullYear(),base.getMonth(),day);
-        entries.push({id:'e'+c.id+'m'+m+'k'+k, cid:c.id, date:U.isoLocal(d), type:'used', qty, note:'Issued to bench'});
-      }
-      if(m%3===0){
-        entries.push({id:'e'+c.id+'r'+m, cid:c.id, date:U.isoLocal(new Date(base.getFullYear(),base.getMonth(),Math.min(25,4+Math.floor(r()*18)))), type:'received', qty:Math.round(monthQty*1.25), note:'Received from '+(SUPPLIERS[i%4].name)});
-      }
-    }
-    // three lots summing to target
-    const splits=[0.55,0.3,0.15];
-    splits.forEach((sp,k)=>{
-      const qty=Math.max(0,Math.round(target*sp));
-      if(!qty) return;
-      const expDays = k===0 ? (i%5===0? -6 : 8+Math.round(r()*38)) : (k===1? 90+Math.round(r()*140) : 260+Math.round(r()*240));
-      batches.push({id:'b'+c.id+'l'+k, cid:c.id, qty, received:U.addDays(today,-Math.round(20+r()*120)),
-        expiry:U.addDays(today,expDays), ageGroup:c.ageGroup?(k%2?'Adult':'Pediatric/Neonatal'):undefined,
-        lot:'LOT-'+String(2600+i*7+k), note:k===0&&i%5===0?'Excursion assessed — pending disposal':''});
-    });
-  });
-  db.stock.entries=entries.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  db.stock.batches=batches;
-  db.meta.stockSeeded=true;
+  db.stock.deleted=db.stock.deleted||[];
 }
 function buildSuppliers(){ return SUPPLIERS.slice(); }
 function buildSessions(){
@@ -430,8 +391,8 @@ function normalize(db){
   db.catalog.tests=db.catalog.tests||[];
   EXTRA_TESTS.forEach(t=>{ if(!db.catalog.tests.find(x=>x.id===t.id)) db.catalog.tests.push(Object.assign({},t)); });
   db.catalog.consumables=db.catalog.consumables||[];
-  EXTRA_CONSUMABLES.forEach(c=>{ if(!db.catalog.consumables.find(x=>x.id===c.id)) db.catalog.consumables.push(Object.assign({},c)); });
   db.stock=db.stock||{batches:[],entries:[]};
+  ensureStockFields(db);
   db.samples=db.samples||[]; db.manifests=db.manifests||[]; db.trainings=db.trainings||[];
   db.trainingExpenses=db.trainingExpenses||[]; db.leaves=db.leaves||[]; db.holidays=db.holidays||[];
   db.workingPlans=db.workingPlans||{}; db.unitRosters=db.unitRosters||{};
@@ -454,7 +415,6 @@ function normalize(db){
     {id:'cc2', at:new Date(Date.now()-86400e3*9).toISOString(), device:'Chemistry Reagent Fridge', temp:7.8, min:2,max:8, duration:0, action:'In range', actor:'System'},
     {id:'cc3', at:new Date(Date.now()-86400e3*16).toISOString(), device:'Blood Bank Fridge', temp:2.9, min:2,max:8, duration:0, action:'In range', actor:'System'}
   ];
-  if(!db.meta.stockSeeded){ buildStockTelemetry(db); }
   db.stockEntriesMeta=db.stockEntriesMeta||{};
   db.savedViews=db.savedViews||[
     {id:'sv1', name:'My STAT samples', module:'samples', filter:{priority:'STAT'}, owner:'Kelvin SAMAHANI'},
@@ -470,22 +430,51 @@ function normalize(db){
     if(s.tatTargetDays==null) s.tatTargetDays=sampleTAT(s.test,db.settings);
     if(!s.status) s.status='Pending';
     if(!s.source) s.source='register';
+    // A result date on the register IS the result. Without this the four CHUK
+    // blood cultures that came back in July looked open, which made referral TAT
+    // compliance read as zero.
+    if(!s.resultedAt && s.resultDate) s.resultedAt=new Date(String(s.resultDate).length>10?s.resultDate:s.resultDate+'T17:00:00').toISOString();
+    if(s.resultedAt && !s.resultDate) s.resultDate=String(s.resultedAt).slice(0,10);
   });
-  // telemetry on first run of v6
-  if(!db.meta.telemetrySeeded){
-    const gen=generateSamples(db).filter(g=>!db.samples.some(s=>s.sampleId===g.sampleId));
-    db.samples=db.samples.concat(gen);
-    const seqs=db.samples.map(s=>{ const m=/^[A-Z]+-\d{4}-(\d+)$/.exec(String(s.sampleId||'')); return m?parseInt(m[1],10):0; });
-    db.meta.sampleSeq=Math.max.apply(null,seqs.concat([120000]));
-    db.meta.telemetrySeeded=true;
+  // v6.5: the console no longer invents referred samples. Anything the previous
+  // build generated from health centres (source 'telemetry') is removed, so the
+  // register shows only the samples Ruli DH actually referred to NRL, CHUK and
+  // Kibagabaga. Counted and audited so the removal is visible.
+  if(!db.meta.samplesPurgedV65){
+    const before=db.samples.length;
+    db.samples=db.samples.filter(s=>s.source!=='telemetry');
+    db.meta.samplesPurgedV65=before-db.samples.length;
+    db.meta.telemetrySeeded=true; db.meta.throughputBackfill=U.todayISO();
   }
-  // Twelve months of collection history so the monthly throughput view can show
-  // slow assays (TB culture, viral load) that report months after registration.
-  if(!db.meta.throughputBackfill){
-    const have=new Set(db.samples.map(s=>s.collectionDate).filter(Boolean));
-    const hist=generateSamples(db,{days:395,seq:800000,tag:'h',skipDates:have,rate:0.35});
-    db.samples=db.samples.concat(hist);
-    db.meta.throughputBackfill=U.todayISO();
+  // v6.5: the eight extra consumables (CBC diluent, chemistry packs, GeneXpert
+  // cartridges, tubes, strips, sharps boxes, gloves) were never in the Ruli DH
+  // stock register — they were invented to fill the screen, together with their
+  // lots and a year of issues. They are removed here, and the stock register is
+  // left with the five lines that were actually seeded from the store records.
+  if(!db.meta.stockPurgedV65){
+    const ghosts=['c6','c7','c8','c9','c10','c11','c12','c13'];
+    const removed=[];
+    db.catalog.consumables=(db.catalog.consumables||[]).filter(c=>{
+      if(ghosts.includes(c.id) && c.seededByGenerator!=='no'){ removed.push(c.name); return false; }
+      return true;
+    });
+    db.stock.batches=(db.stock.batches||[]).filter(b=>!ghosts.includes(b.cid));
+    db.stock.entries=(db.stock.entries||[]).filter(e=>!ghosts.includes(e.cid));
+    db.meta.stockPurgedV65=removed.length;
+    db.meta.stockPurgedNames=removed;
+  }
+  // Referral network is the three receiving laboratories we use. Records keep
+  // whatever laboratory they name; the catalogue is what the wizard offers.
+  if(!db.meta.labsV65){
+    const want=['NRL','Kibagabaga','CHUK'];
+    const have=db.catalog.hospitals||[];
+    const next=want.map((n,i)=>{
+      const cur=have.find(h=>(typeof h==='string'?h:h.name)===n);
+      if(cur) return typeof cur==='string'?{id:'h'+(i+1),name:cur,type:'Hospital'}:cur;
+      return {id:'h'+(i+1),name:n,type:n==='NRL'?'Reference':'Hospital'};
+    });
+    db.catalog.hospitals=next;
+    db.meta.labsV65=1;
   }
   // Working plans are authoritative register data: never invent one here.
   // A month without a stored plan stays empty until a human generates a draft.
@@ -678,10 +667,31 @@ S.activeStaff=()=>S.db().staff.filter(s=>s.status==='active');
 S.staffById=id=>S.db().staff.find(s=>s.id===id);
 S.staffByName=n=>S.db().staff.find(s=>s.name===n);
 S.tests=()=>S.db().catalog.tests;
-S.consumables=()=>S.db().catalog.consumables;
-S.consumable=id=>S.db().catalog.consumables.find(c=>c.id===id);
+S.consumables=()=>S.db().catalog.consumables.filter(c=>!c.deleted);
+S.consumable=id=>S.db().catalog.consumables.find(c=>c.id===id&&!c.deleted);
 S.batchesFor=cid=>S.db().stock.batches.filter(b=>b.cid===cid && (b.qty||0)>0);
 S.onHand=cid=>U.sum(S.batchesFor(cid),b=>b.qty||0);
+/* Item 12 — the user must be able to delete a consumable line by hand.
+   Soft delete keeps the audit trail and any historical movements intact. */
+S.deleteConsumable=function(id,reason){
+  const db=S.db(), c=db.catalog.consumables.find(x=>x.id===id);
+  if(!c) return false;
+  c.deleted=true; c.deletedAt=U.nowISO(); c.deletedBy=(LS.auth&&LS.auth.user?LS.auth.user.name:'User');
+  db.stock.deleted=db.stock.deleted||[];
+  db.stock.deleted.push({id, name:c.name, at:c.deletedAt, by:c.deletedBy, reason:reason||'Deleted by user'});
+  S.audit({action:'stock.consumable_delete',entity:'stock',entityId:id,detail:'Deleted '+c.name+(reason?' · '+reason:'')});
+  S.save(); S.emit('stock');
+  return true;
+};
+S.restoreConsumable=function(id){
+  const db=S.db(), c=db.catalog.consumables.find(x=>x.id===id);
+  if(!c) return false;
+  delete c.deleted; delete c.deletedAt; delete c.deletedBy;
+  db.stock.deleted=(db.stock.deleted||[]).filter(x=>x.id!==id);
+  S.audit({action:'stock.consumable_restore',entity:'stock',entityId:id,detail:'Restored '+c.name});
+  S.save(); S.emit('stock'); return true;
+};
+S.deletedConsumables=()=>S.db().catalog.consumables.filter(c=>c.deleted);
 S.leaves=()=>S.db().leaves||[];
 S.holiday=(iso)=>(S.db().holidays||[]).find(h=>h.date===iso);
 S.tatTarget=test=>sampleTAT(test,S.db().settings);
@@ -771,6 +781,197 @@ S.absenceForecast=function(days){
   return {days:n, expected, plannedDays, planned:planned.length, history:h,
     hasHistory:h.months>0||h.leaveRecords>0};
 };
+
+/* ——— v6.5 vocabulary + planning helpers ————————————————————— */
+S.SHIFT=SHIFT; S.SHIFT_LINE=SHIFT_LINE;
+S.shiftLabel=kind=>(SHIFT[kind]||SHIFT.day).label;
+
+/* Leave vocabulary: annual leave and other AUTHORISED leave are recorded
+   entitlements. "Absent" is deliberately reserved for an unexplained absence —
+   it is an offence under Rwandan labour law and is never inferred from a plan. */
+const LEAVE_KIND={AL:'annual',COMP:'authorised',SICK:'authorised',MAT:'authorised',TR:'authorised',STUDY:'authorised',W:'authorised',UNPAID:'authorised'};
+S.leaveKind=type=>LEAVE_KIND[type]||'annual';
+S.leaveKindLabel=type=>S.leaveKind(type)==='annual'?'Annual leave':'Authorised leave';
+S.leaveCountsAgainstEntitlement=type=>S.leaveKind(type)==='annual' && type!=='W';
+
+/* A leave plan is a block of days charged to a fiscal year. It can be entered
+   for a past FY (a carry-over still being taken) or for a future month. */
+function fyOf(l){ return l.fy || U.fyInfo(l.from).label; }
+function leaveDays(staff,l){
+  if(S.contractOf(staff)!=='contractual') return U.daysBetween(l.from,l.to)+1;
+  let n=0; const d=U.parseISO(l.from), end=U.parseISO(l.to);
+  while(d<=end){ const w=d.getDay(); if(w!==0&&w!==6) n++; d.setDate(d.getDate()+1); }
+  return n;
+}
+S.leaveDays=leaveDays;
+S.leaveRowsFor=function(staff,fy){
+  return S.leaveInForce().filter(l=>l.staffId===staff.id && fyOf(l)===fy)
+    .sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+};
+/* Everything the annual-leave plan book needs for one person: entitlement,
+   days charged to the FY, days still to come, and the balance. */
+S.leaveBook=function(staff,fy){
+  fy=fy||U.fyLabel();
+  const e=S.leaveEntitlement(staff,fy);
+  const rows=S.leaveRowsFor(staff,fy);
+  const annual=rows.filter(l=>S.leaveCountsAgainstEntitlement(l.type));
+  const taken=U.sum(annual.filter(l=>l.to<U.todayISO()),l=>leaveDays(staff,l));
+  const running=U.sum(annual.filter(l=>l.from<=U.todayISO()&&l.to>=U.todayISO()),l=>leaveDays(staff,l));
+  const planned=U.sum(annual.filter(l=>l.from>U.todayISO()),l=>leaveDays(staff,l));
+  const charged=U.sum(annual,l=>leaveDays(staff,l));
+  const authorised=rows.filter(l=>S.leaveKind(l.type)==='authorised' && l.type!=='W');
+  return {staff, fy, entitlement:e, rows, annual,
+    taken, running, planned, charged,
+    authorisedDays:U.sum(authorised,l=>leaveDays(staff,l)),
+    balance:Math.max(0,e.days-charged),
+    over:charged>e.days?charged-e.days:0};
+};
+/* Fiscal years that have leave attached, newest first, always including the
+   current one and the one before it. */
+S.leaveFys=function(){
+  const set={}; set[U.fyLabel()]=1; set[U.fyInfo(U.addDays(U.todayISO(),-400)).label]=1;
+  S.leaves().forEach(l=>{ set[fyOf(l)]=1; });
+  return Object.keys(set).sort().reverse();
+};
+/* Authorised-leave forecast for one person, built only from their own records.
+   The console will not label anybody absent without an unexcused-absence record. */
+S.staffLeaveForecast=function(staff,days){
+  const n=days||180;
+  const fy=U.fyLabel();
+  const book=S.leaveBook(staff,fy);
+  const prevFy=U.fyInfo(U.addDays(U.todayISO(),-400)).label;
+  const prev=S.leaveBook(staff,prevFy);
+  const horizon=U.addDays(U.todayISO(),n);
+  const upcoming=S.leaveInForce().filter(l=>l.staffId===staff.id && l.from>U.todayISO() && l.from<=horizon)
+    .sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  const unexcused=(S.db().absences||[]).filter(a=>a.staffId===staff.id);
+  const unexcusedDays=U.sum(unexcused,a=>a.days||(a.from?U.daysBetween(a.from,a.to||a.from)+1:1));
+  const basis={
+    annual:book.charged>0||book.planned>0,
+    authorised:book.authorisedDays>0,
+    unexcused:unexcused.length>0
+  };
+  let label, tone, detail;
+  if(unexcused.length){
+    label='Unexcused absence on record'; tone='rose';
+    detail=unexcusedDays+' day(s) flagged as unexcused — this is a disciplinary matter, not leave.';
+  } else if(upcoming.length){
+    const next=upcoming[0];
+    label=S.leaveKindLabel(next.type)+' planned'; tone='blue';
+    detail='Next block '+U.fmtDateShort(next.from)+' – '+U.fmtDateShort(next.to)+' ('+leaveDays(staff,next)+'d, charged to FY '+fyOf(next)+').';
+  } else if(book.balance>0){
+    label='Annual leave available'; tone='teal';
+    detail=book.balance+' day(s) still available in FY '+fy+'. No block planned yet.';
+  } else if(book.charged>=book.entitlement.days){
+    label='Annual leave used up'; tone='slate';
+    detail='All '+book.entitlement.days+' days of FY '+fy+' are already charged. Further leave needs approval as exceptional.';
+  } else {
+    label='Nothing on record'; tone='slate';
+    detail='No annual leave, authorised leave or unexcused absence recorded for FY '+fy+'.';
+  }
+  return {staff,n,fy,prevFy,book,prev,upcoming,unexcused,unexcusedDays,basis,label,tone,detail};
+};
+
+/* ——— Referral TAT, per receiving laboratory ————————————————— */
+/* Samples that were actually sent out. In-house work (Ruli DH bench, GeneXpert
+   at Ruli) is not a referral, so it never counts towards referral TAT. */
+S.referralLabNames=()=>['NRL','Kibagabaga','CHUK'];
+S.referredSamples=function(){
+  const labs=S.referralLabNames();
+  return S.db().samples.filter(s=>s.source!=='telemetry' && s.hospital && labs.includes(s.hospital));
+};
+S.receivingLabs=function(){
+  const db=S.db();
+  return U.uniq((db.catalog.hospitals||[]).map(h=>typeof h==='string'?h:h.name)
+    .concat(S.referredSamples().map(s=>s.hospital))).filter(Boolean).filter(n=>S.referralLabNames().includes(n));
+};
+/* 12 months of registered → resulted compliance per receiving laboratory. */
+S.referralTAT=function(months){
+  const n=months||12;
+  const from=U.addDays(U.todayISO(),-(n*30));
+  const rows=S.referredSamples().filter(s=>String(s.collectionDate||'')>=from);
+  const byLab={};
+  rows.forEach(s=>{
+    const lab=s.hospital||'Unassigned';
+    const g=byLab[lab]=byLab[lab]||{lab,registered:0,resulted:0,compliant:0,sumH:0,sumTargetH:0,open:0};
+    g.registered++;
+    const t=S.tatFor(s);
+    g.sumTargetH+=t.targetH;
+    if(s.resultedAt){ g.resulted++; g.sumH+=t.elapsedH; if(t.elapsedH<=t.targetH) g.compliant++; }
+    else { g.open++; if(Date.now()-new Date(s.collectionAt||s.collectionDate).getTime()>t.targetH*36e5) g.compliant+=0; }
+  });
+  return Object.keys(byLab).map(k=>{
+    const g=byLab[k];
+    return {...g,
+      compliance:g.resulted?Math.round(g.compliant/g.resulted*1000)/10:null,
+      avgH:g.resulted?Math.round(g.sumH/g.resulted):null,
+      targetH:g.registered?Math.round(g.sumTargetH/g.registered):null,
+      monthsBackfill:null};
+  }).sort((a,b)=>b.registered-a.registered);
+};
+/* Month-by-month compliance for one laboratory (or all), 12 buckets. */
+S.referralTATSeries=function(lab,months){
+  const n=months||12, out=[];
+  for(let i=n-1;i>=0;i--){
+    const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const rows=S.referredSamples().filter(s=>String(s.collectionDate||'').slice(0,7)===key && (!lab||s.hospital===lab));
+    const res=rows.filter(s=>s.resultedAt);
+    const ok=res.filter(s=>{ const t=S.tatFor(s); return t.elapsedH<=t.targetH; });
+    out.push({key,label:U.M3[d.getMonth()],registered:rows.length,resulted:res.length,
+      compliance:res.length?Math.round(ok.length/res.length*100):null});
+  }
+  return out;
+};
+
+/* ——— Stock: consumption trend, not money ————————————————————— */
+/* Days of cover at the observed pace. The trend compares the last 30 days with
+   the 90 days before it, so a rising burn shortens the projection. */
+S.stockTrend=function(){
+  const db=S.db(), today=U.todayISO();
+  const win=(cid,a,b)=>U.sum(db.stock.entries.filter(e=>e.cid===cid && e.type!=='received' && e.date>=U.addDays(today,-a) && e.date<U.addDays(today,-b)),e=>e.qty);
+  return S.consumables().map(c=>{
+    const onHand=S.onHand(c.id);
+    const last30=win(c.id,30,0), prev60=win(c.id,90,30);
+    const burn30=last30/30, burnPrev=prev60/60;
+    let burn=burn30>0?burn30:(burnPrev>0?burnPrev:0);
+    // A fairer pace: blend the recent month with the ninety-day average.
+    const burn90=(win(c.id,90,0))/90;
+    if(burn90>0) burn=burn30>0?(burn30*0.6+burn90*0.4):burn90;
+    const daysLeft=burn>0?Math.floor(onHand/burn):null;
+    const lastIssue=(db.stock.entries||[]).filter(e=>e.cid===c.id&&e.type!=='received').map(e=>e.date).sort().pop()||null;
+    const trend=burnPrev>0?Math.round((burn30-burnPrev)/burnPrev*100):(burn30>0?100:0);
+    return {id:c.id,name:c.name,unit:c.unit,threshold:c.threshold||0,onHand,burn,burn30,burn90,trend,
+      daysLeft,stockOut:daysLeft!=null?U.addDays(today,daysLeft):null,lastIssue,
+      low:onHand<=(c.threshold||0), none:onHand<=0};
+  }).sort((a,b)=>(a.daysLeft==null?1e9:a.daysLeft)-(b.daysLeft==null?1e9:b.daysLeft));
+};
+/* Days of cover for the whole list: the median line, and the soonest stock-out. */
+S.stockCover=function(){
+  const list=S.stockTrend().filter(x=>x.daysLeft!=null);
+  const days=list.map(x=>x.daysLeft).sort((a,b)=>a-b);
+  return {median:days.length?days[Math.floor(days.length/2)]:null,
+    soonest:list[0]||null, lines:list.length, noConsumption:S.stockTrend().filter(x=>x.daysLeft==null).length};
+};
+
+/* ——— EQA score series (the dashboard chart) ——————————————————— */
+S.eqaScoreOf=function(e){
+  if(e.scorePercent!=null) return Math.round(e.scorePercent*10)/10;
+  if(e.score!=null){
+    // SDI-style schemes score 0 = perfect; convert to a comparable percentage.
+    return Math.round(Math.max(0,Math.min(100,100-Math.abs(e.score)*33))*10)/10;
+  }
+  return null;
+};
+S.eqaSeries=function(program){
+  const rows=(S.db().eqa||[]).filter(e=>!program||program==='__all'||e.program===program)
+    .filter(e=>S.eqaScoreOf(e)!=null)
+    .slice().sort((a,b)=>String(a.reported||a.delivered||'').localeCompare(String(b.reported||b.delivered||'')));
+  return rows.map(e=>({id:e.id,program:e.program,code:e.code,score:S.eqaScoreOf(e),
+    at:e.reported||e.delivered,label:e.program.split(' ')[0]+' '+String(e.code).replace(/ /g,'')}));
+};
+S.eqaPrograms=()=>U.uniq((S.db().eqa||[]).map(e=>e.program)).sort();
+
 S.buildPlan=mk=>generatePlan(mk,S.db());
 S.ensurePlan=function(mk){ const db=S.db(); return db.workingPlans[mk]||null; };
 S.hasPlan=mk=>!!(S.db().workingPlans[mk]&&S.db().workingPlans[mk].primary);
@@ -791,7 +992,7 @@ S.tatFor=function(s){
 /* Stock selectors */
 S.stockOverview=function(){
   const db=S.db();
-  return db.catalog.consumables.map(c=>{
+  return S.consumables().map(c=>{
     const batches=db.stock.batches.filter(b=>b.cid===c.id && (b.qty||0)>0);
     const onHand=U.sum(batches,b=>b.qty);
     const nearest=batches.slice().sort((a,b)=>String(a.expiry).localeCompare(String(b.expiry)))[0];
@@ -803,28 +1004,42 @@ S.stockOverview=function(){
   });
 };
 S.sampleStats=function(){
-  const db=S.db(); const samples=db.samples;
+  const db=S.db(); const samples=S.referredSamples();
   const active=samples.filter(s=>!s.resultedAt);
   const today=U.todayISO();
   const todays=samples.filter(s=>s.collectionDate===today);
   const overdue=active.filter(s=>S.tatFor(s).breached);
   const stat=active.filter(s=>s.priority==='STAT');
-  const resulted30=samples.filter(s=>s.resultedAt && s.resultedAt>=U.addDays(today,-30));
-  const compliant30=resulted30.filter(s=>{ const t=S.tatFor(s); return t.elapsedH<=t.targetH; });
+  /* Compliance is measured on results that actually came back. A 30-day window
+     with no results would read as 0 %, which is a lie about the laboratory, so
+     the window widens to 90 days and then to every result on the register — and
+     the window used is reported with the number. */
+  const windowed=(days)=>{
+    const rows=samples.filter(s=>s.resultedAt && s.resultedAt>=U.addDays(today,-days));
+    const ok=rows.filter(s=>{ const t=S.tatFor(s); return t.elapsedH<=t.targetH; });
+    return {rows:rows.length, ok:ok.length};
+  };
+  let win=30, w=windowed(win);
+  if(!w.rows){ win=90; w=windowed(win); }
+  if(!w.rows){ win=3650; w=windowed(win); }
+  const rejected=samples.filter(s=>s.rejected||s.flag==='Rejected'||s.status==='Rejected').length;
+  const repeated=samples.filter(s=>s.repeat||s.repeated).length;
   return {
     total:samples.length, active:active.length, today:todays.length, overdue:overdue.length, stat:stat.length,
-    pending:active.length, resulted30:resulted30.length,
-    tatCompliance: resulted30.length? Math.round(compliant30.length/resulted30.length*1000)/10 : 0,
-    rejectionRate: 1.8, repeatRate: 2.4,
+    pending:active.length, resulted30:w.rows,
+    tatWindow:win,
+    tatCompliance: w.rows? Math.round(w.ok/w.rows*1000)/10 : null,
+    rejectionRate: rejected? Math.round(rejected/samples.length*1000)/10 : null,
+    repeatRate: repeated? Math.round(repeated/samples.length*1000)/10 : null,
     inTransit: active.filter(s=>s.status==='Received').length
   };
 };
 S.throughput=function(days){
-  const db=S.db(); const out=[];
+  const db=S.db(); const out=[]; const ref=S.referredSamples();
   for(let i=(days||14)-1;i>=0;i--){
     const d=U.addDays(U.todayISO(),-i);
-    const day=db.samples.filter(s=>s.collectionDate===d);
-    const resulted=db.samples.filter(s=>s.resultedAt && s.resultedAt.slice(0,10)===d);
+    const day=ref.filter(s=>s.collectionDate===d);
+    const resulted=ref.filter(s=>s.resultedAt && s.resultedAt.slice(0,10)===d);
     out.push({date:d, registered:day.length, resulted:resulted.length, stat:day.filter(s=>s.priority==='STAT').length});
   }
   return out;
@@ -833,12 +1048,13 @@ S.throughput=function(days){
    assays (TB culture, viral load) finish months later, so daily buckets hide them. */
 S.monthlyThroughput=function(months){
   const db=S.db(); const n=months||12; const out=[]; const now=new Date();
+  const ref=S.referredSamples();
   const catOf=s=>s.cat||'Other';
   for(let i=n-1;i>=0;i--){
     const d=new Date(now.getFullYear(),now.getMonth()-i,1);
     const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    const reg=db.samples.filter(s=>String(s.collectionDate||'').slice(0,7)===key);
-    const res=db.samples.filter(s=>s.resultedAt&&String(s.resultedAt).slice(0,7)===key);
+    const reg=ref.filter(s=>String(s.collectionDate||'').slice(0,7)===key);
+    const res=ref.filter(s=>s.resultedAt&&String(s.resultedAt).slice(0,7)===key);
     const byCat={};
     const bump=(s,field)=>{ const c=catOf(s); byCat[c]=byCat[c]||{registered:0,resulted:0}; byCat[c][field]++; };
     reg.forEach(s=>bump(s,'registered'));
@@ -848,7 +1064,7 @@ S.monthlyThroughput=function(months){
   }
   return out;
 };
-S.throughputCats=function(){ return U.uniq(S.db().samples.map(s=>s.cat||'Other')).sort(); };
+S.throughputCats=function(){ return U.uniq(S.referredSamples().map(s=>s.cat||'Other')).sort(); };
 
 /* Plan lookups — a stored plan is the only source of truth for a day. */
 S.planForMonth=function(mk){ const e=S.db().workingPlans[mk]; return e&&e.primary?e.primary:null; };
@@ -878,10 +1094,10 @@ S.shiftState=function(who, iso){
   const code=S.codeFor(staff,iso);
   if(code){
     if(code==='D')  return {code,kind:'day',label:'On duty · day 08:00–17:00',tone:'teal',source:'plan'};
-    if(code==='N')  return {code,kind:'night',label:'On duty · night 17:00–08:00',tone:'blue',source:'plan'};
+    if(code==='N')  return {code,kind:'night',label:'On duty · night 17:00–08:00 next day',tone:'blue',source:'plan'};
     if(code==='DN') return {code,kind:'daynight',label:'On duty · day + night',tone:'teal',source:'plan'};
     if(code==='TR') return {code,kind:'training',label:'Training',tone:'gold',source:'plan'};
-    if(code==='AL'||code==='SICK') return {code,kind:'leave',label:S.leaveTypeLabel(code),tone:'blue',source:'plan'};
+    if(code==='AL'||code==='SICK'||code==='CL'||code==='ML') return {code,kind:'leave',label:S.leaveTypeLabel(code==='SICK'?'SICK':code==='CL'?'COMP':code==='ML'?'MAT':'AL'),tone:'blue',source:'plan'};
     if(code==='OFF'||code==='W') return {code,kind:'off',label:'At home',tone:'slate',source:'plan'};
   }
   // No plan published for that day: fall back to the contract, clearly labelled.
@@ -971,7 +1187,7 @@ S.feed=function(){
 
 /* ——— Backup / restore ——————————————————————— */
 S.exportJSON=function(){
-  return JSON.stringify(Object.assign({},S.db(),{meta:Object.assign({},S.db().meta,{exportedAt:U.nowISO(),appVersion:'6.0.0'})}),null,1);
+  return JSON.stringify(Object.assign({},S.db(),{meta:Object.assign({},S.db().meta,{exportedAt:U.nowISO(),appVersion:'6.5.0'})}),null,1);
 };
 S.importJSON=function(obj){
   if(!obj || !obj.staff || !obj.meta) throw new Error('Not a Lab Systems backup');

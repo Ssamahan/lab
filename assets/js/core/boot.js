@@ -51,11 +51,27 @@ setTimeout(finish,6500);
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(init,60));
 else setTimeout(init,60);
 
-/* Service worker — offline-first */
+/* Service worker — offline-first, and never stale. The new build takes control
+   as soon as it installs; the page reloads once so the user is not left running
+   yesterday's JavaScript (that is what makes a fixed Close button look broken). */
 if(navigator.serviceWorker && location.protocol!=='file:'){
+  let reloading=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(reloading) return; reloading=true;
+    UI.toast('Lab Systems updated — reloading',{type:'info',duration:1200});
+    setTimeout(()=>location.reload(),900);
+  });
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').then(reg=>{
-      reg.addEventListener('updatefound',()=>{});
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+      const check=()=>{ try{ reg.update(); }catch(e){} };
+      check();
+      setInterval(check,20*60*1000);
+      document.addEventListener('visibilitychange',()=>{ if(!document.hidden) check(); });
+      reg.addEventListener('updatefound',()=>{
+        const sw=reg.installing;
+        if(!sw) return;
+        sw.addEventListener('statechange',()=>{ if(sw.state==='installed' && navigator.serviceWorker.controller){ try{ sw.postMessage({type:'SKIP_WAITING'}); }catch(e){} } });
+      });
     }).catch(e=>console.warn('SW registration failed',e.message));
   });
 }
