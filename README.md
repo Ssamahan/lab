@@ -5,7 +5,27 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.7.1** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.7.2** · FY 2026/2027 · works with no network, installs as a PWA.
+
+---
+
+## What changed in 6.7.2
+
+**A domain with no questions is no longer a column.** Delete every question in a
+domain and it drops out of the centre scorecard, the domain heatmap, the visit
+form, the printed scorecard and the district report — no more *0 % of index · 0
+questions* rows, and no empty dashes where a domain used to be.
+
+- The six declared weights are shared out across the domains that still hold
+  questions, printed as whole percentages that add up to exactly **100**
+  (largest-remainder rounding), so a scorecard header can never read 101 %.
+- The index is computed from the domains actually being evaluated: a domain whose
+  questions have not all been marked is left out and the rest are renormalised over
+  what is present, never scored as zero.
+- A domain comes back the moment you add a question to it — the **Add question**
+  dialog still lists every domain and marks the unused ones *not in use*.
+- The question bank only lists domains in use, with a single line explaining where
+  the weight went.
 
 ---
 
