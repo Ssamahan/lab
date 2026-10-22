@@ -60,16 +60,32 @@ function retiredQuestions(){ return (S.db().pbfQuestions||[]).filter(q=>q.delete
 function qById(id){ return questions().find(q=>q.id===id); }
 function domainQuestions(k){ return questions().filter(q=>q.domain===k); }
 
-/* ——— Domain weights and percentages ————————————————
-   Every question belongs to one domain. The domain percentage is the marks
-   earned over the marks still available in that domain, and the index weights
-   are renormalised over the domains that still hold questions. Delete a
-   question — or a whole domain — and both follow automatically. */
+/* ——— Domains, weights and percentages ————————————————
+   A domain exists only while it holds questions. A domain whose questions have
+   all been deleted disappears from the scorecard, the heatmap and every report,
+   and its weight is shared out across the domains that remain — so the columns
+   on screen are always exactly the domains that are being scored. */
+function liveDomains(){ return DOMAINS.filter(([k])=>domainQuestions(k).length>0); }
+/* Weights are printed as whole percentages that add up to exactly 100 (largest
+   remainder), so the header of a scorecard can never read 29+29+21+22 = 101. */
 function domainWeights(){
-  const live=DOMAINS.filter(([k])=>domainQuestions(k).length>0);
-  const declared=U.sum(live,d=>d[2]);
+  const live=liveDomains();
+  const declared=U.sum(live,d=>d[2])||1;
+  const raw=live.map(([k,,w])=>({k,pct:w/declared*100}));
   const out={};
-  DOMAINS.forEach(([k,,w])=>{ out[k]=live.some(d=>d[0]===k)&&declared? w/declared*100 : 0; });
+  DOMAINS.forEach(([k])=>{ out[k]=0; });
+  if(!raw.length) return out;
+  const floors=raw.map(x=>({k:x.k,base:Math.floor(x.pct),rem:x.pct-Math.floor(x.pct)}));
+  let left=Math.round(raw.reduce((a,x)=>a+x.pct,0))-floors.reduce((a,x)=>a+x.base,0);
+  floors.slice().sort((a,b)=>b.rem-a.rem).forEach(x=>{ if(left>0){ x.base++; left--; } });
+  floors.forEach(x=>{ out[x.k]=x.base; });
+  return out;
+}
+/* The same weights, unrounded — used for the arithmetic, never for display. */
+function rawWeights(){
+  const live=liveDomains(); const declared=U.sum(live,d=>d[2])||1; const out={};
+  DOMAINS.forEach(([k])=>{ out[k]=0; });
+  live.forEach(([k,,w])=>{ out[k]=w/declared; });
   return out;
 }
 function scorecardOf(visit){
@@ -81,8 +97,12 @@ function visitScore(visit){
   const scores={};
   DOMAINS.forEach(([k])=>{
     const qs=domainQuestions(k);
+    scores[k]=null;
+    if(!qs.length) return;                       // domain no longer evaluated
+    const vals=qs.map(q=>(visit&&visit.answers?visit.answers[q.id]:null));
+    if(vals.some(v=>v==null||v==='')) return;    // not every question marked yet
     let got=0,max=0;
-    qs.forEach(q=>{ const v=visit&&visit.answers?visit.answers[q.id]:null; if(v==null||v==='') return; got+=Math.max(0,Math.min(+q.max,+v)); max+=q.max; });
+    qs.forEach((q,i)=>{ got+=Math.max(0,Math.min(+q.max,+vals[i])); max+=+q.max||0; });
     scores[k]=max?Math.round(got/max*100):null;
   });
   return scores;
@@ -146,10 +166,13 @@ function list(){
       visit:latest,visits:vs.length,status:'draft',state};
   });
 }
+/* The index: every scored domain weighted by its share of what is actually being
+   evaluated. Domains with no questions carry no weight; a domain still waiting
+   for marks is left out and the rest are renormalised over what is present. */
 function total(row){
-  const w=domainWeights();
+  const w=rawWeights();
   let acc=0,sum=0;
-  DOMAINS.forEach(([k])=>{ const v=row.scores?row.scores[k]:null; if(v==null) return; acc+=v*(w[k]||0); sum+=(w[k]||0); });
+  liveDomains().forEach(([k])=>{ const v=row.scores?row.scores[k]:null; if(v==null) return; acc+=v*w[k]; sum+=w[k]; });
   return sum? Math.round(acc/sum) : null;
 }
 const sc=v=>v==null?'—':v+'%';
@@ -174,7 +197,7 @@ function kpis(){
    +'<div class="card pad" style="margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
      +'<span class="pill '+(s.scored?'teal':'slate')+'">'+UI.ic('calculator',12)+'Index auto-calculated</span>'
      +'<span class="small grow">Each domain is the marks earned over the marks still in the question bank, and the six weights are renormalised over the domains that still hold questions — delete a question and every figure follows. A centre only gets an index once <b>every</b> question is marked.</span>'
-     +'<span class="xs faint">'+questions().length+' questions · '+Object.keys(domainWeights()).filter(k=>domainWeights()[k]>0).length+' domains in use</span></div>';
+     +'<span class="xs faint">'+questions().length+' questions · '+liveDomains().length+' domains in use</span></div>';
 }
 function hero(){
   const s=stats();
@@ -203,11 +226,11 @@ function rowData(){
 function rowsHTML(){
   const rows=rowData();
   const w=domainWeights();
-  if(!rows.length) return '<tr><td colspan="'+(DOMAINS.length+5)+'"><div style="padding:26px 8px">'+UI.empty({art:'search',title:'No health centre matches',body:'Try a shorter search term.'})+'</div></td></tr>';
+  if(!rows.length) return '<tr><td colspan="'+(liveDomains().length+5)+'"><div style="padding:26px 8px">'+UI.empty({art:'search',title:'No health centre matches',body:'Try a shorter search term.'})+'</div></td></tr>';
   return rows.map(r=>{ const t=total(r), d=delta(r);
     return '<tr data-pbf-row="'+r.id+'" style="cursor:pointer">'
       +'<td><div class="primary-cell"><b>'+U.esc(r.name)+'</b><small>'+U.esc(statusLine(r))+'</small></div></td>'
-      +DOMAINS.map(([k])=>{ const v=r.scores?r.scores[k]:null;
+      +liveDomains().map(([k])=>{ const v=r.scores?r.scores[k]:null;
         return '<td class="num"><span class="mono xs" style="color:var(--'+(v==null?'text-faint':v>=S.PBF_MIN+5?'pos':v>=S.PBF_MIN?'gold-bright':'crit')+')">'+(v==null?'—':v)+'</span></td>'; }).join('')
       +'<td>'+(t!=null?'<span class="pill '+tone(t)+'">'+t+'%</span>'
         :r.state&&r.state.key==='pending'?'<span class="pill amber">marks pending</span>'
@@ -221,7 +244,7 @@ function table(){
   return '<div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="pbfSearch" placeholder="Search health centre…" value="'+U.esc(q)+'"></div>'
    +'<span class="grow"></span>'
    +'<div class="seg">'+[['total','Score'],['delta','Momentum'],['name','Name']].map(([k,l])=>'<button class="'+(sort===k?'on':'')+'" data-sort="'+k+'">'+l+'</button>').join('')+'</div></div>'
-   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+DOMAINS.map(d=>'<th class="num" title="'+U.esc(d[1])+'">'+U.esc(d[0])+'<span class="xs faint" style="display:block;font-weight:400">'+Math.round(w[d[0]])+'%</span></th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th><th></th></tr></thead>'
+   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+liveDomains().map(d=>'<th class="num" title="'+U.esc(d[1])+'">'+U.esc(d[1].split(' ')[0])+'<span class="xs faint" style="display:block;font-weight:400">'+w[d[0]]+'%</span></th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th><th></th></tr></thead>'
    +'<tbody id="pbfBody">'+rowsHTML()+'</tbody></table></div>'
    +'<div class="card-foot"><span>Draft indices — subject to district verification</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
 }
@@ -229,13 +252,13 @@ function matrix(){
   const rows=list().slice().sort((a,b)=>{ const ta=total(a), tb=total(b); if(ta==null&&tb==null) return a.name.localeCompare(b.name); if(ta==null) return 1; if(tb==null) return -1; return tb-ta; });
   const w=domainWeights();
   return UI.card({title:'Domain heatmap',sub:'Every cell is a recorded scorecard — a blank cell is a centre whose marks are not in yet',icon:'layout-grid',body:
-    '<div style="overflow-x:auto"><table class="pbf-heat"><thead><tr><th></th>'+DOMAINS.map(d=>'<th>'+U.esc(d[1].split(' ')[0])+'<span class="w">'+Math.round(w[d[0]])+'%</span></th>').join('')+'<th>Index</th></tr></thead><tbody>'
-    +rows.map(r=>'<tr><td class="pbf-hc">'+U.esc(r.name)+'</td>'+DOMAINS.map(([k])=>{
+    '<div style="overflow-x:auto"><table class="pbf-heat"><thead><tr><th></th>'+liveDomains().map(d=>'<th>'+U.esc(d[1].split(' ')[0])+'<span class="w">'+w[d[0]]+'%</span></th>').join('')+'<th>Index</th></tr></thead><tbody>'
+    +rows.map(r=>'<tr><td class="pbf-hc">'+U.esc(r.name)+'</td>'+liveDomains().map(([k])=>{
         const v=r.scores?r.scores[k]:null;
         if(v==null) return '<td><span class="heat-tile empty" data-tip="'+U.esc(DOMAINS.find(d=>d[0]===k)[1]+' · no marks recorded')+'" style="--a:0.04;--tone:120,130,150">—</span></td>';
         return '<td><span class="heat-tile" data-tip="'+U.esc(DOMAINS.find(d=>d[0]===k)[1]+' · '+v+'%')+'" style="--a:'+((v/100)*0.9+0.06).toFixed(2)+';--tone:'+(v>=S.PBF_MIN+5?'63,211,182':v>=S.PBF_MIN?'201,168,76':'227,114,124')+'">'+v+'</span></td>';
       }).join('')+'<td><b class="mono">'+(total(r)==null?'—':total(r))+'</b></td></tr>').join('')
-    +'</tbody></table></div><div class="card-foot"><span>Cell intensity maps the score; '+S.PBF_MIN+'% and above is green, below it red. A dash means that domain has no marks recorded for the centre.</span><span class="mono">'+DOMAINS.filter(d=>w[d[0]]>0).length+' domains in use</span></div>'});
+    +'</tbody></table></div><div class="card-foot"><span>Cell intensity maps the score; '+S.PBF_MIN+'% and above is green, below it red. A dash means that domain has no marks recorded for the centre.</span><span class="mono">'+liveDomains().length+' domains in use</span></div>'});
 }
 function recommendationBlock(visit){
   if(!visit) return '';
@@ -269,8 +292,8 @@ function drawer(id){
     +'<span class="pill '+(card.complete?'teal':'amber')+'">'+card.answered+' / '+card.total+' marked</span></div>'
     +UI.meter(card.total?card.answered/card.total*100:0,card.complete?'teal':'amber')
     +(card.complete?'':'<div class="xs faint" style="margin-top:6px">'+card.missing.length+' question'+(card.missing.length===1?'':'s')+' still blank — open the visit and mark them all to calculate the index.</div>')+'</div>'
-    +DOMAINS.map(([k,label])=>{ const v=r.scores?r.scores[k]:null;
-      return '<div style="margin-bottom:14px"><div class="row between" style="margin-bottom:5px"><span class="small">'+U.esc(label)+' <span class="xs faint">· weight '+Math.round(w[k])+'% · '+domainQuestions(k).length+' q</span></span>'
+    +liveDomains().map(([k,label])=>{ const v=r.scores?r.scores[k]:null;
+      return '<div style="margin-bottom:14px"><div class="row between" style="margin-bottom:5px"><span class="small">'+U.esc(label)+' <span class="xs faint">· weight '+w[k]+'% · '+domainQuestions(k).length+' q</span></span>'
       +'<span class="mono small" style="color:var(--'+(v==null?'text-faint':v>=S.PBF_MIN+5?'pos':v>=S.PBF_MIN?'gold-bright':'crit')+')">'+(v==null?'—':v+'%')+'</span></div>'
       +UI.meter(v==null?0:v,v==null?'slate':v>=S.PBF_MIN+5?'teal':v>=S.PBF_MIN?'gold':'rose')+'</div>'; }).join('')
     +'<div class="section-head"><h2>Verification</h2></div>'
@@ -281,7 +304,7 @@ function drawer(id){
       '<div class="custody-item'+(dt?'':' pending')+'"><span class="custody-dot"></span><div class="custody-body"><div class="custody-title">'+U.esc(ti)+'</div><div class="custody-meta">'+(dt?U.fmtDate(dt)+' · ':'Pending · ')+U.esc(note)+'</div></div></div>').join('')+'</div>'
     +recommendationBlock(r.visit)
     +'<div class="section-head"><h2>Questions evaluated</h2><span class="more">'+(r.visit?card.answered+' of '+card.total+' questions':'no visit recorded')+'</span></div>'
-    +(r.visit?DOMAINS.map(([k,label])=>{
+    +(r.visit?liveDomains().map(([k,label])=>{
         const qs=domainQuestions(k); if(!qs.length) return '';
         return '<div style="margin-bottom:10px"><div class="eyebrow">'+U.esc(label)+'</div>'
           +qs.map(q=>{ const v=r.visit.answers&&r.visit.answers[q.id]; const pct=v==null?null:Math.round(+v/q.max*100); const ok=pct!=null&&pct>=S.PBF_MIN;
@@ -367,7 +390,7 @@ function visitModal(id,presetCentre,presetQuarter){
       +'<div class="field"><label>Visit date</label><input class="input" type="date" id="pvDate" value="'+(v&&v.date?String(v.date).slice(0,10):U.todayISO())+'"></div>'
       +'<div class="field"><label>Assessor</label><input class="input" id="pvAssessor" value="'+U.esc(v?v.assessor:LS.auth.user.name)+'"></div>'
       +'<div class="field span2"><label>Marks — every question, no blanks</label>'
-        +DOMAINS.filter(([k])=>domainQuestions(k).length).map(([k,label])=>'<div style="margin-top:8px"><div class="eyebrow">'+U.esc(label)+' · '+domainQuestions(k).length+' questions</div>'+section(k)+'</div>').join('')
+        +liveDomains().map(([k,label])=>'<div style="margin-top:8px"><div class="eyebrow">'+U.esc(label)+' · '+domainQuestions(k).length+' questions</div>'+section(k)+'</div>').join('')
         +'<div class="row gap-sm" style="margin-top:10px;flex-wrap:wrap"><span class="pill amber" id="pvPreview">0 / '+qs.length+' marked</span><span class="pill slate" id="pvIndex">Index —</span><button class="btn xs" type="button" data-all-max>'+UI.ic('check-check',12)+'Mark all full</button><button class="btn xs" type="button" data-clear>'+UI.ic('eraser',12)+'Clear marks</button></div>'
       +'</div>'
       +'<div class="field span2" style="margin-top:6px"><label>Recommendations given at this visit</label>'
@@ -447,7 +470,7 @@ function questionModal(id){
   const q=id?qById(id):null;
   UI.modal({title:q?'Edit question':'Add evaluation question',sub:'Questions are grouped by domain; the domain weight is applied automatically.',width:'min(560px,100%)',
     body:'<div class="form-grid"><div class="field span2"><label>Question</label><textarea class="textarea" id="qbText" rows="2">'+U.esc(q?q.text:'')+'</textarea></div>'
-      +'<div class="field"><label>Domain</label><select class="select" id="qbDomain">'+DOMAINS.map(([k,label])=>{ const w=Math.round(domainWeights()[k]); return '<option value="'+k+'"'+((q?q.domain:'quality')===k?' selected':'')+'>'+U.esc(label)+' ('+w+'% of index today)</option>'; }).join('')+'</select></div>'
+      +'<div class="field"><label>Domain</label><select class="select" id="qbDomain">'+DOMAINS.map(([k,label])=>{ const used=domainQuestions(k).length>0; const w=domainWeights()[k]; return '<option value="'+k+'"'+((q?q.domain:(liveDomains()[0]||DOMAINS[0])[0])===k?' selected':'')+'>'+U.esc(label)+(used?' ('+w+'% of index)':' — not in use')+'</option>'; }).join('')+'</select></div>'
       +'<div class="field"><label>Maximum marks</label><input class="input mono" type="number" min="1" max="100" id="qbMax" value="'+(q?q.max:Q_MAX_DEFAULT)+'"></div></div>'
       +'<div class="hint" style="margin-top:10px">Each question carries its own maximum (25 by default). The domain percentage is the marks earned over the marks available in that domain, and the six domain weights are renormalised over the domains that still hold questions — nothing has to be recalculated by hand.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save question</button>',
@@ -497,16 +520,16 @@ function questionBank(){
       +'<span class="grow"></span>'
       +'<span class="pill slate mono" id="qSelCount">0 selected</span>'
       +'<button class="btn xs danger" data-del-selected disabled>'+UI.ic('trash-2',12)+'Delete selected</button></div>'
-      +DOMAINS.map(([k,label])=>{ const group=qs.filter(q=>q.domain===k); 
-      return '<div style="margin-top:10px" data-q-group="'+k+'"><div class="row between"><span class="eyebrow">'+U.esc(label)+' <span class="faint">· '+Math.round(w[k])+'% of index</span></span>'
-        +'<span class="xs faint" style="display:flex;gap:8px;align-items:center">'+group.length+' question'+(group.length===1?'':'s')+(group.length?'<label class="row gap-xs" style="cursor:pointer;gap:4px"><input type="checkbox" data-q-group-all="'+k+'" style="accent-color:var(--gold)"><span>all</span></label>':'')+'</span></div>'
+      +liveDomains().map(([k,label])=>{ const group=qs.filter(q=>q.domain===k);
+      return '<div style="margin-top:10px" data-q-group="'+k+'"><div class="row between"><span class="eyebrow">'+U.esc(label)+' <span class="faint">· '+w[k]+'% of index</span></span>'
+        +'<span class="xs faint" style="display:flex;gap:8px;align-items:center">'+group.length+' question'+(group.length===1?'':'s')+'<label class="row gap-xs" style="cursor:pointer;gap:4px"><input type="checkbox" data-q-group-all="'+k+'" style="accent-color:var(--gold)"><span>all</span></label></span></div>'
         +group.map(q=>'<div class="list-row" style="padding:6px 0"><input type="checkbox" data-q-sel="'+q.id+'" style="accent-color:var(--gold);margin-right:8px">'
           +'<div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks · '+Math.round(q.max/Math.max(1,U.sum(group,x=>+x.max||0))*100)+'% of the domain</div></div>'
           +'<div class="row gap-sm"><button class="icon-btn" style="width:24px;height:24px" data-edit-q="'+q.id+'" title="Edit">'+UI.ic('pencil',12)+'</button></div></div>').join('')
-        +(group.length?'':'<div class="xs faint" style="padding:4px 0">No question in this domain — its weight is redistributed across the others.</div>')
         +'</div>';
     }).join('')
-    +(retiredQuestions().length?'<div class="row between" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' deleted question'+(retiredQuestions().length===1?'':'s')+' · not scored</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
+    +'<div class="xs faint" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">'+liveDomains().length+' of '+DOMAINS.length+' domains in use — a domain with no questions is dropped from the scorecards, the heatmap and every report, and its weight is shared across the domains that remain.</div>'
+    +(retiredQuestions().length?'<div class="row between" style="margin-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' deleted question'+(retiredQuestions().length===1?'':'s')+' · not scored</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
     });
 }
 /* ——— Scheduling ————————————————————————————————— */
@@ -649,8 +672,8 @@ function printCentre(r){
   const card=r.visit?scorecardOf(r.visit):{complete:false,answered:0,total:questions().length};
   U.printDoc('PBF laboratory evaluation — '+r.name,
     '<table><thead><tr><th>Domain</th><th>Weight</th><th>Questions</th><th>Score</th><th>Weighted</th></tr></thead><tbody>'
-    +DOMAINS.map(([k,label])=>{ const v=r.scores?r.scores[k]:null;
-      return '<tr><td>'+U.esc(label)+'</td><td>'+Math.round(w[k])+'%</td><td>'+domainQuestions(k).length+'</td><td>'+(v==null?'—':v+'%')+'</td><td>'+(v==null?'—':(v*w[k]/100).toFixed(1))+'</td></tr>'; }).join('')
+    +liveDomains().map(([k,label])=>{ const v=r.scores?r.scores[k]:null;
+      return '<tr><td>'+U.esc(label)+'</td><td>'+w[k]+'%</td><td>'+domainQuestions(k).length+'</td><td>'+(v==null?'—':v+'%')+'</td><td>'+(v==null?'—':(v*w[k]/100).toFixed(1))+'</td></tr>'; }).join('')
     +'<tr><td colspan="4"><b>Weighted composite</b></td><td><b>'+(total(r)==null?'marks pending':total(r)+'%')+'</b></td></tr></tbody></table>'
     +'<p style="font-size:9px;margin:6px 0">Scorecard '+(card.complete?'complete':'incomplete — '+card.answered+' of '+card.total+' questions marked')+'.</p>'
     +(r.visit?'<h3 style="font-size:9px;margin:10px 0 4px">Questions evaluated — '+U.esc(r.visit.quarter||'')+' · '+U.fmtDate(r.visit.date)+'</h3><table><thead><tr><th>Question</th><th>Domain</th><th>Marks</th></tr></thead><tbody>'
@@ -668,9 +691,9 @@ function printDistrict(){
   const rows=list().filter(r=>total(r)!=null).sort((a,b)=>total(b)-total(a));
   const w=domainWeights();
   U.printDoc('District PBF laboratory report — Q1 FY 2026/2027',
-    '<table><thead><tr><th>Rank</th><th>Health centre</th>'+DOMAINS.map(d=>'<th>'+U.esc(d[1].split(' ')[0])+' ('+Math.round(w[d[0]])+'%)</th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th></tr></thead><tbody>'
-    +rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(r.name)+'</td>'+DOMAINS.map(([k])=>'<td>'+(r.scores[k]==null?'—':r.scores[k])+'</td>').join('')+'<td><b>'+total(r)+'</b></td><td>'+(r.prior==null?'—':r.prior)+'</td><td>'+((delta(r)||0)>0?'+':'')+(delta(r)||0)+'</td></tr>').join('')
-    +'<tr><td colspan="2"><b>District average</b></td>'+DOMAINS.map(([k])=>{ const vals=rows.map(r=>r.scores[k]).filter(v=>v!=null); return '<td>'+(vals.length?Math.round(U.avg(vals)):'—')+'</td>'; }).join('')+'<td><b>'+(rows.length?Math.round(U.avg(rows.map(total))):'—')+'</b></td><td></td><td></td></tr></tbody></table>',
+    '<table><thead><tr><th>Rank</th><th>Health centre</th>'+liveDomains().map(d=>'<th>'+U.esc(d[1].split(' ')[0])+' ('+w[d[0]]+'%)</th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th></tr></thead><tbody>'
+    +rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(r.name)+'</td>'+liveDomains().map(([k])=>'<td>'+(r.scores[k]==null?'—':r.scores[k])+'</td>').join('')+'<td><b>'+total(r)+'</b></td><td>'+(r.prior==null?'—':r.prior)+'</td><td>'+((delta(r)||0)>0?'+':'')+(delta(r)||0)+'</td></tr>').join('')
+    +'<tr><td colspan="2"><b>District average</b></td>'+liveDomains().map(([k])=>{ const vals=rows.map(r=>r.scores[k]).filter(v=>v!=null); return '<td>'+(vals.length?Math.round(U.avg(vals)):'—')+'</td>'; }).join('')+'<td><b>'+(rows.length?Math.round(U.avg(rows.map(total))):'—')+'</b></td><td></td><td></td></tr></tbody></table>',
     {landscape:true,meta:'<span>Gakenke District · PBF laboratory indicators</span><span>'+(list().length-rows.length)+' centres without a complete scorecard</span>'});
 }
 M.render=function(root,params){
@@ -681,7 +704,7 @@ M.render=function(root,params){
    +kpis()+hero()
    +'<div class="section-head"><h2>Centre scorecards</h2><span class="more">Click any row for the full evaluation</span></div>'
    +table()
-   +'<div class="section-head"><h2>Domain comparison</h2><span class="more">Recorded scorecards only · '+list().length+' centres</span></div>'
+   +'<div class="section-head"><h2>Domain comparison</h2><span class="more">'+liveDomains().length+' domains in use · recorded scorecards only</span></div>'
    +matrix()
    +'<div class="section-head"><h2>Evaluation questions & visits</h2><span class="more">Questions, marks and the supervision calendar</span></div>'
    +'<div class="grid-12"><div class="c7">'+questionBank()+'</div><div class="c5">'+scheduleCard()+'<div style="margin-top:14px">'+visitLog()+'</div></div></div>';
