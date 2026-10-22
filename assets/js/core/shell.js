@@ -22,7 +22,7 @@ const ROUTES={
   eqa:{title:'EQA / PT Scores',sub:'Proficiency testing · z-scores · CAPA',group:'Quality',icon:ICON.eqa,file:'eqa'},
   pbf:{title:'PBF Evaluation',sub:'Health-centre performance-based financing scores',group:'Quality',icon:ICON.pbf,file:'pbf'},
   quality:{title:'Quality & Compliance',sub:'ISO 15189 readiness · SOPs · incidents · QC',group:'Quality',icon:ICON.quality,file:'quality'},
-  equipment:{title:'Equipment',sub:'Uptime · preventive maintenance · downtime',group:'Quality',icon:ICON.equipment,file:'equipment'},
+  equipment:{title:'Equipment',sub:'Uptime · preventive & curative maintenance · supplier response',group:'Quality',icon:ICON.equipment,file:'equipment'},
   staff:{title:'Staff & Settings',sub:'Registry · roles · branding · data',group:'Admin',icon:ICON.staff,file:'staff',permission:'staff'},
   security:{title:'Security Center',sub:'Sessions · 2FA · audit trail · residency',group:'Admin',icon:ICON.security,file:'security'},
   design:{title:'Design System',sub:'Tokens · components · motion specification',group:'Admin',icon:ICON.design,file:'design'},
@@ -191,7 +191,7 @@ SH.refresh=function(){ SH.route({keepScroll:true}); };
 SH.fail=function(err,id,host){
   const box=host||document.getElementById('page');
   if(!box) return;
-  const diag='Lab Systems v6.3.0\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
+  const diag='Lab Systems v6.4.0\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
   box.innerHTML='<div class="page"><div class="card pad" style="max-width:620px;margin:5vh auto">'
    +'<div class="row" style="gap:12px;margin-bottom:10px"><div class="kpi-ic" style="width:36px;height:36px;color:var(--crit);background:var(--crit-soft);border-color:var(--crit-border)">'+U.ic('alert-triangle',18)+'</div>'
    +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">This panel could not render</div><div class="xs faint">Your data is safe — nothing was written.</div></div></div>'

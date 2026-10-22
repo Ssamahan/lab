@@ -61,7 +61,7 @@ function augSettings(s){ return Object.assign({},DEFAULT_SETTINGS, s||{}, { feat
 
 function buildEquipment(){
   const today=U.todayISO();
-  const mk=(id,name,model,loc,status,uptime,nextPM,serial,manu)=>({id,name,model,location:loc,status,uptime,nextPM,serial,manufacturer:manu,lastPM:U.addDays(today,-Math.round(30+Math.random()*20)),downtime:[]});
+  const mk=(id,name,model,loc,status,uptime,nextPM,serial,manu)=>({id,name,model,location:loc,status,uptime,nextPM,serial,manufacturer:manu,lastPM:U.addDays(today,-Math.round(30+Math.random()*20)),downtime:[],services:[],role:'primary',pmIntervalDays:180,vendor:manu,vendorEmail:''});
   return [
     mk('eq1','GeneXpert IV','Cepheid GX-IV-16','Molecular Bay',  'operational',98.4,'2026-11-14','GX16-2291-A','Cepheid'),
     mk('eq2','Sysmex XN-330','Automated Hematology','Hematology Bench','operational',99.1,'2026-12-02','XN330-8841','Sysmex'),
@@ -583,6 +583,37 @@ function normalize(db){
       }
     });
     db.meta.eqaAwaitingV63=today;
+  }
+  // v6.4: curative maintenance. Every asset gets a role and a service email, and
+  // a small backup pool is registered so a breakdown can be covered the same day.
+  // No maintenance event is invented — the log starts empty and is filled by the lab.
+  if(!db.meta.equipmentV64){
+    db.equipment.forEach(e=>{
+      e.role=e.role||'primary';
+      e.services=e.services||[];
+      e.downtime=e.downtime||[];
+      e.pmIntervalDays=e.pmIntervalDays||180;
+      e.vendor=e.vendor||e.manufacturer||'';
+      if(e.vendorEmail==null) e.vendorEmail='';
+      if(e.status==='deployed'&&!e.deployedTo) e.status='standby';
+    });
+    const hasBackup=db.equipment.some(e=>e.role==='backup');
+    if(!hasBackup){
+      const today64=U.todayISO();
+      db.equipment.push(
+        {id:'eqb1',name:'Backup hematology analyser',model:'Sysmex KX-21N',manufacturer:'Sysmex',serial:'KX21N-BK01',
+         location:'Equipment store',role:'backup',status:'standby',uptime:100,lastPM:null,nextPM:null,installed:null,
+         pmIntervalDays:180,vendor:'Sysmex',vendorEmail:'',services:[],downtime:[],
+         note:'Loan unit held at Ruli for hematology breakdowns; released on return of the primary analyser.'},
+        {id:'eqb2',name:'Backup chemistry analyser',model:'Mindray BA-88A',manufacturer:'Mindray',serial:'BA88-BK02',
+         location:'Equipment store',role:'backup',status:'standby',uptime:100,lastPM:null,nextPM:null,installed:null,
+         pmIntervalDays:180,vendor:'Mindray',vendorEmail:'',services:[],downtime:[],
+         note:'Semi-automatic backup for chemistry when the BS-240 is off site.'}
+      );
+      db.meta.equipmentV64=today64;
+    } else {
+      db.meta.equipmentV64=1;
+    }
   }
   // audit seed
   if(!db.audit.length){
