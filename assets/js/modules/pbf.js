@@ -58,17 +58,36 @@ function questions(){
 }
 function retiredQuestions(){ return (S.db().pbfQuestions||[]).filter(q=>q.deleted); }
 function qById(id){ return questions().find(q=>q.id===id); }
+function domainQuestions(k){ return questions().filter(q=>q.domain===k); }
+
+/* ——— Domain weights and percentages ————————————————
+   Every question belongs to one domain. The domain percentage is the marks
+   earned over the marks still available in that domain, and the index weights
+   are renormalised over the domains that still hold questions. Delete a
+   question — or a whole domain — and both follow automatically. */
+function domainWeights(){
+  const live=DOMAINS.filter(([k])=>domainQuestions(k).length>0);
+  const declared=U.sum(live,d=>d[2]);
+  const out={};
+  DOMAINS.forEach(([k,,w])=>{ out[k]=live.some(d=>d[0]===k)&&declared? w/declared*100 : 0; });
+  return out;
+}
+function scorecardOf(visit){
+  const qs=questions();
+  const answered=qs.filter(q=>visit&&visit.answers&&visit.answers[q.id]!=null&&visit.answers[q.id]!=='').length;
+  return {answered, total:qs.length, complete:qs.length>0&&answered===qs.length, missing:qs.filter(q=>!(visit&&visit.answers&&visit.answers[q.id]!=null&&visit.answers[q.id]!==''))};
+}
 function visitScore(visit){
   const scores={};
   DOMAINS.forEach(([k])=>{
-    const qs=questions().filter(q=>q.domain===k);
+    const qs=domainQuestions(k);
     let got=0,max=0;
-    qs.forEach(q=>{ const v=visit.answers&&visit.answers[q.id]; if(v==null) return; got+=Math.max(0,Math.min(q.max,+v)); max+=q.max; });
-    scores[k]=max?Math.round(got/max*100):0;
+    qs.forEach(q=>{ const v=visit&&visit.answers?visit.answers[q.id]:null; if(v==null||v==='') return; got+=Math.max(0,Math.min(+q.max,+v)); max+=q.max; });
+    scores[k]=max?Math.round(got/max*100):null;
   });
   return scores;
 }
-function visitTotal(v){ return total({scores:visitScore(v)}); }
+function visitTotal(v){ return scorecardOf(v).complete? total({scores:visitScore(v)}) : null; }
 function visitsFor(name){
   return (S.db().pbfVisits||[]).filter(v=>v.hcName===name).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 }
@@ -96,12 +115,16 @@ function centreState(name){
   const vs=visitsFor(name), last=vs[0], sc=latestSchedule(name);
   if(sc && sc.status==='notVisited' && (!last || String(sc.quarter||'')>=String(last.quarter||'')))
     return {key:'not-visited',label:'Not visited',detail:'confirmed '+U.fmtDate(sc.confirmedAt||sc.plannedDate)+(sc.reason?' · '+sc.reason:''),pill:'rose',schedule:sc};
-  if(last) return {key:'visited',label:'Visited',detail:U.fmtDate(last.date)+' · '+(last.quarter||''),pill:'teal',schedule:sc};
-  if(sc) return {key:'due',label:'Not yet visited',detail:(quarterOpen(sc)?'scheduled ':'was due ')+U.fmtDate(sc.plannedDate)+' · '+(sc.quarter||'')+' open',pill:'blue',schedule:sc};
-  return {key:'unscheduled',label:'Not scheduled',detail:'no visit planned yet',pill:'slate',schedule:null};
+  if(last){
+    const card=scorecardOf(last);
+    if(card.complete) return {key:'visited',label:'Visited',detail:U.fmtDate(last.date)+' · '+(last.quarter||''),pill:'teal',schedule:sc,visit:last};
+    return {key:'pending',label:'Visited',detail:'marks pending · '+card.answered+' of '+card.total+' questions marked'+((last.date)?' · '+U.fmtDate(last.date):''),pill:'amber',schedule:sc,visit:last};
+  }
+  if(sc) return {key:'due',label:'Not yet visited',detail:'scheduled '+U.fmtDate(sc.plannedDate)+' · '+(sc.quarter||'')+(sc.fy?' '+sc.fy:''),pill:'blue',schedule:sc};
+  return {key:'due',label:'Not yet visited',detail:'no supervision recorded this quarter',pill:'blue',schedule:null};
 }
 function statusLine(r){
-  const st=r.state||{key:'unscheduled'};
+  const st=r.state||{key:'due',label:'Not yet visited',detail:''};
   if(st.key==='visited') return (r.assessor||'District PBF team')+' · '+U.fmtDate(r.submitted);
   return st.label+' · '+st.detail;
 }
@@ -111,154 +134,218 @@ function list(){
   const names=U.uniq(centres.concat((S.db().pbf||[]).map(r=>r.name)).concat((S.db().pbfVisits||[]).map(v=>v.hcName)));
   return names.map((name,i)=>{
     const vs=visitsFor(name);
-    const legacy=(S.db().pbf||[]).find(r=>r.name===name);
-    if(!vs.length && legacy) return Object.assign({},legacy,{state:centreState(name)});
-    if(!vs.length) return {id:'hc-'+i,name,scores:{},prior:0,submitted:null,assessor:'',visits:0,state:centreState(name)};
-    const latest=vs[0], prev=vs[1];
-    const scores=visitScore(latest);
-    return {id:latest.id,name,scores,total:visitTotal(latest),prior:prev?visitTotal(prev):0,
+    const state=centreState(name);
+    if(!vs.length){
+      const legacy=(S.db().pbf||[]).find(r=>r.name===name);
+      return {id:(legacy&&legacy.id)||('hc-'+i),name,scores:{},prior:null,submitted:null,assessor:'',visits:0,state};
+    }
+    const latest=vs[0];
+    const prev=vs.slice(1).find(v=>scorecardOf(v).complete);
+    return {id:latest.id,name,scores:visitScore(latest),prior:prev?visitTotal(prev):null,
       submitted:latest.date,assessor:latest.assessor||'District PBF team',quarter:latest.quarter,fy:latest.fy,
-      visit:latest,visits:vs.length,status:'draft',state:centreState(name)};
+      visit:latest,visits:vs.length,status:'draft',state};
   });
 }
-function total(row){ return Math.round(DOMAINS.reduce((a,[k,,w])=>a+(row.scores[k]||0)*w/100,0)); }
-function tone(v){ return v>=S.PBF_MIN+5?'teal':v>=S.PBF_MIN?'gold':'rose'; }
-function delta(r){ return total(r)-(r.prior||total(r)); }
+function total(row){
+  const w=domainWeights();
+  let acc=0,sum=0;
+  DOMAINS.forEach(([k])=>{ const v=row.scores?row.scores[k]:null; if(v==null) return; acc+=v*(w[k]||0); sum+=(w[k]||0); });
+  return sum? Math.round(acc/sum) : null;
+}
+const sc=v=>v==null?'—':v+'%';
+function tone(v){ return v==null?'slate':v>=S.PBF_MIN+5?'teal':v>=S.PBF_MIN?'gold':'rose'; }
+function delta(r){ const t=total(r); if(t==null) return null; return r.prior==null?0:t-r.prior; }
 function stats(){
   const rows=list();
-  return {avg:Math.round(U.avg(rows.map(total))), top:rows.slice().sort((a,b)=>total(b)-total(a))[0], bottom:rows.slice().sort((a,b)=>total(a)-total(b))[0],
-    below:rows.filter(r=>total(r)<S.PBF_MIN).length, improved:rows.filter(r=>delta(r)>0).length, rows};
+  const scored=rows.filter(r=>total(r)!=null);
+  const sorted=scored.slice().sort((a,b)=>total(b)-total(a));
+  return {avg:scored.length?Math.round(U.avg(scored.map(total))):null, top:sorted[0], bottom:sorted[sorted.length-1],
+    below:scored.filter(r=>total(r)<S.PBF_MIN).length, improved:scored.filter(r=>delta(r)>0).length,
+    scored:scored.length, pending:rows.length-scored.length, rows};
 }
 function kpis(){
   const s=stats();
+  const spark=vals=>C.spark(vals.length?vals:[0],{color:'var(--gold)'});
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
-   +'<div class="c3">'+UI.stat({label:'District average',value:s.avg,unit:'%',icon:'chart-line',formatted:'0',delta:3.4,note:s.rows.length+' health centres · Q1 FY 26/27',spark:C.spark(s.rows.map(total),{color:'var(--gold)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Leading centre',value:s.top?total(s.top):0,unit:'%',icon:'award',formatted:'0',note:s.top?s.top.name:'—',spark:C.spark([62,66,70,71,74,78,total(s.top||{scores:{}})],{color:'var(--pos)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Below '+S.PBF_MIN+'% floor',value:s.below,icon:'alert-triangle',formatted:'0',note:s.below?'Support plan required':'All centres above floor',spark:C.spark([3,3,2,2,2,1,1,s.below],{color:'var(--crit)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Improved vs Q4',value:s.improved,unit:'/ '+s.rows.length,icon:'trending-up',formatted:'0',note:'Quarter-on-quarter movement',spark:C.spark([2,3,3,4,4,5,5,s.improved],{color:'var(--pos)'})})+'</div></div>';
+   +'<div class="c3">'+UI.stat({label:'District average',value:s.avg==null?0:s.avg,unit:'%',icon:'chart-line',formatted:'0',note:s.scored+' of '+s.rows.length+' centres scored',spark:spark(s.rows.filter(r=>total(r)!=null).map(total))})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Leading centre',value:s.top?total(s.top):0,unit:'%',icon:'award',formatted:'0',note:s.top?s.top.name:'No scorecard yet',spark:spark(s.rows.filter(r=>total(r)!=null).map(total))})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Below '+S.PBF_MIN+'% floor',value:s.below,icon:'alert-triangle',formatted:'0',note:s.below?'Support plan required':(s.scored?'All scored centres above floor':'Nothing scored yet'),spark:spark([s.below])})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Marks pending',value:s.pending,icon:'clipboard-list',formatted:'0',note:s.pending?'Visits recorded without a full scorecard':'Every visit has a full scorecard',spark:spark([s.pending])})+'</div></div>'
+   +'<div class="card pad" style="margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
+     +'<span class="pill '+(s.scored?'teal':'slate')+'">'+UI.ic('calculator',12)+'Index auto-calculated</span>'
+     +'<span class="small grow">Each domain is the marks earned over the marks still in the question bank, and the six weights are renormalised over the domains that still hold questions — delete a question and every figure follows. A centre only gets an index once <b>every</b> question is marked.</span>'
+     +'<span class="xs faint">'+questions().length+' questions · '+Object.keys(domainWeights()).filter(k=>domainWeights()[k]>0).length+' domains in use</span></div>';
 }
 function hero(){
-  const s=stats(); const rows=s.rows.slice().sort((a,b)=>total(b)-total(a));
-  return '<div class="grid-12"><div class="c12">'+UI.card({title:'Quarterly index',sub:'Weighted laboratory score · Q1 FY 2026/2027 · draft returns',icon:'building-2',
-    tools:'<span class="chip gold">'+UI.ic('file-text',12)+'Verification meeting 12 Nov</span>',
-    body:'<div class="pbf-strip">'+rows.map((r,i)=>{
-      const t=total(r), d=delta(r);
+  const s=stats();
+  const rows=s.rows.filter(r=>total(r)!=null).sort((x,y)=>total(y)-total(x));
+  return '<div class="grid-12"><div class="c12">'+UI.card({title:'Quarterly index',sub:'Weighted laboratory score · only complete scorecards are ranked',icon:'building-2',
+    tools:'<span class="chip gold">'+UI.ic('file-text',12)+s.pending+' awaiting marks</span>',
+    body:(rows.length?'<div class="pbf-strip">'+rows.map((r,i)=>{
+      const t=total(r), d=delta(r)||0;
       return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'%">'
         +'<div class="pbf-bar" style="height:'+U.clamp(t,4,100)+'%"><span class="pbf-fill '+(t>=S.PBF_MIN+5?'teal':t>=S.PBF_MIN?'gold':'rose')+'"></span></div>'
         +'<div class="pbf-rank mono">#'+(i+1)+'</div><div class="pbf-name">'+U.esc(r.name.replace(' HC',''))+'</div>'
-        +'<div class="mono xs '+(d>0?'':'')+'" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+')">'+(d>0?'+':'')+d+'</div></div>';
-    }).join('')+'</div>'
-    +'<div class="pbf-axis"><span class="xs faint">20%</span><span class="xs faint">'+S.PBF_MIN+'% floor</span><span class="xs faint">100%</span></div>'})+'</div></div>';
+        +'<div class="mono xs" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+')">'+(d>0?'+':'')+d+'</div></div>';
+    }).join('')+'</div>':'<div class="chart-empty">No centre has a complete scorecard yet — record a visit to start the index</div>')
+    +'<div class="pbf-axis"><span class="xs faint">0%</span><span class="xs faint">'+S.PBF_MIN+'% floor</span><span class="xs faint">100%</span></div>'})+'</div></div>';
 }
 function rowData(){
   return list().filter(r=>!q||r.name.toLowerCase().indexOf(q)>=0).slice().sort((a,b)=>{
     if(sort==='name') return a.name.localeCompare(b.name);
-    if(sort==='delta') return delta(b)-delta(a);
-    return total(b)-total(a);
+    const ta=total(a), tb=total(b);
+    if(ta==null&&tb==null) return a.name.localeCompare(b.name);
+    if(ta==null) return 1; if(tb==null) return -1;
+    if(sort==='delta') return (delta(b)||0)-(delta(a)||0);
+    return tb-ta;
   });
 }
 function rowsHTML(){
   const rows=rowData();
+  const w=domainWeights();
   if(!rows.length) return '<tr><td colspan="'+(DOMAINS.length+5)+'"><div style="padding:26px 8px">'+UI.empty({art:'search',title:'No health centre matches',body:'Try a shorter search term.'})+'</div></td></tr>';
   return rows.map(r=>{ const t=total(r), d=delta(r);
     return '<tr data-pbf-row="'+r.id+'" style="cursor:pointer">'
       +'<td><div class="primary-cell"><b>'+U.esc(r.name)+'</b><small>'+U.esc(statusLine(r))+'</small></div></td>'
-      +DOMAINS.map(([k])=>'<td class="num"><span class="mono xs" style="color:var(--'+(r.scores[k]>=S.PBF_MIN+5?'pos':r.scores[k]>=S.PBF_MIN?'gold-bright':'crit')+')">'+r.scores[k]+'</span></td>').join('')
-      +'<td><span class="pill '+tone(t)+'">'+t+'%</span></td><td class="num xs faint">'+r.prior+'</td>'
-      +'<td class="mono xs" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+')">'+(d>0?'+':'')+d+'</td>'
+      +DOMAINS.map(([k])=>{ const v=r.scores?r.scores[k]:null;
+        return '<td class="num"><span class="mono xs" style="color:var(--'+(v==null?'text-faint':v>=S.PBF_MIN+5?'pos':v>=S.PBF_MIN?'gold-bright':'crit')+')">'+(v==null?'—':v)+'</span></td>'; }).join('')
+      +'<td>'+(t!=null?'<span class="pill '+tone(t)+'">'+t+'%</span>'
+        :r.state&&r.state.key==='pending'?'<span class="pill amber">marks pending</span>'
+        :'<span class="pill blue">not yet visited</span>')+'</td>'
+      +'<td class="num xs faint">'+(r.prior==null?'—':r.prior)+'</td>'
+      +'<td class="mono xs" style="color:var(--'+(d==null?'text-faint':d>0?'pos':d<0?'crit':'text-faint')+')">'+(d==null?'—':(d>0?'+':'')+d)+'</td>'
       +'<td><button class="icon-btn" style="width:26px;height:26px" data-open="'+r.id+'">'+UI.ic('chevron-right',14)+'</button></td></tr>'; }).join('');
 }
 function table(){
+  const w=domainWeights();
   return '<div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="pbfSearch" placeholder="Search health centre…" value="'+U.esc(q)+'"></div>'
    +'<span class="grow"></span>'
    +'<div class="seg">'+[['total','Score'],['delta','Momentum'],['name','Name']].map(([k,l])=>'<button class="'+(sort===k?'on':'')+'" data-sort="'+k+'">'+l+'</button>').join('')+'</div></div>'
-   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+DOMAINS.map(d=>'<th class="num" title="'+U.esc(d[1])+'">'+U.esc(d[0])+'</th>').join('')+'<th>Weighted</th><th>Q4</th><th>Δ</th><th></th></tr></thead>'
+   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+DOMAINS.map(d=>'<th class="num" title="'+U.esc(d[1])+'">'+U.esc(d[0])+'<span class="xs faint" style="display:block;font-weight:400">'+Math.round(w[d[0]])+'%</span></th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th><th></th></tr></thead>'
    +'<tbody id="pbfBody">'+rowsHTML()+'</tbody></table></div>'
    +'<div class="card-foot"><span>Draft indices — subject to district verification</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
 }
 function matrix(){
-  const rows=list().slice().sort((a,b)=>total(b)-total(a));
-  return UI.card({title:'Domain heatmap',sub:'Where each centre loses points',icon:'layout-grid',body:
-    '<div style="overflow-x:auto"><table class="pbf-heat"><thead><tr><th></th>'+DOMAINS.map(d=>'<th>'+U.esc(d[1].split(' ')[0])+'<span class="w">'+d[2]+'%</span></th>').join('')+'<th>Index</th></tr></thead><tbody>'
+  const rows=list().slice().sort((a,b)=>{ const ta=total(a), tb=total(b); if(ta==null&&tb==null) return a.name.localeCompare(b.name); if(ta==null) return 1; if(tb==null) return -1; return tb-ta; });
+  const w=domainWeights();
+  return UI.card({title:'Domain heatmap',sub:'Every cell is a recorded scorecard — a blank cell is a centre whose marks are not in yet',icon:'layout-grid',body:
+    '<div style="overflow-x:auto"><table class="pbf-heat"><thead><tr><th></th>'+DOMAINS.map(d=>'<th>'+U.esc(d[1].split(' ')[0])+'<span class="w">'+Math.round(w[d[0]])+'%</span></th>').join('')+'<th>Index</th></tr></thead><tbody>'
     +rows.map(r=>'<tr><td class="pbf-hc">'+U.esc(r.name)+'</td>'+DOMAINS.map(([k])=>{
-        const v=r.scores[k];
+        const v=r.scores?r.scores[k]:null;
+        if(v==null) return '<td><span class="heat-tile empty" data-tip="'+U.esc(DOMAINS.find(d=>d[0]===k)[1]+' · no marks recorded')+'" style="--a:0.04;--tone:120,130,150">—</span></td>';
         return '<td><span class="heat-tile" data-tip="'+U.esc(DOMAINS.find(d=>d[0]===k)[1]+' · '+v+'%')+'" style="--a:'+((v/100)*0.9+0.06).toFixed(2)+';--tone:'+(v>=S.PBF_MIN+5?'63,211,182':v>=S.PBF_MIN?'201,168,76':'227,114,124')+'">'+v+'</span></td>';
-      }).join('')+'<td><b class="mono">'+total(r)+'</b></td></tr>').join('')
-    +'</tbody></table></div><div class="card-foot"><span>Cell intensity maps the score; '+S.PBF_MIN+'% and above is green, below it red</span><span class="mono">6 domains</span></div>'});
+      }).join('')+'<td><b class="mono">'+(total(r)==null?'—':total(r))+'</b></td></tr>').join('')
+    +'</tbody></table></div><div class="card-foot"><span>Cell intensity maps the score; '+S.PBF_MIN+'% and above is green, below it red. A dash means that domain has no marks recorded for the centre.</span><span class="mono">'+DOMAINS.filter(d=>w[d[0]]>0).length+' domains in use</span></div>'});
+}
+function recommendationBlock(visit){
+  if(!visit) return '';
+  const rec=visit.recommendations||'';
+  const prev=visit.previous||null;
+  return '<div class="section-head"><h2>Recommendations</h2></div>'
+   +'<div class="card pad" style="background:var(--surface-inset)">'
+   +'<div class="eyebrow">Given at this visit</div>'
+   +'<div class="small" style="margin-top:4px;line-height:1.6">'+(rec?U.esc(rec):'<span class="faint">No recommendation recorded.</span>')+'</div>'
+   +(prev?'<div class="thread" style="margin:10px 0"></div><div class="eyebrow">Previous recommendation'+(prev.quarter?' · '+U.esc(prev.quarter):'')+'</div>'
+     +'<div class="small" style="margin-top:4px;line-height:1.6">'+U.esc(prev.text||'—')+'</div>'
+     +'<div style="margin-top:6px"><span class="pill '+(prev.addressed==='Yes'?'teal':prev.addressed==='Partly'?'amber':'rose')+'">Addressed: '+U.esc(prev.addressed||'not stated')+'</span>'
+     +(prev.note?' <span class="xs faint">'+U.esc(prev.note)+'</span>':'')+'</div>'
+     :'<div class="xs faint" style="margin-top:8px">First recorded supervision — there are no earlier recommendations to check.</div>')
+   +'</div>';
 }
 function drawer(id){
   const r=list().find(x=>x.id===id); if(!r) return;
   const t=total(r), d=delta(r);
-  UI.drawer({title:r.name,eyebrow:'PBF evaluation · Q1 FY 2026/2027',sub:'Assessed '+U.fmtDate(r.submitted)+' · '+U.esc(r.assessor||'District PBF team'),wide:true,body:
-    '<div class="row gap-lg" style="align-items:center;margin-bottom:16px">'+C.ring(t,{size:104,stroke:8})
-    +'<div><div class="row gap-sm"><span class="pill '+tone(t)+'">Index '+t+'%</span><span class="pill slate">Q4 baseline '+r.prior+'%</span><span class="delta '+(d<0?'down':'')+'">'+UI.ic(d>=0?'arrow-up':'arrow-down',10)+(d>0?'+':'')+d+' pts</span></div>'
-    +'<div class="xs faint" style="margin-top:8px;max-width:320px">Weighted composite of six domains. Only fully evidenced indicators are counted; draft until the district verification meeting.</div></div></div>'
-    +DOMAINS.map(([k,label,w])=>{ const v=r.scores[k]; const prev=U.clamp(r.prior-Math.round((1-v/100)*6),30,100);
-      return '<div style="margin-bottom:14px"><div class="row between" style="margin-bottom:5px"><span class="small">'+U.esc(label)+' <span class="xs faint">· weight '+w+'%</span></span>'
-      +'<span class="mono small" style="color:var(--'+(v>=S.PBF_MIN+5?'pos':v>=S.PBF_MIN?'gold-bright':'crit')+')">'+v+'%</span></div>'
-      +UI.meter(v,v>=S.PBF_MIN+5?'teal':v>=S.PBF_MIN?'gold':'rose',prev)+'<div class="xs faint" style="margin-top:3px">Marker shows the Q4 position</div></div>'; }).join('')
+  const w=domainWeights();
+  const st=r.state||centreState(r.name);
+  const card=r.visit?scorecardOf(r.visit):{complete:false,answered:0,total:questions().length,missing:questions()};
+  UI.drawer({title:r.name,eyebrow:'PBF evaluation · '+(r.quarter||'Q1')+' '+U.fyLabel(),
+    sub:(st.key==='visited'?'Assessed '+U.fmtDate(r.submitted):st.label+' · '+st.detail)+' · '+U.esc(r.assessor||'District PBF team'),wide:true,body:
+    '<div class="row gap-lg" style="align-items:center;margin-bottom:16px">'+(t==null?C.ring(0,{size:104,stroke:8}):C.ring(t,{size:104,stroke:8}))
+    +'<div><div class="row gap-sm">'+(t==null?'<span class="pill amber">Index not calculated</span>':'<span class="pill '+tone(t)+'">Index '+t+'%</span>')
+    +(r.prior!=null?'<span class="pill slate">Previous '+r.prior+'%</span>':'')
+    +(d!=null?'<span class="delta '+(d<0?'down':'')+'">'+UI.ic(d>=0?'arrow-up':'arrow-down',10)+(d>0?'+':'')+d+' pts</span>':'')+'</div>'
+    +'<div class="xs faint" style="margin-top:8px;max-width:340px">'+questions().length+' questions across six domains. The index only appears once every question carries a mark — a partial scorecard is never ranked.</div></div></div>'
+    +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="row between"><span class="small">Scorecard completeness</span>'
+    +'<span class="pill '+(card.complete?'teal':'amber')+'">'+card.answered+' / '+card.total+' marked</span></div>'
+    +UI.meter(card.total?card.answered/card.total*100:0,card.complete?'teal':'amber')
+    +(card.complete?'':'<div class="xs faint" style="margin-top:6px">'+card.missing.length+' question'+(card.missing.length===1?'':'s')+' still blank — open the visit and mark them all to calculate the index.</div>')+'</div>'
+    +DOMAINS.map(([k,label])=>{ const v=r.scores?r.scores[k]:null;
+      return '<div style="margin-bottom:14px"><div class="row between" style="margin-bottom:5px"><span class="small">'+U.esc(label)+' <span class="xs faint">· weight '+Math.round(w[k])+'% · '+domainQuestions(k).length+' q</span></span>'
+      +'<span class="mono small" style="color:var(--'+(v==null?'text-faint':v>=S.PBF_MIN+5?'pos':v>=S.PBF_MIN?'gold-bright':'crit')+')">'+(v==null?'—':v+'%')+'</span></div>'
+      +UI.meter(v==null?0:v,v==null?'slate':v>=S.PBF_MIN+5?'teal':v>=S.PBF_MIN?'gold':'rose')+'</div>'; }).join('')
     +'<div class="section-head"><h2>Verification</h2></div>'
-    +'<div class="custody">'+[['Register reconciliation',U.addDays(r.submitted,-1),'Laboratory register cross-checked with the district HIS'],
-      ['Stock card audit',U.addDays(r.submitted,-2),'Physical count matched to stock cards'],
-      ['Staff interviews',r.submitted,'Competency and duty rosters sampled'],
+    +'<div class="custody">'+[['Register reconciliation',r.submitted?U.addDays(r.submitted,-1):'','Laboratory register cross-checked with the district HIS'],
+      ['Stock card audit',r.submitted?U.addDays(r.submitted,-2):'','Physical count matched to stock cards'],
+      ['Staff interviews',r.submitted||'','Competency and duty rosters sampled'],
       ['District verification','','Awaiting PBF team sign-off']].map(([ti,dt,note])=>
       '<div class="custody-item'+(dt?'':' pending')+'"><span class="custody-dot"></span><div class="custody-body"><div class="custody-title">'+U.esc(ti)+'</div><div class="custody-meta">'+(dt?U.fmtDate(dt)+' · ':'Pending · ')+U.esc(note)+'</div></div></div>').join('')+'</div>'
-    +'<div class="section-head"><h2>Questions evaluated</h2><span class="more">'+(r.visit?Object.keys(r.visit.answers||{}).length+' of '+questions().length+' questions':'no visit recorded')+'</span></div>'
+    +recommendationBlock(r.visit)
+    +'<div class="section-head"><h2>Questions evaluated</h2><span class="more">'+(r.visit?card.answered+' of '+card.total+' questions':'no visit recorded')+'</span></div>'
     +(r.visit?DOMAINS.map(([k,label])=>{
-        const qs=questions().filter(q=>q.domain===k);
+        const qs=domainQuestions(k); if(!qs.length) return '';
         return '<div style="margin-bottom:10px"><div class="eyebrow">'+U.esc(label)+'</div>'
           +qs.map(q=>{ const v=r.visit.answers&&r.visit.answers[q.id]; const pct=v==null?null:Math.round(+v/q.max*100); const ok=pct!=null&&pct>=S.PBF_MIN;
-            return '<div class="list-row" style="padding:6px 0"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">'+U.esc(r.visit.quarter)+' · max '+q.max+' marks</div></div><span class="pill '+(v==null?'slate':ok?'teal':+v>=q.max*0.5?'amber':'rose')+' mono">'+(v==null?'—':v+'/'+q.max+' · '+pct+'%')+'</span></div>';
+            return '<div class="list-row" style="padding:6px 0"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks</div></div><span class="pill '+(v==null?'slate':ok?'teal':+v>=q.max*0.5?'amber':'rose')+' mono">'+(v==null?'blank':v+'/'+q.max+' · '+pct+'%')+'</span></div>';
           }).join('')+'</div>';
       }).join(''):'<p class="xs faint">No question-level visit has been logged for this centre yet.</p>')
     +'<div class="section-head"><h2>Visit history</h2><span class="more">'+(r.visits||0)+' visit'+(r.visits===1?'':'s')+'</span></div>'
-    +(visitsFor(r.name).length?visitsFor(r.name).map(v=>'<div class="list-row" data-visit="'+v.id+'" style="cursor:pointer"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(v.quarter||'')+' · '+U.fmtDate(v.date)+'</div><div class="lr-sub">'+U.esc(v.assessor||'')+(v.note?' · '+U.esc(v.note):'')+'</div></div><span class="pill '+tone(visitTotal(v))+'">'+visitTotal(v)+'%</span></div>').join(''):'<p class="xs faint">No visits logged.</p>')
-    +'<div class="hint" style="margin-top:12px">Scores are computed from the question marks of the latest visit. Adding a visit never overwrites an earlier one — the quarterly history stays intact.</div>',
-    foot:'<button class="btn" data-close>Close</button><button class="btn" data-edit>'+UI.ic('sliders',15)+'Adjust scores</button><button class="btn" data-new-visit>'+UI.ic('plus',15)+'Record visit</button><button class="btn primary" data-print>'+UI.ic('printer',15)+'Print scorecard</button>',
+    +(visitsFor(r.name).length?visitsFor(r.name).map(v=>{ const vt=visitTotal(v);
+        return '<div class="list-row" data-visit="'+v.id+'" style="cursor:pointer"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(v.quarter||'')+' · '+U.fmtDate(v.date)+'</div><div class="lr-sub">'+U.esc(v.assessor||'')+(v.recommendations?' · '+U.esc(v.recommendations.slice(0,60)):'')+'</div></div>'
+        +(vt==null?'<span class="pill amber">marks pending</span>':'<span class="pill '+tone(vt)+'">'+vt+'%</span>')+'</div>'; }).join(''):'<p class="xs faint">No visits logged.</p>')
+    +'<div class="hint" style="margin-top:12px">Adding a visit never overwrites an earlier one — the quarterly history stays intact.</div>',
+    foot:'<button class="btn" data-close>Close</button>'
+      +(r.visit?'<button class="btn" data-edit>'+UI.ic('sliders',15)+(card.complete?'Adjust marks':'Enter marks')+'</button>':'')
+      +'<button class="btn" data-new-visit>'+UI.ic('plus',15)+'Record visit</button><button class="btn primary" data-print>'+UI.ic('printer',15)+'Print scorecard</button>',
     onMount:(panel,close)=>{
-      panel.querySelector('[data-edit]').onclick=()=>{ close(); editScores(r); };
+      const ed=panel.querySelector('[data-edit]'); if(ed) ed.onclick=()=>{ close(); visitModal(r.visit.id); };
       panel.querySelector('[data-new-visit]').onclick=()=>{ close(); visitModal(null,r.name); };
       panel.querySelectorAll('[data-visit]').forEach(el=>el.onclick=()=>{ close(); visitModal(el.dataset.visit); });
       panel.querySelector('[data-print]').onclick=()=>printCentre(r);
     }});
 }
 
-/* ——— Seeded question-level visits from the aggregate Q1 scorecard ————— */
+/* ——— Baseline ——— from the aggregate Q1 scorecard ————— */
+/* ——— Baseline ————————————————————————————————————
+   The question-level marks that shipped with 6.6 were generated from the old
+   aggregate scorecard. They are not evidence, so they are dropped. The district
+   has confirmed four supervision visits (Coko, Minazi, Rwankuba, Muhondo) — those
+   stay as visits with their scorecard still to be entered; every other centre
+   reads "not yet visited". */
+const BASELINE_VISITED=['Coko HC','Minazi HC','Rwankuba HC','Muhondo HC'];
 function ensureSeeded(){
   const db=S.db();
-  if(db.meta&&db.meta.pbfVisitsSeeded){ ensureSchedule(); return; }
-  const legacy=db.pbf||[]; if(!legacy.length){ db.meta.pbfVisitsSeeded=true; ensureSchedule(); return; }
-  const qs=questions(); const visits=[];
-  legacy.forEach(r=>{
-    const answers={};
-    qs.forEach(q=>{ const dom=+r.scores[q.domain]||70; const rnd=U.rng('pbfv-'+r.id+q.id);
-      answers[q.id]=Math.round(q.max*U.clamp(dom/100+(rnd()-0.5)*0.16,0.2,1)); });
-    visits.push({id:U.uid('pbfv'),hcName:r.name,quarter:r.quarter||'Q1',fy:r.fy||'2026/2027',
-      date:r.submitted||U.todayISO(),assessor:r.assessor||'District PBF team',answers,
-      note:'Imported from the Q1 aggregate scorecard',seeded:true});
+  if(db.meta&&db.meta.pbfRealV67){ ensureSchedule(); return; }
+  db.meta.pbfRealV67=true; db.meta.pbfVisitsSeeded=true;
+  const legacy=db.pbf||[];
+  const manual=(db.pbfVisits||[]).filter(v=>!v.seeded);
+  const kept=manual.slice();
+  BASELINE_VISITED.forEach(name=>{
+    if(kept.some(v=>v.hcName===name)) return;
+    const old=legacy.find(r=>r.name===name)||{};
+    kept.push({id:U.uid('pbfv'),hcName:name,quarter:old.quarter||'Q1',fy:old.fy||U.fyLabel(),
+      date:old.submitted||'',assessor:old.assessor||'District PBF team',answers:{},
+      note:'Supervision visit recorded — question marks still to be entered',pending:true});
   });
-  S.commit(d=>{ d.pbfVisits=(d.pbfVisits||[]).concat(visits); d.meta.pbfVisitsSeeded=true; },
-    {action:'pbf.visits.import',entity:'pbf',detail:legacy.length+' centres expanded to question-level visits'});
+  S.commit(d=>{
+    d.pbfVisits=kept;
+    d.pbfSchedule=(d.pbfSchedule||[]).filter(sc=>!sc.seeded);
+    kept.forEach(v=>{ if(!(d.pbfSchedule||[]).some(x=>x.hcName===v.hcName&&x.quarter===v.quarter))
+      d.pbfSchedule.push({id:U.uid('pbfs'),hcName:v.hcName,quarter:v.quarter,fy:v.fy,plannedDate:v.date,status:'visited',visitId:v.id,visitedAt:v.date,assessor:v.assessor}); });
+    d.meta.pbfScheduleSeeded=true;
+  },{action:'pbf.baseline',entity:'pbf',detail:'Question-level marks reset · '+kept.length+' recorded visits, '+(U.uniq((db.catalog.healthCenters||[]).map(h=>h.name)).length-kept.length)+' centres not yet visited'});
   ensureSchedule();
 }
-/* Every recorded visit settles the slot it was planned for; the district's plan
-   for the quarter ahead is entered as scheduled, never as a result. */
+/* Planned supervision is entered by the user; nothing is scheduled on their behalf. */
 function ensureSchedule(){
   const db=S.db();
-  if(db.meta&&db.meta.pbfScheduleSeeded) return;
+  if(!db.pbfSchedule) db.pbfSchedule=[];
   db.meta.pbfScheduleSeeded=true;
-  if((db.pbfSchedule||[]).length){ S.save(); return; }
-  const slots=[];
-  (db.pbfVisits||[]).forEach(v=>slots.push({id:U.uid('pbfs'),hcName:v.hcName,quarter:v.quarter||'Q1',fy:v.fy||U.fyLabel(),
-    plannedDate:v.date,status:'visited',visitId:v.id,visitedAt:v.date,assessor:v.assessor||'District PBF team',seeded:true}));
-  const latest=(db.pbfVisits||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
-  const nextQ=latest?(latest.quarter==='Q1'?'Q2':latest.quarter==='Q2'?'Q3':latest.quarter==='Q3'?'Q4':'Q1'):'Q2';
-  const fy=latest?latest.fy||U.fyLabel():U.fyLabel();
-  const plan=U.uniq((db.catalog.healthCenters||[]).map(h=>h.name)).slice(0,6);
-  plan.forEach((name,i)=>slots.push({id:U.uid('pbfs'),hcName:name,quarter:nextQ,fy,
-    plannedDate:U.addDays(U.todayISO(),14+i*7),status:'scheduled',assessor:'District PBF team',seeded:true}));
-  S.commit(d=>{ d.pbfSchedule=slots; },{action:'pbf.schedule.seed',entity:'pbf',
-    detail:slots.length+' visit slots · '+nextQ+' '+fy+' plan entered'});
+}
+function previousVisitFor(hcName, skipId){
+  const current=skipId?(S.db().pbfVisits||[]).find(v=>v.id===skipId):null;
+  const vs=visitsFor(hcName).filter(v=>v.id!==skipId && v.date);
+  const before=current&&current.date?vs.filter(v=>String(v.date)<String(current.date)):vs;
+  return before[0]||null;
 }
 function visitModal(id,presetCentre,presetQuarter){
   if(!LS.auth.guard('edit')) return;
@@ -267,55 +354,91 @@ function visitModal(id,presetCentre,presetQuarter){
   const centres=U.uniq(db.catalog.healthCenters.map(h=>h.name).concat((db.pbf||[]).map(r=>r.name)));
   const qs=questions();
   const answers=v?(v.answers||{}):{};
-  const section=k=>qs.filter(q=>q.domain===k).map(q=>{
+  const section=k=>domainQuestions(k).map(q=>{
     const val=answers[q.id];
-    return '<div class="row between gap-sm" style="padding:5px 0;border-bottom:1px solid var(--border)"><span class="small grow" style="max-width:74%">'+U.esc(q.text)+'</span>'
-      +'<span class="row gap-sm"><input class="input mono" data-q="'+q.id+'" type="number" min="0" max="'+q.max+'" step="1" value="'+(val==null?'':val)+'" style="width:64px" placeholder="—"><span class="xs faint">/'+q.max+'</span><span class="pill slate mono" data-qpct="'+q.id+'">'+(val==null?'—':Math.round(val/q.max*100)+'%')+'</span></span></div>';
+    return '<div class="row between gap-sm" style="padding:5px 0;border-bottom:1px solid var(--border)"><span class="small grow" style="max-width:72%">'+U.esc(q.text)+'<span class="xs faint"> · max '+q.max+'</span></span>'
+      +'<span class="row gap-sm"><input class="input mono" data-q="'+q.id+'" type="number" min="0" max="'+q.max+'" step="1" value="'+(val==null?'':val)+'" style="width:64px" placeholder="—" aria-label="'+U.esc(q.text)+'"><span class="xs faint">/'+q.max+'</span><span class="pill slate mono" data-qpct="'+q.id+'">'+(val==null?'—':Math.round(val/q.max*100)+'%')+'</span></span></div>';
   }).join('');
-  UI.modal({title:v?'Edit PBF visit':'Record PBF visit',sub:'Marks per question · the centre keeps every visit, so quarterly progress is visible.',width:'min(780px,100%)',
+  UI.modal({title:v?'Edit PBF visit':'Record PBF visit',
+    sub:'Every question must carry a mark — a supervision only counts once the scorecard is complete.',width:'min(800px,100%)',
     body:'<div class="form-grid">'
       +'<div class="field"><label>Health centre</label><select class="select" id="pvCentre">'+centres.map(c=>'<option'+((v?v.hcName===c:presetCentre===c)?' selected':'')+'>'+U.esc(c)+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Quarter</label><input class="input mono" id="pvQuarter" value="'+U.esc(v?v.quarter:(presetQuarter||'Q1'))+'"></div>'
-      +'<div class="field"><label>Visit date</label><input class="input" type="date" id="pvDate" value="'+(v?String(v.date).slice(0,10):U.todayISO())+'"></div>'
+      +'<div class="field"><label>Visit date</label><input class="input" type="date" id="pvDate" value="'+(v&&v.date?String(v.date).slice(0,10):U.todayISO())+'"></div>'
       +'<div class="field"><label>Assessor</label><input class="input" id="pvAssessor" value="'+U.esc(v?v.assessor:LS.auth.user.name)+'"></div>'
-      +'<div class="field span2"><label>Marks — every question evaluated at this visit</label>'
-        +DOMAINS.map(([k,label])=>'<div style="margin-top:8px"><div class="eyebrow">'+U.esc(label)+'</div>'+section(k)+'</div>').join('')
-        +'<div class="xs faint" style="margin-top:8px">Leave a question blank if it was not assessed — blanks are excluded from the domain percentage instead of scoring zero.</div>'
-        +'<div class="row gap-sm" style="margin-top:8px"><span class="pill gold" id="pvPreview">Preview</span><button class="btn xs" data-all-max>'+UI.ic('check-check',12)+'Mark all full</button></div>'
+      +'<div class="field span2"><label>Marks — every question, no blanks</label>'
+        +DOMAINS.filter(([k])=>domainQuestions(k).length).map(([k,label])=>'<div style="margin-top:8px"><div class="eyebrow">'+U.esc(label)+' · '+domainQuestions(k).length+' questions</div>'+section(k)+'</div>').join('')
+        +'<div class="row gap-sm" style="margin-top:10px;flex-wrap:wrap"><span class="pill amber" id="pvPreview">0 / '+qs.length+' marked</span><span class="pill slate" id="pvIndex">Index —</span><button class="btn xs" type="button" data-all-max>'+UI.ic('check-check',12)+'Mark all full</button><button class="btn xs" type="button" data-clear>'+UI.ic('eraser',12)+'Clear marks</button></div>'
       +'</div>'
-      +'<div class="field span2"><label>Visit note</label><input class="input" id="pvNote" value="'+U.esc(v?v.note||'':'')+'" placeholder="Observed gaps, agreements reached with the in-charge"></div></div>',
-    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+(v?'Save visit':'Save visit')+'</button>',
+      +'<div class="field span2" style="margin-top:6px"><label>Recommendations given at this visit</label>'
+        +'<textarea class="textarea" id="pvRec" rows="2" placeholder="Two or three actions agreed with the in-charge…">'+U.esc(v?(v.recommendations||''):'')+'</textarea>'
+        +'<div class="xs faint" style="margin-top:4px">Keep it short — this is what the next visit will check.</div></div>'
+      +'<div class="field span2"><div id="pvPrev"></div></div>'
+      +'<div class="field span2"><label>Visit note</label><input class="input" id="pvNote" value="'+U.esc(v?(v.note||''):'')+'" placeholder="Observed gaps, who was present"></div></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save visit</button>',
     onMount:(el,close)=>{
       const inputs=()=>Array.from(el.querySelectorAll('[data-q]'));
-      const currentAnswers=()=>{ const a={}; inputs().forEach(i=>{ if(i.value!=='') a[i.dataset.q]=U.clamp(+i.value,0,+(i.max||5)); }); return a; };
-      const preview=()=>{ const a=currentAnswers(); const sc=visitScore({answers:a});
-        el.querySelector('#pvPreview').textContent='Index '+total({scores:sc})+'%'; };
+      const currentAnswers=()=>{ const a={}; inputs().forEach(i=>{ if(i.value!=='') a[i.dataset.q]=U.clamp(+i.value,0,+(i.max||Q_MAX_DEFAULT)); }); return a; };
       const pct=i=>{ const cell=el.querySelector('[data-qpct="'+i.dataset.q+'"]'); if(!cell) return;
         const q=qById(i.dataset.q); const m=q?+q.max:Q_MAX_DEFAULT;
         cell.textContent = i.value===''?'—':Math.round(U.clamp(+i.value,0,m)/m*100)+'%'; };
+      const preview=()=>{ const a=currentAnswers(); const n=Object.keys(a).length;
+        const card=scorecardOf({answers:a});
+        el.querySelector('#pvPreview').textContent=n+' / '+qs.length+' marked';
+        el.querySelector('#pvPreview').className='pill '+(card.complete?'teal':'amber');
+        const idx=total({scores:visitScore({answers:a})});
+        el.querySelector('#pvIndex').textContent='Index '+(card.complete&&idx!=null?idx+'%':'—'); };
       inputs().forEach(i=>{ i.addEventListener('input',()=>{ pct(i); preview(); }); pct(i); });
       preview();
-      el.querySelector('[data-all-max]').onclick=()=>{ inputs().forEach(i=>{ const q=qById(i.dataset.q); i.value=q?q.max:5; }); preview(); };
+      const paintPrev=()=>{
+        const centre=el.querySelector('#pvCentre').value;
+        const prev=previousVisitFor(centre, v?v.id:null);
+        const box=el.querySelector('#pvPrev');
+        if(!prev){
+          box.innerHTML='<div class="card pad" style="background:var(--surface-inset)"><div class="eyebrow">Previous recommendations</div><div class="xs faint" style="margin-top:4px">First recorded supervision for this centre — there is nothing to follow up yet.</div></div>';
+          return;
+        }
+        const rec=prev.recommendations||'';
+        const chosen=(v&&v.previous&&v.previous.visitId===prev.id)?v.previous:{};
+        box.innerHTML='<div class="card pad" style="background:var(--surface-inset)"><div class="eyebrow">Previous recommendations · '+U.esc(prev.quarter||'')+' '+U.fmtDate(prev.date)+'</div>'
+          +'<div class="small" style="margin-top:4px;line-height:1.55">'+(rec?U.esc(rec):'<span class="faint">No recommendation was written last time.</span>')+'</div>'
+          +(rec?'<div class="form-grid" style="margin-top:8px"><div class="field"><label>Were they addressed?</label><select class="select" id="pvAddr">'
+            +['','Yes','Partly','No'].map(o=>'<option value="'+o+'"'+((chosen.addressed||'')===o?' selected':'')+'>'+(o||'— not checked —')+'</option>').join('')+'</select></div>'
+            +'<div class="field"><label>Evidence / note (optional)</label><input class="input" id="pvAddrNote" value="'+U.esc(chosen.note||'')+'" placeholder="What changed since the last visit"></div></div>':'')
+          +'</div>';
+      };
+      paintPrev();
+      el.querySelector('#pvCentre').addEventListener('change',paintPrev);
+      el.querySelector('[data-all-max]').onclick=()=>{ inputs().forEach(i=>{ const q=qById(i.dataset.q); i.value=q?q.max:Q_MAX_DEFAULT; pct(i); }); preview(); };
+      el.querySelector('[data-clear]').onclick=()=>{ inputs().forEach(i=>{ i.value=''; pct(i); }); preview(); };
       el.querySelector('[data-save]').onclick=()=>{
         const hcName=el.querySelector('#pvCentre').value;
         const answers=currentAnswers();
-        if(!Object.keys(answers).length) return UI.toast('Enter at least one question mark',{type:'warn'});
-        const rec={hcName,quarter:el.querySelector('#pvQuarter').value.trim()||'Q1',fy:U.fyLabel(),
+        const card=scorecardOf({answers});
+        if(!card.complete){
+          const first=card.missing[0];
+          const input=first?el.querySelector('[data-q="'+first.id+'"]'):null; if(input) input.focus();
+          return UI.toast('Every question needs a mark — '+(card.total-card.answered)+' still blank',{type:'warn'});
+        }
+        const prev=previousVisitFor(hcName, v?v.id:null);
+        const addrEl=el.querySelector('#pvAddr');
+        const rec=el.querySelector('#pvRec').value.trim();
+        const rec_previous=prev?{visitId:prev.id,quarter:prev.quarter||'',date:prev.date||'',text:prev.recommendations||'',
+          addressed:addrEl?addrEl.value:'',note:(el.querySelector('#pvAddrNote')||{}).value||''}:null;
+        const rec2={hcName,quarter:el.querySelector('#pvQuarter').value.trim()||'Q1',fy:U.fyLabel(),
           date:el.querySelector('#pvDate').value,assessor:el.querySelector('#pvAssessor').value.trim(),
-          answers,note:el.querySelector('#pvNote').value.trim()};
+          answers,note:el.querySelector('#pvNote').value.trim(),recommendations:rec,previous:rec_previous,pending:false};
         const vid=v?v.id:U.uid('pbfv');
         S.commit(d=>{
           d.pbfVisits=d.pbfVisits||[];
-          if(v){ const x=d.pbfVisits.find(y=>y.id===v.id); if(x) Object.assign(x,rec); }
-          else d.pbfVisits.unshift(Object.assign({id:vid},rec));
-          /* The visit settles its scheduled slot — the quarter stops reading
-             "not yet visited" the moment the marks are recorded. */
+          if(v){ const x=d.pbfVisits.find(y=>y.id===v.id); if(x) Object.assign(x,rec2); }
+          else d.pbfVisits.unshift(Object.assign({id:vid},rec2));
           d.pbfSchedule=d.pbfSchedule||[];
-          const slot=d.pbfSchedule.find(x=>x.hcName===hcName && x.quarter===rec.quarter);
-          if(slot){ slot.status='visited'; slot.visitId=vid; slot.visitedAt=rec.date; }
-          else d.pbfSchedule.push({id:U.uid('pbfs'),hcName,quarter:rec.quarter,fy:rec.fy,plannedDate:rec.date,status:'visited',visitId:vid,visitedAt:rec.date,assessor:rec.assessor});
-        },{action:'pbf.visit.'+(v?'edit':'add'),entity:'pbf',entityId:v?v.id:hcName,detail:hcName+' · '+rec.quarter+' · index '+total({scores:visitScore({answers})})+'%'});
-        close(); LS.shell.refresh(); UI.toast('Visit saved · question marks stored',{type:'ok'});
+          const slot=d.pbfSchedule.find(x=>x.hcName===hcName && x.quarter===rec2.quarter);
+          if(slot){ slot.status='visited'; slot.visitId=vid; slot.visitedAt=rec2.date; }
+          else d.pbfSchedule.push({id:U.uid('pbfs'),hcName,quarter:rec2.quarter,fy:rec2.fy,plannedDate:rec2.date,status:'visited',visitId:vid,visitedAt:rec2.date,assessor:rec2.assessor});
+        },{action:'pbf.visit.'+(v?'edit':'add'),entity:'pbf',entityId:v?v.id:hcName,detail:hcName+' · '+rec2.quarter+' · index '+total({scores:visitScore({answers})})+'%'});
+        close(); LS.shell.refresh(); UI.toast('Visit saved · index '+total({scores:visitScore({answers})})+'%',{type:'ok'});
       };
     }});
 }
@@ -324,9 +447,9 @@ function questionModal(id){
   const q=id?qById(id):null;
   UI.modal({title:q?'Edit question':'Add evaluation question',sub:'Questions are grouped by domain; the domain weight is applied automatically.',width:'min(560px,100%)',
     body:'<div class="form-grid"><div class="field span2"><label>Question</label><textarea class="textarea" id="qbText" rows="2">'+U.esc(q?q.text:'')+'</textarea></div>'
-      +'<div class="field"><label>Domain</label><select class="select" id="qbDomain">'+DOMAINS.map(([k,label,w])=>'<option value="'+k+'"'+((q?q.domain:'quality')===k?' selected':'')+'>'+U.esc(label)+' ('+w+'%)</option>').join('')+'</select></div>'
+      +'<div class="field"><label>Domain</label><select class="select" id="qbDomain">'+DOMAINS.map(([k,label])=>{ const w=Math.round(domainWeights()[k]); return '<option value="'+k+'"'+((q?q.domain:'quality')===k?' selected':'')+'>'+U.esc(label)+' ('+w+'% of index today)</option>'; }).join('')+'</select></div>'
       +'<div class="field"><label>Maximum marks</label><input class="input mono" type="number" min="1" max="100" id="qbMax" value="'+(q?q.max:Q_MAX_DEFAULT)+'"></div></div>'
-      +'<div class="hint" style="margin-top:10px">Each question carries its own maximum (25 by default). The domain score is the marks earned over the marks available, so questions of different weight can sit side by side.</div>',
+      +'<div class="hint" style="margin-top:10px">Each question carries its own maximum (25 by default). The domain percentage is the marks earned over the marks available in that domain, and the six domain weights are renormalised over the domains that still hold questions — nothing has to be recalculated by hand.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save question</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save]').onclick=()=>{
@@ -341,18 +464,21 @@ function questionModal(id){
       };
     }});
 }
-async function deleteQuestion(id){
-  const q=qById(id); if(!q) return;
+async function deleteQuestions(ids){
+  const list=ids.map(id=>qById(id)).filter(Boolean);
+  if(!list.length) return;
   if(!LS.auth.guard('edit')) return;
-  const answered=(S.db().pbfVisits||[]).filter(v=>v.answers&&v.answers[q.id]!=null).length;
-  const ok=await UI.confirm({title:'Delete this question?',
-    body:'“'+q.text+'” leaves the question bank and stops counting towards the domain percentage.'+(answered?' Marks already recorded on '+answered+' visit'+(answered===1?'':'s')+' are kept for audit and can be restored.':''),
-    confirm:'Delete question',danger:true});
+  const answered=U.sum(list,q=>(S.db().pbfVisits||[]).filter(v=>v.answers&&v.answers[q.id]!=null).length);
+  const ok=await UI.confirm({title:'Delete '+list.length+' question'+(list.length===1?'':'s')+'?',
+    body:list.slice(0,6).map(q=>'· '+q.text).join('<br>')+(list.length>6?'<br>· and '+(list.length-6)+' more':'')
+      +'<div style="margin-top:8px">The domain percentages and the index weights are recalculated from the questions that remain.'+(answered?' Marks already recorded are kept for audit and the questions can be restored.':'')+'</div>',
+    confirm:'Delete '+list.length+(list.length===1?' question':' questions'),danger:true});
   if(!ok) return;
-  S.commit(d=>{ const x=(d.pbfQuestions||[]).find(y=>y.id===id);
-    if(x){ x.deleted=true; x.deletedAt=U.nowISO(); x.deletedBy=LS.auth.user.name; x.answerHistory=answered; } },
-    {action:'pbf.question.delete',entity:'pbf',entityId:id,detail:q.text.slice(0,80)});
-  LS.shell.refresh(); UI.toast('Question deleted',{type:'ok'});
+  S.commit(d=>{ (d.pbfQuestions||[]).forEach(x=>{
+      if(ids.indexOf(x.id)<0) return;
+      x.deleted=true; x.deletedAt=U.nowISO(); x.deletedBy=LS.auth.user.name; }); },
+    {action:'pbf.question.delete',entity:'pbf',detail:list.length+' question'+(list.length===1?'':'s')+' deleted · '+list.map(q=>q.text.slice(0,32)).join(' | ').slice(0,140)});
+  LS.shell.refresh(); UI.toast(list.length+' question'+(list.length===1?'':'s')+' deleted',{type:'ok'});
 }
 function restoreQuestion(id){
   const q=(S.db().pbfQuestions||[]).find(x=>x.id===id); if(!q) return;
@@ -363,16 +489,24 @@ function restoreQuestion(id){
 }
 function questionBank(){
   const qs=questions();
-  return UI.card({title:'Question bank',sub:'What is evaluated on every quarterly visit · '+qs.length+' questions',icon:'list-checks',
+  const w=domainWeights();
+  return UI.card({title:'Question bank',sub:'Tick the questions you want to drop · '+qs.length+' in use',icon:'list-checks',
     tools:'<button class="btn xs" data-add-q>'+UI.ic('plus',12)+'Add question</button>',
-    body:DOMAINS.map(([k,label,w])=>{ const group=qs.filter(q=>q.domain===k);
-      return '<div style="margin-bottom:10px"><div class="row between"><span class="eyebrow">'+U.esc(label)+' <span class="faint">· '+w+'% of index</span></span><span class="xs faint">'+group.length+' questions</span></div>'
-        +group.map(q=>'<div class="list-row" style="padding:6px 0"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks · '+Math.round(q.max/group.reduce((a,x)=>a+(+x.max||0),0)*100)+'% of the domain</div></div>'
-          +'<div class="row gap-sm"><button class="icon-btn" style="width:24px;height:24px" data-edit-q="'+q.id+'" title="Edit">'+UI.ic('pencil',12)+'</button>'
-          +'<button class="icon-btn" style="width:24px;height:24px" data-del-q="'+q.id+'" title="Delete question">'+UI.ic('trash-2',12)+'</button></div></div>').join('')
+    body:'<div class="row between gap-sm" style="padding:4px 0 8px;border-bottom:1px solid var(--border);flex-wrap:wrap">'
+      +'<label class="row gap-sm" style="cursor:pointer"><input type="checkbox" data-q-all style="accent-color:var(--gold)"><span class="small">Select all '+qs.length+'</span></label>'
+      +'<span class="grow"></span>'
+      +'<span class="pill slate mono" id="qSelCount">0 selected</span>'
+      +'<button class="btn xs danger" data-del-selected disabled>'+UI.ic('trash-2',12)+'Delete selected</button></div>'
+      +DOMAINS.map(([k,label])=>{ const group=qs.filter(q=>q.domain===k); 
+      return '<div style="margin-top:10px" data-q-group="'+k+'"><div class="row between"><span class="eyebrow">'+U.esc(label)+' <span class="faint">· '+Math.round(w[k])+'% of index</span></span>'
+        +'<span class="xs faint" style="display:flex;gap:8px;align-items:center">'+group.length+' question'+(group.length===1?'':'s')+(group.length?'<label class="row gap-xs" style="cursor:pointer;gap:4px"><input type="checkbox" data-q-group-all="'+k+'" style="accent-color:var(--gold)"><span>all</span></label>':'')+'</span></div>'
+        +group.map(q=>'<div class="list-row" style="padding:6px 0"><input type="checkbox" data-q-sel="'+q.id+'" style="accent-color:var(--gold);margin-right:8px">'
+          +'<div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks · '+Math.round(q.max/Math.max(1,U.sum(group,x=>+x.max||0))*100)+'% of the domain</div></div>'
+          +'<div class="row gap-sm"><button class="icon-btn" style="width:24px;height:24px" data-edit-q="'+q.id+'" title="Edit">'+UI.ic('pencil',12)+'</button></div></div>').join('')
+        +(group.length?'':'<div class="xs faint" style="padding:4px 0">No question in this domain — its weight is redistributed across the others.</div>')
         +'</div>';
     }).join('')
-    +(retiredQuestions().length?'<div class="row between" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px"><span class="xs faint">'+retiredQuestions().length+' deleted question'+(retiredQuestions().length===1?'':'s')+' · not scored</span><span class="row gap-sm">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
+    +(retiredQuestions().length?'<div class="row between" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' deleted question'+(retiredQuestions().length===1?'':'s')+' · not scored</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
     });
 }
 /* ——— Scheduling ————————————————————————————————— */
@@ -425,26 +559,79 @@ function undoNotVisited(id){
     {action:'pbf.schedule.undo',entity:'pbf',entityId:id,detail:sc.hcName+' back to scheduled'});
   LS.shell.refresh(); UI.toast('Back to scheduled',{type:'info'});
 }
+/* ——— Supervision calendar ——————————————————————————
+   The calendar is the plan; a visit is the result. Planned visits are surfaced in
+   the notification centre as upcoming live events, so a supervision never arrives
+   unannounced. */
+function upcomingSlots(days){
+  const today=U.todayISO();
+  const horizon=U.addDays(today,days||60);
+  return schedule().filter(sc=>sc.status!=='notVisited' && sc.plannedDate && sc.plannedDate>=today && sc.plannedDate<=horizon)
+    .sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
+}
 function scheduleCard(){
   const rows=schedule().slice().sort((a,b)=>String(a.quarter||'').localeCompare(String(b.quarter||''))||String(a.plannedDate||'').localeCompare(String(b.plannedDate||'')));
   const pending=rows.filter(r=>r.status==='scheduled').length;
-  return UI.card({title:'Visit schedule',sub:'Quarter by quarter · a planned visit can be entered while the quarter is open',icon:'calendar-clock',
-    tools:'<button class="btn xs" data-schedule>'+UI.ic('plus',12)+'Schedule visit</button>',
-    body:rows.length?'<div class="dt-scroll" style="max-height:320px"><table class="dt"><thead><tr><th>Health centre</th><th>Quarter</th><th>Planned</th><th>State</th><th></th></tr></thead><tbody>'
+  const ahead=upcomingSlots(90);
+  const byMonth={};
+  ahead.forEach(sc=>{ const k=String(sc.plannedDate).slice(0,7); (byMonth[k]=byMonth[k]||[]).push(sc); });
+  return UI.card({title:'Supervision calendar',sub:'What is planned, and what is still waiting for a record',icon:'calendar-clock',
+    tools:'<button class="btn xs" data-plan-quarter>'+UI.ic('calendar-plus',12)+'Plan quarter</button><button class="btn xs" data-schedule>'+UI.ic('plus',12)+'Visit</button>',
+    body:(ahead.length?'<div class="row wrap gap-sm" style="margin-bottom:10px">'+Object.keys(byMonth).sort().map(k=>{
+        const [y,m]=k.split('-');
+        return '<div class="card pad" style="background:var(--surface-inset);min-width:150px;flex:1"><div class="eyebrow">'+U.MONTHS[+m-1]+' '+y+'</div>'
+          +byMonth[k].map(sc=>'<div class="row between" style="margin-top:5px"><span class="small truncate">'+U.esc(sc.hcName)+'</span><span class="mono xs faint">'+U.fmtDateShort(sc.plannedDate)+'</span></div>').join('')+'</div>';
+      }).join('')+'</div>':'')
+      +(rows.length?'<div class="dt-scroll" style="max-height:320px"><table class="dt"><thead><tr><th>Health centre</th><th>Quarter</th><th>Planned</th><th>State</th><th></th></tr></thead><tbody>'
       +rows.map(sc=>{
         const st=sc.status==='visited'?{label:'Visited',pill:'teal'}
           :sc.status==='notVisited'?{label:'Not visited',pill:'rose'}
-          :{label:quarterOpen(sc)?'Not yet visited':'Awaiting record',pill:quarterOpen(sc)?'blue':'amber'};
+          :{label:'Not yet visited',pill:'blue'};
         const act=sc.status==='visited'?'<span class="xs faint">'+U.fmtDate(sc.visitedAt||sc.plannedDate)+'</span>'
           :sc.status==='notVisited'?'<button class="btn xs" data-sched-undo="'+sc.id+'">Undo</button>'
-          :'<button class="btn xs" data-sched-visit="'+sc.id+'">Record</button> <button class="btn xs" data-sched-confirm="'+sc.id+'">Not visited</button>';
+          :'<button class="btn xs" data-sched-visit="'+sc.id+'">Record</button> <button class="btn xs" data-sched-edit="'+sc.id+'">Edit</button> <button class="btn xs" data-sched-confirm="'+sc.id+'">Not visited</button>';
         return '<tr><td class="strong">'+U.esc(sc.hcName)+'<div class="xs faint">'+U.esc(sc.assessor||'District PBF team')+'</div></td>'
           +'<td class="mono xs">'+U.esc(sc.quarter||'—')+'<div class="xs faint">'+U.esc(sc.fy||'')+'</div></td>'
-          +'<td class="num mono xs">'+U.fmtDate(sc.plannedDate)+'</td><td><span class="pill '+st.pill+'">'+st.label+'</span></td>'
+          +'<td class="num mono xs">'+(sc.plannedDate?U.fmtDate(sc.plannedDate):'not set')+'</td><td><span class="pill '+st.pill+'">'+st.label+'</span></td>'
           +'<td class="num">'+act+'</td></tr>';
       }).join('')+'</tbody></table></div>'
-      :'<p class="xs faint" style="margin:0">Nothing planned yet. Add the quarter’s visits and each centre reads “not yet visited” until the visit happens — never “missed”.</p>',
-    foot:'<span>“Not visited” is only ever confirmed by you, after the quarter closes.</span><span class="mono">'+pending+' pending</span>'});
+      :'<p class="xs faint" style="margin:0">Nothing planned yet. Record the quarter’s supervision dates — every centre without a visit keeps reading “not yet visited”, never “missed”.</p>'),
+    foot:'<span>Planned visits appear in the notification centre as upcoming live events.</span><span class="mono">'+pending+' planned</span>'});
+}
+function planQuarterModal(){
+  if(!LS.auth.guard('edit')) return;
+  const q=activeQuarter();
+  const centres=U.uniq(S.db().catalog.healthCenters.map(h=>h.name));
+  const missing=centres.filter(name=>!schedule().some(sc=>sc.hcName===name && sc.quarter===q.quarter));
+  UI.modal({title:'Plan the supervision quarter',sub:q.quarter+' '+q.fy+' · every health centre on one calendar',width:'min(640px,100%)',
+    body:'<div class="form-grid">'
+      +'<div class="field"><label>Start date</label><input class="input" type="date" id="pqStart" value="'+U.todayISO()+'"></div>'
+      +'<div class="field"><label>Visit every</label><select class="select" id="pqEvery">'+[1,2,3,4].map(n=>'<option value="'+n+'">'+n+' week'+(n>1?'s':'')+'</option>').join('')+'</select></div>'
+      +'<div class="field"><label>Quarter</label><input class="input mono" id="pqQuarter" value="'+U.esc(q.quarter)+'"></div>'
+      +'<div class="field"><label>Fiscal year</label><input class="input mono" id="pqFy" value="'+U.esc(q.fy)+'"></div>'
+      +'<div class="field span2"><label>Health centres</label><div style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:9px;padding:8px">'
+        +centres.map(name=>{ const has=!missing.includes(name);
+          return '<label class="row gap-sm" style="padding:3px 0;cursor:pointer"><input type="checkbox" data-pq-centre="'+U.esc(name)+'"'+(has?' disabled':' checked')+'>'
+            +'<span class="small grow">'+U.esc(name)+'</span>'+(has?'<span class="xs faint">already planned</span>':'')+'</label>'; }).join('')
+        +'</div><div class="xs faint" style="margin-top:6px">Centres already on the '+U.esc(q.quarter)+' calendar are skipped.</div></div></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Add to calendar</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-save]').onclick=()=>{
+        const start=el.querySelector('#pqStart').value;
+        if(!start) return UI.toast('Pick a start date',{type:'warn'});
+        const step=(parseInt(el.querySelector('#pqEvery').value,10)||1)*7;
+        const quarter=el.querySelector('#pqQuarter').value.trim()||q.quarter;
+        const fy=el.querySelector('#pqFy').value.trim()||q.fy;
+        const picked=U.$$('[data-pq-centre]',el).filter(c=>c.checked&&!c.disabled).map(c=>c.dataset.pqCentre);
+        if(!picked.length) return UI.toast('Tick at least one health centre',{type:'warn'});
+        S.commit(d=>{
+          d.pbfSchedule=d.pbfSchedule||[];
+          picked.forEach((name,i)=>d.pbfSchedule.push({id:U.uid('pbfs'),hcName:name,quarter,fy,
+            plannedDate:U.addDays(start,i*step),status:'scheduled',assessor:'District PBF team'}));
+        },{action:'pbf.schedule.plan',entity:'pbf',detail:picked.length+' centres planned for '+quarter+' '+fy});
+        close(); LS.shell.refresh(); UI.toast(picked.length+' visits added to the calendar',{type:'ok'});
+      };
+    }});
 }
 function visitLog(){
   const visits=(S.db().pbfVisits||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
@@ -457,56 +644,46 @@ function visitLog(){
       +'</tbody></table></div>':'<p class="xs faint">No visits recorded yet.</p>',
     foot:'<span>Visits are quarterly; the latest visit drives the index shown above.</span><span class="mono">'+visits.length+' visits</span>'});
 }
-function editScores(r){
-  if(!LS.auth.guard('edit')) return;
-  UI.modal({title:'Adjust evaluation scores',sub:r.name+' · weights apply automatically',width:'min(560px,100%)',
-    body:'<div style="display:flex;flex-direction:column;gap:12px">'+DOMAINS.map(([k,label,w])=>
-      '<div class="row between gap-sm"><span class="small grow">'+U.esc(label)+' <span class="xs faint">·'+w+'%</span></span>'
-      +'<input type="number" min="0" max="100" class="input" style="width:76px" data-sc="'+k+'" value="'+r.scores[k]+'"></div>').join('')
-      +'</div><div class="hint" style="margin-top:12px">Total is recalculated live when you save.</div>',
-    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save draft</button>',
-    onMount:(el,close)=>{
-      el.querySelector('[data-save]').onclick=()=>{
-        const next={}; U.$$('[data-sc]',el).forEach(inp=>{ next[inp.dataset.sc]=U.clamp(+inp.value||0,0,100); });
-        S.commit(d=>{ const x=(d.pbf||[]).find(y=>y.id===r.id); if(x){ x.scores=next; x.draft=true; x.status='draft'; } },
-          {action:'pbf.edit',entity:'pbf',entityId:r.id,detail:'Scores adjusted for '+r.name});
-        close(); LS.shell.refresh(); UI.toast('Draft index updated · '+total({scores:next})+'%',{type:'ok'});
-      };
-    }});
-}
 function printCentre(r){
+  const w=domainWeights();
+  const card=r.visit?scorecardOf(r.visit):{complete:false,answered:0,total:questions().length};
   U.printDoc('PBF laboratory evaluation — '+r.name,
-    '<table><thead><tr><th>Domain</th><th>Weight</th><th>Score</th><th>Weighted</th><th>Q4</th></tr></thead><tbody>'
-    +DOMAINS.map(([k,label,w])=>'<tr><td>'+U.esc(label)+'</td><td>'+w+'%</td><td>'+r.scores[k]+'%</td><td>'+(r.scores[k]*w/100).toFixed(1)+'</td><td style="color:#666">'+(r.prior-3)+'%</td></tr>').join('')
-    +'<tr><td colspan="2"><b>Weighted composite</b></td><td colspan="2"><b>'+total(r)+'%</b></td><td>'+r.prior+'%</td></tr></tbody></table>'
-    +(r.visit?'<h3 style="font-size:9px;margin:10px 0 4px">Questions evaluated — '+U.esc(r.visit.quarter)+' · '+U.fmtDate(r.visit.date)+'</h3><table><thead><tr><th>Question</th><th>Domain</th><th>Marks</th></tr></thead><tbody>'
+    '<table><thead><tr><th>Domain</th><th>Weight</th><th>Questions</th><th>Score</th><th>Weighted</th></tr></thead><tbody>'
+    +DOMAINS.map(([k,label])=>{ const v=r.scores?r.scores[k]:null;
+      return '<tr><td>'+U.esc(label)+'</td><td>'+Math.round(w[k])+'%</td><td>'+domainQuestions(k).length+'</td><td>'+(v==null?'—':v+'%')+'</td><td>'+(v==null?'—':(v*w[k]/100).toFixed(1))+'</td></tr>'; }).join('')
+    +'<tr><td colspan="4"><b>Weighted composite</b></td><td><b>'+(total(r)==null?'marks pending':total(r)+'%')+'</b></td></tr></tbody></table>'
+    +'<p style="font-size:9px;margin:6px 0">Scorecard '+(card.complete?'complete':'incomplete — '+card.answered+' of '+card.total+' questions marked')+'.</p>'
+    +(r.visit?'<h3 style="font-size:9px;margin:10px 0 4px">Questions evaluated — '+U.esc(r.visit.quarter||'')+' · '+U.fmtDate(r.visit.date)+'</h3><table><thead><tr><th>Question</th><th>Domain</th><th>Marks</th></tr></thead><tbody>'
       +questions().map(q=>{ const v=r.visit.answers&&r.visit.answers[q.id]; const dom=DOMAINS.find(d=>d[0]===q.domain);
         return '<tr><td>'+U.esc(q.text)+'</td><td>'+U.esc(dom?dom[1]:q.domain)+'</td><td style="text-align:center">'+(v==null?'—':v+' / '+q.max)+'</td></tr>'; }).join('')
       +'</tbody></table>':'')
+    +(r.visit&&r.visit.recommendations?'<h3 style="font-size:9px;margin:10px 0 4px">Recommendations</h3><p style="font-size:9px">'+U.esc(r.visit.recommendations)+'</p>':'')
+    +(r.visit&&r.visit.previous?'<p style="font-size:9px">Previous ('+U.esc(r.visit.previous.quarter||'')+'): '+U.esc(r.visit.previous.text||'—')+' — addressed: '+U.esc(r.visit.previous.addressed||'not stated')+'</p>':'')
     +'<h3 style="font-size:9px;margin:10px 0 4px">Visit history</h3><table><thead><tr><th>Quarter</th><th>Date</th><th>Assessor</th><th>Index</th></tr></thead><tbody>'
-    +(visitsFor(r.name).length?visitsFor(r.name).map(v=>'<tr><td>'+U.esc(v.quarter||'')+'</td><td>'+U.fmtDate(v.date)+'</td><td>'+U.esc(v.assessor||'')+'</td><td>'+visitTotal(v)+'%</td></tr>').join(''):'<tr><td colspan="4">No visits recorded</td></tr>')
+    +(visitsFor(r.name).length?visitsFor(r.name).map(v=>{ const vt=visitTotal(v); return '<tr><td>'+U.esc(v.quarter||'')+'</td><td>'+U.fmtDate(v.date)+'</td><td>'+U.esc(v.assessor||'')+'</td><td>'+(vt==null?'pending':vt+'%')+'</td></tr>'; }).join(''):'<tr><td colspan="4">No visits recorded</td></tr>')
     +'</tbody></table>',
-    {meta:'<span>Assessed '+U.fmtDate(r.submitted)+'</span><span>'+U.esc(r.assessor||'District PBF team')+'</span>'});
+    {meta:'<span>'+(r.submitted?'Assessed '+U.fmtDate(r.submitted):'Not yet visited')+'</span><span>'+U.esc(r.assessor||'District PBF team')+'</span>'});
 }
 function printDistrict(){
-  const rows=list().slice().sort((a,b)=>total(b)-total(a));
+  const rows=list().filter(r=>total(r)!=null).sort((a,b)=>total(b)-total(a));
+  const w=domainWeights();
   U.printDoc('District PBF laboratory report — Q1 FY 2026/2027',
-    '<table><thead><tr><th>Rank</th><th>Health centre</th>'+DOMAINS.map(d=>'<th>'+U.esc(d[1].split(' ')[0])+'</th>').join('')+'<th>Index</th><th>Q4</th><th>Δ</th></tr></thead><tbody>'
-    +rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(r.name)+'</td>'+DOMAINS.map(([k])=>'<td>'+r.scores[k]+'</td>').join('')+'<td><b>'+total(r)+'</b></td><td>'+r.prior+'</td><td>'+(delta(r)>0?'+':'')+delta(r)+'</td></tr>').join('')
-    +'<tr><td colspan="2"><b>District average</b></td>'+DOMAINS.map(([k])=>'<td>'+Math.round(U.avg(rows.map(r=>r.scores[k])))+'</td>').join('')+'<td><b>'+Math.round(U.avg(rows.map(total)))+'</b></td><td></td><td></td></tr></tbody></table>',
-    {landscape:true,meta:'<span>Gakenke District · PBF laboratory indicators</span><span>Draft — pending district verification</span>'});
+    '<table><thead><tr><th>Rank</th><th>Health centre</th>'+DOMAINS.map(d=>'<th>'+U.esc(d[1].split(' ')[0])+' ('+Math.round(w[d[0]])+'%)</th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th></tr></thead><tbody>'
+    +rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(r.name)+'</td>'+DOMAINS.map(([k])=>'<td>'+(r.scores[k]==null?'—':r.scores[k])+'</td>').join('')+'<td><b>'+total(r)+'</b></td><td>'+(r.prior==null?'—':r.prior)+'</td><td>'+((delta(r)||0)>0?'+':'')+(delta(r)||0)+'</td></tr>').join('')
+    +'<tr><td colspan="2"><b>District average</b></td>'+DOMAINS.map(([k])=>{ const vals=rows.map(r=>r.scores[k]).filter(v=>v!=null); return '<td>'+(vals.length?Math.round(U.avg(vals)):'—')+'</td>'; }).join('')+'<td><b>'+(rows.length?Math.round(U.avg(rows.map(total))):'—')+'</b></td><td></td><td></td></tr></tbody></table>',
+    {landscape:true,meta:'<span>Gakenke District · PBF laboratory indicators</span><span>'+(list().length-rows.length)+' centres without a complete scorecard</span>'});
 }
 M.render=function(root,params){
   rootEl=root; sort=params.sort||'total'; q=params.q||'';
   ensureSeeded();
-  root.innerHTML='<div class="page-head"><div><h1>PBF evaluation</h1><div class="sub">Performance-based financing, scored on the same records the bench works from — quality, TAT, commodity security, data, staffing and infrastructure.</div></div>'
+  root.innerHTML='<div class="page-head"><div><h1>PBF evaluation</h1><div class="sub">Performance-based financing. Every centre is scored on the questions you keep in the bank, and a visit only counts once every question carries a mark.</div></div>'
    +'<div class="actions"><a class="btn" href="#/quality">'+UI.ic('shield-check',15)+' ISO readiness</a><button class="btn" data-district>'+UI.ic('printer',15)+' District report</button><button class="btn primary" data-new-visit>'+UI.ic('plus',15)+' Record visit</button></div></div>'
    +kpis()+hero()
    +'<div class="section-head"><h2>Centre scorecards</h2><span class="more">Click any row for the full evaluation</span></div>'
    +table()
-   +'<div class="section-head"><h2>Domain comparison</h2><span class="more">Six weighted domains · '+list().length+' centres</span></div>'
+   +'<div class="section-head"><h2>Domain comparison</h2><span class="more">Recorded scorecards only · '+list().length+' centres</span></div>'
    +matrix()
-   +'<div class="section-head"><h2>Evaluation questions & visits</h2><span class="more">Question-level marks, kept quarter after quarter</span></div>'
+   +'<div class="section-head"><h2>Evaluation questions & visits</h2><span class="more">Questions, marks and the supervision calendar</span></div>'
    +'<div class="grid-12"><div class="c7">'+questionBank()+'</div><div class="c5">'+scheduleCard()+'<div style="margin-top:14px">'+visitLog()+'</div></div></div>';
 
   const open=id=>drawer(id);
@@ -534,7 +711,25 @@ M.render=function(root,params){
   root.querySelectorAll('[data-sched-visit]').forEach(b=>b.onclick=()=>{ const sc=schedule().find(x=>x.id===b.dataset.schedVisit); visitModal(null, sc?sc.hcName:null, sc?sc.quarter:null); });
   root.querySelectorAll('[data-sched-confirm]').forEach(b=>b.onclick=()=>confirmNotVisited(b.dataset.schedConfirm));
   root.querySelectorAll('[data-sched-undo]').forEach(b=>b.onclick=()=>undoNotVisited(b.dataset.schedUndo));
-  root.querySelectorAll('[data-del-q]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); deleteQuestion(b.dataset.delQ); });
+  root.querySelectorAll('[data-plan-quarter]').forEach(b=>b.onclick=()=>planQuarterModal());
+  root.querySelectorAll('[data-sched-edit]').forEach(b=>b.onclick=()=>scheduleModal(b.dataset.schedEdit));
+  /* multi-select question bank */
+  const selState=()=>U.$$('[data-q-sel]',root).filter(c=>c.checked).map(c=>c.dataset.qSel);
+  const refreshSel=()=>{
+    const ids=selState();
+    const count=root.querySelector('#qSelCount'); if(count) count.textContent=ids.length+' selected';
+    const del=root.querySelector('[data-del-selected]'); if(del) del.disabled=!ids.length;
+    const all=root.querySelector('[data-q-all]'); if(all){ const boxes=U.$$('[data-q-sel]',root); all.checked=boxes.length>0&&ids.length===boxes.length; all.indeterminate=ids.length>0&&ids.length<boxes.length; }
+    U.$$('[data-q-group-all]',root).forEach(g=>{ const boxes=U.$$('[data-q-sel]',root).filter(c=>{ const q=qById(c.dataset.qSel); return q&&q.domain===g.dataset.qGroupAll; });
+      g.checked=boxes.length>0&&boxes.every(c=>c.checked); g.indeterminate=boxes.some(c=>c.checked)&&!g.checked; });
+  };
+  root.querySelectorAll('[data-q-sel]').forEach(c=>{ c.onclick=ev=>{ ev.stopPropagation(); refreshSel(); }; });
+  const allBox=root.querySelector('[data-q-all]');
+  if(allBox) allBox.onclick=()=>{ U.$$('[data-q-sel]',root).forEach(c=>{ c.checked=allBox.checked; }); refreshSel(); };
+  root.querySelectorAll('[data-q-group-all]').forEach(g=>{ g.onclick=()=>{ U.$$('[data-q-sel]',root).forEach(c=>{ const q=qById(c.dataset.qSel); if(q&&q.domain===g.dataset.qGroupAll) c.checked=g.checked; }); refreshSel(); }; });
+  const delSel=root.querySelector('[data-del-selected]');
+  if(delSel) delSel.onclick=()=>deleteQuestions(selState());
+  refreshSel();
   root.querySelectorAll('[data-restore-q]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); restoreQuestion(b.dataset.restoreQ); });
 };
 })();

@@ -5,7 +5,37 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.6.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.7.0** · FY 2026/2027 · works with no network, installs as a PWA.
+
+---
+
+## What changed in 6.7
+
+- **Question bank, multi-select.** Every question has a tick box, with *select all*,
+  a per-domain *all* and a running count. Tick as many as you like and delete them in
+  one confirmed action; deleted questions stop scoring and can be restored.
+- **Domain percentages auto-calculate.** A domain's score is the marks earned over the
+  marks still available in that domain, and the six domain weights renormalise over
+  the domains that still hold questions. Removing questions — or an entire domain —
+  never distorts the index or needs a manual recalculation.
+- **A visit needs a complete scorecard.** Saving a visit with any blank question is
+  refused and the first blank field is focused. A centre with a complete scorecard is
+  ranked; one with blanks reads *Visited · marks pending* and shows a dash in the
+  heatmap instead of a fabricated score.
+- **Baseline honesty.** The generated question-level marks that shipped in 6.6 are
+  discarded. Coko, Minazi, Rwankuba and Muhondo keep their recorded supervision
+  visits (marks to be entered); every other centre reads *Not yet visited*.
+- **Supervision calendar.** Plan the quarter — pick a start date, an interval and the
+  centres — or add single visits. Planned supervision is surfaced in the notification
+  centre as an upcoming live event, so no visit arrives unannounced. *Not visited*
+  is still only ever confirmed by you, after the quarter closes.
+- **Recommendations.** Each visit carries a short recommendation brief plus a check on
+  the previous visit's recommendation (Yes / Partly / No and an evidence note). The
+  first supervision says so plainly: there is nothing to follow up.
+- **On duty now.** Night crew first, then the day shift, then authorised leave and
+  people at home. Labels are plain — *On day duty*, *Coming for a night*,
+  *On night duty* — with no shift clock, and a guessed day off from the contract
+  pattern is no longer reported as "at home".
 
 ---
 

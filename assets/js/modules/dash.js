@@ -152,30 +152,50 @@ function feedCard(){
     body:'<div class="feed feed-fill" id="liveFeed" style="overflow:auto">'+S.feed().map(f=>'<div class="feed-item"><div class="fic '+f.tone+'">'+UI.ic(f.icon,12)+'</div><div class="grow" style="min-width:0"><div class="ftxt">'+f.text+'</div></div><time>'+U.relTime(f.ts)+'</time></div>').join('')+'</div>'});
 }
 
+/* Shift language: no times on the card. During daylight a person on the day
+   shift is simply "On day duty"; someone whose night block is tonight is
+   "Coming for a night". After 17:00 the night crew reads "On night duty".
+   Night first, then the day shift, then authorised leave and people at home. */
+function kigaliHour(){ return +new Date().toLocaleString('en-GB',{hour:'2-digit',hour12:false,timeZone:'Africa/Kigali'}); }
+function dutyLabel(state,hour,isNight){
+  if(state.kind==='leave') return {label:state.label,tone:'amber',rank:3};
+  if(state.kind==='training') return {label:'In training',tone:'gold',rank:2};
+  if(state.kind==='off') return {label:'At home',tone:'slate',rank:4};
+  if(state.kind==='exited') return {label:'Exited',tone:'slate',rank:5};
+  const night=state.kind==='night'||state.kind==='daynight';
+  if(night) return isNight?{label:'On night duty',tone:'blue',rank:0}:{label:'Coming for a night',tone:'blue',rank:0};
+  if(isNight) return {label:'On day duty · back tomorrow',tone:'teal',rank:2};
+  return {label:'On day duty',tone:'teal',rank:1};
+}
 function dutyCard(){
   const iso=U.todayISO();
-  const rows=S.activeStaff().map(s=>({staff:s,state:S.shiftState(s,iso)}));
-  const order={daynight:0,night:1,day:2,training:3,leave:4,off:5};
-  rows.sort((a,b)=>(order[a.state.kind]??9)-(order[b.state.kind]??9));
-  const duty=rows.filter(r=>S.isOnDuty(r.staff,iso));
-  const source=duty[0]?duty[0].state.source:'none';
-  const off=rows.filter(r=>r.state.kind==='off').length;
-  const badge=st=>'<span class="pill '+st.tone+'"><span class="dot'+(st.kind==='day'||st.kind==='night'||st.kind==='daynight'?' live':'')+'"></span>'+U.esc(st.label)+'</span>';
-  return UI.card({title:'On duty now',sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · day 08:00–17:00 / night 17:00–08:00 the next day',icon:'users',
+  const hour=kigaliHour();
+  const isNight=hour>=17||hour<8;
+  const rows=S.activeStaff().map(s=>{
+    let state=S.shiftState(s,iso);
+    /* A guessed day off is not evidence: when no working plan covers today the
+       contract pattern cannot say someone is at home, so they read as on duty. */
+    if(state.kind==='off'&&state.source==='pattern') state={code:'D',kind:'day',label:'On day duty',tone:'teal',source:'pattern'};
+    return {staff:s,state,sh:Object.assign({kind:state.kind},dutyLabel(state,hour,isNight))};
+  });
+  rows.sort((a,b)=>a.sh.rank-b.sh.rank || a.staff.name.localeCompare(b.staff.name));
+  const working=rows.filter(r=>r.sh.rank<=2);
+  const away=rows.filter(r=>r.sh.rank>=3);
+  const nights=rows.filter(r=>r.sh.label.indexOf('night')>=0).length;
+  const source=S.planCovers(iso)?'Working plan':'Contract pattern';
+  const row=r=>'<div class="duty-card" data-duty-kind="'+r.state.kind+'">'+U.avatar(r.staff.name,'sm')
+    +'<div style="min-width:0;flex:1"><div class="nm truncate">'+U.esc(r.staff.name)+'</div><div class="rl truncate">'+U.esc(r.staff.role)+'</div></div>'
+    +'<span class="pill '+r.sh.tone+'"><span class="dot'+(r.sh.rank<=1?' live':'')+'"></span>'+U.esc(r.sh.label)+'</span></div>';
+  return UI.card({title:'On duty now',sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · '+(isNight?'night':'day')+' · '+source,icon:'users',
     tools:'<a class="more" href="#/roster" style="color:var(--gold)">Roster '+UI.ic('arrow-right',12)+'</a>',
     body:'<div class="row wrap gap-sm" style="margin-bottom:10px">'
-      +'<span class="pill teal">'+duty.length+' on duty</span>'
-      +'<span class="pill slate">'+off+' at home</span>'
-      +'<span class="pill '+((source==='plan')?'blue':'amber')+'">'+(source==='plan'?'Working plan':'No plan · contract pattern')+'</span>'
+      +'<span class="pill teal">'+working.length+' on duty</span>'
+      +'<span class="pill blue">'+nights+' on nights</span>'
+      +'<span class="pill slate">'+away.length+' away</span>'
       +'</div>'
-      +'<div class="on-duty duty-fill" style="align-items:stretch">'+rows.map(r=>{
-        const s=r.staff, st=r.state;
-        const tone=st.kind==='night'?'blue':st.kind==='day'?'teal':st.kind==='daynight'?'teal':st.kind==='leave'?'amber':'slate';
-        return '<div class="duty-card" data-duty-kind="'+st.kind+'" style="'+(st.kind==='off'||st.kind==='leave'?'opacity:.62;':'')+'">'+U.avatar(s.name,'sm')
-          +'<div style="min-width:0;flex:1"><div class="nm truncate">'+U.esc(s.name)+'</div><div class="rl truncate">'+U.esc(s.role)+'</div></div>'
-          +'<span class="pill '+tone+'"><span class="dot'+(S.isOnDuty(s,iso)?' live':'')+'"></span>'+U.esc(st.label)+'</span></div>';
-      }).join('')+'</div>',
-    foot:'<span>Day shift 08:00–17:00 · night 17:00–08:00 the next day</span><span class="mono">'+duty.filter(d=>d.state.kind.indexOf('night')>=0).length+' on nights</span>'});
+      +'<div class="on-duty duty-fill" style="align-items:stretch">'+working.map(row).join('')
+      +(away.length?'<div class="thread" style="margin:4px 0"></div>'+away.map(row).join(''):'')+'</div>',
+    foot:'<span>Night shift is 17:00–08:00 the next day; the day crew is 08:00–17:00.</span><span class="mono">'+working.length+' of '+rows.length+' on duty</span>'});
 }
 
 function worklistCard(){
