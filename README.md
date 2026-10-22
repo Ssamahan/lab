@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.7.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.7.1** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
 

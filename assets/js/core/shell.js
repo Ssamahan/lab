@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.7.0';
+const APP_VERSION='6.7.1';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -342,7 +342,12 @@ SH.forceRefresh=async function(){
       await Promise.all(regs.map(r=>r.unregister()));
     }
   }catch(e){}
-  setTimeout(()=>location.reload(),700);
+  /* Reload with a cache-busting query: GitHub Pages keeps index.html in the HTTP
+     cache for ten minutes, which is exactly what made a new build look missing. */
+  setTimeout(()=>{
+    try{ const u=new URL(location.href); u.searchParams.set('v',String(Date.now())); location.replace(u.toString()); }
+    catch(e){ location.reload(); }
+  },700);
 };
 SH.logout=async function(){
   const ok=await UI.confirm({title:'Sign out of Lab Systems?',body:'Your local register stays on this device. Unsaved screen state is cleared.',confirm:'Sign out',danger:true});
