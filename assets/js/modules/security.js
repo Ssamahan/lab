@@ -39,7 +39,7 @@ function posture(){
     ['Encryption in transit','TLS 1.3 · HSTS pinned','ok','wifi'],
     ['Data residency','Rwanda · Kigali region','ok','globe'],
     ['Authentication','Password + TOTP second factor','warn','shield-check'],
-    ['Authorisation','Role-based · 4 roles','ok','users'],
+    ['Authorisation','Role-based · '+A.ROLES.length+' roles','ok','users'],
     ['Audit trail','Append-only, UI cannot edit','ok','history'],
     ['Backups','Encrypted, 3 restore points retained','ok','database'],
     ['Session policy','24h rolling, 30 min idle lock','ok','timer']
@@ -54,7 +54,13 @@ function posture(){
    +'<div class="c7">'+UI.card({title:'Accounts &amp; two-factor',sub:'Roles are enforced on every write',icon:'users',body:
      '<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Account</th><th>Role</th><th>2FA</th><th>Last sign-in</th><th></th></tr></thead><tbody>'
      +A.users.map(u=>{ const last=db.loginHistory.find(l=>l.ok&&l.user===u.username);
-       return '<tr><td><div class="primary-cell"><b>'+U.esc(u.name)+'</b><small>@'+U.esc(u.username)+'</small></div></td><td>'+UI.roleBadge(u.role)+'</td>'
+       const editable=A.can('settings')&&u.id!=='u1';
+       const roleCell=editable
+         ? '<select class="select role-select" data-role="'+u.id+'" aria-label="Role for '+U.esc(u.name)+'">'
+            +A.ROLES.map(r=>'<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+r+'</option>').join('')
+            +'</select>'
+         : UI.roleBadge(u.role);
+       return '<tr><td><div class="primary-cell"><b>'+U.esc(u.name)+'</b><small>@'+U.esc(u.username)+'</small></div></td><td>'+roleCell+'</td>'
         +'<td>'+(u.twoFactor?'<span class="pill teal">enabled</span>':'<span class="pill amber">not enrolled</span>')+'</td>'
         +'<td class="xs faint">'+(last?U.relTime(last.ts):'—')+'</td>'
         +'<td><button class="btn xs" data-2fa="'+u.id+'">'+(u.twoFactor?'Disable':'Enable')+'</button></td></tr>'; }).join('')
@@ -121,8 +127,19 @@ function paint(){
 function wire(){
   const r=rootEl;
   r.querySelectorAll('[data-sec-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.secTab; shown=60; paint(); });
+  r.querySelectorAll('[data-role]').forEach(sel=>sel.onchange=async()=>{
+    const u=A.users.find(x=>x.id===sel.getAttribute('data-role')); if(!u) return;
+    const role=sel.value, from=u.role;
+    if(role===from) return;
+    const ok=await UI.confirm({title:'Change role for '+u.name+'?',body:'<b>'+U.esc(from)+'</b> → <b>'+U.esc(role)+'</b>. Permissions apply immediately on their next action and the change is written to the audit trail.',confirm:'Change role'});
+    if(!ok){ sel.value=from; return; }
+    const res=A.setRole(u.id,role);
+    if(!res.ok){ sel.value=from; UI.toast(res.reason,{type:'err'}); return; }
+    paint(); UI.toast(u.name+' is now '+role,{type:'ok'});
+  });
   r.querySelectorAll('[data-2fa]').forEach(b=>b.onclick=()=>{ const u=A.users.find(x=>x.id===b.getAttribute('data-2fa'));
     if(!u) return; const next=!u.twoFactor;
+    if(A.setTwoFactor && A.setTwoFactor(u.id,next)){ paint(); UI.toast(next?'Two-factor enabled for '+u.name:'Two-factor disabled for '+u.name,{type:next?'ok':'warn'}); return; }
     if(A.toggle2FA(u.id,next)){ paint(); UI.toast(next?'Two-factor enabled for '+u.name:'Two-factor disabled for '+u.name,{type:next?'ok':'warn'}); } });
   r.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=async()=>{ const ok=await UI.confirm({title:'Revoke this session?',body:'The device will need to sign in again with the account password.',confirm:'Revoke',danger:true}); if(!ok) return;
     S.commit(d=>{ const s=d.sessions.find(x=>x.id===b.dataset.revoke); if(s){ s.revoked=true; s.revokedAt=U.nowISO(); } },{action:'security.session.revoke',entity:'sessions',entityId:b.dataset.revoke,detail:'Session revoked'}); paint(); UI.toast('Session revoked',{type:'ok'}); });

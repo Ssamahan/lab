@@ -229,6 +229,7 @@ function onboardingCard(){
 }
 
 function trustFooter(){
+  if(!LS.auth.can('edit')) return '';
   return '<div class="row between wrap" style="margin-top:26px;padding-top:16px;border-top:1px solid var(--border);gap:14px">'
    +'<div class="row wrap" style="gap:7px">'
     +['ISO 15189 aligned','GDPR','HIPAA-ready','Rwanda data residency','AES-256 at rest'].map(t=>'<span class="trust-badge" style="border-color:var(--border);color:var(--text-faint);background:var(--surface-inset)">'+UI.ic('badge-check',11)+U.esc(t)+'</span>').join('')

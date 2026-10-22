@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.7.2';
+const APP_VERSION='6.8.0';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -25,9 +25,9 @@ const ROUTES={
   quality:{title:'Quality & Compliance',sub:'ISO 15189 readiness · SOPs · incidents · QC',group:'Quality',icon:ICON.quality,file:'quality'},
   equipment:{title:'Equipment',sub:'Uptime · preventive & curative maintenance · supplier response',group:'Quality',icon:ICON.equipment,file:'equipment'},
   staff:{title:'Staff & Settings',sub:'Registry · roles · branding · data',group:'Admin',icon:ICON.staff,file:'staff',permission:'staff'},
-  security:{title:'Security Center',sub:'Sessions · 2FA · audit trail · residency',group:'Admin',icon:ICON.security,file:'security'},
-  design:{title:'Design System',sub:'Tokens · components · motion specification',group:'Admin',icon:ICON.design,file:'design'},
-  roadmap:{title:'Premium Roadmap',sub:'The 100 upgrades behind Lab Systems v6',group:'Admin',icon:ICON.roadmap,file:'roadmap'}
+  security:{title:'Security Center',sub:'Sessions · 2FA · audit trail · residency',group:'Admin',icon:ICON.security,file:'security',permission:'security'},
+  design:{title:'Design System',sub:'Tokens · components · motion specification',group:'Admin',icon:ICON.design,file:'design',permission:'settings'},
+  roadmap:{title:'Premium Roadmap',sub:'The 100 upgrades behind Lab Systems v6',group:'Admin',icon:ICON.roadmap,file:'roadmap',permission:'settings'}
 };
 const GROUPS=['Operations','People','Scheduling','Quality','Admin'];
 SH.ROUTES=ROUTES;
@@ -63,12 +63,12 @@ function loadModule(id){
 function navHTML(){
   let h='';
   GROUPS.forEach(g=>{
-    const items=Object.keys(ROUTES).filter(k=>ROUTES[k].group===g);
+    const items=Object.keys(ROUTES).filter(k=>ROUTES[k].group===g && (!ROUTES[k].permission||LS.auth.can(ROUTES[k].permission)));
     if(!items.length) return;
     h+='<div class="nav-group"><div class="nav-group-label" data-i18n="nav.'+g.toLowerCase()+'">'+LS.i18n.t('nav.'+g.toLowerCase())+'</div>';
     items.forEach(k=>{
       const r=ROUTES[k];
-      h+='<button class="nav-item" data-tab="'+k+'" data-tip="'+U.esc(r.title)+'">'+U.ic(r.icon,18)
+      h+='<button class="nav-item" data-tab="'+k+'" data-tip="'+U.esc(r.title)+'" data-tip-meta="'+U.esc(LS.i18n.t('nav.'+g.toLowerCase(),g))+'">'+U.ic(r.icon,18)
        +'<span class="lbl" data-i18n="nav.'+k+'">'+LS.i18n.t('nav.'+k, r.title)+'</span>'
        +'<span class="n-count" data-count-for="'+k+'" hidden></span></button>';
     });
@@ -106,9 +106,46 @@ SH.build=function(){
   updateBadges();
   applyTheme();
   applyDensity();
+  applyRoleClass();
   wireGlobal();
   updateNet();
 };
+
+/* Reviewers and viewers get the record, not the essay. Long explanatory copy
+   under a page title is for the people who administer the console. */
+function applyRoleClass(){
+  const limited=!LS.auth.can('edit');
+  const app=document.querySelector('.app');
+  if(app) app.classList.toggle('role-limited',limited);
+  document.documentElement.classList.toggle('role-limited',limited);
+}
+
+/* ——— Rail label flyout ————————————————————————————
+   While the rail is minimised the module names live in a small fixed chip that
+   follows the pointer, because the nav itself scrolls and would clip them. */
+let railTip=null, railTipTimer=null;
+function railTipEl(){
+  if(!railTip){ railTip=U.el('<div class="rail-tip" role="tooltip"></div>'); document.body.appendChild(railTip); }
+  return railTip;
+}
+function showRailTip(item){
+  if(!document.querySelector('.app.rail-mini')) return;
+  const r=item.getBoundingClientRect();
+  const tip=railTipEl();
+  const title=item.dataset.tip||'';
+  const meta=item.dataset.tipMeta||'';
+  tip.innerHTML=U.esc(title)+(meta?'<small>'+U.esc(meta)+'</small>':'');
+  tip.style.left=Math.round(r.right+10)+'px';
+  tip.style.top=Math.round(r.top+r.height/2)+'px';
+  clearTimeout(railTipTimer);
+  requestAnimationFrame(()=>tip.classList.add('on'));
+}
+function hideRailTip(){
+  if(!railTip) return;
+  clearTimeout(railTipTimer);
+  railTipTimer=setTimeout(()=>railTip&&railTip.classList.remove('on'),60);
+}
+SH._railTip={show:showRailTip,hide:hideRailTip};
 function startClock(){
   const t=document.getElementById('clockTime'), d=document.getElementById('clockDate');
   const tick=()=>{
@@ -223,6 +260,10 @@ function commandItems(){
   items.push({group:'Actions',label:'Toggle density (Comfortable / Compact)',meta:'[',icon:'rows-3',run:SH.toggleDensity});
   items.push({group:'Actions',label:'Notification center',meta:'',icon:'bell',run:()=>openNotifs()});
   items.push({group:'Actions',label:'Keyboard shortcuts',meta:'?',icon:'keyboard',run:()=>SH.shortcuts()});
+  if(LS.auth.can('settings')){
+    items.push({group:'Actions',label:'What changed in v'+APP_VERSION,meta:'',icon:'sparkles',run:()=>{ UI.closeAll(); SH.releaseNotes(); }});
+    items.push({group:'Actions',label:'Install Lab Systems on this device',meta:'',icon:'download',run:()=>SH.install()});
+  }
   items.push({group:'Actions',label:'Sign out',meta:'',icon:'log-out',run:()=>SH.logout()});
   // staff
   S.db().staff.filter(s=>s.status==='active').forEach(s=>items.push({group:'People',label:s.name,meta:s.role,icon:'user',run:()=>{ SH.go('roster'); setTimeout(()=>UI.drawer({title:s.name,eyebrow:'Staff record',body:LS.modules.roster&&LS.modules.roster.staffDrawer?LS.modules.roster.staffDrawer(s):'<p class="small muted">'+U.esc(s.role)+'</p>',foot:'<button class="btn" data-close>Close</button>'}),350); }}));
@@ -379,7 +420,15 @@ function wireGlobal(){
     if(e.target.closest('[data-more]')){ openMoreSheet(); return; }
     if(e.target.closest('#hamburger')){ document.querySelector('.rail')?.scrollTop; document.querySelector('.app')?.classList.toggle('rail-open'); return; }
     if(e.target.closest('[data-rail-close]')){ document.querySelector('.app')?.classList.remove('rail-open'); return; }
-    if(e.target.closest('#railToggle')){ document.querySelector('.app')?.classList.toggle('rail-mini'); try{ localStorage.setItem('labSystems.navMini.v1',document.querySelector('.app').classList.contains('rail-mini')?'1':'0'); }catch(_){} return; }
+    if(e.target.closest('#railToggle')){
+      const app=document.querySelector('.app'); if(!app) return;
+      const mini=app.classList.toggle('rail-mini');
+      try{ localStorage.setItem('labSystems.navMini.v1',mini?'1':'0'); }catch(_){}
+      const tg=document.getElementById('railToggle');
+      if(tg){ tg.title=mini?'Expand navigation':'Collapse navigation'; tg.setAttribute('aria-label',tg.title); tg.classList.toggle('is-mini',mini); }
+      hideRailTip();
+      return;
+    }
     if(e.target.closest('#cmdkTrigger')){ openPalette(); return; }
     if(e.target.closest('#notifBtn')){ openNotifs(); return; }
     if(e.target.closest('#userBtn')||e.target.closest('#railUser')){ openUserMenu(); return; }
@@ -391,7 +440,21 @@ function wireGlobal(){
     if(e.target.closest('#helpBtn')){ SH.shortcuts(); return; }
   });
   // rail collapse restore
-  try{ if(localStorage.getItem('labSystems.navMini.v1')==='1') document.querySelector('.app')?.classList.add('rail-mini'); }catch(e){}
+  try{ if(localStorage.getItem('labSystems.navMini.v1')==='1'){
+    document.querySelector('.app')?.classList.add('rail-mini');
+    const tg=document.getElementById('railToggle');
+    if(tg){ tg.title='Expand navigation'; tg.setAttribute('aria-label',tg.title); tg.classList.add('is-mini'); }
+  } }catch(e){}
+  // module labels while minimised
+  document.addEventListener('mouseover',e=>{
+    const item=e.target.closest('.nav-item');
+    if(item && document.querySelector('.app.rail-mini')) showRailTip(item); else hideRailTip();
+  });
+  document.addEventListener('mouseout',e=>{ if(e.target.closest('.nav-item')) hideRailTip(); });
+  document.addEventListener('focusin',e=>{ const item=e.target.closest('.nav-item'); if(item) showRailTip(item); else hideRailTip(); });
+  document.addEventListener('focusout',e=>{ if(e.target.closest('.nav-item')) hideRailTip(); });
+  document.addEventListener('click',e=>{ if(e.target.closest('.nav-item')) hideRailTip(); });
+  window.addEventListener('scroll',hideRailTip,{passive:true});
   // keyboard
   let gPending=0;
   document.addEventListener('keydown',e=>{
