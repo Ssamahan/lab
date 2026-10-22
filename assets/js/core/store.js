@@ -1173,6 +1173,16 @@ S.notifications=function(){
   exp.forEach(x=>out.push({id:'n-exp-'+x.id,group:'Supply chain',tone:'amber',title:x.name+' batch expires in '+U.daysBetween(today,x.nearest.expiry)+' days',detail:'Lot expires '+U.fmtDate(x.nearest.expiry)+' · qty '+x.nearest.qty,ts:new Date(Date.now()-1000*60*60*5).toISOString(),href:'#/stock?tab=expiry',icon:'alert-triangle'}));
   const pending=S.db().leaves.filter(l=>l.status==='Pending');
   if(pending.length) out.push({id:'n-leave',group:'People',tone:'blue',title:pending.length+' leave request'+(pending.length>1?'s':'')+' awaiting approval',detail:'Conflict check completed · no coverage block',ts:new Date(Date.now()-1000*60*60*8).toISOString(),href:'#/leave?tab=requests',icon:'calendar-clock'});
+  /* Planned supervision surfaces as an upcoming live event, so a health centre
+     visit never arrives unannounced. */
+  const todayISO=U.todayISO();
+  (S.db().pbfSchedule||[]).filter(sc=>sc.status==='scheduled'&&sc.plannedDate&&sc.plannedDate>=todayISO&&sc.plannedDate<=U.addDays(todayISO,45))
+    .sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate))).slice(0,4)
+    .forEach(sc=>{ const inDays=U.daysBetween(todayISO,sc.plannedDate);
+      out.push({id:'n-pbf-'+sc.id,group:'Quality',tone:inDays<=7?'amber':'blue',
+        title:'Supervision due · '+sc.hcName,
+        detail:(sc.quarter||'')+' '+(sc.fy||'')+' · '+(inDays===0?'today':inDays===1?'tomorrow':'in '+inDays+' days')+' · '+U.fmtDate(sc.plannedDate),
+        ts:new Date(sc.plannedDate+'T08:00:00').toISOString(),href:'#/pbf',icon:'calendar-check'}); });
   const nc=S.db().incidents.filter(i=>i.status!=='Closed').slice(0,2);
   nc.forEach(i=>out.push({id:'n-'+i.id,group:'Quality',tone:i.severity==='Critical'?'rose':'blue',title:i.ref+' · '+i.title,detail:i.severity+' · owner '+i.owner+' · due '+U.fmtDate(i.due),ts:i.opened,href:'#/quality?tab=incidents',icon:'shield-alert'}));
   out.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
