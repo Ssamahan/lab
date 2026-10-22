@@ -20,16 +20,16 @@ SH.colors=C;
 const FONT={ body:'Helvetica, Arial, sans-serif', serif:'Georgia, Times New Roman, serif', mono:'DejaVu Sans Mono, Menlo, Consolas, monospace' };
 const CODE={
   D:   {bg:C.pale,      fg:C.paleInk, label:'D',   key:'D — Day 08:00–17:00'},
-  N:   {bg:C.navy,      fg:'#FFFFFF', label:'N',   key:'N — Night 17:00–08:00'},
+  N:   {bg:C.navy,      fg:'#FFFFFF', label:'N',   key:'N — Night 17:00–08:00 next day'},
   DN:  {bg:C.dn,        fg:'#101828', label:'DN',  key:'DN — Day+Night'},
-  OFF: {bg:'#FCFCFE',   fg:C.offInk,  label:'OFF', key:'OFF — Rest day'},
-  AL:  {bg:C.cream,     fg:C.alInk,   label:'AL',  key:'AL — Annual leave'},
+  OFF: {bg:'#FCFCFE',   fg:C.offInk,  label:'OFF', key:'OFF — At home (not on shift)'},
+  AL:  {bg:C.cream,     fg:C.alInk,   label:'AL',  key:'AL — Annual leave (authorised)'},
   CL:  {bg:C.cream,     fg:C.alInk,   label:'CL',  key:'CL — Authorized leave'},
   ML:  {bg:C.cream,     fg:C.alInk,   label:'ML',  key:'ML — Maternity leave'},
   SL:  {bg:C.cream,     fg:C.alInk,   label:'SL',  key:'SL — Sick leave'},
   TR:  {bg:'#EAF3EC',   fg:'#2F7A4F', label:'TR',  key:'TR — Training'},
   W:   {bg:C.cream,     fg:C.alInk,   label:'W',   key:'W — Wedding day'},
-  ABS: {bg:'#FBECEE',   fg:'#B03A48', label:'ABS', key:'ABS — Absent (unattended duty)'},
+  ABS: {bg:'#FBECEE',   fg:'#B03A48', label:'ABS', key:'ABS — Unexcused absence (recorded)'},
   H:   {bg:'#FBECEE',   fg:'#B03A48', label:'H',   key:'H — Public holiday'}
 };
 SH.codes=Object.keys(CODE);
@@ -66,6 +66,83 @@ function text(x,y,str,o){
     +(o.ls?' letter-spacing="'+o.ls+'"':'')+(o.mono?' font-variant-numeric="tabular-nums"':'')+'>'+esc(str)+'</text>';
 }
 SH._h={rect,line,text,esc};
+
+/* ——— Names and the staff exceptions that must be visible on the sheet ————— */
+/* Printed sheets were set at 21–27 px on a 3200 px page, which lands near 6 pt
+   when printed: too small to read on a ward wall. Names now use the full cell
+   width across two lines (first name above surname) and never fall below the
+   size the printed register uses. */
+function nameLines(name){
+  const parts=String(name||'').trim().split(/\s+/);
+  if(parts.length<2) return {main:parts[0]||'', sub:''};
+  return {main:parts[0], sub:parts.slice(1).join(' ')};
+}
+/* Bold sans capitals advance at roughly 0.70 em; 0.58 underestimates them and
+   names then run into the next column, which is how the earlier sheets broke. */
+const ADV=0.76;
+const textW=(str,size)=>String(str==null?'':str).length*size*ADV;
+/* A name drawn inside a box: one line when it genuinely fits at the preferred
+   size, otherwise first name over surname. Never below `min`. */
+function nameBlock(x,y,w,name,o){
+  o=o||{};
+  const pref=o.pref||32, min=o.min||21, fill=o.fill||'#12203C', weight=o.weight||600;
+  const full=String(name||'');
+  const n=nameLines(full);
+  if(!n.sub || textW(full,pref)<=w){
+    const size=Math.max(min,Math.min(pref, w/Math.max(1,String(full).length*ADV)));
+    return text(x,y,full,{size:size,weight:weight,fill:fill,anchor:o.anchor});
+  }
+  const mainSize=Math.max(min,Math.min(pref, w/Math.max(1,n.main.length*ADV)));
+  const subSize=Math.max(Math.round(min*0.80),Math.min(pref*0.74, w/Math.max(1,n.sub.length*ADV)));
+  const cy=y-(subSize*0.45);
+  return text(x,cy,n.main,{size:mainSize,weight:weight,fill:fill,anchor:o.anchor})
+    +text(x,cy+subSize+7,n.sub,{size:subSize,weight:500,fill:o.subFill||fill,anchor:o.anchor});
+}
+SH._h.nameBlock=nameBlock;
+
+/* The rostering exceptions the department works to. They are printed on the
+   sheet so nobody has to remember why a row looks the way it does. */
+const EXCEPTION_RULES=[
+  {test:n=>/no weekends\/holidays\/nights|no nights, weekends/i.test(n), text:'Laboratory Manager — no nights, weekends or public holidays'},
+  {test:n=>/Reception mostly/i.test(n), text:'Reception first; Parasitology at most 2 days a month; never Phlebotomy or TB'},
+  {test:n=>/Weekend-only/i.test(n), text:'Weekend-only — Saturday and Sunday, day plus night; rests Monday to Friday'},
+  {test:n=>/3 consecutive nights/i.test(n), text:'Night lead — the only row that may run 3 consecutive nights, at least 3 sessions a month'}
+];
+function staffExceptions(names){
+  const out=[], seen={};
+  (names||[]).forEach(name=>{
+    const st=(window.LS.store.staffByName&&window.LS.store.staffByName(name))||{};
+    const note=String(st.note||'');
+    const rule=EXCEPTION_RULES.find(r=>r.test(note));
+    if(!rule) return;
+    const key=rule.text; if(seen[key]) { seen[key]+=1; return; }
+    seen[key]=1; out.push({name:name, text:rule.text});
+  });
+  return out;
+}
+SH.staffExceptions=staffExceptions;
+/* The annotations, wrapped to the page width. Long exception text used to run
+   off the sheet, so it is broken into lines that actually fit. */
+function wrapText(str,width,size){
+  const max=Math.max(20,Math.floor(width/(size*0.52)));
+  const words=String(str).split(/\s+/); const lines=[]; let cur='';
+  words.forEach(w=>{ if((cur+' '+w).trim().length>max){ if(cur) lines.push(cur); cur=w; } else cur=(cur?cur+' ':'')+w; });
+  if(cur) lines.push(cur);
+  return lines;
+}
+function exceptionLines(list,width,size){
+  if(!list.length) return [];
+  const joined=list.map(e=>e.name+' — '+e.text).join('   ·   ');
+  return wrapText(joined,width,size||20);
+}
+function drawExceptions(x,y,width,list,o){
+  o=o||{}; const size=o.size||21, pitch=o.pitch||30;
+  const lines=exceptionLines(list,width,size);
+  if(!lines.length) return '';
+  let out=text(x,y,o.label||'Rostering exceptions:',{size:size+2,weight:700,fill:'#12203C'});
+  lines.forEach((ln,i)=>{ out+=text(x,y+(i+1)*pitch,ln,{size:size,fill:'#5B6474'}); });
+  return out;
+}
 
 /* ——— Letterhead (crest · titles · logo) ——————————————————— */
 function crestMark(x,y,size){
@@ -151,9 +228,10 @@ SH.monthlySVG=function(plan,opts){
   const W=3200, H=1876, pad=96;
   const rows=(plan.staff||[]);
   const cols=monthCols(plan);
-  const labelW=485, gridX=pad+labelW;
+  const labelW=560, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
-  const gridTop=opts.gridTop||454, bandH=42, dateH=32, rowH=Math.max(46,Math.min(74,(opts.gridBottom||1082)-gridTop-bandH-dateH)/Math.max(1,rows.length));
+  const gridTop=opts.gridTop||454, bandH=42, dateH=32;
+  const rowH=Math.max(54,Math.min(90,((opts.gridBottom||1040)-gridTop-bandH-dateH)/Math.max(1,rows.length)));
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
 
   let g='';
@@ -171,9 +249,9 @@ SH.monthlySVG=function(plan,opts){
 
   /* header bands */
   g+=rect(pad,gridTop,labelW,bandH,C.band);
-  g+=text(pad+24,gridTop+bandH/2+9,'STAFF',{size:25,weight:700,fill:'#FFFFFF',ls:'1'});
+  g+=text(pad+24,gridTop+bandH/2+9,'STAFF',{size:27,weight:700,fill:'#FFFFFF',ls:'1'});
   g+=rect(pad,gridTop+bandH,labelW,dateH,'#FFFFFF');
-  g+=text(pad+24,gridTop+bandH+dateH/2+9,'Name',{size:23,weight:600,fill:'#3D4759'});
+  g+=text(pad+24,gridTop+bandH+dateH/2+9,'Name',{size:25,weight:600,fill:'#3D4759'});
   g+=rect(pad,gridTop,labelW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
   cols.forEach((c,i)=>{
     const x=gridX+i*colW;
@@ -181,15 +259,15 @@ SH.monthlySVG=function(plan,opts){
     g+=rect(x,gridTop,colW,bandH,fill);
     g+=rect(x,gridTop+bandH,colW,dateH,c.weekend?'#FBF1DA':'#F4F6FA');
     g+=rect(x,gridTop,colW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
-    g+=text(x+colW/2,gridTop+bandH/2+9,SH.dowLetter(c.dow),{size:25,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
-    g+=text(x+colW/2,gridTop+bandH+dateH/2+9,String(c.day),{size:24,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,gridTop+bandH/2+9,SH.dowLetter(c.dow),{size:27,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
+    g+=text(x+colW/2,gridTop+bandH+dateH/2+9,String(c.day),{size:26,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
   });
 
   /* body */
   rows.forEach((r,ri)=>{
     const y=gridTop+bandH+dateH+ri*rowH;
     g+=rect(pad,y,labelW,rowH,ri%2?'#FAFBFD':'#FFFFFF');
-    g+=text(pad+24,y+rowH/2+9,r.name,{size:fitSize(r.name,labelW-44,27,19),weight:600,fill:'#12203C'});
+    g+=nameBlock(pad+24,y+rowH/2+(rowH>=70?0:9),labelW-48,r.name,{pref:31,min:20});
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
       let code=(codes[i]||'').trim();
@@ -206,7 +284,8 @@ SH.monthlySVG=function(plan,opts){
       g+=rect(x,y,colW,rowH,bg);
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       if(st && code){
-        g+=text(x+colW/2,y+rowH/2+(code.length>2?7:9),st.label,{size:code.length>2?20:27,weight:700,anchor:'middle',fill:st.fg});
+        const cSize=code.length>2?23:32;
+        g+=text(x+colW/2,y+rowH/2+(code.length>2?8:10),st.label,{size:cSize,weight:700,anchor:'middle',fill:st.fg});
       }
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
@@ -222,12 +301,18 @@ SH.monthlySVG=function(plan,opts){
   g+=rect(gridX,gridTop,colW*cols.length,gridBottom-gridTop,'none',{stroke:'#C9CFDA',sw:1});
   g+=rect(pad,gridBottom+18,W-pad*2,4,C.goldLine);
 
-  /* keys */
-  let y=gridBottom+66;
+  /* rostering exceptions — printed, not remembered */
+  const exceptions=staffExceptions(rows.map(r=>r.name));
+  let y=gridBottom+58;
+  if(exceptions.length){
+    const block=drawExceptions(pad,gridBottom+52,W-pad*2,exceptions,{size:21,pitch:29});
+    g+=block;
+    y+=exceptionLines(exceptions,W-pad*2,21).length*29+34;
+  }
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
   y+=30;
   const keys=SH.keyOrder.map(c=>CODE[c].key);
-  const keyCols=4, keyW=(W-pad*2)/keyCols, keyH=54;
+  const keyCols=6, keyW=(W-pad*2)/keyCols, keyH=54;
   keys.forEach((k,i)=>{
     const col=i%keyCols, row=Math.floor(i/keyCols);
     const x=pad+col*keyW, yy=y+row*(keyH+8);
@@ -235,7 +320,7 @@ SH.monthlySVG=function(plan,opts){
     const code=k.split(' ')[0];
     const st=styleOf(code)||{bg:'#EEF1F7',fg:C.ink};
     g+=rect(x+12,yy+15,26,26,st.bg,{rx:4,stroke:'#DCE2EC',sw:1});
-    g+=text(x+50,yy+35,k,{size:23,fill:'#26303F'});
+    g+=text(x+50,yy+35,k,{size:22,fill:'#26303F'});
   });
   y+=Math.ceil(keys.length/keyCols)*(keyH+8)+22;
 
@@ -248,18 +333,22 @@ SH.monthlySVG=function(plan,opts){
      never opens a white gap between contacts and signatures */
   /* Cards are spread down to the signature block, as on the printed register:
      pitch fills the run, the card itself stays compact and legible. */
-  const sigTop0=1612, contactRows=Math.max(1,Math.ceil(rows.length/2));
-  const contactPitch=Math.max(76,(sigTop0-24-y)/contactRows);
-  const contactH=Math.min(88,contactPitch-16);
-  const colWid=(W-pad*2)/2;
+  const sigTop0=1612, contactCols=3, contactRows=Math.max(1,Math.ceil(rows.length/contactCols));
+  /* the contacts must stop above the signature rule, whatever the key block above
+     them costs — the pitch is derived from the space that is actually left */
+  const contactPitch=Math.max(58,Math.min(84,(sigTop0-20-y)/contactRows));
+  const contactH=Math.min(72,contactPitch-14);
+  const contactNameSize=Math.max(18,Math.min(24,contactH*0.34));
+  const contactPhoneSize=Math.max(16,Math.min(21,contactH*0.28));
+  const colWid=(W-pad*2)/contactCols;
   rows.forEach((r,i)=>{
-    const col=i%2, row=Math.floor(i/2);
+    const col=i%contactCols, row=Math.floor(i/contactCols);
     const x=pad+col*colWid, yy=y+row*contactPitch+(contactPitch-contactH)/2;
     const st=LS.store.staffByName(r.name)||{};
     g+=rect(x,yy,4,contactH,C.goldLine);
-    g+=rect(x+4,yy,colWid-24,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
-    g+=text(x+24,yy+28,r.name,{size:fitSize(r.name,colWid-52,25,16),weight:600,fill:'#12203C'});
-    g+=text(x+24,yy+55,st.phone||'—',{size:21,fill:'#5B6474'});
+    g+=rect(x+4,yy,colWid-20,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
+    g+=nameBlock(x+22,yy+contactH*0.42,colWid-56,r.name,{pref:contactNameSize,min:17});
+    g+=text(x+22,yy+contactH-11,st.phone||'—',{size:contactPhoneSize,fill:'#5B6474'});
   });
   y+=contactRows*contactPitch+10;
 
@@ -292,9 +381,12 @@ SH.weeklySVG=function(data,opts){
   const night=data.night||{};
   const labelW=560, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,dates.length);
-  const headH=44, dateH=34, rowH=84, nightH=72;
+  const headH=48, dateH=36, rowH=92, nightH=80;
   const top=446;
-  const H=top+headH+dateH+rowH*services.length+nightH+150;
+  const exceptions=staffExceptions([].concat(...dates.map(iso=>Object.values(alloc[iso]||{}))).concat(Object.values(night)));
+  const noteLines=exceptionLines(exceptions,W-pad*2,21).length;
+  const noteH=exceptions.length?noteLines*29+76:0;
+  const H=top+headH+dateH+rowH*services.length+nightH+noteH+150;
 
   let g='';
   g+='<rect width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
@@ -307,9 +399,9 @@ SH.weeklySVG=function(data,opts){
 
   /* header: navy label block + two light rows of day then date, weekends in cream */
   g+=rect(pad,top,labelW,headH,C.band);
-  g+=text(pad+24,top+headH/2+9,'Unit / Day',{size:26,weight:700,fill:'#FFFFFF'});
+  g+=text(pad+24,top+headH/2+10,'Unit / Day',{size:28,weight:700,fill:'#FFFFFF'});
   g+=rect(pad,top+headH,labelW,dateH,'#FFFFFF');
-  g+=text(pad+24,top+headH+dateH/2+9,'Date',{size:25,weight:700,fill:'#12203C'});
+  g+=text(pad+24,top+headH+dateH/2+9,'Date',{size:27,weight:700,fill:'#12203C'});
   g+=rect(pad,top+headH,labelW,dateH,'none',{stroke:C.line,sw:1});
   g+=rect(pad,top,labelW,headH+dateH,'none',{stroke:C.line,sw:1});
   dates.forEach((iso,i)=>{
@@ -318,38 +410,42 @@ SH.weeklySVG=function(data,opts){
     g+=rect(x,top,colW,headH,we?C.creamBand:'#FFFFFF');
     g+=rect(x,top+headH,colW,dateH,we?'#F7E9C9':'#F4F6FA');
     g+=rect(x,top,colW,headH+dateH,'none',{stroke:C.line,sw:1});
-    g+=text(x+colW/2,top+headH/2+9,U.DOWL[(d.getDay()+6)%7],{size:25,weight:700,anchor:'middle',fill:we?C.alInk:'#12203C'});
-    g+=text(x+colW/2,top+headH+dateH/2+9,String(d.getDate()),{size:24,weight:600,anchor:'middle',fill:we?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,top+headH/2+10,U.DOWL[(d.getDay()+6)%7],{size:28,weight:700,anchor:'middle',fill:we?C.alInk:'#12203C'});
+    g+=text(x+colW/2,top+headH+dateH/2+9,String(d.getDate()),{size:26,weight:600,anchor:'middle',fill:we?C.alInk:'#12203C',mono:true});
   });
 
   services.forEach((sv,ri)=>{
     const y=top+headH+dateH+ri*rowH;
     g+=rect(pad,y,labelW,rowH,'#FFFFFF');
-    g+=text(pad+24,y+rowH/2+9,sv.name,{size:fitSize(sv.name,labelW-44,26,16),weight:600,fill:'#12203C'});
+    g+=text(pad+24,y+rowH/2+10,sv.name,{size:fitSize(sv.name,labelW-44,30,20),weight:600,fill:'#12203C'});
     dates.forEach((iso,i)=>{
       const d=U.parseISO(iso), we=d.getDay()===0||d.getDay()===6;
       const x=gridX+i*colW;
       g+=rect(x,y,colW,rowH,we?C.creamBand:'#FFFFFF');
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       const who=(alloc[iso]&&alloc[iso][sv.name])||'';
-      if(who) g+=text(x+colW/2,y+rowH/2+9,who,{size:fitSize(who,colW-18,21,12),weight:600,anchor:'middle',fill:'#12203C'});
+      if(who) g+=nameBlock(x+colW/2,y+rowH/2, colW-20, who, {pref:34,min:19,anchor:'middle'});
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
   });
 
   const ny=top+headH+dateH+services.length*rowH;
   g+=rect(pad,ny,labelW,nightH,C.nightBand);
-  g+=text(pad+24,ny+nightH/2+9,'Night Shift',{size:26,weight:700,fill:'#E9D9A7'});
+  g+=text(pad+24,ny+nightH/2+10,'Night Shift',{size:28,weight:700,fill:'#E9D9A7'});
   dates.forEach((iso,i)=>{
     const x=gridX+i*colW;
     g+=rect(x,ny,colW,nightH,C.nightBand);
     g+=rect(x,ny,colW,nightH,'none',{stroke:'#2A3A5C',sw:1});
     const who=night[iso]||'';
-    if(who) g+=text(x+colW/2,ny+nightH/2+9,who,{size:fitSize(who,colW-18,21,12),weight:600,anchor:'middle',fill:'#FFFFFF'});
+    if(who) g+=nameBlock(x+colW/2,ny+nightH/2, colW-20, who, {pref:34,min:19,anchor:'middle',fill:'#FFFFFF',subFill:'#C9D4E8'});
   });
   g+=rect(pad,ny+nightH,W-pad*2,3,C.goldLine);
 
-  g+=text(W/2,H-86,'Week of '+U.fmtDateShort(data.weekStart)+' · Generated '+U.todayISO()+' · Ruli District Hospital Laboratory',{size:22,anchor:'middle',fill:'#3D4759'});
+  if(exceptions.length){
+    g+=drawExceptions(pad,ny+nightH+44,W-pad*2,exceptions,{size:21,pitch:29});
+  }
+
+  g+=text(W/2,H-60,'Week of '+U.fmtDateShort(data.weekStart)+' · Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day · Generated '+U.todayISO(),{size:24,anchor:'middle',fill:'#3D4759'});
   return svgDoc(W,H,g);
 };
 

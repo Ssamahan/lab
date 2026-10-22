@@ -4,6 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
+const APP_VERSION='6.5.0';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -18,7 +19,7 @@ const ROUTES={
   training:{title:'Training Roster',sub:'FIFO queue · registry · competency history',group:'People',icon:ICON.training,file:'training'},
   revenue:{title:'Training Revenue',sub:'Expenses · reimbursements · balance',group:'People',icon:ICON.revenue,file:'revenue',permission:'revenue'},
   roster:{title:'Working Plan',sub:'Shift grid · coverage · fairness',group:'Scheduling',icon:ICON.roster,file:'roster'},
-  leave:{title:'Leave & Timeline',sub:'Requests · approvals · absence forecast',group:'Scheduling',icon:ICON.leave,file:'leave'},
+  leave:{title:'Leave & Timeline',sub:'Annual & authorised leave · plans · forecast',group:'Scheduling',icon:ICON.leave,file:'leave'},
   eqa:{title:'EQA / PT Scores',sub:'Proficiency testing · z-scores · CAPA',group:'Quality',icon:ICON.eqa,file:'eqa'},
   pbf:{title:'PBF Evaluation',sub:'Health-centre performance-based financing scores',group:'Quality',icon:ICON.pbf,file:'pbf'},
   quality:{title:'Quality & Compliance',sub:'ISO 15189 readiness · SOPs · incidents · QC',group:'Quality',icon:ICON.quality,file:'quality'},
@@ -158,10 +159,13 @@ SH.route=async function(opts){
     page.innerHTML='<div class="page"><div class="card pad" style="max-width:560px;margin:6vh auto">'+UI.empty({art:'lock',title:'Restricted module',body:'Your role ('+LS.auth.user.role+') does not have access to '+r.title+'. The Lab Manager can grant access in Security Center.',action:'<button class="btn" data-go="dash">'+U.ic('arrow-left',15)+' Back to Command Center</button>'})+'</div></div>';
     page.querySelector('[data-go]').onclick=()=>SH.go('dash'); return;
   }
+  // A navigation always closes any open drawer or modal. Leaving a layer open
+  // used to keep the body scroll-locked, which is what made scrolling feel broken.
+  try{ UI.closeAll(); }catch(e){}
   page.dataset.route=id;
   page.innerHTML='<div class="page">'+UI.skel(3,'kpi')+'<div style="height:16px"></div>'+UI.skel(1,'table')+'</div>';
   clearTimeout(SH._failTimer);
-  SH._failTimer=setTimeout(()=>{ if(page.dataset.route===id && page.querySelector('.skeleton')) SH.fail(new Error('Module took longer than 12 seconds to render. The local register is intact — try reloading, or open another module.'),id,page); }, 12000);
+  SH._failTimer=setTimeout(()=>{ if(page.dataset.route===id && page.querySelector('.skeleton')) SH.fail(new Error('Module took longer than 25 seconds to render. The local register is intact — try reloading, or open another module.'),id,page); }, 25000);
   if(document.body.classList.contains('rail-open')) document.body.classList.remove('rail-open');
   document.querySelector('.app')?.classList.remove('rail-open');
   try{
@@ -171,6 +175,7 @@ SH.route=async function(opts){
     page.innerHTML='<div class="page" id="pageInner"></div>';
     const root=page.querySelector('#pageInner');
     await mod.render(root, params);
+    clearTimeout(SH._failTimer);
     UI.animateCounts(root); UI.observeReveals(root);
     // scroll restore / top
     if(!opts||!opts.keepScroll) window.scrollTo({top:0,behavior:U.reduced()?'auto':'smooth'});
@@ -191,7 +196,7 @@ SH.refresh=function(){ SH.route({keepScroll:true}); };
 SH.fail=function(err,id,host){
   const box=host||document.getElementById('page');
   if(!box) return;
-  const diag='Lab Systems v6.4.0\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
+  const diag='Lab Systems v'+APP_VERSION+'\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
   box.innerHTML='<div class="page"><div class="card pad" style="max-width:620px;margin:5vh auto">'
    +'<div class="row" style="gap:12px;margin-bottom:10px"><div class="kpi-ic" style="width:36px;height:36px;color:var(--crit);background:var(--crit-soft);border-color:var(--crit-border)">'+U.ic('alert-triangle',18)+'</div>'
    +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">This panel could not render</div><div class="xs faint">Your data is safe — nothing was written.</div></div></div>'
@@ -313,15 +318,32 @@ function openUserMenu(){
     +'<div class="seg"><button data-theme-toggle class="on" style="display:flex;align-items:center;gap:5px"><span data-theme-icon>'+U.ic(S.settings().theme==='ink'?'moon':'sun',13)+'</span><span data-theme-label>'+(S.settings().theme==='ink'?'Ink':'Porcelain')+'</span></button></div></div>'
     +'<div class="row between" style="margin-top:8px"><span class="xs faint">Density</span><button class="btn xs" data-density-toggle><span data-density-label>'+((S.settings().density==='compact')?'Compact':'Comfortable')+'</span></button></div>'
     +'<div class="row between" style="margin-top:8px"><span class="xs faint">Language</span><select class="select" id="langSel" style="width:auto;height:30px;font-size:11.5px">'+LS.i18n.languages.map(l=>'<option value="'+l.code+'" '+(LS.i18n.lang===l.code?'selected':'')+'>'+l.native+'</option>').join('')+'</select></div>'
-    +'<div class="row between" style="margin-top:8px"><span class="xs faint">Install app</span><button class="btn xs" data-install>'+U.ic('smartphone',13)+' Install</button></div>';
+    +'<div class="row between" style="margin-top:8px"><span class="xs faint">Install app</span><button class="btn xs" data-install>'+U.ic('smartphone',13)+' Install</button></div>'
+    +'<div class="row between" style="margin-top:8px"><span class="xs faint">Console build</span><span class="mono xs">v'+APP_VERSION+'</span></div>'
+    +'<button class="btn xs wide" style="margin-top:10px" data-force-refresh>'+UI.ic('refresh-cw',13)+' Force update — clear cache & reload</button>'
+    +'<div class="hint" style="margin-top:6px">Use this if a fix does not appear: it clears the offline cache for the app shell, keeps every record on this device, and reloads the newest build.</div>';
   const d=UI.drawer({title:'Account',eyebrow:'Signed in',body:body,foot:'<button class="btn danger" data-logout>'+U.ic('log-out',15)+' Sign out</button><button class="btn" data-close>Close</button>'});
   d.panel.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ UI.closeAll(); SH.go(b.dataset.go); });
   d.panel.querySelector('[data-theme-toggle]').onclick=e=>{ SH.toggleTheme(); const b=e.currentTarget; b.querySelector('[data-theme-icon]').innerHTML=U.ic(S.settings().theme==='ink'?'moon':'sun',13); b.querySelector('[data-theme-label]').textContent=S.settings().theme==='ink'?'Ink':'Porcelain'; };
   d.panel.querySelector('[data-density-toggle]').onclick=e=>{ SH.toggleDensity(); e.currentTarget.querySelector('[data-density-label]').textContent=S.settings().density==='compact'?'Compact':'Comfortable'; };
   d.panel.querySelector('#langSel').onchange=e=>{ LS.i18n.set(e.target.value); U.$$('#navItems .nav-item').forEach(b=>{ const k=b.dataset.tab; const lbl=b.querySelector('.lbl'); if(lbl) lbl.textContent=LS.i18n.t('nav.'+k,ROUTES[k].title); }); U.$$('.nav-group-label').forEach(el=>{ const g=el.dataset.i18n; if(g) el.textContent=LS.i18n.t(g); }); UI.toast('Language set to '+e.target.selectedOptions[0].text,{type:'ok'}); };
   d.panel.querySelector('[data-install]').onclick=()=>SH.install();
+  const fr=d.panel.querySelector('[data-force-refresh]');
+  if(fr) fr.onclick=()=>SH.forceRefresh();
   d.panel.querySelector('[data-logout]').onclick=()=>{ UI.closeAll(); SH.logout(); };
 }
+/* Hard refresh: drop the app-shell cache, keep the register, reload from network. */
+SH.forceRefresh=async function(){
+  UI.toast('Clearing the offline cache…',{type:'info',duration:1600});
+  try{
+    if(window.caches){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+  }catch(e){}
+  setTimeout(()=>location.reload(),700);
+};
 SH.logout=async function(){
   const ok=await UI.confirm({title:'Sign out of Lab Systems?',body:'Your local register stays on this device. Unsaved screen state is cleared.',confirm:'Sign out',danger:true});
   if(!ok) return;

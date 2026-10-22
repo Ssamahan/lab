@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.4.0';
+const VERSION = 'v6.5.0';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -125,14 +125,22 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Lazy module chunks: cache-first, refresh in background
-  if (url.pathname.indexOf('/assets/js/modules/') >= 0) {
-    event.respondWith(staleWhileRevalidate(req, SHELL));
+  // Code is network-first: an update is visible on the next load, and the cache
+  // is only the offline fallback. Anything else is what made fixed bugs look
+  // unfixed on a device that had visited before.
+  if (/\.(?:css|js|json|webmanifest)$/.test(url.pathname) || url.pathname === '/') {
+    event.respondWith((async () => {
+      try { return await networkFirst(req, RUNTIME); }
+      catch (e) {
+        const shell = await caches.open(SHELL);
+        return (await shell.match(req, { ignoreSearch: true })) || (await caches.match(req)) || Response.error();
+      }
+    })());
     return;
   }
 
-  // Fonts, CSS, JS, icons: stale-while-revalidate
-  if (/\.(?:css|js|woff2?|png|svg|json|webmanifest)$/.test(url.pathname) || url.pathname === '/') {
+  // Fonts, icons and images: stale-while-revalidate — they are content-hashed
+  if (/\.(?:woff2?|png|svg|jpg|jpeg|webp|ico)$/.test(url.pathname)) {
     event.respondWith(staleWhileRevalidate(req, RUNTIME));
     return;
   }

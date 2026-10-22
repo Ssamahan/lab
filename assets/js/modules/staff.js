@@ -18,13 +18,15 @@ function roleFor(s){
   if(/tech/i.test(s.role)) return 'Technologist';
   return 'Read-only';
 }
+/* On authorised leave today — annual leave, sick leave, maternity or any other
+   approved leave type. Nobody is described as absent without an unexcused record. */
 function onLeaveNow(){ const t=U.todayISO(); const ids=S.db().leaves.filter(l=>l.status!=='Declined'&&t>=l.from&&t<=l.to).map(l=>l.staffId); return staff().filter(s=>ids.indexOf(s.id)>=0); }
 function kpis(){
   const a=active(); const leave=onLeaveNow();
   const exp=A.users.filter(u=>!u.twoFactor).length;
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
    +'<div class="c3">'+UI.stat({label:'Active staff',value:a.length,icon:'users',formatted:'0',note:staff().length-a.length+' archived · '+S.db().staff.filter(s=>s.weekendOnly).length+' weekend-only',spark:C.spark([7,7,8,8,9,9,9,a.length],{color:'var(--gold)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Absent today',value:leave.length,icon:'plane-takeoff',formatted:'0',note:leave.length?leave.map(s=>s.name.split(' ')[0]).join(', '):'Full bench on duty',spark:C.spark([0,1,0,1,1,0,1,leave.length],{color:'var(--info)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'On authorised leave',value:leave.length,icon:'plane-takeoff',formatted:'0',note:leave.length?leave.map(s=>s.name.split(' ')[0]).join(', '):'Everyone on the plan today',spark:C.spark([0,1,0,1,1,0,1,leave.length],{color:'var(--info)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Competency records',value:S.db().competency.length,icon:'badge-check',formatted:'0',note:S.db().competency.filter(c=>c.level==='full').length+' full authorisations',spark:C.spark([28,34,39,42,46,49,52,S.db().competency.length],{color:'var(--pos)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'2FA not enrolled',value:exp,icon:'shield-alert',formatted:'0',note:exp?A.users.filter(u=>!u.twoFactor).map(u=>u.name.split(' ')[0]).join(', '):'Every account enrolled',spark:C.spark([4,4,3,3,2,2,1,exp],{color:'var(--amber)'})})+'</div></div>';
 }
@@ -158,7 +160,7 @@ function dataView(){
      +'<div class="hint" style="margin-top:12px">Offline-first: writes queue locally and flush when the endpoint is reachable. No PHI leaves the device until you enable this.</div>'})+'</div>'
    +'<div class="c12">'+UI.card({title:'Data provenance',sub:'What is real and what is modelled in this console',icon:'info',body:
      '<p class="small" style="line-height:1.7;color:var(--text-muted)">'+U.esc(S.settings().provenance||'')+'</p>'
-     +'<div class="split-3" style="margin-top:12px">'+[['Register data','Carried forward from v5.3.1 (staff, referrals, leave, trainings, revenue, equipment)'],['Operational telemetry','Throughput, QC, TAT and issue logs generated deterministically for the demo'],['Configuration','Stored in localStorage under labSystems.v1 · schema v'+db.meta.schema]].map(([k,v])=>'<div class="hstat" style="align-items:flex-start"><span class="lb">'+k+'</span><span class="xs muted" style="line-height:1.55;margin-top:4px">'+U.esc(v)+'</span></div>').join('')+'</div>'})+'</div></div>';
+     +'<div class="split-3" style="margin-top:12px">'+[['Register data','Carried forward from v5.3.1 (staff, referrals, leave, trainings, revenue, equipment)'],['Working records','Only what the department actually recorded — referred samples, issues, leave, EQA rounds. Nothing is generated to fill a screen.'],['Configuration','Stored in localStorage under labSystems.v1 · schema v'+db.meta.schema]].map(([k,v])=>'<div class="hstat" style="align-items:flex-start"><span class="lb">'+k+'</span><span class="xs muted" style="line-height:1.55;margin-top:4px">'+U.esc(v)+'</span></div>').join('')+'</div>'})+'</div></div>';
 }
 function paint(){
   const host=rootEl.querySelector('#stBody'); if(!host) return;

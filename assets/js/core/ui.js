@@ -73,19 +73,39 @@ UI.toast=function(msg,opts){
 };
 
 /* ——— Layered surfaces (drawer / modal) ————————————— */
-function pushLayer(fn){ layers.push(fn); document.body.style.overflow='hidden'; }
-function popLayer(){ const fn=layers.pop(); if(fn) fn(); if(!layers.length) document.body.style.overflow=''; }
+/* Scroll lock is reference-counted and also mirrored on <html> so a layer that
+   is torn down by a route change can never leave the page frozen. */
+let lockCount=0;
+function lockScroll(){ lockCount++; document.body.classList.add('scroll-lock'); document.documentElement.classList.add('scroll-lock'); }
+function unlockScroll(){ lockCount=Math.max(0,lockCount-1); if(!lockCount){ document.body.classList.remove('scroll-lock'); document.documentElement.classList.remove('scroll-lock'); } }
+UI.unlockScroll=function(){ lockCount=0; document.body.classList.remove('scroll-lock'); document.documentElement.classList.remove('scroll-lock'); };
+function pushLayer(fn){ layers.push(fn); document.body.style.overflow='hidden'; lockScroll(); }
+function popLayer(){ const fn=layers.pop(); if(fn) fn(); unlockScroll(); if(!layers.length) document.body.style.overflow=''; }
 UI.closeTop=()=>{ if(layers.length) popLayer(); };
 /* Every [data-close] closes the top layer — the X, footer buttons and any button
-   rendered later into a modal or drawer. Delegated so nothing is missed. */
+   rendered later into a modal or drawer. Bound per surface (below) *and*
+   delegated here, so a footer button works even inside a nested surface. */
+function bindClose(scope){
+  scope.querySelectorAll('[data-close]').forEach(b=>{
+    if(b.__closeBound) return; b.__closeBound=true;
+    b.addEventListener('click',e=>{
+      if(e.target.closest('a[href]')) return;
+      e.preventDefault(); e.stopPropagation();
+      if(layers.length) popLayer();
+    },true);
+  });
+}
 document.addEventListener('click',e=>{
   const b=e.target&&e.target.closest?e.target.closest('[data-close]'):null;
   if(!b||!layers.length) return;
-  e.preventDefault();
+  if(b.__closeBound) return;               // already handled by the surface
+  e.preventDefault(); e.stopPropagation();
   popLayer();
 },true);
-UI.closeAll=()=>{ while(layers.length) popLayer(); };
+UI.closeAll=()=>{ while(layers.length){ const fn=layers.pop(); if(fn) fn(); } UI.unlockScroll(); document.body.style.overflow=''; };
 document.addEventListener('keydown',e=>{ if(e.key==='Escape' && layers.length){ e.preventDefault(); popLayer(); } });
+/* A layer must never survive a navigation or a bfcache restore. */
+window.addEventListener('pagehide',()=>UI.unlockScroll());
 
 function focusables(root){ return Array.from(root.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')).filter(x=>x.offsetParent!==null); }
 function trap(root){
@@ -111,8 +131,9 @@ UI.drawer=function(o){
   const close=()=>{ panel.style.animation='none'; panel.style.transform='translateX(24px)'; panel.style.opacity='0'; panel.style.transition='all .18s ease'; scrim.style.opacity='0'; scrim.style.transition='opacity .18s'; setTimeout(()=>{ scrim.remove(); panel.remove(); }, 180); };
   scrim.onclick=()=>popLayer();
   pushLayer(()=>{ close(); });
+  bindClose(panel);
   trap(panel);
-  if(o.onMount) setTimeout(()=>o.onMount(panel,close),0);
+  if(o.onMount) setTimeout(()=>{ bindClose(panel); o.onMount(panel,close); },0);
   return {panel, close:()=>popLayer()};
 };
 UI.modal=function(o){
@@ -128,8 +149,9 @@ UI.modal=function(o){
   const close=()=>{ wrap.style.opacity='0'; wrap.style.transition='opacity .16s'; setTimeout(()=>wrap.remove(),160); };
   wrap.addEventListener('mousedown',e=>{ if(e.target===wrap) popLayer(); });
   pushLayer(close);
+  bindClose(wrap);
   trap(wrap);
-  if(o.onMount) setTimeout(()=>o.onMount(wrap,close),0);
+  if(o.onMount) setTimeout(()=>{ bindClose(wrap); o.onMount(wrap,close); },0);
   return {el:wrap, close:()=>popLayer()};
 };
 UI.confirm=function(o){
