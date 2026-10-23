@@ -5,9 +5,31 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.3** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.4** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.4
+
+**The questionnaire is worth 25 marks, and the marks are not spread evenly.**
+
+- The nine questions carry **5 · 3 · 3.5 · 2 · 2 · 2 · 3 · 2.5 · 2 = 25 marks**,
+  applied in the order of the questionnaire. They are stored on each question, so
+  moving a question keeps its marks with it and re-weighting one question never
+  disturbs the others.
+- **Half marks are real.** Every mark input steps by 0.5 and anything typed is held
+  to the nearest half mark inside the question's maximum — 4.3 becomes 4.5, 9 on a
+  3-mark question becomes 3. The percentage beside the field is the percentage that
+  is saved.
+- The index is still **marks earned ÷ marks available × 100** — now out of 25, so
+  22.5 marks reads 90 %. Domain percentages are unchanged: each domain's own marks
+  over its own marks available.
+- Marks already recorded on the old 25-per-question scale are rescaled once, in
+  proportion, so every stored percentage is exactly what it was before.
+- The bank shows **25 marks available** and flags it in amber if the questions are
+  ever re-weighted away from 25; the maximum-marks field accepts 0.5 increments.
+- Printed scorecards and the centre drawer show the true fractions (e.g. `22.5 / 25`,
+  `3.5` marks for question 3), never rounded to whole units.
 
 ## What changed in 6.9.3
 
