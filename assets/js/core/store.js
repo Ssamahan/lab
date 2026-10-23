@@ -437,6 +437,36 @@ function normalize(db){
     {id:'sv3', name:'Expiring ≤ 30 days', module:'stock', filter:{expiry:30}, owner:'Beatrice NGEZEKURE'}
   ];
   db.meta.schema=6;
+  /* v6.9.5 — monthly ceilings on consumables. The bench plans in months ("no more
+     than five blood-culture bottles a month"), so a ceiling can be set per line.
+     The blood-culture ceiling is the district's own figure; the other lines start
+     blank and are set by the department. */
+  if(!db.meta.stockCapsV695){
+    db.meta.stockCapsV695=1;
+    (db.catalog.consumables||[]).forEach(c=>{
+      if(c.monthlyCap==null && /blood culture/i.test(c.name||'')) c.monthlyCap=5;
+    });
+  }
+  /* v6.9.5 — the seeded record that placed a week of annual leave in May 2026
+     for the manager was wrong: no annual leave was drawn in FY 2025/26, the whole
+     entitlement was carried and is being taken in November 2026. Only that seeded
+     row is corrected; any block entered by hand is left exactly as it is. */
+  if(!db.meta.leaveCarryV695){
+    db.meta.leaveCarryV695=1;
+    const seeded=(db.leaves||[]).find(l=>l.id==='l18'&&l.staffId==='s1'&&l.from==='2026-05-25');
+    if(seeded) Object.assign(seeded,{from:'2026-11-02',to:'2026-12-01',backOn:'2026-12-02',fy:'2026/2027',
+      note:'Carry-over — the whole 30-day FY 2025/26 entitlement was left unused and is taken in November 2026; no annual leave was drawn in FY 2025/26'});
+    const dec=(db.leaves||[]).find(l=>l.id==='l7'&&/carry-over from previous FY/i.test(l.note||''));
+    if(dec) dec.note='Two days in December — from the new FY 2026/27 entitlement';
+    try{ S.save(); }catch(e){}
+  }
+  /* v6.9.5 — a leave record's fiscal year comes from its dates. Older records
+     carried a hand-set `fy`; where that label disagrees with the dates it is
+     rewritten, so nobody shows up in a year they were never away in. */
+  if(!db.meta.leaveFyV695){
+    db.meta.leaveFyV695=1;
+    (db.leaves||[]).forEach(l=>{ if(l.from) l.fy=U.fyInfo(l.from).label; });
+  }
   /* v6.9 — light is the default. Older builds shipped 'ink' as the stored theme,
      so an untouched setting is migrated to auto once; an explicit choice is kept. */
   if(!db.meta.themeAutoV69){
@@ -713,7 +743,11 @@ S.audit=function(entry){
 /* ——— Selectors ————————————————————————————————— */
 S.staff=()=>S.db().staff;
 S.activeStaff=()=>S.db().staff.filter(s=>s.status==='active');
-S.tests=()=>S.db().catalog.tests;
+/* The test menu is the department's, not the seed's. A test can be switched off
+   (kept for history, gone from every picker) or deleted outright. */
+S.allTests=()=>S.db().catalog.tests.filter(t=>!t.deleted);
+S.tests=()=>S.allTests().filter(t=>t.active!==false);
+S.testByName=n=>(S.db().catalog.tests||[]).find(t=>t.name===n)||null;
 S.staffById=id=>S.db().staff.find(s=>s.id===id);
 S.staffByName=n=>S.db().staff.find(s=>s.name===n);
 S.consumables=()=>S.db().catalog.consumables.filter(c=>!c.deleted);
@@ -786,7 +820,7 @@ S.leaveEntitlement=function(staff, fy){
 };
 S.leaveUsed=function(staff, fy){
   fy=fy||U.fyLabel();
-  const rows=S.leaveInForce().filter(l=>l.staffId===staff.id && l.type!=='SICK' && l.type!=='W' && l.fy===fy);
+  const rows=S.leaveInForce().filter(l=>l.staffId===staff.id && l.type!=='SICK' && l.type!=='W' && fyOf(l)===fy);
   const days=U.sum(rows,l=>{
     if(S.contractOf(staff)!=='contractual') return U.daysBetween(l.from,l.to)+1;
     let n=0; const d=U.parseISO(l.from), end=U.parseISO(l.to);
@@ -845,7 +879,11 @@ S.leaveCountsAgainstEntitlement=type=>S.leaveKind(type)==='annual' && type!=='W'
 
 /* A leave plan is a block of days charged to a fiscal year. It can be entered
    for a past FY (a carry-over still being taken) or for a future month. */
-function fyOf(l){ return l.fy || U.fyInfo(l.from).label; }
+/* The fiscal year of a leave record is decided by its dates, never by a label
+   typed on it. A block that starts in August 2026 is 2026/2027 whatever was
+   written in the form — that is what stops a record appearing under the wrong
+   year when you toggle between them. */
+function fyOf(l){ return U.fyInfo(l.from||l.to||U.todayISO()).label; }
 function leaveDays(staff,l){
   if(S.contractOf(staff)!=='contractual') return U.daysBetween(l.from,l.to)+1;
   let n=0; const d=U.parseISO(l.from), end=U.parseISO(l.to);
@@ -859,6 +897,23 @@ S.leaveRowsFor=function(staff,fy){
 };
 /* Everything the annual-leave plan book needs for one person: entitlement,
    days charged to the FY, days still to come, and the balance. */
+/* Unused annual leave does not evaporate at the year boundary: it is carried into
+   the next fiscal year and taken there. The carry is capped at one year's
+   entitlement and only counts leave already in the past — a block planned for a
+   future month is not "unused". */
+S.leaveCarryOver=function(staff,fy){
+  fy=fy||U.fyLabel();
+  const prevLabel=(function(){
+    const m=String(fy).match(/^(\d{4})\/(\d{4})$/); if(m) return (+m[1]-1)+'/'+m[2];
+    const info=U.fyInfo(U.addDays(U.todayISO(),-400)); return info.label;
+  })();
+  if(prevLabel===fy) return {prevFy:null,days:0,taken:0,entitlement:0};
+  const ent=S.leaveEntitlement(staff,prevLabel);
+  const rows=S.leaveRowsFor(staff,prevLabel).filter(l=>S.leaveCountsAgainstEntitlement(l.type));
+  const taken=U.sum(rows,l=>leaveDays(staff,l));
+  const days=Math.max(0,Math.min(ent.days,ent.days-taken));
+  return {prevFy:prevLabel,days,taken,entitlement:ent.days};
+};
 S.leaveBook=function(staff,fy){
   fy=fy||U.fyLabel();
   const e=S.leaveEntitlement(staff,fy);
@@ -869,11 +924,13 @@ S.leaveBook=function(staff,fy){
   const planned=U.sum(annual.filter(l=>l.from>U.todayISO()),l=>leaveDays(staff,l));
   const charged=U.sum(annual,l=>leaveDays(staff,l));
   const authorised=rows.filter(l=>S.leaveKind(l.type)==='authorised' && l.type!=='W');
+  const carry=S.leaveCarryOver(staff,fy);
+  const pool=e.days+carry.days;
   return {staff, fy, entitlement:e, rows, annual,
-    taken, running, planned, charged,
+    taken, running, planned, charged, carry, pool,
     authorisedDays:U.sum(authorised,l=>leaveDays(staff,l)),
-    balance:Math.max(0,e.days-charged),
-    over:charged>e.days?charged-e.days:0};
+    balance:Math.max(0,pool-charged),
+    over:charged>pool?charged-pool:0};
 };
 /* Fiscal years that have leave attached, newest first, always including the
    current one and the one before it. */
@@ -1048,7 +1105,18 @@ S.stockOverview=function(){
     const used90=db.stock.entries.filter(e=>e.cid===c.id && e.type==='used' && e.date>=U.addDays(U.todayISO(),-90));
     const burn90=U.sum(used90,e=>e.qty)/90;
     const burn=Math.max(burn90, 0.05);
+    /* Consumption is also stated in months, because that is how the bench plans:
+       "no more than five blood-culture bottles in a month". `monthlyCap` is that
+       ceiling; `perMonth` is what the issue log says is actually used. */
+    const usedIn=days=>U.sum(db.stock.entries.filter(e=>e.cid===c.id && e.type==='used' && e.date>=U.addDays(U.todayISO(),-days)),e=>e.qty);
+    const used30=usedIn(30), used90Total=U.sum(used90,e=>e.qty);
+    /* The real 90-day average, not the floored burn used for days-of-cover. No
+       issues at all means no monthly usage — never a nominal 1.5 a month. */
+    const perMonth=Math.round((used90Total/3)*10)/10;
+    const cap=+c.monthlyCap||null;
     return { ...c, onHand, batches, nearest, burn, daysLeft: burn? Math.round(onHand/burn) : 999,
+      used30, perMonth, cap, capPct: cap? Math.min(999,Math.round(perMonth/cap*100)) : null,
+      monthsLeft: perMonth? Math.round(onHand/perMonth*10)/10 : null,
       value: onHand*(c.unitCost||0), low: onHand <= (c.threshold||0), expiring: nearest && U.daysBetween(U.todayISO(),nearest.expiry)<=30 };
   });
 };

@@ -7,16 +7,56 @@ const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.eqa=M;
 let rootEl=null, tab='scorecard', celebrated=false;
 
-function composite(){
-  const latest=S.eqaLatest(); const vals=Object.values(latest).map(e=>e.scorePercent!=null?e.scorePercent:Math.max(0,100-Math.abs(e.score||0)*25));
-  return Math.round(U.avg(vals)*10)/10;
+/* One round's percentage, read from the record and nothing else.
+   Schemes the provider scores in % carry that figure. Schemes scored as a
+   standard-deviation index use the provider's own criterion — |z| ≤ 2 is
+   satisfactory, 2 to 3 is questionable, 3 and above is unsatisfactory — so a
+   passing round reads 100 %, not a made-up "100 − z × 25". */
+function pctOf(e){
+  if(!e) return null;
+  if(e.scorePercent!=null && isFinite(+e.scorePercent)) return Math.round(+e.scorePercent*10)/10;
+  const raw=Object.keys(e.analytes||{}).map(k=>e.analytes[k]).filter(v=>v!=null&&isFinite(v));
+  if(/^%$/.test(e.scoring)){ if(raw.length) return Math.round(U.avg(raw)*10)/10; }
+  const zs=raw.map(Math.abs);
+  if(e.score!=null&&isFinite(+e.score)) zs.push(Math.abs(+e.score));
+  if(!zs.length) return null;
+  const z=Math.max.apply(null,zs);
+  return z>=3?0:z>=2?50:100;
 }
+/* The rounds grouped by the quarter they belong to, ordered by when the
+   material actually went out. Nothing is extrapolated: a quarter with no
+   recorded score simply does not appear. */
+function quarters(){
+  const map={};
+  S.db().eqa.forEach(e=>{
+    const pct=pctOf(e); if(pct==null) return;
+    const key=e.code||'Unlabelled round';
+    const q=map[key]=map[key]||{label:key,first:e.delivered||e.reported||'9999',pcts:[],schemes:[]};
+    q.pcts.push(pct);
+    q.schemes.push({name:e.program,pct,raw:e});
+    const d=e.delivered||e.reported||''; if(d && d<q.first) q.first=d;
+  });
+  return Object.keys(map).map(k=>map[k])
+    .sort((a,b)=>String(a.first).localeCompare(String(b.first)))
+    .map(q=>({label:q.label, first:q.first, count:q.pcts.length,
+      value:Math.round(U.avg(q.pcts)*10)/10,
+      schemes:q.schemes.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)))}));
+}
+function composite(){
+  const latest=S.eqaLatest();
+  const vals=Object.keys(latest).map(k=>pctOf(latest[k])).filter(v=>v!=null);
+  return vals.length?Math.round(U.avg(vals)*10)/10:0;
+}
+/* Only the quarters that have real scores, plotted in order. */
 function trend(){
-  const base=composite();
-  const r=U.rng('eqa-trend');
-  const qs=['Q2 2025/26','Q3 2025/26','Q4 2025/26','Q1 2026/27','Q2 2026/27'];
-  const vals=[Math.max(70,base-11),Math.max(72,base-8),Math.max(74,base-5),Math.max(76,base-2),base].map(v=>Math.round(v*10)/10);
-  return {labels:qs,values:vals};
+  const qs=quarters();
+  return {labels:qs.map(q=>q.label), values:qs.map(q=>q.value), points:qs, quarters:qs};
+}
+/* How the composite moved between the two most recent quarters — computed, never
+   typed in. Null when there is only one quarter to compare. */
+function movement(){
+  const qs=quarters(); if(qs.length<2) return null;
+  return Math.round((qs[qs.length-1].value-qs[qs.length-2].value)*10)/10;
 }
 /* ——— Round lifecycle —————————————————————————————
    A round is recorded when the material is tested and sent off, long before the
@@ -53,7 +93,7 @@ function kpis(){
   const closed=S.db().eqa.filter(e=>stageOf(e)==='scored'&&e.reported&&e.delivered);
   const avgTat=closed.length?Math.round(U.avg(closed.map(e=>U.daysBetween(e.delivered,e.reported)))*10)/10:null;
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
-   +'<div class="c3">'+UI.stat({label:'Composite score',value:composite(),dec:1,unit:'%',icon:'target',formatted:'0.0',delta:2.4,note:'Weighted across '+schemes.length+' schemes',spark:C.spark(trend().values,{color:'var(--gold)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Composite score',value:composite(),dec:1,unit:'%',icon:'target',formatted:'0.0',delta:movement(),note:'Mean of the latest score in '+schemes.length+' schemes',spark:C.spark(trend().values.length?trend().values:[composite()],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Awaiting results',value:waiting.length,icon:'hourglass',formatted:'0',note:waiting.length?'Oldest: '+oldest+' days since dispatch':'Nothing outstanding',spark:C.spark([0,1,1,2,1,2,2,3,waiting.length],{color:'var(--amber)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Report turnaround',value:avgTat==null?0:avgTat,dec:1,unit:'days',icon:'timer',formatted:'0.0',note:closed.length?closed.length+' rounds from dispatch to report':'No completed rounds yet',spark:C.spark([9,8,9,7,7,6,6,5,avgTat||0],{color:'var(--info)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Max |z| score',value:Math.round(Math.max.apply(null,zs.concat([0]))*10)/10,dec:1,icon:'activity',formatted:'0.0',note:'Acceptable ≤ 2.0 · alert ≥ 3.0',spark:C.spark(zs.slice(-12),{color:'var(--teal, #3fb3a6)'})})+'</div></div>';
@@ -75,9 +115,29 @@ function schemeGroups(){
     return {program,rounds,analytes};
   });
 }
+/* Every recorded round, laid out by scheme and quarter — the scores exactly as
+   they were recorded. Empty cells are quarters with no record, not zeroes. */
+function schemeMatrix(){
+  const qs=quarters(); if(!qs.length) return '';
+  const names=[];
+  qs.forEach(q=>q.schemes.forEach(x=>{ if(names.indexOf(x.name)<0) names.push(x.name); }));
+  const cell=(q,name)=>{
+    const hit=q.schemes.filter(x=>x.name===name)[0];
+    if(!hit) return '<td class="num"><span class="xs faint">no round</span></td>';
+    const e=hit.raw, pct=hit.pct;
+    const tone=pct>=S.EQA_MIN?'teal':pct>=S.EQA_MIN-10?'amber':'rose';
+    const shown=e.scorePercent!=null ? pct+'%' : (e.scoring==='%' ? pct+'%' : (e.score!=null ? (e.score>0?'+':'')+e.score+' SD' : pct+'%'));
+    return '<td class="num"><span class="pill '+tone+' mono" title="'+U.esc((e.overall||'')+' · '+(e.code||''))+'">'+U.esc(shown)+'</span>'
+      +(e.scorePercent==null&&e.scoring!=='%'?'<div class="xs faint" style="margin-top:2px">'+(pct>=S.EQA_MIN?'satisfactory':pct>=50?'questionable':'unsatisfactory')+'</div>':'')+'</td>';
+  };
+  return '<div class="dt-scroll" style="margin-top:12px"><table class="dt"><thead><tr><th>Scheme</th>'
+    +qs.map(q=>'<th class="num">'+U.esc(q.label)+'</th>').join('')+'</tr></thead><tbody>'
+    +names.map(n=>'<tr><td class="small">'+U.esc(n)+'</td>'+qs.map(q=>cell(q,n)).join('')+'</tr>').join('')
+    +'</tbody></table></div>';
+}
 function scorecard(){
   const db=S.db(); const latest=S.eqaLatest();
-  const schemes=Object.keys(latest).map(k=>{ const e=latest[k]; const pct=e.scorePercent!=null?e.scorePercent:Math.max(0,100-Math.abs(e.score||0)*25);
+  const schemes=Object.keys(latest).map(k=>{ const e=latest[k]; const pct=pctOf(e)||0;
     return {name:k,e,pct:Math.round(pct),stage:stageOf(e)}; });
   const tr=trend();
   const groups=schemeGroups();
@@ -108,10 +168,10 @@ function scorecard(){
   }).join('');
 
   return '<div class="grid-12">'
-   +'<div class="c8">'+UI.card({title:'Quarterly composite',sub:'Minimum acceptable '+(S.EQA_MIN)+'% · EQAS proficiency rounds',icon:'chart-line',cls:'gold',
+   +'<div class="c8">'+UI.card({title:'Quarterly composite',sub:'Every recorded round · minimum acceptable '+(S.EQA_MIN)+'%',icon:'chart-line',cls:'gold',
       tools:'<span class="pill '+(composite()>=S.EQA_MIN?'teal':'amber')+'">'+composite()+'% composite</span>',
-      body:'<div id="eqaTrend"></div>',
-      foot:'<span>Band = minimum acceptable performance ('+(S.EQA_MIN)+'%)</span><span class="mono">5 rounds shown</span>'})+'</div>'
+      body:'<div id="eqaTrend"></div>'+schemeMatrix(),
+      foot:'<span>Dashed band = minimum acceptable performance ('+(S.EQA_MIN)+'%) · a quarter with no recorded score is not plotted</span><span class="mono">'+quarters().length+' quarter'+(quarters().length===1?'':'s')+' · '+S.db().eqa.length+' rounds</span>'})+'</div>'
    +'<div class="c4">'+UI.card({title:'Overall standing',sub:'Traffic-light interpretation',icon:'shield-check',body:
       '<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">'+C.ring(composite(),{size:104,stroke:7})+'<div><div class="strong">'+(composite()>=(S.EQA_MIN+3)?'Excellent':composite()>=S.EQA_MIN?'Acceptable':'Action required')+'</div><div class="xs faint" style="margin-top:3px">ISO 15189 §7.7.3<br>Interlaboratory comparisons</div></div></div>'
       +schemes.map(s=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:12px">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.esc(s.e.code)+' · '+(s.stage==='awaiting'?'awaiting results':U.fmtDate(s.e.reported))+'</div></div><span class="pill '+(s.stage==='awaiting'?'amber':s.pct>=S.EQA_MIN?'teal':'amber')+'">'+(s.stage==='awaiting'?'pending':s.pct+'%')+'</span></div>').join('')})+'</div>'
@@ -270,7 +330,14 @@ function wireBody(){
   r.querySelectorAll('[data-eqa-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.eqaTab; paint(); });
   if(tab==='scorecard'){
     const tr=trend();
-    C.line(r.querySelector('#eqaTrend'),{id:'eqaT',height:230,min:70,max:100,series:[{name:'Composite',color:'var(--gold)',values:tr.values}],labels:tr.labels,target:{value:S.EQA_MIN,label:'minimum '+S.EQA_MIN+'%'},yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%',drawMs:1400});
+    /* The axis opens only as far as the recorded scores need — it no longer runs
+       from 70 % when nothing was ever scored that low. */
+    const lo=Math.min.apply(null,tr.values.concat([S.EQA_MIN]));
+    const floor=Math.max(0,Math.floor((lo-4)/5)*5);
+    C.line(r.querySelector('#eqaTrend'),{id:'eqaT',height:230,min:floor,max:100,
+      series:[{name:'Composite',color:'var(--gold)',values:tr.values}],labels:tr.labels,
+      target:{value:S.EQA_MIN,label:'minimum '+S.EQA_MIN+'%'},
+      yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%',drawMs:1400,padLeft:46});
     r.querySelectorAll('[data-eqa]').forEach(tr2=>tr2.onclick=()=>{ const e=S.db().eqa.find(x=>x.id===tr2.dataset.eqa); if(!e) return;
       const st=stageOf(e), tu=turnaround(e), waiting=U.daysBetween(e.delivered||U.todayISO(),U.todayISO());
       UI.drawer({title:e.program+' · '+e.code,eyebrow:'EQA round',body:'<div class="row wrap gap-sm" style="margin-bottom:12px"><span class="pill '+STAGE[st].tone+'">'+STAGE[st].label+'</span>'

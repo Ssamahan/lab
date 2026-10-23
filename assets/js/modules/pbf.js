@@ -406,7 +406,7 @@ function hero(){
         +'<div class="pbf-rank mono">#'+(i+1)+'</div><div class="pbf-name">'+U.esc(r.name.replace(' HC',''))+'</div>'
         +'<div class="mono xs" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+')">'+(d>0?'+':'')+d+'</div></div>';
     }).join('')+'</div>':'<div class="chart-empty">No centre has a complete scorecard yet — record a visit to start the index</div>')
-    +'<div class="pbf-axis"><span class="xs faint">0%</span><span class="xs faint">90 %+ greenest · 80–89 green</span><span class="xs faint">75–79 light red · below 75 blood red</span></div>'})+'</div></div>';
+    +'<div class="pbf-axis"><span class="xs faint">0 % · no marks earned</span><span class="xs faint">90 %+ greenest · 80–89 green · 75–79 light red · below 75 blood red</span><span class="xs faint">100 % · all '+fmtMarks(totalMarks())+' marks</span></div>'})+'</div></div>';
 }
 function rowData(){
   return list().filter(r=>!q||r.name.toLowerCase().indexOf(q)>=0).slice().sort((a,b)=>{
@@ -1145,7 +1145,9 @@ function trendModel(){
   const centres=names.map((n,i)=>{
     const mine=visits.filter(v=>v.hcName===n);
     return {name:n.replace(' HC',''),color:TREND_COLORS[i%TREND_COLORS.length],
-      values:keys.map(k=>{ const hit=mine.filter(v=>qKey(v)===k); return hit.length?visitMarks(hit[0]).pct:null; })};
+      values:keys.map(k=>{ const hit=mine.filter(v=>qKey(v)===k)
+        .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+        return hit.length?visitMarks(hit[0]).pct:null; })};
   });
   const scored=centres.map(c=>{ const vals=c.values.filter(v=>v!=null); return Object.assign({},c,{first:vals[0],last:vals[vals.length-1],gain:vals.length>1?vals[vals.length-1]-vals[0]:0}); })
     .sort((a,b)=>(b.last==null?-1:b.last)-(a.last==null?-1:a.last));
@@ -1154,24 +1156,42 @@ function trendModel(){
 }
 function trendChart(){
   const t=trendModel();
-  if(!t.keys.length) return '<div class="chart-empty">No complete scorecard yet — the trend starts with the first visit you record.</div>';
+  if(!t.keys.length) return '<div class="chart-empty">No complete scorecard yet — the trend starts with the first visit whose marks are all entered.</div>';
   if(trendTab==='centres'){
     return '<div id="pbfTrend" data-labels="'+U.esc(t.labels.join('|'))+'"></div>';
   }
   return '<div id="pbfTrend" data-labels="'+U.esc(t.labels.join('|'))+'"></div>';
 }
+/* The y-axis opens only as far as the lowest index that was actually recorded. A
+   missing quarter is a gap in the line, not a zero, so the chart never reads "0 %"
+   for a centre that simply has not been scored yet. */
+function trendFloor(t){
+  const all=[].concat(t.district);
+  t.doms.forEach(d=>d.values.forEach(v=>{ if(v!=null) all.push(v); }));
+  t.centres.forEach(c=>c.values.forEach(v=>{ if(v!=null) all.push(v); }));
+  if(!all.length) return 0;
+  const lo=Math.min.apply(null,all);
+  return Math.max(0,Math.floor((lo-5)/5)*5);
+}
 function paintTrend(root){
   const t=trendModel();
   const el=root.querySelector('#pbfTrend');
   if(!el) return;
-  if(!t.keys.length){ el.innerHTML='<div class="chart-empty">No complete scorecard yet — the trend starts with the first visit you record.</div>'; return; }
+  if(!t.keys.length){
+    const pending=(S.db().pbfVisits||[]).filter(v=>!visitMarks(v).complete).length;
+    el.innerHTML='<div class="chart-empty">No complete scorecard yet — the trend starts with the first visit whose marks are all entered.'
+      +(pending?' <span class="xs faint">'+pending+' recorded visit'+(pending===1?' is':'s are')+' waiting for marks.</span>':'')+'</div>';
+    return;
+  }
   if(trendTab==='district'){
     const series=[{name:'District index',color:'var(--gold-bright)',values:t.district}]
-      .concat(t.doms.map(d=>({name:d.name,color:d.color,values:d.values,area:false,dashed:true})));
-    C.line(el,{series,labels:t.labels,height:250,min:0,max:100,yTicks:4,target:{value:S.PBF_MIN,label:S.PBF_MIN+'% floor'},id:'pbfTrend',tipFmt:v=>v+'%'});
+      .concat(t.doms.map(d=>({name:d.name,color:d.color,values:d.values,area:false,dashed:true})))
+      .filter(x=>x.values.some(v=>v!=null));
+    C.line(el,{series,labels:t.labels,height:250,min:trendFloor(t),max:100,yTicks:4,target:{value:S.PBF_MIN,label:S.PBF_MIN+'% floor'},id:'pbfTrend',tipFmt:v=>v+'%'});
   } else {
     const shown=t.centres.filter(c=>c.values.some(v=>v!=null)).slice(0,8);
-    C.line(el,{series:shown.map(c=>({name:c.name,color:c.color,values:c.values,area:false})),labels:t.labels,height:250,min:0,max:100,yTicks:4,id:'pbfTrend',tipFmt:v=>v+'%'});
+    if(!shown.length){ el.innerHTML='<div class="chart-empty">No health centre has a complete scorecard in these quarters yet.</div>'; return; }
+    C.line(el,{series:shown.map(c=>({name:c.name,color:c.color,values:c.values,area:false})),labels:t.labels,height:250,min:trendFloor(t),max:100,yTicks:4,id:'pbfTrend',tipFmt:v=>v+'%'});
   }
 }
 function trendSide(){
@@ -1187,14 +1207,14 @@ function trendSide(){
   }).join('');
   const movers=(trendTab==='centres'?t.centres.slice().sort((a,b)=>b.gain-a.gain):t.doms.map(d=>{
     const vals=d.values.filter(v=>v!=null); return {name:d.name,first:vals[0],last:vals[vals.length-1],gain:vals.length>1?vals[vals.length-1]-vals[0]:0};
-  }).sort((a,b)=>b.gain-a.gain)).filter(x=>x.gain!==0).slice(0,3);
+  }).sort((a,b)=>b.gain-a.gain)).filter(x=>x.gain>0).slice(0,3);
   return '<div class="trend-head"><div class="eyebrow">District index this quarter</div>'
     +'<div class="row gap-sm" style="align-items:baseline"><span class="serif" style="font-size:1.7rem;letter-spacing:-.03em;color:var(--text-strong)">'+(t.last==null?'—':t.last+'<span style="font-size:.5em">%</span>')+'</span>'
     +(gain!=null?'<span class="delta '+(gain<0?'down':'')+'">'+UI.ic(gain>=0?'trending-up':'trending-down',12)+(gain>0?'+':'')+gain+' pts since '+U.esc(t.labels[0])+'</span>':'<span class="xs faint">first quarter recorded</span>')+'</div></div>'
     +'<div class="trend-q">'+rows+'</div>'
     +(movers.length?'<div class="trend-movers"><div class="eyebrow" style="margin-bottom:4px">'+(trendTab==='centres'?'Most improved centre':'Most improved domain')+'</div>'
-      +movers.map(m=>'<div class="row between" style="padding:3px 0"><span class="xs truncate" style="max-width:62%">'+U.esc(m.name)+'</span><span class="mono xs" style="color:var(--pos)">+'+m.gain+'</span></div>').join('')+'</div>'
-      :'<div class="xs faint" style="margin-top:8px">Record another quarter to see improvement.</div>');
+      +movers.map(m=>'<div class="row between" style="padding:3px 0"><span class="xs truncate" style="max-width:62%">'+U.esc(m.name)+'</span><span class="mono xs" style="color:var(--'+(m.gain>0?'pos':'crit')+')">'+(m.gain>0?'+':'')+m.gain+'</span></div>').join('')+'</div>'
+      :'<div class="xs faint" style="margin-top:8px">No '+(trendTab==='centres'?'centre':'domain')+' improved against its first recorded quarter yet — the chart shows every point as it was recorded.</div>');
 }
 function trendCard(){
   const t=trendModel();
@@ -1205,7 +1225,7 @@ function trendCard(){
         ?'<span class="lg"><span class="sw" style="background:var(--gold-bright)"></span>District index</span>'+t.doms.map(d=>'<span class="lg"><span class="sw" style="background:'+d.color+'"></span>'+U.esc(d.name.split(' ')[0])+'</span>').join('')
         :t.centres.filter(c=>c.values.some(v=>v!=null)).slice(0,8).map(c=>'<span class="lg"><span class="sw" style="background:'+c.color+'"></span>'+U.esc(c.name)+'</span>').join(''))
       +'</div></div><div class="trend-side">'+trendSide()+'</div></div>',
-    foot:'<span>'+(t.keys.length?t.keys.length+' quarter'+(t.keys.length===1?'':'s')+' recorded':'nothing recorded yet')+' · the line only moves when a full scorecard is entered</span><span class="mono">'+questions().length+' questions · '+fmtMarks(totalMarks())+' marks</span>'});
+    foot:'<span>'+(t.keys.length?t.keys.length+' quarter'+(t.keys.length===1?'':'s')+' recorded':'nothing recorded yet')+' · the line only moves when a full scorecard is entered · <b>0 % means every question scored zero</b>, not that a centre was skipped — a missing quarter is left as a gap</span><span class="mono">'+questions().length+' questions · '+fmtMarks(totalMarks())+' marks</span>'});
 }
 function visitLog(){
   const visits=(S.db().pbfVisits||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));

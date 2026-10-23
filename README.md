@@ -5,9 +5,58 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.4** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.5** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.5
+
+**Charts you can download, a menu you can prune, and numbers that come only from
+what was actually recorded.**
+
+- **Every chart now exports both PNG and SVG.** The download control sits on the
+  chart itself — line charts, bar charts, heat strips, ring gauges, capacity bars
+  and the PBF index column — and appears as soon as the chart paints, including
+  the ones drawn after an async render. Charts drawn in HTML are traced into real
+  vector graphics at download time, so the SVG is a genuine picture of the numbers
+  on screen, not a screenshot.
+- **The test menu is now managed, not fixed.** Staff & Settings lists every
+  examination by category with a **select-many → delete-selected** bar, a per-row
+  delete, an on/off-menu switch and an *Add examination* form. Deleting removes it
+  from the sample wizard and every picker; samples already registered keep the test
+  name they were recorded with. Every change is audited.
+- **Consumption is stated in months.** Each consumable can carry a **monthly
+  ceiling** — “no more than five blood-culture bottles a month” — and the stock
+  module shows the ceiling against the real 90-day usage average, the percentage of
+  the ceiling used, and how many months of stock remain. A line past its ceiling
+  turns amber, then red. Nothing is estimated: a line with no issues reads *no draw*.
+- **Training records can be corrected and deleted.** Every row in the registry has
+  edit and delete, and the record drawer carries both actions too. Editing fixes a
+  wrong date, organiser or attendee list — the FIFO queue recalculates from the
+  corrected dates. Deleting is confirmed, audited, and removes the session from
+  every attendee's history.
+- **Leave history is derived from dates, never from a label.** A leave record's
+  fiscal year is the year its dates fall in, so a block can no longer appear under
+  a year the person was not away in. The plan book now shows **carried-in days**:
+  unused annual leave does not evaporate at the year boundary — it moves into the
+  next fiscal year and is taken there, capped at one year's entitlement. Every
+  fiscal year, including 2025/2026, can be opened and its blocks edited or removed.
+- **EQA scores are read, not invented.** The quarterly composite is now the mean of
+  the recorded scores in each round: schemes scored in % use the provider's figure,
+  and SD-scored schemes use the provider's own criterion — |z| ≤ 2 satisfactory,
+  2–3 questionable, ≥ 3 unsatisfactory. A passing round therefore reads 100 %, not
+  a made-up “100 − z × 25”. Only quarters with a real score are plotted, and the
+  axis opens at 90 % because nothing has ever been scored below 95 %.
+- **A missing PBF score is a gap, not a zero.** The quarterly index chart no longer
+  runs a line through 0 % for a centre that has not been scored yet: each run of
+  real points is drawn on its own, an unscored quarter is left blank, the axis opens
+  at the lowest recorded index, and 0 % is labelled for what it is — no marks
+  earned. When nothing is complete, the chart says why instead of drawing empty axes.
+- **Staff profiles lose competency and result release, and gain a photo.** The
+  profile drawer now shows annual-leave position instead of the competency table;
+  a camera button crops the chosen image square, scales it to 256 px and stores it
+  on the staff record, so the face follows the person through cards, lists, rosters
+  and printed sheets. The photo can be removed at any time.
 
 ## What changed in 6.9.4
 
