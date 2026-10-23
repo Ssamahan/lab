@@ -45,7 +45,7 @@ C.line=function(el,cfg){
   const series=cfg.series||[]; const labels=cfg.labels||[];
   const n=Math.max.apply(null,series.map(s=>s.values.length).concat([labels.length]));
   if(!n){ el.innerHTML='<div class="chart-empty">No data in this window</div>'; return; }
-  const W=760, H=cfg.height||236, pad={l:cfg.padLeft||40,r:14,t:16,b:28};
+  const W=760, H=cfg.height||236, pad={l:cfg.padLeft||44,r:16,t:16,b:30};
   let all=[]; series.forEach(s=>s.values.forEach(v=>{ if(v!=null&&!isNaN(v)) all.push(v); }));
   const tgt=cfg.target==null?null:(typeof cfg.target==='number'?{value:cfg.target}:cfg.target);
   if(tgt&&tgt.value!=null) all.push(tgt.value);
@@ -60,9 +60,17 @@ C.line=function(el,cfg){
     grid+='<line class="grid" x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'"/>';
     grid+='<text x="'+(pad.l-8)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end">'+U.esc(cfg.yFmt?cfg.yFmt(val):U.fmtNum(Math.round(val)))+'</text>';
   }
+  /* The first and last labels are anchored inside the plot instead of centred on
+     the tick, so the first quarter never sits on top of the axis "0" and the last
+     never runs off the right edge. */
   let xlab='';
   const step=Math.ceil(n/7);
-  labels.forEach((lb,i)=>{ if(i%step===0 || i===n-1){ xlab+='<text x="'+X(i).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle">'+U.esc(lb)+'</text>'; } });
+  labels.forEach((lb,i)=>{
+    if(!(i%step===0 || i===n-1)) return;
+    const anchor=i===0?'start':(i===n-1?'end':'middle');
+    let x=X(i); if(i===0) x+=2; if(i===n-1) x-=2;
+    xlab+='<text x="'+x.toFixed(1)+'" y="'+(H-8)+'" text-anchor="'+anchor+'">'+U.esc(lb)+'</text>';
+  });
   let defs='', paths='', dots='';
   series.forEach((s,si)=>{
     const gid=gradId((cfg.id||'ln')+s.name+si);
