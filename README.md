@@ -5,9 +5,32 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.2** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.3** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.3
+
+**The question bank now reads like the paper questionnaire, and the index has a history.**
+
+- **One flat, numbered list.** Every question carries its position on the sheet —
+  1 to 9 — in the bank, in the visit form, in the centre drawer and on the printed
+  scorecard, so what you enter is what the assessor wrote on the page.
+- **Free reordering.** Drag a question by its grip, or use the ▲ / ▼ arrows, to put
+  the bank in the order of your questionnaire. The order is stored per question
+  (`order`) and every screen follows it.
+- **Nine questions, as on the form.** The eight seeded questions that are not on the
+  district questionnaire are retired, not deleted: they disappear from the numbering,
+  the scorecard and the reports, and each one can be restored in a click from the
+  bottom of the bank (a restored question appends as number 10).
+- **Progress by quarter.** A new *Progress by quarter* card plots the index over every
+  quarter recorded, so improvement is visible as soon as Q2 is entered. *District &
+  domains* shows the district index as a solid line with each domain's own percentage
+  underneath, measured against the 80 % floor. *Health centres* shows one line per
+  centre, capped at the eight with data. The side panel lists each quarter's index
+  with its point change, the movement since the first quarter, and the most improved
+  domain or centre. Nothing is hard-coded — a new quarter appears the day its
+  scorecards are complete.
 
 ## What changed in 6.9.2
 
