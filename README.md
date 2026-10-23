@@ -5,9 +5,24 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.0** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.1** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.1
+
+- **The Command Center packs its cards instead of stacking two columns.** Every card
+  now goes into one grid that fills the first free slot on the row
+  (`grid-auto-flow: dense`), with its row height measured from the card itself and
+  recalculated on resize. The old layout was two independent columns, so whichever
+  side ran out of content first left a tall block of empty page under it — the gap
+  you can see under *Priority worklist* while *Live activity* is still going.
+- Column count follows the screen: one below 880 px, two to 1320 px, three above.
+  The throughput chart takes two columns, the worklist table takes two when there is
+  room and the full width when there is not, and the activity feed closes the page
+  with a full-width row so the last row never ends half empty.
+- Cards stay level with their content: a ResizeObserver re-packs the grid when a
+  chart redraws or a list grows.
 
 ## What changed in 6.9.0
 
