@@ -453,8 +453,10 @@ function hero(){
   const model=encodeURIComponent(JSON.stringify({type:'columns',title:'Quarterly index',
     subtitle:'Marks earned over marks available · '+rows.length+' centre'+(rows.length===1?'':'s')+' ranked',
     max:100, floor:90, floorLabel:'Target 90 % · below 80 is green, 75–79 light red, under 75 blood red',
+    /* A movement exists only where a previous scorecard exists to move from; on a
+       centre's first quarter the rank stands alone — no placeholder word under it. */
     items:rows.map((r,i)=>({name:r.name.replace(' HC',''),pct:total(r),band:bandOf(total(r)),rank:i+1,
-      move:r.prior!=null?((total(r)-r.prior)>=0?'+':'')+(total(r)-r.prior):'first'}))}));
+      move:r.prior!=null?((total(r)-r.prior)>=0?'+':'')+(total(r)-r.prior):null}))}));
   return '<div class="grid-12"><div class="c12">'+UI.card({title:'Quarterly index',sub:'Marks earned over marks available · only complete scorecards are ranked',icon:'building-2',
     tools:(waiting.length
       ?'<button class="chip gold" data-awaiting title="Open the visits still waiting for marks">'+UI.ic('file-text',12)+waiting.length+' awaiting marks'+UI.ic('chevron-right',11)+'</button>'
@@ -468,9 +470,12 @@ function hero(){
         +'<div class="pbf-bar" style="height:'+Math.round(U.clamp(t,4,100)/100*118)+'px"><span class="pbf-fill '+bandOf(t)+'"></span></div>'
         +'<div class="pbf-rank mono">#'+(i+1)+'</div><div class="pbf-name">'+U.esc(r.name.replace(' HC',''))+'</div>'
         /* A movement is only printed when there is a previous scorecard to move
-           from. A centre on its first visit shows “first”, never a bare 0. */
-        +(r.prior!=null?'<div class="mono xs" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+'">'+(d>0?'+':'')+d+'</div>'
-                       :'<div class="mono xs faint">first</div>')+'</div>';
+           from — never a bare 0, and never a placeholder word under the name. */
+        +(r.prior!=null
+          ?'<div class="mono xs" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+'">'+(d>0?'+':'')+d+'</div>'
+          /* keep the row height so every name and rank shares one baseline, but say
+             nothing: a first scorecard has no movement to report */
+          :'<div class="mono xs" aria-hidden="true" style="visibility:hidden">&nbsp;</div>')+'</div>';
     }).join('')+'</div>':'<div class="chart-empty">No centre has a complete scorecard yet — record a visit to start the index</div>')
     +'<div class="pbf-axis"><span class="xs faint">0 % · no marks earned</span><span class="xs faint">90 %+ greenest · 80–89 green · 75–79 light red · below 75 blood red</span><span class="xs faint">100 % · all '+fmtMarks(totalMarks())+' marks</span></div>'})+'</div></div>';
 }

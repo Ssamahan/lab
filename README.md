@@ -5,9 +5,26 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.8** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.9** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.9
+
+**The word “first” is gone from under the health-centre names — on screen and in
+every download.**
+
+- The quarterly index printed a placeholder movement — `first` — beneath the rank of
+  any centre with only one scorecard. It read as data and it travelled into the
+  export. A movement is now shown **only when a previous complete scorecard exists**
+  to measure against; where it does not, the line stays empty and silent.
+- The rank `#1`, `#2` … still prints, and the row keeps its height so every name and
+  rank in the strip shares one baseline.
+- **Export ink is fixed, not inherited.** A downloaded sheet is white paper in either
+  theme, so its text is drawn in the print palette. Previously, exporting from the
+  dark (Ink) theme could copy the theme's near-white text onto white paper — a chart
+  that looked blank even though it was drawn. Pale colours found while tracing are
+  replaced with real ink.
 
 ## What changed in 6.9.8
 
