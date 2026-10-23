@@ -5,9 +5,37 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.9** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.10** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.10
+
+**The weekly roster follows the bench contract — three rules, enforced rather than
+hoped for.**
+
+- **Reserve cover is never added to a busy day.** The manager is on the weekly roster
+  only when the day's working plan carries **no more than two staff** (the threshold
+  is editable per person). On any busier day he is not a candidate at all, and an
+  earlier automatic placement is withdrawn on re-run. A manual placement on a busy
+  day is flagged as a rule breach until it is either removed or recorded as an
+  override.
+- **Beatrice is never put on Biochemistry or Serology.** Those are hard blocks, not
+  preferences — the old build had Biochemistry listed as an "occasional" bench, which
+  is exactly what put her there. Phlebotomy is **alone-only**: allowed when she is the
+  only person on the unit that day, or when a manager records an override. TB/Molecular
+  stays blocked.
+- **In a shortage the pair is covered by one person.** When a day has fewer staff than
+  benches, Biochemistry and Serology are assigned to the same person **before** any
+  other bench is doubled up, rather than leaving one of them empty.
+- **Overrides are recorded, not silent.** Choosing someone a rule excludes asks for
+  confirmation and a reason, then stores who and when against that cell. The cell
+  shows an **override** badge, the printed weekly sheet marks it and prints a note
+  naming the person and the manager, and the XLSX carries the same line.
+- **Bench rules are visible and editable.** A *Bench rules* card in the weekly view
+  lists every person's home bench, never-benches, alone-only benches and reserve
+  threshold; clicking a line opens an editor. Auto-allocate reads the same data, so a
+  correction is one edit rather than a code change.
 
 ## What changed in 6.9.9
 
