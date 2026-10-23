@@ -5,9 +5,40 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.7** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.8** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.8
+
+**An exported chart is now the chart — not a blank sheet with a caption.**
+
+- The Quarterly index download was a white page with only the footer line: the
+  export rebuilt the picture by reading the live DOM, and the strip's colours and
+  sizes live in CSS classes and custom properties that a downloaded file does not
+  have. The index now carries its **own numbers** (`data-chart-model`): name, index,
+  band, rank and movement for every centre. The download draws itself from that data
+  on a fresh white sheet — grid, target line at 90 %, band colours, the percentage
+  above each bar, the centre name below it, `#rank +movement`, the band key, the
+  card's title and its one-line explanation, then the footer caption.
+- **Line, area and scatter charts** export with every colour resolved (including
+  CSS tokens that point at other tokens), real font sizes instead of `0.7px`,
+  values instead of `var(--gold-600)`, and a solid finished line instead of the
+  first 1-pixel dash of the draw-in animation. The invisible hit area and crosshair
+  no longer print as a dark block.
+- **The legend comes with the chart.** A six-line trend exported without it was six
+  coloured lines and no names; the swatches and their labels are now drawn under
+  the plot.
+- **Tables export as tables** — a real header band, zebra rows, monospace numbers,
+  band-coloured index pills and heat-tile washes rebuilt from the tile's tone and
+  alpha. Interface columns (the Edit button) are dropped; the data stays.
+- **Ring gauges** are redrawn from their own value and colour, with the card's
+  explanation wrapped under the title instead of running off the sheet.
+- **A card with nothing plotted yet** (an empty quarter) exports what it says —
+  "no complete scorecard yet" — instead of an empty page.
+- PNG downloads stay at **3×** and now fall back to the SVG file if a browser
+  refuses to rasterise the canvas, so the button always produces a file.
+- Every card — chart or table — keeps a PNG, an SVG, and CSV where there are rows.
 
 ## What changed in 6.9.7
 

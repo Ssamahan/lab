@@ -448,11 +448,18 @@ function hero(){
   const s=stats();
   const rows=s.rows.filter(r=>total(r)!=null).sort((x,y)=>total(y)-total(x));
   const waiting=awaitingVisits();
+  /* The strip carries its own numbers so the export can be drawn from them: an
+     image of the index should look like the index, not like a traced screenshot. */
+  const model=encodeURIComponent(JSON.stringify({type:'columns',title:'Quarterly index',
+    subtitle:'Marks earned over marks available · '+rows.length+' centre'+(rows.length===1?'':'s')+' ranked',
+    max:100, floor:90, floorLabel:'Target 90 % · below 80 is green, 75–79 light red, under 75 blood red',
+    items:rows.map((r,i)=>({name:r.name.replace(' HC',''),pct:total(r),band:bandOf(total(r)),rank:i+1,
+      move:r.prior!=null?((total(r)-r.prior)>=0?'+':'')+(total(r)-r.prior):'first'}))}));
   return '<div class="grid-12"><div class="c12">'+UI.card({title:'Quarterly index',sub:'Marks earned over marks available · only complete scorecards are ranked',icon:'building-2',
     tools:(waiting.length
       ?'<button class="chip gold" data-awaiting title="Open the visits still waiting for marks">'+UI.ic('file-text',12)+waiting.length+' awaiting marks'+UI.ic('chevron-right',11)+'</button>'
       :'<span class="chip slate">'+UI.ic('check-check',12)+'every visit scored</span>'),
-    body:(rows.length?'<div class="pbf-strip">'+rows.map((r,i)=>{
+    body:(rows.length?'<div class="pbf-strip" data-chart-model="'+model+'">'+rows.map((r,i)=>{
       const t=total(r), d=delta(r)||0;
       return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'% · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks">'
         +'<div class="pbf-pct idx-text '+bandOf(t)+'">'+t+'<span>%</span></div>'

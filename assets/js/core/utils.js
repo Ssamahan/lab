@@ -134,10 +134,17 @@ U.exportCSV = (name,rows,meta)=>{
 function resolvePaint(value){
   if(!value || value.indexOf('var(')<0) return value;
   const el=document.documentElement;
-  return value.replace(/var\((--[a-z0-9-]+)(?:,\s*([^)]+))?\)/gi,(m,name,fallback)=>{
-    const v=getComputedStyle(el).getPropertyValue(name).trim();
-    return v||(fallback?fallback.trim():'currentColor');
-  });
+  let out=String(value);
+  /* Tokens point at other tokens (`--pos: var(--teal-700)`), so resolve until the
+     string is a real paint — a downloaded file has no cascade to fall back on. */
+  for(let pass=0; pass<6 && out.indexOf('var(')>=0; pass++){
+    out=out.replace(/var\((--[a-z0-9-]+)(?:,\s*([^)]+))?\)/gi,(m,name,fallback)=>{
+      let v='';
+      try{ v=getComputedStyle(el).getPropertyValue(name).trim(); }catch(e){}
+      return v||(fallback?fallback.trim():'currentColor');
+    });
+  }
+  return out;
 }
 /* ——— HTML chart → SVG ————————————————————————————————
    Charts drawn with divs (bars, heat tiles, index columns, meters) have no <svg>
@@ -169,7 +176,11 @@ U.htmlChartSVG = (host,opts)=>{
   const opaque=c=>c&&!/rgba\([^)]*,\s*0\s*\)/.test(c);
   const paint=(el)=>{
     const cs=window.getComputedStyle(el);
-    if(!cs||cs.display==='none'||+cs.opacity===0) return;
+    if(!cs||cs.display==='none') return;
+    /* an element that is fully transparent (a reveal animation still running, a
+       fading parent) must not be traced — but an empty opacity string means "1",
+       and +'' is 0, which used to drop the whole chart on the floor */
+    if(cs.opacity!==''&&cs.opacity!=null&&+cs.opacity===0) return;
     const r=el.getBoundingClientRect();
     if(r.width<0.5||r.height<0.5) return;
     const x=r.left-origin.x, y=r.top-origin.y;
@@ -187,18 +198,23 @@ U.htmlChartSVG = (host,opts)=>{
     }
     /* text: only leaves, so nothing is written twice */
     const kids=[...el.childNodes].filter(n=>n.nodeType===1);
+    /* A label is often split across inline spans (96 + "%"); treat an element whose
+       children carry no paint of their own as a single piece of text. */
+    const inlineOnly=kids.every(k=>['SPAN','SMALL','B','I','EM','STRONG'].indexOf(k.tagName)>=0
+      && (getComputedStyle(k).backgroundColor||'rgba(0, 0, 0, 0)').indexOf('rgba(0, 0, 0, 0)')===0);
     const ownText=[...el.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();
-    if(ownText && !kids.length){
+    const fullText=(ownText&&inlineOnly)?(el.textContent||'').replace(/\s+/g,' ').trim():ownText;
+    if(fullText && (inlineOnly||!kids.length)){
       const t=document.createElementNS(NS,'text');
-      const fs=parseFloat(cs.fontSize||'11')||11;
+      let fs=parseFloat(cs.fontSize||'11')||11; if(fs<8) fs=11;
       t.setAttribute('x',(x+2).toFixed(1));
       t.setAttribute('y',(y+r.height/2+fs*0.35).toFixed(1));
       t.setAttribute('font-family','system-ui, sans-serif');
       t.setAttribute('font-size',fs.toFixed(1));
-      t.setAttribute('fill',opaque(cs.color)?cs.color:'#333333');
+      t.setAttribute('fill',resolvePaint(opaque(cs.color)?cs.color:'#333333'));
       t.setAttribute('text-anchor',/center/.test(cs.textAlign)?'middle':'start');
       if(/center/.test(cs.textAlign)) t.setAttribute('x',(x+r.width/2).toFixed(1));
-      t.textContent=ownText.slice(0,120);
+      t.textContent=fullText.slice(0,120);
       svg.appendChild(t);
     }
     kids.forEach(paint);
@@ -215,9 +231,261 @@ U.htmlChartSVG = (host,opts)=>{
   }
   return {svg:new XMLSerializer().serializeToString(svg), width:W, height:H, name:title||'chart'};
 };
+/* ——— Exports that look like the screen —————————————————————
+   The first attempt traced the rendered boxes; in a real browser that produces a
+   ghost of the chart (unresolved CSS variables, sub-pixel text, absolutely
+   positioned fills). These renderers draw from the numbers instead, so an exported
+   chart is always a clean, legible image with concrete colours. */
+const INK={ink:'#1B1F27', muted:'#5A6472', faint:'#8A93A5', line:'#D8D3C6', head:'#F4F1E8', zebra:'#FAF8F2', white:'#FFFFFF'};
+U.ink=()=>{
+  try{
+    const cs=getComputedStyle(document.documentElement);
+    const g=n=>{ const v=(cs.getPropertyValue(n)||'').trim(); return v||null; };
+    return {ink:g('--text-strong')||INK.ink, muted:g('--text-muted')||INK.muted, faint:g('--text-faint')||INK.faint,
+      line:g('--border')||INK.line, head:g('--surface-inset')||INK.head, zebra:INK.zebra, white:'#FFFFFF'};
+  }catch(e){ return INK; }
+};
+const BAND_HEX={g2:'#17A97B',g1:'#3FA57E',r1:'#E29AA2',r2:'#A3212E',teal:'#3FB3A6',amber:'#D9A13B',rose:'#E26D6D',slate:'#8C93A3',gold:'#C9A84C',blue:'#7595C8'};
+const hexOf=t=>BAND_HEX[t]||BAND_HEX.slate;
+function esc2(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function wrapLabel(text,max){
+  const words=String(text||'').split(/\s+/); const out=[]; let cur='';
+  words.forEach(w=>{ if((cur+' '+w).trim().length<=max) cur=(cur+' '+w).trim(); else { if(cur) out.push(cur); cur=w; } });
+  if(cur) out.push(cur);
+  return out.slice(0,2);
+}
+/* A column chart: the quarterly index strip, drawn from its own numbers. */
+function columnsSVG(m,opts){
+  const P=U.ink();
+  const items=(m.items||[]).filter(x=>x&&x.pct!=null);
+  const n=items.length||1;
+  const colW=Math.max(72,Math.min(132,Math.floor(1180/n)));
+  const W=Math.max(760,n*colW+120), H=m.floorLabel?420:400;
+  /* The value label sits 14px above the tallest column, so the plot starts below
+     the subtitle with room for it — a 100 % column must not print over the title. */
+  const top=m.floorLabel?104:92, base=H-88, plot=base-top;
+  const max=m.max||100;
+  let out='';
+  out+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="'+P.white+'"/>';
+  if(m.title) out+='<text x="26" y="34" font-family="Georgia,serif" font-size="19" fill="'+P.ink+'">'+esc2(m.title)+'</text>';
+  if(m.subtitle) out+='<text x="26" y="54" font-family="system-ui,sans-serif" font-size="12" fill="'+P.faint+'">'+esc2(m.subtitle)+'</text>';
+  out+='<line x1="60" y1="'+base+'" x2="'+(W-40)+'" y2="'+base+'" stroke="'+P.line+'" stroke-width="1"/>';
+  [0,25,50,75,100].forEach(v=>{
+    const y=base-(v/max)*plot;
+    out+='<line x1="60" y1="'+y.toFixed(1)+'" x2="'+(W-40)+'" y2="'+y.toFixed(1)+'" stroke="'+P.line+'" stroke-width="0.6" stroke-dasharray="'+(v?'3 5':'0')+'"/>';
+    out+='<text x="52" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-family="ui-monospace,monospace" font-size="10" fill="'+P.faint+'">'+v+'%</text>';
+  });
+  if(m.floor!=null){
+    const y=base-(m.floor/max)*plot;
+    out+='<line x1="60" y1="'+y.toFixed(1)+'" x2="'+(W-40)+'" y2="'+y.toFixed(1)+'" stroke="'+BAND_HEX.teal+'" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"/>';
+  }
+  /* The band key sits under the subtitle, not on the line, where a tall column
+     would run into it. */
+  if(m.floorLabel) out+='<text x="26" y="74" font-family="system-ui,sans-serif" font-size="11" fill="'+BAND_HEX.teal+'">'+esc2(m.floorLabel)+'</text>';
+  items.forEach((it,i)=>{
+    const cx=60+colW*(i+.5)+ (W-100-n*colW)/2;
+    const h=Math.max(4,(Math.min(max,it.pct)/max)*plot);
+    const w=Math.min(56,colW-24);
+    const x=cx-w/2, y=base-h;
+    const col=hexOf(it.band);
+    out+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="5" fill="'+col+'" fill-opacity="0.92"/>';
+    out+='<text x="'+cx.toFixed(1)+'" y="'+(y-10).toFixed(1)+'" text-anchor="middle" font-family="ui-monospace,monospace" font-size="15" font-weight="600" fill="'+col+'">'+esc2(it.pct)+'%</text>';
+    const lines=wrapLabel(it.name,Math.max(8,Math.floor(colW/6.6)));
+    lines.forEach((ln,k)=>{
+      out+='<text x="'+cx.toFixed(1)+'" y="'+(base+22+k*15).toFixed(1)+'" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="'+P.ink+'">'+esc2(ln)+'</text>';
+    });
+    if(it.rank!=null) out+='<text x="'+cx.toFixed(1)+'" y="'+(base+22+(lines.length)*15+2).toFixed(1)+'" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="'+P.faint+'">#'+esc2(it.rank)+(it.move?'  '+esc2(it.move):'')+'</text>';
+  });
+  return {svg:out, width:W, height:H};
+}
+/* A table as an image: header row, zebra body, real cell colours where the screen
+   shows them (the domain heatmap tiles). */
+U.tableSVG=(table,opts)=>{
+  opts=opts||{};
+  if(!table) return null;
+  const P=U.ink();
+  /* A cell's words may be split across a value and a unit ("Quality" + "20%"), so
+     the pieces are joined with a space rather than run together. A band colour may
+     live on a child pill rather than on the cell, so the class is read too — that is
+     what makes the exported heatmap look like the one on screen. */
+  const cellText=td=>{
+    let t='';
+    [...td.childNodes].forEach(n=>{
+      if(n.nodeType===3) t+=' '+n.textContent;
+      else if(n.nodeType===1) t+=' '+n.textContent;
+    });
+    return (t||td.textContent||'').replace(/\s+/g,' ').trim();
+  };
+  const bandOfEl=el=>{
+    const cls=(el.className&&typeof el.className==='string'?el.className:'')+' '+((el.getAttribute&&el.getAttribute('class'))||'');
+    const hit=cls.split(/\s+/).find(k=>BAND_HEX[k]);
+    return hit?BAND_HEX[hit]:'';
+  };
+  /* A trailing action cell (an Edit button) is part of the interface, not the data. */
+  const actionOnly=td=>{
+    if(td.querySelector('button')&&!td.querySelector('table')){
+      const clone=td.cloneNode(true);
+      clone.querySelectorAll('button,svg').forEach(n=>n.remove());
+      if(!(clone.textContent||'').trim()) return true;
+    }
+    return false;
+  };
+  const rows=U.$$('tr',table).map(tr=>U.$$('th,td',tr).filter(td=>!actionOnly(td)).map(td=>{
+    let bg='';
+    try{ const cs=getComputedStyle(td); bg=cs.backgroundColor||''; if(/rgba?\([^)]*,\s*0\s*\)/.test(bg)||bg==='transparent') bg=''; }catch(e){}
+    let tint=bandOfEl(td);
+    if(!bg){
+      const kid=td.querySelector&&td.querySelector('.pill,.tile,.heat-cell,.heat-tile,.cell-band,[class*="g1"],[class*="g2"],[class*="r1"],[class*="r2"]');
+      if(kid) tint=tint||bandOfEl(kid);
+      if(kid){
+        /* The heat tiles carry their colour as CSS custom properties (--tone, --a)
+           plus a class-driven background; neither survives an export, so the wash is
+           rebuilt from those two numbers. */
+        const style=(kid.getAttribute('style')||'');
+        const tone=(style.match(/--tone\s*:\s*([\d.,\s]+)/)||[])[1];
+        const alpha=(style.match(/--a\s*:\s*([\d.]+)/)||[])[1];
+        if(tone){
+          const a=Math.min(0.4,Math.max(0.05,alpha?parseFloat(alpha):0.2));
+          bg='rgba('+tone.trim()+','+a.toFixed(2)+')';
+        } else {
+          try{ const cs=getComputedStyle(kid); if(cs.backgroundColor&&cs.backgroundColor!=='rgba(0, 0, 0, 0)') bg=cs.backgroundColor; }catch(e){}
+        }
+      }
+    }
+    return {t:cellText(td), head:td.tagName==='TH', bg, tint, span:+(td.getAttribute('colspan')||1)};
+  })).filter(r=>r.length);
+  if(!rows.length) return null;
+  const cols=Math.max.apply(null,rows.map(r=>r.reduce((a,c)=>a+c.span,0)));
+  const avail=1180;
+  const colW=Math.max(78,Math.floor(avail/cols));
+  const W=Math.max(720,cols*colW+48);
+  const rowH=30, headH=36;
+  const bodyRows=rows.slice(1,41);
+  const H=64+headH+bodyRows.length*rowH+(rows.length>41?26:0)+40;
+  let out='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="'+P.white+'"/>';
+  if(opts.name) out+='<text x="24" y="34" font-family="Georgia,serif" font-size="18" fill="'+P.ink+'">'+esc2(opts.name)+'</text>';
+  if(opts.sub) out+='<text x="24" y="54" font-family="system-ui,sans-serif" font-size="11.5" fill="'+P.faint+'">'+esc2(opts.sub)+'</text>';
+  let y=64, ci=0;
+  const head=rows[0];
+  out+='<rect x="24" y="'+y+'" width="'+(W-48)+'" height="'+headH+'" fill="'+P.head+'"/>';
+  ci=0;
+  head.forEach(c=>{
+    const x=24+ci*colW;
+    out+='<text x="'+(x+10)+'" y="'+(y+23)+'" font-family="system-ui,sans-serif" font-size="10" font-weight="600" letter-spacing="0.4" fill="'+P.muted+'">'+esc2(c.t.toUpperCase()).slice(0,60)+'</text>';
+    ci+=c.span||1;
+  });
+  y+=headH;
+  bodyRows.forEach((r,ri)=>{
+    if(ri%2) out+='<rect x="24" y="'+y+'" width="'+(W-48)+'" height="'+rowH+'" fill="'+P.zebra+'"/>';
+    let x=24;
+    r.forEach(c=>{
+      const w=colW*(c.span||1);
+      if(c.bg) out+='<rect x="'+(x+3)+'" y="'+(y+4)+'" width="'+(w-6)+'" height="'+(rowH-8)+'" rx="4" fill="'+esc2(resolvePaint(c.bg))+'"/>';
+      const fill=c.tint?c.tint:P.ink;
+      const weight=c.tint?' font-weight="600"':'';
+      const isNum=/^[\d.,]+%?$/.test(c.t);
+      const tx=isNum&&!c.tint?'<text x="'+(x+10)+'" y="'+(y+rowH/2+4)+'" font-family="ui-monospace,monospace" font-size="11" fill="'+fill+'"'+weight+'>'
+        :'<text x="'+(x+10)+'" y="'+(y+rowH/2+4)+'" font-family="system-ui,sans-serif" font-size="11" fill="'+fill+'"'+weight+'>';
+      out+=tx+esc2(c.t.slice(0,Math.floor(w/6.2)))+'</text>';
+      x+=w;
+    });
+    out+='<line x1="24" y1="'+(y+rowH)+'" x2="'+(W-24)+'" y2="'+(y+rowH)+'" stroke="'+P.line+'" stroke-width="0.6"/>';
+    y+=rowH;
+  });
+  if(rows.length>41) out+='<text x="24" y="'+(y+16)+'" font-family="system-ui,sans-serif" font-size="11" fill="'+P.faint+'">+ '+(rows.length-41)+' more rows — export CSV for the full table</text>';
+  return {svg:out, width:W, height:H};
+};
+U.chartFromModel=(m,opts)=>{
+  if(!m||!m.type) return null;
+  if(m.type==='columns') return columnsSVG(m,opts);
+  return null;
+};
+/* One root for every generated chart: xmlns, explicit size, white paper and the
+   same footer the on-screen exports carry. */
+U.wrapSVG=(inner,W,H,footer)=>{
+  const H2=H;
+  return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 '+W+' '+H2+'" width="'+W+'" height="'+H2+'">'
+    +inner
+    +(footer?'<text x="24" y="'+(H2-14)+'" font-family="system-ui,sans-serif" font-size="10" fill="#8A93A5">'+String(footer).replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</text>':'')
+    +'</svg>';
+};
+/* A card with nothing drawn (an empty quarter, a centre with no visits) still has
+   something to say. Export its words on paper instead of an empty sheet. */
+U.textSVG = (host,opts)=>{
+  opts=opts||{};
+  const card=host.closest&&host.closest('.card');
+  const title=(card&&card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'')||opts.name||'Note';
+  const lines=[];
+  [...(host.children||[])].forEach(n=>{
+    const t=(n.textContent||'').replace(/\s+/g,' ').trim();
+    if(t) lines.push(t);
+  });
+  if(!lines.length){ const t=(host.textContent||'').replace(/\s+/g,' ').trim(); if(t) lines.push(t); }
+  const W=760, wrapped=[];
+  lines.forEach(l=>{ wrapLabel(l,64).forEach(w=>wrapped.push(w)); });
+  const H=Math.max(140,110+Math.min(wrapped.length,14)*20);
+  let out='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
+  out+='<text x="26" y="38" font-family="Georgia,serif" font-size="18" fill="#1B1F27">'+esc2(title)+'</text>';
+  wrapped.slice(0,14).forEach((l,i)=>{
+    out+='<text x="26" y="'+(76+i*20)+'" font-family="system-ui,sans-serif" font-size="12.5" fill="#3A4250">'+esc2(l)+'</text>';
+  });
+  return {svg:U.wrapSVG(out,W,H,'Lab Systems · Ruli DH · '+title), width:W, height:H, name:title};
+};
+/* A ring gauge is two circles plus a label in a sibling span. A clone would lose
+   the label and the rotation maths, so the ring is redrawn from its own value. */
+U.ringSVG = (host,opts)=>{
+  opts=opts||{};
+  const valEl=host.querySelector('.val');
+  const raw=valEl?valEl.textContent.replace(/\s+/g,'').trim():'';
+  const pct=parseFloat(raw.replace('%',''));
+  if(!isFinite(pct)) return null;
+  const arcs=[...host.querySelectorAll('circle')];
+  const paint=arcs.length?arcs[arcs.length-1].getAttribute('stroke'):null;
+  const lv=pct>=95?BAND_HEX.g2:pct>=85?BAND_HEX.gold:pct>=70?BAND_HEX.amber:BAND_HEX.r2;
+  const color=(paint&&resolvePaint(paint))||lv;
+  const W=460, H=340, cx=W/2, cy=196, r=86, sw=15, c=2*Math.PI*r;
+  let out='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
+  const card=host.closest&&host.closest('.card');
+  const title=(card&&card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'')||opts.name||'';
+  if(title) out+='<text x="26" y="34" font-family="Georgia,serif" font-size="18" fill="#1B1F27">'+esc2(title)+'</text>';
+  out+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#E8EBF0" stroke-width="'+sw+'"/>';
+  out+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+sw+'" stroke-linecap="round" '
+    +'stroke-dasharray="'+(((pct>100?100:pct)/100)*c).toFixed(1)+' '+c.toFixed(1)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
+  out+='<text x="'+cx+'" y="'+(cy+16)+'" text-anchor="middle" font-family="Georgia,serif" font-size="46" fill="#090E1A">'+esc2(raw||pct+'%')+'</text>';
+  /* The explanation belongs under the title, wrapped to the sheet — centred on the
+     ring it would run off both edges. */
+  const sub=(card&&card.querySelector('.card-sub')?card.querySelector('.card-sub').textContent.replace(/\s+/g,' ').trim():'');
+  if(sub) wrapLabel(sub,Math.floor((W-52)/5.9)).slice(0,2).forEach((ln,k)=>{
+    out+='<text x="26" y="'+(56+k*14)+'" font-family="system-ui,sans-serif" font-size="10.5" fill="#8A93A5">'+esc2(ln)+'</text>';
+  });
+  const name=title||opts.name||'gauge';
+  return {svg:U.wrapSVG(out,W,H,'Lab Systems · Ruli DH · '+name), width:W, height:H, name:name};
+};
 U.chartSVG = (host,opts)=>{
   opts=opts||{};
   if(!host) return null;
+  /* 1. A chart that knows its own numbers is drawn from them — exact, legible,
+        and independent of how the browser happened to lay the card out. */
+  const rawModel=host.getAttribute&&host.getAttribute('data-chart-model');
+  if(rawModel){
+    try{
+      const m=JSON.parse(decodeURIComponent(rawModel));
+      const built=U.chartFromModel(m,opts);
+      if(built) return {svg:U.wrapSVG(built.svg,built.width,built.height,'Lab Systems · Ruli DH · '+(opts.name||m.title||'chart')),
+        width:built.width, height:built.height, name:opts.name||m.title||'chart'};
+    }catch(e){}
+  }
+  /* 2. A table is exported as a table — real header, real rows, real cell colours
+        — rather than as a ghost of its scroll box. */
+  /* A table is a table even if a cell holds an icon <svg>; the earlier `svg`
+     test made those cards fall through to the tracer and lose their columns. */
+  const isTable=(host.tagName||'').toLowerCase()==='table';
+  const tbl=isTable?host:(host.querySelector&&host.querySelector('table'));
+  if(tbl && (isTable || !(host.querySelector&&host.querySelector('svg')))){
+    const built=U.tableSVG(tbl,{name:opts.name||'',sub:opts.sub||''});
+    if(built) return {svg:U.wrapSVG(built.svg,built.width,built.height,'Lab Systems · Ruli DH · '+(opts.name||'table')),
+      width:built.width, height:built.height, name:opts.name||'table'};
+  }
   /* HTML bar charts have no <svg>; rebuild the same numbers as vector art so an
      export never silently returns nothing. */
   const barHost=(host.__chartCfg&&host.__chartCfg.type==='bars')?host:(host.querySelector&&host.querySelector('[data-bar]')?host:null);
@@ -227,53 +495,177 @@ U.chartSVG = (host,opts)=>{
     /* A ranked bar set is rebuilt from its own numbers — cleaner than tracing the DOM. */
     const cfg=barHost&&barHost.__chartCfg;
     if(cfg && window.LS && LS.charts && LS.charts.barSVG){
-      const built=LS.charts.barSVG(cfg.items,{});
+      const built=LS.charts.barSVG(cfg.items,{title:opts.name||title||''});
       if(built) return {svg:built.svg, width:built.width, height:built.height, name:(opts.name||title||'chart')};
     }
     /* Everything else drawn in HTML — heat strips, index columns, capacity bars,
        ring gauges, allocation tiles — is traced into real SVG elements, so both
        the SVG and the PNG download come out as vector art of exactly what the
        screen shows. */
-    return U.htmlChartSVG(host,{name:opts.name||title||'chart'});
+    const traced=U.htmlChartSVG(host,{name:opts.name||title||'chart'});
+    const drawn=traced?((traced.svg.match(/<(rect|line|path|circle|text|polyline|polygon)\b/g)||[]).length):0;
+    if(!traced || drawn<5) return U.textSVG(host,{name:opts.name||title});
+    return traced;
   }
   const svg=(host.tagName||'').toLowerCase()==='svg'?host:host.querySelector('svg');
   if(!svg) return null;
+  if(host.closest&&host.closest('.score-ring')){ const ring=U.ringSVG(host.closest('.score-ring'),opts); if(ring) return ring; }
   const clone=svg.cloneNode(true);
+  /* Interaction furniture is not part of the picture: the invisible hit rect (which
+     CSS paints dark in some themes), the crosshair and the hover dots. */
+  [clone].concat([...clone.querySelectorAll('*')]).forEach(n=>{
+    const id=n.getAttribute&&n.getAttribute('id')||'';
+    const cls=n.getAttribute&&n.getAttribute('class')||'';
+    if(/-hit$|-dots$|-tip$|-cross$/.test(id) || /crosshair|chart-tip/.test(cls)){ if(n.parentNode) n.parentNode.removeChild(n); }
+  });
   const box=svg.getBoundingClientRect?svg.getBoundingClientRect():{width:0,height:0};
   const vb=(svg.getAttribute('viewBox')||'0 0 760 240').split(/\s+/).map(Number);
   const W=vb[2]||box.width||760, H=vb[3]||box.height||240;
-  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
-  clone.removeAttribute('preserveAspectRatio');
+  clone.removeAttribute('preserveAspectRatio');   /* the serializer declares xmlns itself */
   clone.setAttribute('width',W); clone.setAttribute('height',H);
+  /* The on-screen chart is painted by CSS classes (`.chart-svg text{fill:…}`,
+     `.grid{stroke:…}`). A cloned SVG carries no stylesheet, so every node's
+     computed paint is inlined here — otherwise the export is a set of invisible
+     lines on white. */
+  const liveNodes=[svg].concat([...svg.querySelectorAll('*')]);
+  const cloneNodes=[clone].concat([...clone.querySelectorAll('*')]);
+  const PAINT=['fill','stroke','stroke-width','stroke-dasharray','stroke-linecap','stroke-linejoin','opacity','fill-opacity','stroke-opacity','font-size','font-family','font-weight','letter-spacing','text-anchor'];
+  liveNodes.forEach((ln,i)=>{
+    const cn=cloneNodes[i]; if(!cn||!cn.setAttribute) return;
+    let cs=null; try{ cs=getComputedStyle(ln); }catch(e){ return; }
+    if(!cs) return;
+    const decl=[];
+    PAINT.forEach(prop=>{
+      let v=cs.getPropertyValue(prop); if(v==null||v==='') return;
+      v=String(v).trim(); if(!v||v==='normal'||v==='auto') return;
+      if(prop==='opacity'&&v==='1') return;
+      decl.push(prop+':'+resolvePaint(v));
+    });
+    if(decl.length) cn.setAttribute('style',decl.join(';'));
+  });
+  /* Gradients and strokes often sit in presentation attributes (`stop-color`), not
+     in style — resolve those too, and replace currentColor with the real ink. */
+  cloneNodes.forEach((cn,i)=>{
+    const ln=liveNodes[i]; if(!cn.getAttribute) return;
+    ['fill','stroke','stop-color','flood-color','color'].forEach(a=>{
+      const v=cn.getAttribute(a); if(!v) return;
+      let rv=resolvePaint(v);
+      if(rv&&rv.toLowerCase()==='currentcolor'){
+        try{ rv=getComputedStyle(ln).color||'#111'; }catch(e){ rv='#111'; }
+      }
+      cn.setAttribute(a,rv);
+    });
+    const st=cn.getAttribute('style');
+    if(st) cn.setAttribute('style',resolvePaint(st));
+  });
   clone.querySelectorAll('[style]').forEach(n=>{ n.setAttribute('style',resolvePaint(n.getAttribute('style'))); });
   [clone].concat([...clone.querySelectorAll('*')]).forEach(n=>{
     ['fill','stroke','stop-color','color'].forEach(attr=>{
       if(n.hasAttribute&&n.hasAttribute(attr)){ const v=resolvePaint(n.getAttribute(attr)); if(v) n.setAttribute(attr,v); }
     });
   });
+  if(host.classList&&host.classList.contains('score-ring')){
+    const ring=U.ringSVG(host,opts); if(ring) return ring;
+  }
+  /* An <svg> that exists but holds nothing plotted (an empty quarter) would export
+     as a white page with a caption — say what the card says instead. */
+  const drawn=(clone.outerHTML.match(/<(rect|line|path|circle|text|polyline|polygon)\b/g)||[]).length;
+  if(drawn<3){ const note=U.textSVG(host,{name:opts.name}); if(note) return note; }
+  /* A line chart animates itself in with pathLength="1" + a 1-unit dash; a still
+     image must show the finished line, not its first pixel — so this runs after the
+     computed paint has been inlined, otherwise the style is overwritten. */
+  clone.querySelectorAll('.path-line,[style*="drawIn"]').forEach(n=>{
+    n.removeAttribute('pathLength');
+    const sw=(String(n.getAttribute('style')||'').match(/stroke-width:([^;]+)/)||[])[1]||'1.8';
+    n.setAttribute('style','fill:none;stroke-dasharray:none;stroke-dashoffset:0;stroke-width:'+sw.trim()+';stroke-linecap:round;stroke-linejoin:round');
+  });
   const card=(host.closest&&host.closest('.card'))||null;
   const bg=getComputedStyle(document.documentElement).getPropertyValue('--surface-1').trim()||'#ffffff';
   const title=card&&card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'';
   const footer='Lab Systems · Ruli DH'+(title?' · '+title:'');
+  /* The key to the lines lives beside the chart, in HTML, so a clone of the plot
+     alone would export six coloured lines with nothing to name them. Carry the
+     legend across as real text. */
+  const legendHost=(host.parentElement&&host.parentElement.querySelector('.legend'))||(card&&card.querySelector('.legend'));
+  const legend=[];
+  if(legendHost){
+    [...legendHost.querySelectorAll('.lg')].forEach(lg=>{
+      const sw=lg.querySelector('.sw,.cal-dot,i');
+      const label=(lg.textContent||'').replace(/\s+/g,' ').trim();
+      if(!label) return;
+      let col='#8C93A3';
+      if(sw){
+        const inline=(sw.getAttribute('style')||'').match(/background(?:-color)?\s*:\s*([^;]+)/);
+        try{
+          const cs=getComputedStyle(sw);
+          const live=(cs.backgroundColor&&cs.backgroundColor!=='rgba(0, 0, 0, 0)'&&cs.backgroundColor!=='transparent')?cs.backgroundColor:'';
+          col=resolvePaint(live||(inline?inline[1].trim():'')||cs.borderColor||'#8C93A3');
+        }catch(e){ col=resolvePaint(inline?inline[1].trim():'#8C93A3'); }
+      }
+      legend.push({label:label,col:col});
+    });
+  }
+  /* The card puts its title above the plot; a downloaded picture that starts at the
+     axis labels is anonymous, so the title and its one-line explanation come with it. */
+  const sub=(card&&card.querySelector('.card-sub')?card.querySelector('.card-sub').textContent.replace(/\s+/g,' ').trim():'');
+  const headH=title?44:6;
+  const legendH=legend.length?26:0;
+  const totalH=H+34+legendH+headH;
   const outWrap=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  outWrap.setAttribute('xmlns','http://www.w3.org/2000/svg');
-  outWrap.setAttribute('viewBox','0 0 '+W+' '+(H+34));
-  outWrap.setAttribute('width',W); outWrap.setAttribute('height',H+34);
+  outWrap.setAttribute('viewBox','0 0 '+W+' '+totalH);
+  outWrap.setAttribute('width',W); outWrap.setAttribute('height',totalH);
   const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
-  rect.setAttribute('x',0); rect.setAttribute('y',0); rect.setAttribute('width',W); rect.setAttribute('height',H+34);
+  rect.setAttribute('x',0); rect.setAttribute('y',0); rect.setAttribute('width',W); rect.setAttribute('height',totalH);
   rect.setAttribute('fill',resolvePaint(bg)||'#fff');
   outWrap.appendChild(rect);
+  if(title){
+    const t1=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t1.setAttribute('x',12); t1.setAttribute('y',26);
+    t1.setAttribute('font-family','Georgia, serif'); t1.setAttribute('font-size',17);
+    t1.setAttribute('fill',resolvePaint('var(--text-strong)')||'#090E1A');
+    t1.textContent=title;
+    outWrap.appendChild(t1);
+    if(sub){
+      const t2=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t2.setAttribute('x',12); t2.setAttribute('y',41);
+      t2.setAttribute('font-family','system-ui, sans-serif'); t2.setAttribute('font-size',10.5);
+      t2.setAttribute('fill',resolvePaint('var(--text-faint)')||'#8A93A5');
+      t2.textContent=sub.slice(0,120);
+      outWrap.appendChild(t2);
+    }
+  }
   const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-  g.setAttribute('transform','translate(0,6)');
+  g.setAttribute('transform','translate(0,'+(headH)+')');
   while(clone.firstChild) g.appendChild(clone.firstChild);
   outWrap.appendChild(g);
+  if(legend.length){
+    const ink=getComputedStyle(document.documentElement).getPropertyValue('--text-soft').trim()||'#3A4250';
+    let x=12;
+    legend.forEach(it=>{
+      /* Swatch and label share one baseline; the label sits to the right of a 9px
+         square, and the row never runs off the sheet. */
+      const ty=headH+H+22;
+      const sw=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      sw.setAttribute('x',x); sw.setAttribute('y',ty-8);
+      sw.setAttribute('width',9); sw.setAttribute('height',9); sw.setAttribute('rx',2);
+      sw.setAttribute('fill',it.col);
+      outWrap.appendChild(sw);
+      const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+      tx.setAttribute('x',x+14); tx.setAttribute('y',ty);
+      tx.setAttribute('font-family','system-ui, sans-serif'); tx.setAttribute('font-size',10.5);
+      tx.setAttribute('fill',resolvePaint(ink));
+      tx.textContent=it.label;
+      outWrap.appendChild(tx);
+      x+=22+Math.min(240,it.label.length*6.9);
+    });
+  }
   const foot=document.createElementNS('http://www.w3.org/2000/svg','text');
-  foot.setAttribute('x',12); foot.setAttribute('y',H+26);
+  foot.setAttribute('x',12); foot.setAttribute('y',totalH-10);
   foot.setAttribute('font-family','system-ui, sans-serif'); foot.setAttribute('font-size',10);
   foot.setAttribute('fill',resolvePaint('var(--text-faint)')||'#888');
   foot.textContent=footer;
   outWrap.appendChild(foot);
-  return {svg:new XMLSerializer().serializeToString(outWrap), width:W, height:H+34, name:(opts.name||title||'chart')};
+  return {svg:new XMLSerializer().serializeToString(outWrap), width:W, height:totalH, name:(opts.name||title||'chart')};
 };
 U.exportChartSVG = (host,opts)=>{
   const d=U.chartSVG(host,opts); if(!d){ U.toast&&U.toast('Nothing to export here',{type:'warn'}); return false; }
@@ -283,6 +675,13 @@ U.exportChartSVG = (host,opts)=>{
 };
 U.exportChartPNG = (host,opts)=>{
   const d=U.chartSVG(host,opts); if(!d) return Promise.resolve(false);
+  /* If this browser cannot rasterise the SVG (a locked-down canvas), fall back to
+     the vector file rather than telling the user the card cannot be saved. */
+  const svgFallback=()=>{
+    const safe=(d.name||'chart').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    U.download(safe+'-'+U.todayISO()+'.svg','<?xml version="1.0" encoding="UTF-8"?>\n'+d.svg,'image/svg+xml;charset=utf-8');
+    return true;
+  };
   const scale=(opts&&opts.scale)||3;
   const safe=(d.name||'chart').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
   return new Promise(resolve=>{
@@ -295,10 +694,10 @@ U.exportChartPNG = (host,opts)=>{
         const ctx=canvas.getContext('2d');
         ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img,0,0,canvas.width,canvas.height);
-        canvas.toBlob(blob=>{ if(blob) U.download(safe+'-'+U.todayISO()+'.png',blob,'image/png'); resolve(!!blob); },'image/png');
-      }catch(e){ resolve(false); }
+        canvas.toBlob(blob=>{ if(blob) U.download(safe+'-'+U.todayISO()+'.png',blob,'image/png'); resolve(blob?true:svgFallback()); },'image/png');
+      }catch(e){ resolve(svgFallback()); }
     };
-    img.onerror=()=>resolve(false);
+    img.onerror=()=>resolve(svgFallback());
     img.src=url;
   });
 };

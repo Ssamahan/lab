@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.7';
+const APP_VERSION='6.9.8';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -300,7 +300,13 @@ function wireChartExports(root){
    beside it). That is what makes "every chart has a download" true by
    construction rather than by remembering to wire each one. */
 const CE_CHARTS='.chart-wrap, [data-chart], .pbf-strip, .pbf-heat, .score-ring, svg.chart-svg, .chart-svg, svg.spark';
-function cardHost(card){ return card.querySelector(CE_CHARTS)||card.querySelector('.card-body')||card; }
+function cardHost(card){
+  const chart=card.querySelector(CE_CHARTS);
+  if(chart) return chart;
+  const table=card.querySelector('table');
+  if(table) return table;                       /* a table exports as an image too */
+  return card.querySelector('.card-body')||card;
+}
 function cardRows(card){
   const table=card.querySelector('table');
   if(!table) return null;
@@ -338,8 +344,9 @@ function wireCardExports(root){
     wrap.innerHTML='<button type="button" class="ce-btn" title="Download this card" aria-label="Download this card">'
       +U.ic('download',12)+(compact?'':'<span>Export</span>'+U.ic('chevron-down',10))+'</button>'
       +'<div class="ce-menu" role="menu">'
-      +(hasChart?'<button type="button" data-ce="png">'+U.ic('image',12)+'PNG image<span class="k">3×</span></button>'
-                +'<button type="button" data-ce="svg">'+U.ic('pen-tool',12)+'SVG vector</button>':'')
+      /* A chart exports as an image; a table exports as an image *and* as data. */
+      +'<button type="button" data-ce="png">'+U.ic('image',12)+'PNG image<span class="k">3×</span></button>'
+      +'<button type="button" data-ce="svg">'+U.ic('pen-tool',12)+'SVG vector</button>'
       +(rows?'<button type="button" data-ce="csv">'+U.ic('table',12)+'CSV table<span class="k">'+Math.max(0,rows.length-1)+' rows</span></button>':'')
       +'</div>';
     if(tools) tools.appendChild(wrap); else card.appendChild(wrap);
