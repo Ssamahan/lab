@@ -5,9 +5,41 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.5** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.6** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.6
+
+**A download on every card, a plan you can correct, and compliance that knows the
+difference between a missed visit and a missing vehicle.**
+
+- **Every card carries one download control** — a chart becomes a **PNG** (3×) or a
+  **vector SVG**, a table becomes **CSV**, and a card holding both offers all three.
+  Because the control belongs to the card, a chart painted later (a trend, a tab
+  switch, a KPI sparkline) can never be left without one.
+- **The supervision plan is editable row by row.** Every plan row has **Edit** —
+  planned date, quarter, assessor, state and the reason — so the calendar can be
+  set to the M&amp;E schedule after the fact. A **reason** field records why a visit was
+  late or not made: *assessor's side*, *no vehicle*, *no fuel*, *funds not released*,
+  *roads impassable*, *other*.
+- **Compliance counts only what the assessor controls.** On time = recorded on or
+  before the planned date. Late and missed visits are judged; anything carrying an
+  administration reason is shown as an **admin hold** and is excluded from the
+  percentage, with the reasons itemised beside it. Recording “not visited” asks for
+  the reason instead of assuming fault.
+- **Plan and visits sit head to head** — plan on the left, quarterly visits on the
+  right, the compliance arithmetic underneath reading across both.
+- **The question bank is the last card and Admin-only.** Everyone reads the
+  questionnaire; only an Admin can add, reorder, re-weight, move or retire a
+  question, and every one of those actions checks the role.
+- **The trend axis no longer puts the first quarter on the “0”.** The first and last
+  x labels are anchored inside the plot, and the y-axis has room of its own.
+- **The index strip prints no phantom zero.** A movement figure appears only when
+  there is a previous scorecard to move from — a centre on its first visit reads
+  *first*. The **N awaiting marks** chip is now a button: it lists every visit
+  without a complete scorecard, how far each has got, and an **Evaluate** action that
+  opens it with its marks.
 
 ## What changed in 6.9.5
 

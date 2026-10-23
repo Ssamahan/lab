@@ -51,36 +51,61 @@ function addAssessor(name){
 /* Planned vs actual. A slot is compliant when the visit happened on or before the
    planned date; late by n days otherwise; missed when the planned date has passed
    with no visit and no explicit “not visited” confirmation to excuse it. */
+/* Why a planned visit was late, or was not made. The district separates what the
+   assessor controls from what the administration controls: a missing vehicle is
+   not an assessor's failure, and the compliance figure has to say so. */
+const DELAY_REASONS={
+  '':{label:'— not stated —',admin:false},
+  fault:{label:'Assessor’s side (own schedule, workload, fault)',admin:false},
+  vehicle:{label:'No vehicle available',admin:true},
+  fuel:{label:'No fuel / transport budget',admin:true},
+  funds:{label:'Facilitation funds not released',admin:true},
+  weather:{label:'Roads impassable (rain, landslide)',admin:true},
+  other:{label:'Other — explained in the note',admin:true}
+};
+function reasonOf(v){ return DELAY_REASONS[v]||DELAY_REASONS['']; }
 function slotCompliance(sc){
   const visits=(S.db().pbfVisits||[]).filter(v=>v.hcName===sc.hcName && (!sc.quarter || v.quarter===sc.quarter));
   const visit=sc.visitId?visits.find(v=>v.id===sc.visitId):null;
   const actual=visit?String(visit.date).slice(0,10):(sc.visitedAt?String(sc.visitedAt).slice(0,10):null);
   const planned=sc.plannedDate?String(sc.plannedDate).slice(0,10):null;
   const assessor=visit?(visit.assessor||sc.assessor||''):(sc.assessor||'');
+  const why=reasonOf(sc.delayReason);
   if(actual&&planned){
     const late=Math.round((new Date(actual)-new Date(planned))/86400000);
-    return {state:late<=0?'onTime':'late',late:Math.max(0,late),planned,actual,assessor,sc,visit};
+    /* A visit made late for an administrative reason is still late, but the
+       district counts it apart from the assessor's own record. */
+    if(late>0) return {state:why.admin?'lateAdmin':'late',late:Math.max(0,late),planned,actual,assessor,sc,visit,why};
+    return {state:'onTime',late:0,planned,actual,assessor,sc,visit,why};
   }
-  if(actual) return {state:'onTime',late:0,planned,actual,assessor,sc,visit};
-  if(sc.status==='notVisited') return {state:'excused',late:0,planned,actual:null,assessor,sc,visit};
-  if(planned && planned<U.todayISO()) return {state:'missed',late:0,planned,actual:null,assessor,sc,visit};
-  return {state:'upcoming',late:0,planned,actual:null,assessor,sc,visit};
+  if(actual) return {state:'onTime',late:0,planned,actual,assessor,sc,visit,why};
+  if(sc.status==='notVisited') return {state:why.admin?'excused':'missed',late:0,planned,actual:null,assessor,sc,visit,why};
+  if(planned && planned<U.todayISO()) return {state:why.admin?'excused':'missed',late:0,planned,actual:null,assessor,sc,visit,why};
+  return {state:'upcoming',late:0,planned,actual:null,assessor,sc,visit,why};
 }
 function complianceSummary(){
   const all=schedule().map(slotCompliance);
-  const done=all.filter(x=>x.state==='onTime'||x.state==='late');
   const onTime=all.filter(x=>x.state==='onTime').length;
   const late=all.filter(x=>x.state==='late').length;
+  const lateAdmin=all.filter(x=>x.state==='lateAdmin').length;
   const missed=all.filter(x=>x.state==='missed').length;
   const upcoming=all.filter(x=>x.state==='upcoming').length;
   const excused=all.filter(x=>x.state==='excused').length;
-  const pct=done.length?Math.round(onTime/done.length*100):null;
+  /* Compliance counts only what the assessor controlled: on-time visits over
+     on-time + late-by-fault + missed-by-fault. Administration holds are reported
+     beside it and never folded into the percentage. */
+  const done=onTime+late+missed;
+  const pct=done?Math.round(onTime/done*100):null;
   const by={};
-  all.forEach(x=>{ const k=x.assessor||'Unassigned'; const b=by[k]=by[k]||{name:k,onTime:0,late:0,missed:0,upcoming:0,excused:0,done:0,lateDays:0};
-    b[x.state]++; if(x.state==='onTime'||x.state==='late'){ b.done++; b.lateDays+=x.late; } });
-  const people=Object.keys(by).map(k=>{ const b=by[k]; b.pct=b.done?Math.round(b.onTime/b.done*100):null; return b; })
+  all.forEach(x=>{ const k=x.assessor||'Unassigned';
+    const b=by[k]=by[k]||{name:k,onTime:0,late:0,lateAdmin:0,missed:0,upcoming:0,excused:0,done:0,lateDays:0};
+    b[x.state]=(b[x.state]||0)+1;
+    if(x.state==='onTime'||x.state==='late'){ b.done++; b.lateDays+=x.late; } });
+  const people=Object.keys(by).map(k=>{ const b=by[k];
+    b.judged=b.onTime+b.late+b.missed;
+    b.pct=b.judged?Math.round(b.onTime/b.judged*100):null; return b; })
     .sort((a,b)=>(b.done-a.done)||((b.pct==null?-1:b.pct)-(a.pct==null?-1:a.pct)));
-  return {all,onTime,late,missed,upcoming,excused,pct,done:done.length,people};
+  return {all,onTime,late,lateAdmin,missed,upcoming,excused,pct,done,people};
 }
 
 
@@ -184,7 +209,7 @@ function questionNumber(id){ const i=questions().findIndex(q=>q.id===id); return
 /* Drag-and-drop: put `dragId` immediately before or after `targetId`, then
    renumber the whole bank 10, 20, 30 … so the list always starts at 1. */
 function dropQuestion(dragId,targetId,after){
-  if(!LS.auth.guard('edit')||dragId===targetId) return;
+  if(!guardQuestions()||dragId===targetId) return;
   const list=questions().filter(q=>q.id!==dragId);
   const moving=questions().find(q=>q.id===dragId);
   if(!moving) return;
@@ -197,7 +222,7 @@ function dropQuestion(dragId,targetId,after){
   LS.shell.refresh();
 }
 function reorderQuestion(id,dir){
-  if(!LS.auth.guard('edit')) return;
+  if(!guardQuestions()) return;
   const list=questions().slice();
   const i=list.findIndex(q=>q.id===id); const j=i+dir;
   if(i<0||j<0||j>=list.length) return;
@@ -393,18 +418,50 @@ function kpis(){
      +'<span class="small grow">The index is <b>marks earned ÷ marks available × 100</b> — the nine questions carry 25 marks between them, so 25/25 is 100 %. Each domain reports its own percentage of its own marks; the weights only describe how the report is composed and add to 100 %. A centre gets an index once <b>every</b> question is marked.</span>'
      +'<span class="xs faint">'+questions().length+' questions · '+liveDomains().length+' domains in use</span></div>';
 }
+/* Visits whose scorecard is not finished. They are the reason a centre is absent
+   from the index, so the count is a button that opens them, one Evaluate each. */
+function awaitingVisits(){
+  return (S.db().pbfVisits||[]).filter(v=>!visitMarks(v).complete)
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+}
+function awaitingDrawer(){
+  const list=awaitingVisits();
+  UI.drawer({title:'Awaiting marks',eyebrow:'PBF evaluation',wide:true,
+    sub:list.length+' supervision'+(list.length===1?'':'s')+' on record without a complete scorecard — a centre enters the index only once every question carries a mark.',
+    body:(list.length? list.map(v=>{
+      const m=visitMarks(v), card=scorecardOf(v);
+      return '<div class="list-row" style="padding:9px 0"><div class="lr-main">'
+        +'<div class="lr-title">'+U.esc(v.hcName)+' <span class="xs faint">· '+U.esc(v.quarter||'—')+(v.fy?' '+U.esc(v.fy):'')+'</span></div>'
+        +'<div class="lr-sub">'+(v.date?U.fmtDate(v.date)+' · ':'')+U.esc(v.assessor||'Unassessed')+' · '+card.answered+' of '+card.total+' questions marked'
+        +(m.answered?' · '+fmtMarks(m.got)+' of '+fmtMarks(m.max)+' marks so far':'')+'</div></div>'
+        +'<div class="row gap-sm"><span class="pill amber mono">'+Math.round(card.answered/Math.max(1,card.total)*100)+'% marked</span>'
+        +'<button class="btn xs primary" data-evaluate="'+v.id+'">'+UI.ic('pencil',12)+'Evaluate</button></div></div>';
+    }).join('')
+    :'<p class="xs faint">Every recorded visit has a complete scorecard.</p>'),
+    foot:'<button class="btn" data-close>Close</button><button class="btn primary" data-new-visit>'+UI.ic('plus',15)+'Record visit</button>',
+    onMount:(panel)=>{
+      panel.querySelectorAll('[data-evaluate]').forEach(b=>b.onclick=()=>{ UI.closeAll(); visitModal(b.dataset.evaluate); });
+      const nv=panel.querySelector('[data-new-visit]'); if(nv) nv.onclick=()=>{ UI.closeAll(); visitModal(null); };
+    }});
+}
 function hero(){
   const s=stats();
   const rows=s.rows.filter(r=>total(r)!=null).sort((x,y)=>total(y)-total(x));
+  const waiting=awaitingVisits();
   return '<div class="grid-12"><div class="c12">'+UI.card({title:'Quarterly index',sub:'Marks earned over marks available · only complete scorecards are ranked',icon:'building-2',
-    tools:'<span class="chip gold">'+UI.ic('file-text',12)+s.pending+' awaiting marks</span>',
+    tools:(waiting.length
+      ?'<button class="chip gold" data-awaiting title="Open the visits still waiting for marks">'+UI.ic('file-text',12)+waiting.length+' awaiting marks'+UI.ic('chevron-right',11)+'</button>'
+      :'<span class="chip slate">'+UI.ic('check-check',12)+'every visit scored</span>'),
     body:(rows.length?'<div class="pbf-strip">'+rows.map((r,i)=>{
       const t=total(r), d=delta(r)||0;
       return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'% · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks">'
         +'<div class="pbf-pct idx-text '+bandOf(t)+'">'+t+'<span>%</span></div>'
         +'<div class="pbf-bar" style="height:'+U.clamp(t,4,100)+'%"><span class="pbf-fill '+bandOf(t)+'"></span></div>'
         +'<div class="pbf-rank mono">#'+(i+1)+'</div><div class="pbf-name">'+U.esc(r.name.replace(' HC',''))+'</div>'
-        +'<div class="mono xs" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+')">'+(d>0?'+':'')+d+'</div></div>';
+        /* A movement is only printed when there is a previous scorecard to move
+           from. A centre on its first visit shows “first”, never a bare 0. */
+        +(r.prior!=null?'<div class="mono xs" style="color:var(--'+(d>0?'pos':d<0?'crit':'text-faint')+'">'+(d>0?'+':'')+d+'</div>'
+                       :'<div class="mono xs faint">first</div>')+'</div>';
     }).join('')+'</div>':'<div class="chart-empty">No centre has a complete scorecard yet — record a visit to start the index</div>')
     +'<div class="pbf-axis"><span class="xs faint">0 % · no marks earned</span><span class="xs faint">90 %+ greenest · 80–89 green · 75–79 light red · below 75 blood red</span><span class="xs faint">100 % · all '+fmtMarks(totalMarks())+' marks</span></div>'})+'</div></div>';
 }
@@ -719,7 +776,7 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
     }});
 }
 function questionModal(id){
-  if(!LS.auth.guard('edit')) return;
+  if(!guardQuestions()) return;
   const q=id?qById(id):null;
   const no=q?questionNumber(q.id):null;
   UI.modal({title:q?'Edit question '+(no||''):'Add evaluation question',
@@ -746,9 +803,9 @@ function questionModal(id){
     }});
 }
 async function deleteQuestions(ids){
+  if(!guardQuestions()) return;
   const list=ids.map(id=>qById(id)).filter(Boolean);
   if(!list.length) return;
-  if(!LS.auth.guard('edit')) return;
   const answered=U.sum(list,q=>(S.db().pbfVisits||[]).filter(v=>v.answers&&v.answers[q.id]!=null).length);
   const ok=await UI.confirm({title:'Delete '+list.length+' question'+(list.length===1?'':'s')+'?',
     body:list.slice(0,6).map(q=>'· '+q.text).join('<br>')+(list.length>6?'<br>· and '+(list.length-6)+' more':'')
@@ -762,6 +819,7 @@ async function deleteQuestions(ids){
   LS.shell.refresh(); UI.toast(list.length+' question'+(list.length===1?'':'s')+' deleted',{type:'ok'});
 }
 function restoreQuestion(id){
+  if(!guardQuestions()) return;
   const q=(S.db().pbfQuestions||[]).find(x=>x.id===id); if(!q) return;
   S.commit(d=>{ const x=(d.pbfQuestions||[]).find(y=>y.id===id);
     if(x){ delete x.deleted; delete x.deletedAt; delete x.deletedBy; x.active=true;
@@ -777,7 +835,7 @@ function restoreQuestion(id){
    question editor or in bulk from the bank. Weights are kept as written and are
    normalised to 100 for display, so a district can work in points or percentages. */
 function domainModal(){
-  if(!LS.auth.guard('edit')) return;
+  if(!guardQuestions()) return;
   const rowsHTML=()=>domains().map(d=>{
     const qs=domainQuestions(d.key);
     return '<div class="dom-row" data-dom="'+U.esc(d.key)+'">'
@@ -851,13 +909,22 @@ function domainModal(){
 }
 function moveQuestions(ids,key){
   if(!ids.length||!key) return;
-  if(!LS.auth.guard('edit')) return;
+  if(!guardQuestions()) return;
   const d=domainById(key); if(!d) return;
   S.commit(x=>{ (x.pbfQuestions||[]).forEach(q=>{ if(ids.indexOf(q.id)>=0) q.domain=key; }); },
     {action:'pbf.question.move',entity:'pbf',detail:ids.length+' question'+(ids.length===1?'':'s')+' → '+d.label});
   LS.shell.refresh(); UI.toast(ids.length+' question'+(ids.length===1?'':'s')+' moved to '+d.label,{type:'ok'});
 }
+function canEditQuestions(){ return !!(LS.auth.user&&LS.auth.user.role==='Admin'); }
+/* The bank belongs to the Admin. Everyone may read it; only an Admin may change
+   a question, its marks, its domain or its position. */
+function guardQuestions(){
+  if(canEditQuestions()) return true;
+  UI.toast('Only an Admin can change the question bank',{type:'warn'});
+  return false;
+}
 function questionBank(){
+  const editable=canEditQuestions();
   const qs=questions();
   const w=domainWeights();
   const all=totalMarks(qs);
@@ -865,33 +932,36 @@ function questionBank(){
      the paper form, the domain is a chip beside it, and the arrows move a question
      up or down until the console reads exactly like the sheet the assessor carries. */
   return UI.card({title:'Question bank',sub:qs.length+' questions, numbered in your questionnaire order',icon:'list-checks',
-    tools:'<button class="btn xs" data-manage-domains>'+UI.ic('layers',12)+'Manage domains</button><button class="btn xs" data-add-q>'+UI.ic('plus',12)+'Add question</button>',
-    body:'<div class="row between gap-sm" style="padding:4px 0 8px;border-bottom:1px solid var(--border);flex-wrap:wrap">'
+    tools:(editable
+      ?'<span class="pill gold">'+UI.ic('shield-check',11)+'Admin only</span><button class="btn xs" data-manage-domains>'+UI.ic('layers',12)+'Manage domains</button><button class="btn xs" data-add-q>'+UI.ic('plus',12)+'Add question</button>'
+      :'<span class="pill slate">'+UI.ic('lock',11)+'Read only · an Admin edits the bank</span>'),
+    body:(editable?'<div class="row between gap-sm" style="padding:4px 0 8px;border-bottom:1px solid var(--border);flex-wrap:wrap">'
       +'<label class="row gap-sm" style="cursor:pointer"><input type="checkbox" data-q-all style="accent-color:var(--gold)"><span class="small">Select all '+qs.length+'</span></label>'
       +'<span class="grow"></span>'
       +'<span class="pill slate mono" id="qSelCount">0 selected</span>'
       +'<select class="select" id="qMoveTarget" style="width:auto;min-width:150px;height:30px;font-size:11px">'+domains().map(d=>'<option value="'+d.key+'">Move to: '+U.esc(d.label)+'</option>').join('')+'</select>'
       +'<button class="btn xs" data-move-selected disabled>'+UI.ic('folder-input',12)+'Move</button>'
       +'<button class="btn xs danger" data-del-selected disabled>'+UI.ic('trash-2',12)+'Delete selected</button></div>'
+      :'<div class="xs faint" style="padding:2px 0 8px;border-bottom:1px solid var(--border)">The bank is fixed on this screen. Only an Admin can add, reorder, re-weight or retire a question — ask the laboratory manager.</div>')
       +'<div class="q-list">'
-      +qs.map((q,i)=>'<div class="q-row" data-q-row="'+q.id+'" draggable="true">'
-        +'<span class="q-grip" title="Drag to reorder">'+UI.ic('grip-vertical',12)+'</span>'
-        +'<input type="checkbox" data-q-sel="'+q.id+'" style="accent-color:var(--gold)">'
+      +qs.map((q,i)=>'<div class="q-row" data-q-row="'+q.id+'"'+(editable?' draggable="true"':'')+'>'
+        +(editable?'<span class="q-grip" title="Drag to reorder">'+UI.ic('grip-vertical',12)+'</span>'
+                  +'<input type="checkbox" data-q-sel="'+q.id+'" style="accent-color:var(--gold)">':'')
         +'<span class="q-no mono">'+(i+1)+'</span>'
         +'<div class="q-text"><div class="q-title">'+U.esc(q.text)+'</div>'
           +'<div class="q-meta"><span class="q-domain">'+U.esc(domainLabel(q.domain))+'</span> · max '+fmtMarks(q.max)+' mark'+(+q.max===1?'':'s')+' · '+Math.round(q.max/Math.max(1,all)*100)+'% of the questionnaire</div></div>'
-        +'<div class="q-acts">'
+        +(editable?'<div class="q-acts">'
           +'<button class="icon-btn q-mv" data-q-up="'+q.id+'" title="Move up"'+(i===0?' disabled':'')+'>'+UI.ic('chevron-up',12)+'</button>'
           +'<button class="icon-btn q-mv" data-q-down="'+q.id+'" title="Move down"'+(i===qs.length-1?' disabled':'')+'>'+UI.ic('chevron-down',12)+'</button>'
           +'<button class="icon-btn q-mv" data-edit-q="'+q.id+'" title="Edit">'+UI.ic('pencil',12)+'</button>'
-        +'</div></div>').join('')
+        +'</div>':'')+'</div>').join('')
       +'</div>'
       +'<div class="row between" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);flex-wrap:wrap;gap:6px">'
         +'<span class="xs faint">'+qs.length+' questions · <b>'+fmtMarks(totalMarks(qs))+' marks available</b> · numbered 1–'+qs.length
           +(Math.abs(totalMarks(qs)-25)>0.01?' <span class="pill amber mono" title="The district questionnaire is out of 25 marks">not 25</span>':'')+'</span>'
         +'<span class="row gap-sm wrap">'+liveDomains().map(d=>'<span class="pill slate mono" title="'+U.esc(d.label)+'">'+U.esc(d.label.split(' ')[0])+' '+w[d.key]+'%</span>').join('')+'</span></div>'
       +'<div class="xs faint" style="margin-top:6px">Drag a question by its grip, or use the arrows, to match the order of the paper questionnaire. A domain with no questions is dropped from the scorecards, the heatmap and every report, and its weight is shared across the domains that remain.</div>'
-    +(retiredQuestions().length?'<div class="row between" style="margin-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' retired question'+(retiredQuestions().length===1?'':'s')+' · not scored or numbered</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
+    +(editable&&retiredQuestions().length?'<div class="row between" style="margin-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' retired question'+(retiredQuestions().length===1?'':'s')+' · not scored or numbered</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
     });
 }
 /* ——— Scheduling ————————————————————————————————— */
@@ -908,14 +978,24 @@ function scheduleModal(id,presetDate){
       +'<div class="field"><label>Fiscal year</label><input class="input mono" id="psFy" value="'+U.esc(sc?sc.fy:q.fy)+'"></div>'
       +'<div class="field"><label>Planned visit date</label><input class="input" type="date" id="psDate" value="'+(sc?String(sc.plannedDate).slice(0,10):(presetDate||U.todayISO()))+'"></div>'
       +'<div class="field"><label>Assessor</label><select class="select" id="psAssessor">'+assessorNames().map(a=>'<option value="'+U.esc(a)+'"'+((sc?sc.assessor:LS.auth.user.name)===a?' selected':'')+'>'+U.esc(a)+'</option>').join('')+'</select></div>'
-      +'<div class="field span2"><label>Note</label><input class="input" id="psNote" value="'+U.esc(sc?sc.note||'':'')+'" placeholder="Agreed with the in-charge at the last visit"></div></div>'
-      +'<div class="hint" style="margin-top:10px">Until the visit is recorded the centre reads “not yet visited”. It only reads “not visited” if you confirm that separately, after the quarter closes.</div>',
+      +'<div class="field span2"><label>If this visit is late or not made — why?</label><select class="select" id="psReason">'
+        +Object.keys(DELAY_REASONS).map(k=>'<option value="'+k+'"'+((sc?sc.delayReason||'':'')===k?' selected':'')+'>'+U.esc(DELAY_REASONS[k].label)+'</option>').join('')+'</select>'
+        +'<div class="xs faint" style="margin-top:4px">A reason on the administration side (vehicle, fuel, funds, road) keeps the slot out of the assessor’s compliance percentage and shows it as an admin hold.</div></div>'
+      +'<div class="field"><label>State</label><select class="select" id="psStatus">'
+        +[['scheduled','Planned — still to visit'],['visited','Visited'],['notVisited','Not visited']].map(([k,l])=>'<option value="'+k+'"'+((sc?sc.status:'scheduled')===k?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
+      +'<div class="field"><label>Note</label><input class="input" id="psNote" value="'+U.esc(sc?sc.note||'':'')+'" placeholder="Agreed with the in-charge, or why the date moved"></div></div>'
+      +'<div class="hint" style="margin-top:10px">Until the visit is recorded the centre reads “not yet visited”. It only reads “not visited” if you record that state here. A date that moves is corrected here too — the compliance figure follows the planned date, so edit it to the M&amp;E schedule rather than leaving last quarter’s date in place.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save schedule</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save]').onclick=()=>{
         const rec={hcName:el.querySelector('#psCentre').value,quarter:el.querySelector('#psQuarter').value,
           fy:el.querySelector('#psFy').value.trim()||q.fy,plannedDate:el.querySelector('#psDate').value,
-          assessor:el.querySelector('#psAssessor').value.trim()||LS.auth.user.name,note:el.querySelector('#psNote').value.trim()};
+          assessor:el.querySelector('#psAssessor').value.trim()||LS.auth.user.name,note:el.querySelector('#psNote').value.trim(),
+          delayReason:el.querySelector('#psReason').value||null};
+        const nextState=el.querySelector('#psStatus').value;
+        if(nextState==='notVisited'){ rec.status='notVisited'; rec.confirmedAt=U.nowISO(); rec.confirmedBy=LS.auth.user.name; }
+        else if(nextState==='visited'){ rec.status=sc&&sc.status==='visited'?'visited':'visited'; }
+        else { rec.status='scheduled'; }
         if(!rec.plannedDate) return UI.toast('Pick a planned date',{type:'warn'});
         addAssessor(rec.assessor);
         S.commit(d=>{ d.pbfSchedule=d.pbfSchedule||[];
@@ -926,17 +1006,29 @@ function scheduleModal(id,presetDate){
       };
     }});
 }
-async function confirmNotVisited(id){
+/* “Not visited” is never a bare statement: the district needs to know whose
+   failure it was — the assessor's, or the administration's. */
+function confirmNotVisited(id){
   const sc=schedule().find(x=>x.id===id); if(!sc) return;
   if(!LS.auth.guard('edit')) return;
-  const ok=await UI.confirm({title:'Confirm '+sc.hcName+' was not visited?',
-    body:'Only confirm this once '+sc.quarter+' '+sc.fy+' has closed without a visit. While the quarter is open the centre stays “not yet visited”.',
-    confirm:'Confirm not visited',danger:true});
-  if(!ok) return;
-  S.commit(d=>{ const x=(d.pbfSchedule||[]).find(y=>y.id===id);
-    if(x){ x.status='notVisited'; x.confirmedAt=U.nowISO(); x.confirmedBy=LS.auth.user.name; } },
-    {action:'pbf.schedule.not_visited',entity:'pbf',entityId:id,detail:sc.hcName+' · '+sc.quarter+' '+sc.fy});
-  LS.shell.refresh(); UI.toast('Recorded as not visited · '+sc.hcName,{type:'ok'});
+  UI.modal({title:'Record '+sc.hcName+' as not visited',width:'min(520px,100%)',
+    sub:sc.quarter+' '+sc.fy+' · planned for '+U.fmtDate(sc.plannedDate),
+    body:'<div class="form-grid"><div class="field span2"><label>Why was the visit not made?</label>'
+      +'<select class="select" id="nvReason">'+Object.keys(DELAY_REASONS).filter(k=>k).map(k=>'<option value="'+k+'">'+U.esc(DELAY_REASONS[k].label)+'</option>').join('')+'</select>'
+      +'<div class="xs faint" style="margin-top:4px">Choosing a reason on the administration side (vehicle, fuel, funds, road) marks the slot as an <b>admin hold</b> — it is not counted against the assessor.</div></div>'
+      +'<div class="field span2"><label>Note</label><input class="input" id="nvNote" value="'+U.esc(sc.note||'')+'" placeholder="e.g. vehicle at the district garage, rescheduled for the 14th"></div></div>'
+      +'<div class="hint" style="margin-top:10px">Confirm this only once the quarter has closed without a visit. While it is open the centre stays “not yet visited”.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn danger" data-confirm>'+UI.ic('check',15)+'Confirm not visited</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-confirm]').onclick=()=>{
+        const reason=el.querySelector('#nvReason').value, note=el.querySelector('#nvNote').value.trim();
+        S.commit(d=>{ const x=(d.pbfSchedule||[]).find(y=>y.id===id);
+          if(x){ x.status='notVisited'; x.delayReason=reason; x.note=note; x.confirmedAt=U.nowISO(); x.confirmedBy=LS.auth.user.name; } },
+          {action:'pbf.schedule.not_visited',entity:'pbf',entityId:id,detail:sc.hcName+' · '+sc.quarter+' '+sc.fy+' · '+DELAY_REASONS[reason].label});
+        close(); LS.shell.refresh();
+        UI.toast('Recorded as not visited · '+reasonOf(reason).label,{type:'info'});
+      };
+    }});
 }
 function undoNotVisited(id){
   const sc=schedule().find(x=>x.id===id); if(!sc) return;
@@ -1037,24 +1129,32 @@ function dayModal(iso){
 function complianceCard(){
   const c=complianceSummary();
   const band=c.pct==null?'slate':bandOf(c.pct);
-  return UI.card({title:'Assessor compliance',sub:'Planned date against the date the visit was actually recorded',icon:'user-check',
-    tools:'<span class="pill '+band+' mono">'+(c.pct==null?'no visits yet':c.pct+'% on time')+'</span>',
-    body:(c.done||c.missed||c.upcoming)
+  const reasons={};
+  c.all.forEach(x=>{ if(x.state==='lateAdmin'||x.state==='excused'){ const k=x.sc.delayReason||'other'; reasons[k]=(reasons[k]||0)+1; } });
+  return UI.card({title:'Assessor compliance',sub:'On-time visits against the visits that were the assessor’s to make — administration holds are named, not counted',icon:'user-check',
+    tools:'<span class="pill '+band+' mono">'+(c.pct==null?'no judged visits yet':c.pct+'% on time')+'</span>',
+    body:(c.done||c.missed||c.excused||c.upcoming)
       ?'<div class="row" style="gap:14px;align-items:center;margin-bottom:10px">'
         +(c.pct==null?C.ring(0,{size:84,stroke:7,color:'var(--text-faint)',label:'—'})
           :C.ring(c.pct,{size:84,stroke:7,color:bandColor(c.pct)}))
         +'<div class="comp-chips">'
-          +[['On time',c.onTime,'teal'],['Late',c.late,'amber'],['Missed',c.missed,'rose'],['Upcoming',c.upcoming,'blue']]
+          +[['On time',c.onTime,'teal'],['Late',c.late,'amber'],['Missed',c.missed,'rose'],
+            ['Admin hold',c.lateAdmin+c.excused,'slate'],['Upcoming',c.upcoming,'blue']]
             .map(([l,v,p])=>'<span class="pill '+p+' mono">'+v+' '+l.toLowerCase()+'</span>').join('')
-        +'<div class="xs faint" style="margin-top:4px">'+c.done+' of '+c.all.length+' planned visits have a record'+(c.excused?' · '+c.excused+' excused':'')+'</div></div></div>'
-        +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Assessor</th><th class="num">Planned</th><th class="num">On time</th><th class="num">Late</th><th class="num">Missed</th><th>Compliance</th></tr></thead><tbody>'
-        +c.people.map(p=>'<tr><td class="strong">'+U.esc(p.name)+'</td><td class="num mono">'+p.done+'</td><td class="num mono">'+p.onTime+'</td>'
-          +'<td class="num mono">'+p.late+(p.lateDays?' <span class="xs faint">(+'+p.lateDays+'d)</span>':'')+'</td><td class="num mono">'+p.missed+'</td>'
+        +'<div class="xs faint" style="margin-top:4px">'+c.done+' visit'+(c.done===1?'':'s')+' judged · '
+          +(c.lateAdmin+c.excused)+' held by the administration'
+          +(Object.keys(reasons).length?' ('+Object.keys(reasons).map(k=>reasons[k]+' '+reasonOf(k).label.toLowerCase()).join(' · ')+')':'')+'</div></div></div>'
+        +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Assessor</th><th class="num">On time</th><th class="num">Late</th><th class="num">Missed</th><th class="num">Admin hold</th><th>Compliance</th></tr></thead><tbody>'
+        +c.people.map(p=>'<tr><td class="strong">'+U.esc(p.name)+'</td>'
+          +'<td class="num mono">'+p.onTime+'</td>'
+          +'<td class="num mono">'+p.late+(p.lateDays?' <span class="xs faint">(+'+p.lateDays+'d)</span>':'')+'</td>'
+          +'<td class="num mono">'+p.missed+'</td>'
+          +'<td class="num mono">'+(p.lateAdmin+p.excused)+'</td>'
           +'<td>'+(p.pct==null?'<span class="pill slate">—</span>':'<span class="pill '+bandOf(p.pct)+' mono">'+p.pct+'%</span>')+'</td></tr>').join('')
         +'</tbody></table></div>'
-        +'<div class="xs faint" style="margin-top:8px">On-time means the visit was recorded on or before the planned date. A visit confirmed “not visited” after the quarter closes is excused, not missed.</div>'
+        +'<div class="xs faint" style="margin-top:8px">On time = recorded on or before the planned date. A late or missed visit carrying an administration reason (no vehicle, no fuel, funds not released, impassable road) is shown as an <b>admin hold</b> and is excluded from the percentage. Every plan row has an <b>Edit</b> button, so the dates can be set to the M&amp;E schedule and the reason kept with them.</div>'
       :'<p class="xs faint" style="margin:0">No planned visits yet — plan a quarter and the assessor’s compliance builds itself from the calendar.</p>',
-    foot:'<span>Defaults to you; pick any lab staff member or add one when recording.</span><span class="mono">'+c.people.length+' assessors</span>'});
+    foot:'<span>Assessor defaults to you; any lab staff member can be picked when recording.</span><span class="mono">'+c.people.length+' assessors</span>'});
 }
 function scheduleCard(){
   const rows=schedule().slice().sort((a,b)=>String(a.quarter||'').localeCompare(String(b.quarter||''))||String(a.plannedDate||'').localeCompare(String(b.plannedDate||'')));
@@ -1070,17 +1170,24 @@ function scheduleCard(){
         return '<div class="card pad" style="background:var(--surface-inset);min-width:150px;flex:1"><div class="eyebrow">'+U.MONTHS[+m-1]+' '+y+'</div>'
           +byMonth[k].map(sc=>'<div class="row between" style="margin-top:5px"><span class="small truncate">'+U.esc(sc.hcName)+'</span><span class="mono xs faint">'+U.fmtDateShort(sc.plannedDate)+'</span></div>').join('')+'</div>';
       }).join('')+'</div>':'')
-      +(rows.length?'<div class="dt-scroll" style="max-height:320px"><table class="dt"><thead><tr><th>Health centre</th><th>Quarter</th><th>Planned</th><th>State</th><th></th></tr></thead><tbody>'
+      +(rows.length?'<div class="dt-scroll" style="max-height:360px"><table class="dt"><thead><tr><th>Health centre</th><th>Quarter</th><th>Planned</th><th>State &amp; reason</th><th></th></tr></thead><tbody>'
       +rows.map(sc=>{
         const st=sc.status==='visited'?{label:'Visited',pill:'teal'}
           :sc.status==='notVisited'?{label:'Not visited',pill:'rose'}
           :{label:'Not yet visited',pill:'blue'};
-        const act=sc.status==='visited'?'<span class="xs faint">'+U.fmtDate(sc.visitedAt||sc.plannedDate)+'</span>'
-          :sc.status==='notVisited'?'<button class="btn xs" data-sched-undo="'+sc.id+'">Undo</button>'
-          :'<button class="btn xs" data-sched-visit="'+sc.id+'">Record</button> <button class="btn xs" data-sched-edit="'+sc.id+'">Edit</button> <button class="btn xs" data-sched-confirm="'+sc.id+'">Not visited</button>';
+        /* Edit is on every row — planned, visited or closed — because the dates
+           come from the M&E schedule and are corrected often. */
+        const act='<div class="row gap-sm" style="justify-content:flex-end;flex-wrap:wrap">'
+          +(sc.status==='visited'?'<span class="xs faint">'+U.fmtDate(sc.visitedAt||sc.plannedDate)+'</span>'
+            :sc.status==='notVisited'?'<button class="btn xs" data-sched-undo="'+sc.id+'">Undo</button>'
+            :'<button class="btn xs" data-sched-visit="'+sc.id+'">Record</button><button class="btn xs" data-sched-confirm="'+sc.id+'">Not visited</button>')
+          +'<button class="btn xs" data-sched-edit="'+sc.id+'" title="Edit the planned date, assessor or the reason">'+UI.ic('pencil',11)+'Edit</button></div>';
+        const why=sc.delayReason?reasonOf(sc.delayReason):null;
         return '<tr><td class="strong">'+U.esc(sc.hcName)+'<div class="xs faint">'+U.esc(sc.assessor||'District PBF team')+'</div></td>'
           +'<td class="mono xs">'+U.esc(sc.quarter||'—')+'<div class="xs faint">'+U.esc(sc.fy||'')+'</div></td>'
-          +'<td class="num mono xs">'+(sc.plannedDate?U.fmtDate(sc.plannedDate):'not set')+'</td><td><span class="pill '+st.pill+'">'+st.label+'</span></td>'
+          +'<td class="num mono xs">'+(sc.plannedDate?U.fmtDate(sc.plannedDate):'not set')+'</td>'
+          +'<td><span class="pill '+st.pill+'">'+st.label+'</span>'
+            +(why?'<div class="xs '+(why.admin?'faint':'')+'" style="margin-top:3px;'+(why.admin?'color:var(--text-muted)':'color:var(--warn)')+'">'+U.esc(why.label)+(why.admin?' · admin':'')+'</div>':'')+'</td>'
           +'<td class="num">'+act+'</td></tr>';
       }).join('')+'</tbody></table></div>'
       :'<p class="xs faint" style="margin:0">Nothing planned yet. Record the quarter’s supervision dates — every centre without a visit keeps reading “not yet visited”, never “missed”.</p>'),
@@ -1280,10 +1387,15 @@ M.render=function(root,params){
    +trendCard()
    +'<div class="section-head"><h2>Domain comparison</h2><span class="more">'+liveDomains().length+' domains in use · each cell is that domain’s own % <button class="btn xs" data-manage-domains>'+UI.ic('layers',11)+'Manage domains</button></span></div>'
    +matrix()
-   +'<div class="section-head"><h2>Evaluation questions & visits</h2><span class="more">Questions, marks and the supervision calendar</span></div>'
-   +'<div class="grid-12"><div class="c7">'+questionBank()+'</div><div class="c5">'+scheduleCard()
+   /* Plan and visits head to head, both columns the same width, with the
+      assessor's compliance underneath reading across both. */
+   +'<div class="section-head"><h2>Supervision plan &amp; quarterly visits</h2><span class="more">What was planned on the left, what happened on the right — the compliance arithmetic sits below</span></div>'
+   +'<div class="grid-12"><div class="c6">'+scheduleCard()+'</div><div class="c6">'+visitLog()+'</div></div>'
    +'<div style="margin-top:14px">'+complianceCard()+'</div>'
-   +'<div style="margin-top:14px">'+visitLog()+'</div></div></div>';
+   /* The question bank is the reference, so it comes last — and only an Admin may
+      change the questions; everyone else reads them. */
+   +'<div class="section-head"><h2>Evaluation questions</h2><span class="more">The questionnaire every visit is scored against</span></div>'
+   +questionBank();
 
   const open=id=>drawer(id);
   function paintRows(){
@@ -1302,6 +1414,7 @@ M.render=function(root,params){
   });
   root.querySelectorAll('[data-pbf]').forEach(el=>el.onclick=()=>open(el.dataset.pbf));
   root.querySelector('[data-district]').onclick=printDistrict;
+  root.querySelectorAll('[data-awaiting]').forEach(b=>b.onclick=awaitingDrawer);
   root.querySelectorAll('[data-new-visit]').forEach(b=>b.onclick=()=>visitModal(null));
   root.querySelectorAll('[data-add-q]').forEach(b=>b.onclick=()=>questionModal(null));
   root.querySelectorAll('[data-manage-domains]').forEach(b=>b.onclick=()=>domainModal());

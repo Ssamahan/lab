@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.5';
+const APP_VERSION='6.9.6';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -229,6 +229,7 @@ SH.route=async function(opts){
     clearTimeout(SH._failTimer);
     UI.animateCounts(root); UI.observeReveals(root);
     wireChartExports(root);
+    wireCardExports(root);
     /* Charts drawn after the first paint (trends, dashboard plots, tab switches)
        still get their export buttons without the module having to ask. */
     watchCharts(root);
@@ -268,10 +269,11 @@ SH.fail=function(err,id,host){
 /* Every chart carries a PNG / SVG export. PNG renders at 3× for sharing on a
    phone screen; SVG stays vector for print. */
 function wireChartExports(root){
-  /* Every chart on the page gets PNG + SVG, however it happens to be drawn:
-     .chart-wrap and [data-chart] cover the SVG plots, the ranked bar sets, the
-     heat strips, index columns and capacity bars drawn in HTML. */
+  /* Every card owns the download control now (see wireCardExports), so a chart
+     sitting inside a card does not also get its own pair of buttons. Charts that
+     live outside a card — a bare plot dropped into a page — still get them here. */
   U.$$('.chart-wrap, [data-chart], .pbf-strip, .pbf-heat, .score-ring',root).forEach(w=>{
+    if(w.closest('.card')) return;
     if(w.closest('.chart-export')) return;
     if(w.querySelector('.chart-export')) return;
     if(w.classList.contains('score-ring') && w.parentElement.querySelector('.chart-export')) return;
@@ -293,18 +295,101 @@ function wireChartExports(root){
     };
   });
 }
+/* Every card carries one download control, whatever it holds: a chart becomes a
+   PNG or a vector SVG, a table becomes CSV (and also PNG/SVG when a chart sits
+   beside it). That is what makes "every chart has a download" true by
+   construction rather than by remembering to wire each one. */
+const CE_CHARTS='.chart-wrap, [data-chart], .pbf-strip, .pbf-heat, .score-ring, svg.chart-svg, .chart-svg, svg.spark';
+function cardHost(card){ return card.querySelector(CE_CHARTS)||card.querySelector('.card-body')||card; }
+function cardRows(card){
+  const table=card.querySelector('table');
+  if(!table) return null;
+  const rows=[];
+  U.$$('tr',table).forEach(tr=>{
+    const cells=U.$$('th,td',tr).map(td=>td.textContent.replace(/\s+/g,' ').trim());
+    if(cells.length) rows.push(cells);
+  });
+  return rows.length?rows:null;
+}
+function slug(t){ return String(t||'card').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'card'; }
+function closeMenus(except){
+  U.$$('.ce-menu.on').forEach(m=>{ if(m!==except) m.classList.remove('on'); });
+}
+function wireCardExports(root){
+  const scope=root||document.getElementById('page')||document;
+  U.$$('.card',scope).forEach(card=>{
+    /* A card that repaints its own body keeps its identity, so the presence of the
+       control is the test — not a flag, which would survive the repaint and leave
+       the card without buttons. */
+    if(card.querySelector('.ce')) return;
+    const hasChart=!!card.querySelector(CE_CHARTS);
+    const rows=cardRows(card);
+    if(!hasChart && !rows) return;
+    const title=card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'';
+    let tools=card.querySelector('.card-head .card-tool') || card.querySelector('.toolbar');
+    if(!tools){
+      const head=card.querySelector('.card-head');
+      if(head){ tools=document.createElement('div'); tools.className='card-tool'; head.appendChild(tools); }
+    }
+    const wrap=document.createElement('div'); wrap.className='ce';
+    if(!tools) wrap.classList.add('ce-float');
+    const compact=!title && !tools;
+    if(compact) wrap.classList.add('ce-compact');
+    wrap.innerHTML='<button type="button" class="ce-btn" title="Download this card" aria-label="Download this card">'
+      +U.ic('download',12)+(compact?'':'<span>Export</span>'+U.ic('chevron-down',10))+'</button>'
+      +'<div class="ce-menu" role="menu">'
+      +(hasChart?'<button type="button" data-ce="png">'+U.ic('image',12)+'PNG image<span class="k">3×</span></button>'
+                +'<button type="button" data-ce="svg">'+U.ic('pen-tool',12)+'SVG vector</button>':'')
+      +(rows?'<button type="button" data-ce="csv">'+U.ic('table',12)+'CSV table<span class="k">'+Math.max(0,rows.length-1)+' rows</span></button>':'')
+      +'</div>';
+    if(tools) tools.appendChild(wrap); else card.appendChild(wrap);
+    const btn=wrap.querySelector('.ce-btn'), menu=wrap.querySelector('.ce-menu');
+    btn.onclick=e=>{
+      e.stopPropagation();
+      const open=menu.classList.contains('on');
+      closeMenus();
+      if(!open) menu.classList.add('on');
+    };
+    const host=cardHost(card), name=title||'card';
+    const png=menu.querySelector('[data-ce="png"]');
+    if(png) png.onclick=async(e)=>{ e.stopPropagation(); menu.classList.remove('on');
+      const ok=await U.exportChartPNG(host,{name:name,scale:3});
+      UI.toast(ok?'Saved as PNG · 3× resolution':'This card could not be rendered as an image',{type:ok?'ok':'warn'});
+    };
+    const svg=menu.querySelector('[data-ce="svg"]');
+    if(svg) svg.onclick=(e)=>{ e.stopPropagation(); menu.classList.remove('on');
+      const ok=U.exportChartSVG(host,{name:name});
+      UI.toast(ok?'Saved as SVG · vector':'This card could not be exported as a vector',{type:ok?'ok':'warn'});
+    };
+    const csv=menu.querySelector('[data-ce="csv"]');
+    if(csv) csv.onclick=(e)=>{ e.stopPropagation(); menu.classList.remove('on');
+      const data=cardRows(card);
+      if(!data) return UI.toast('No table in this card',{type:'warn'});
+      U.exportCSV(slug(name)+'-'+U.todayISO(),data,{title:name,actor:(LS.auth.user&&LS.auth.user.name)||''});
+      UI.toast('Table saved as CSV',{type:'ok'});
+    };
+  });
+}
+if(typeof document!=='undefined'){
+  document.addEventListener('click',()=>closeMenus(),true);
+}
 let chartObserver=null, chartRaf=0;
 function watchCharts(root){
   if(chartObserver) chartObserver.disconnect();
   if(typeof MutationObserver!=='function'||!root) return;
   chartObserver=new MutationObserver(()=>{
     if(chartRaf) return;
-    chartRaf=requestAnimationFrame(()=>{ chartRaf=0; try{ wireChartExports(document.getElementById('page')||root); }catch(e){} });
+    chartRaf=requestAnimationFrame(()=>{ chartRaf=0;
+      const page=document.getElementById('page')||root;
+      try{ wireChartExports(page); }catch(e){}
+      try{ wireCardExports(page); }catch(e){}
+    });
   });
   chartObserver.observe(root,{childList:true,subtree:true});
 }
 SH.watchCharts=watchCharts;
 SH.wireChartExports=wireChartExports;
+SH.wireCardExports=wireCardExports;
 
 /* ——— Command palette ——————————————————— */
 let paletteOpen=false, paletteIdx=0, paletteItems=[];
