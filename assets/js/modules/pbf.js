@@ -456,7 +456,9 @@ function hero(){
       const t=total(r), d=delta(r)||0;
       return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'% · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks">'
         +'<div class="pbf-pct idx-text '+bandOf(t)+'">'+t+'<span>%</span></div>'
-        +'<div class="pbf-bar" style="height:'+U.clamp(t,4,100)+'%"><span class="pbf-fill '+bandOf(t)+'"></span></div>'
+        /* a pixel height inside a fixed plot band: a percentage of an auto-height
+           column would collapse the bar and leave the label outside the strip */
+        +'<div class="pbf-bar" style="height:'+Math.round(U.clamp(t,4,100)/100*118)+'px"><span class="pbf-fill '+bandOf(t)+'"></span></div>'
         +'<div class="pbf-rank mono">#'+(i+1)+'</div><div class="pbf-name">'+U.esc(r.name.replace(' HC',''))+'</div>'
         /* A movement is only printed when there is a previous scorecard to move
            from. A centre on its first visit shows “first”, never a bare 0. */

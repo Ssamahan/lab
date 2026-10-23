@@ -5,9 +5,27 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.6** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.7** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.7
+
+**The quarterly index strip is as tall as its content — no centre is cut in half.**
+
+- The strip was a fixed 172-pixel box, so the rank, the centre's name and its
+  movement figure were clipped at the bottom: names read `Coko`, `Minazi`, `Rwan…`
+  with their lower half missing. The box is gone; the strip now grows with its
+  tallest column.
+- Each bar has a fixed 118-pixel plot band of its own and is drawn at a **pixel**
+  height, not a percentage of an auto-height column (which is what let the label
+  fall outside the strip).
+- **Every health centre name is printed in full**, wrapping to two lines where it
+  needs to; all columns reserve those two lines, so bars, ranks and movement
+  figures share one baseline. Long names are never truncated to a stub — the hover
+  title still carries the centre, its index and its marks.
+- With more centres than fit, the strip scrolls horizontally instead of squeezing
+  the names into unreadable slivers.
 
 ## What changed in 6.9.6
 
