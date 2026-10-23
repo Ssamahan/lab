@@ -409,3 +409,51 @@
 .feed-fill{display:grid; grid-template-columns:repeat(auto-fit,minmax(268px,1fr)); align-content:start; column-gap:20px; height:100%}
 .feed-fill .feed-item{border-bottom:1px solid var(--border)}
 @media (max-width:520px){ .feed-fill{grid-template-columns:minmax(0,1fr)} }
+
+/* ——— Index bands: one colour language for every percentage —————— */
+.pill.g2{background:rgba(23,196,139,.14);color:var(--idx-g2);border-color:rgba(23,196,139,.34)}
+.pill.g1{background:rgba(46,158,119,.13);color:var(--idx-g1);border-color:rgba(46,158,119,.32)}
+.pill.r1{background:rgba(226,154,162,.14);color:var(--idx-r1);border-color:rgba(226,154,162,.34)}
+.pill.r2{background:rgba(163,33,46,.15);color:var(--idx-r2);border-color:rgba(163,33,46,.36)}
+.idx-text.g2{color:var(--idx-g2)} .idx-text.g1{color:var(--idx-g1)}
+.idx-text.r1{color:var(--idx-r1)} .idx-text.r2{color:var(--idx-r2)} .idx-text.slate{color:var(--text-faint)}
+.idx-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;padding:1px 5px;border-radius:5px;font-family:var(--font-mono);font-size:10px;line-height:1.6}
+.idx-chip.g2{background:rgba(23,196,139,.13);color:var(--idx-g2)}
+.idx-chip.g1{background:rgba(46,158,119,.12);color:var(--idx-g1)}
+.idx-chip.r1{background:rgba(226,154,162,.15);color:var(--idx-r1)}
+.idx-chip.r2{background:rgba(163,33,46,.16);color:var(--idx-r2)}
+.idx-chip.slate{color:var(--text-faint)}
+.pbf-pct{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:-.02em;line-height:1.1;margin-bottom:2px}
+.pbf-pct span{font-size:.72em;opacity:.7}
+.pbf-fill.g2{background:linear-gradient(180deg,var(--idx-g2),rgba(23,196,139,.35))}
+.pbf-fill.g1{background:linear-gradient(180deg,var(--idx-g1),rgba(46,158,119,.32))}
+.pbf-fill.r1{background:linear-gradient(180deg,var(--idx-r1),rgba(226,154,162,.30))}
+.pbf-fill.r2{background:linear-gradient(180deg,var(--idx-r2),rgba(163,33,46,.32))}
+
+/* ——— Supervision calendar ————————————————————————— */
+.cal-wrap{background:var(--surface-inset);border:1px solid var(--border);border-radius:11px;padding:9px 10px 7px}
+.cal-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.cal-title{font-size:12px;font-weight:600;color:var(--text);letter-spacing:-.01em}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.cal-dow{text-align:center;font-size:8.6px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-faint);padding-bottom:2px}
+.cal-cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:34px;border-radius:7px;border:1px solid transparent;background:var(--surface-2);color:var(--text-muted);font-family:var(--font-mono);font-size:10.4px;cursor:pointer;transition:background var(--dur-1),border-color var(--dur-1),transform var(--dur-1)}
+.cal-cell.blank{background:transparent;cursor:default}
+.cal-cell:hover{border-color:var(--border-gold);background:var(--surface-hover);transform:translateY(-1px)}
+.cal-cell.past{color:var(--text-faint)}
+.cal-cell.today{border-color:var(--gold);color:var(--text-strong);font-weight:600}
+.cal-num{line-height:1}
+.cal-dots{display:flex;gap:2px;align-items:center}
+.cal-dot{width:4px;height:4px;border-radius:50%;display:inline-block}
+.cal-dot.done{background:var(--idx-g2)}
+.cal-dot.planned{background:var(--gold-bright)}
+.cal-dot.missed{background:var(--idx-r2)}
+.cal-dot.adhoc{background:var(--info)}
+.cal-more{position:absolute;top:2px;right:3px;font-size:7.6px;color:var(--text-faint)}
+.cal-legend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px;font-size:9.2px;color:var(--text-muted)}
+.cal-legend .lg{display:inline-flex;align-items:center;gap:4px}
+
+/* ——— Domain manager ————————————————————————————— */
+.dom-head,.dom-row{display:grid;grid-template-columns:1fr 82px 96px 26px;gap:8px;align-items:center}
+.dom-head{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);padding:0 2px 5px}
+.dom-row{padding:3px 0}
+.comp-chips{display:flex;flex-wrap:wrap;gap:5px;max-width:210px}

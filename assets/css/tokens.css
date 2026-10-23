@@ -91,6 +91,8 @@
   --pos:var(--teal-400); --pos-soft:rgba(63,211,182,.11); --pos-border:rgba(63,211,182,.30);
   --warn:var(--amber-400); --warn-soft:rgba(231,174,75,.11); --warn-border:rgba(231,174,75,.28);
   --crit:var(--rose-400); --crit-soft:rgba(227,114,124,.11); --crit-border:rgba(227,114,124,.28);
+  /* Index bands — 90+ greenest, 80+ green, 75–79 light red, <75 blood red */
+  --idx-g2:#17C48B; --idx-g1:#2E9E77; --idx-r1:#E8A6AD; --idx-r2:#C2404F;
   --info:var(--blue-400); --info-soft:rgba(117,149,200,.11); --info-border:rgba(117,149,200,.26);
   --shadow-1:0 1px 0 rgba(255,255,255,.02), 0 1px 2px rgba(0,0,0,.5);
   --shadow-2:0 1px 0 rgba(255,255,255,.025), 0 10px 24px -12px rgba(0,0,0,.75);
@@ -130,6 +132,7 @@
   --pos:var(--teal-700); --pos-soft:rgba(18,154,128,.10); --pos-border:rgba(18,154,128,.26);
   --warn:var(--amber-600); --warn-soft:rgba(180,114,27,.10); --warn-border:rgba(180,114,27,.26);
   --crit:var(--rose-600); --crit-soft:rgba(169,58,71,.09); --crit-border:rgba(169,58,71,.24);
+  --idx-g2:#0B7A52; --idx-g1:#2E9E77; --idx-r1:#E29AA2; --idx-r2:#A3212E;
   --info:#3F5F96; --info-soft:rgba(63,95,150,.09); --info-border:rgba(63,95,150,.22);
   --shadow-1:0 1px 2px rgba(9,14,26,.05);
   --shadow-2:0 1px 2px rgba(9,14,26,.04), 0 10px 24px -16px rgba(9,14,26,.18);
