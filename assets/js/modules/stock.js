@@ -43,6 +43,7 @@ function itemRow(x){
    +'<td class="num hide-sm">'+(x.daysLeft==null?'<span class="xs faint">—</span>':x.daysLeft+'d')+'</td>'
    +'<td style="width:64px;white-space:nowrap">'
    +'<button class="icon-btn row-actions" style="width:26px;height:26px" data-open="'+x.id+'" title="Open lot ledger">'+UI.ic('chevron-right',14)+'</button>'
+   +'<button class="icon-btn row-actions" style="width:26px;height:26px" data-edit-item="'+x.id+'" title="Edit this line">'+UI.ic('pencil',14)+'</button>'
    +'<button class="icon-btn row-actions" style="width:26px;height:26px;color:var(--crit)" data-del="'+x.id+'" title="Delete this consumable line">'+UI.ic('trash-2',14)+'</button>'
    +'</td></tr>';
 }
@@ -82,9 +83,10 @@ function lotsView(){
   const rows=db.stock.batches.slice().sort((a,b)=>String(a.expiry).localeCompare(String(b.expiry)));
   const items=U.groupBy(rows,b=>b.cid);
   return '<div class="grid-12"><div class="c9"><div class="card table-card"><div class="toolbar"><div><div class="card-title">'+UI.ic('boxes',14,'ic')+'Lot &amp; batch register</div><div class="card-sub">FEFO order · every lot traceable to consumption</div></div><span class="grow"></span><button class="btn sm" data-receive>'+UI.ic('plus',13)+'Receive lot</button></div>'
-   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Lot / batch</th><th>Consumable</th><th>Qty</th><th>Received</th><th>Expiry</th><th>Status</th><th>Age</th></tr></thead><tbody>'
+   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Lot / batch</th><th>Consumable</th><th class="num">Qty</th><th class="num">Received</th><th class="num">Expiry</th><th>Status</th><th class="num">Age</th><th></th></tr></thead><tbody>'
    +rows.map(b=>{ const c=S.consumable(b.cid)||{name:b.cid,unit:''}; const d=U.daysBetween(U.todayISO(),b.expiry);
-      return '<tr data-lot="'+b.id+'"><td class="mono small">'+U.esc(b.id.toUpperCase())+'</td><td>'+U.esc(c.name)+(b.ageGroup?' <span class="pill slate">'+U.esc(b.ageGroup)+'</span>':'')+'</td><td class="num">'+b.qty+' <span class="faint">'+U.esc(c.unit||'')+'</span></td><td class="num">'+U.fmtDate(b.received)+'</td><td class="num">'+U.fmtDate(b.expiry)+'</td><td><span class="pill '+(d<0?'rose':d<=30?'amber':'teal')+'">'+(d<0?'expired':d<=30?'≤30d':'in date')+'</span></td><td class="num">'+U.daysBetween(b.received,U.todayISO())+'d</td></tr>'; }).join('')
+      return '<tr data-lot="'+b.id+'" class="row-click" title="Open line"><td class="mono small">'+U.esc(b.id.toUpperCase())+'</td><td>'+U.esc(c.name)+(b.ageGroup?' <span class="pill slate">'+U.esc(b.ageGroup)+'</span>':'')+'</td><td class="num">'+b.qty+' <span class="faint">'+U.esc(c.unit||'')+'</span></td><td class="num">'+U.fmtDate(b.received)+'</td><td class="num">'+U.fmtDate(b.expiry)+'</td><td><span class="pill '+(d<0?'rose':d<=30?'amber':'teal')+'">'+(d<0?'expired':d<=30?'≤30d':'in date')+'</span></td><td class="num">'+U.daysBetween(b.received,U.todayISO())+'d</td>'
+        +'<td><button class="icon-btn" style="width:26px;height:26px" data-edit-lot="'+b.id+'" title="Edit this lot">'+UI.ic('pencil',13)+'</button></td></tr>'; }).join('')
    +'</tbody></table></div></div></div>'
    +'<div class="c3"><div class="col" style="gap:14px">'+UI.card({title:'FIFO allocation',sub:'Suggested for training reagent assignments',icon:'git-branch',body:'<div id="fifoList"></div>',foot:'<span>Oldest in-date lot first</span>'})
    +UI.card({title:'Expiry health',sub:'Days remaining by lot',icon:'hourglass',body:'<div id="expHealth"></div>'})+'</div></div></div>';
@@ -181,15 +183,17 @@ function lotDrawer(cid){
   const body='<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="row between"><div><div class="eyebrow">On hand</div><div class="serif" style="font-size:2rem;color:var(--text-strong);letter-spacing:-.03em">'+U.fmtNum(x.onHand)+' <span class="xs faint" style="font-family:var(--font-ui);letter-spacing:.06em">'+U.esc(x.unit)+'</span></div></div><div style="text-align:right"><span class="pill '+(x.low?'rose':'teal')+'">'+(x.low?'Below minimum':'Healthy')+'</span><div class="xs faint" style="margin-top:4px">'+x.daysLeft+' days cover at '+x.burn.toFixed(1)+'/day</div></div></div>'
     +'<div class="thread" style="margin:12px 0"></div><div class="split-3">'+[['Daily burn',x.burn.toFixed(2)],['Minimum',x.threshold||0],['Supplier',(S.db().suppliers.find(s=>s.id===x.supplier)||{}).name||'—']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')+'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('boxes',14,'ic')+'Lots (FEFO)</div><div class="card-sub">First-expiry-first-out allocation</div></div></div><div class="card-body">'
-     +(x.batches.length?x.batches.map(b=>'<div class="list-row"><div class="lr-main"><div class="lr-title mono" style="font-size:11.5px">'+U.esc(b.id.toUpperCase())+'</div><div class="lr-sub">Received '+U.fmtDate(b.received)+' · expires '+U.fmtDate(b.expiry)+'</div></div><div class="lr-val">'+b.qty+' '+U.esc(x.unit)+'</div></div>').join(''):'<p class="xs faint">No lots on hand.</p>')
+     +(x.batches.length?x.batches.map(b=>'<div class="list-row"><div class="lr-main"><div class="lr-title mono" style="font-size:11.5px">'+U.esc(b.id.toUpperCase())+'</div><div class="lr-sub">Received '+U.fmtDate(b.received)+' · expires '+U.fmtDate(b.expiry)+'</div></div><div class="lr-val">'+b.qty+' '+U.esc(x.unit)+'</div><button class="btn xs" data-edit-lot2="'+b.id+'">'+UI.ic('pencil',12)+'Edit</button></div>').join(''):'<p class="xs faint">No lots on hand.</p>')
    +'</div></div>'
    +'<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('history',14,'ic')+'Distribution log</div><div class="card-sub">Who consumed what, from which lot</div></div></div><div class="card-body">'
      +'<div class="dt-scroll" style="max-height:300px"><table class="dt"><thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Destination / note</th></tr></thead><tbody>'
      +entries.map(e=>'<tr><td class="num">'+U.fmtDate(e.date)+'</td><td><span class="pill '+(e.type==='received'?'teal':e.type==='issued'?'blue':'amber')+'">'+U.esc(e.type)+'</span></td><td class="num">'+e.qty+'</td><td class="small">'+U.esc(e.healthCenter||e.note||'—')+'</td></tr>').join('')
      +(entries.length?'':'<tr><td colspan="4" class="xs faint" style="padding:14px">No movements recorded.</td></tr>')+'</tbody></table></div></div></div>';
   UI.drawer({title:x.name,eyebrow:'Consumable',sub:x.unit+' · '+(x.supplier?S.db().suppliers.find(s=>s.id===x.supplier).name:''),body:body,wide:true,
-    foot:'<button class="btn danger" data-del-line>'+UI.ic('trash-2',15)+'Delete line</button><button class="btn" data-close>Close</button><button class="btn primary" data-pr>'+UI.ic('file-text',15)+'Purchase request</button>',
+    foot:'<button class="btn danger" data-del-line>'+UI.ic('trash-2',15)+'Delete line</button><button class="btn" data-edit-line>'+UI.ic('pencil',15)+'Edit line</button><button class="btn" data-close>Close</button><button class="btn primary" data-pr>'+UI.ic('file-text',15)+'Purchase request</button>',
     onMount:(panel)=>{ panel.querySelectorAll('[data-pr]').forEach(b=>b.onclick=purchaseRequest);
+      panel.querySelectorAll('[data-edit-lot2]').forEach(b=>b.onclick=()=>editLot(b.dataset.editLot2));
+      const ed=panel.querySelector('[data-edit-line]'); if(ed) ed.onclick=()=>{ UI.closeAll(); editConsumable(cid); };
       const del=panel.querySelector('[data-del-line]'); if(del) del.onclick=()=>{ UI.closeAll(); deleteLine(cid); }; }});
 }
 function fifo(){
@@ -205,6 +209,52 @@ function paint(){
   const wrap=rootEl.querySelector('#stockBody'); if(!wrap) return;
   wrap.innerHTML=tab==='overview'?overview():tab==='lots'?lotsView():tab==='consumption'?consumptionView():suppliersView();
   wireBody();
+}
+/* ——— Editing register records ————————————————————————
+   Every figure on these screens is editable: a lot can be corrected (quantity,
+   expiry, receipt date) and a consumable line can be re-labelled, because a
+   register that cannot be corrected just hides its own mistakes. */
+function editLot(id){
+  if(!LS.auth.guard('edit')) return;
+  const b=S.db().stock.batches.find(x=>x.id===id); if(!b) return;
+  const c=S.consumable(b.cid)||{name:b.cid,unit:''};
+  UI.modal({title:'Edit lot '+String(b.id).toUpperCase(),sub:c.name+' · corrections are written to the audit trail.',width:'min(520px,100%)',
+    body:'<div class="form-grid">'
+      +'<div class="field"><label>Quantity on hand</label><input class="input mono" id="lotQty" type="number" min="0" value="'+b.qty+'"></div>'
+      +'<div class="field"><label>Expiry date</label><input class="input mono" id="lotExp" type="date" value="'+U.esc(b.expiry||'')+'"></div>'
+      +'<div class="field"><label>Received on</label><input class="input mono" id="lotRec" type="date" value="'+U.esc(b.received||'')+'"></div>'
+      +'<div class="field"><label>Age group</label><input class="input" id="lotAge" value="'+U.esc(b.ageGroup||'')+'" placeholder="Adult / Pediatric"></div>'
+      +'<div class="field span2"><label>Note</label><input class="input" id="lotNote" value="'+U.esc(b.note||'')+'"></div></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-lot-save>'+UI.ic('check',15)+'Save lot</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-lot-save]').onclick=()=>{
+        const qty=Math.max(0,Math.round(+el.querySelector('#lotQty').value||0));
+        const exp=el.querySelector('#lotExp').value, rec=el.querySelector('#lotRec').value;
+        if(!exp) return UI.toast('An expiry date is required',{type:'warn'});
+        S.commit(d=>{ const x=d.stock.batches.find(y=>y.id===id); if(!x) return;
+          x.qty=qty; x.expiry=exp; x.received=rec||x.received; x.ageGroup=el.querySelector('#lotAge').value.trim()||null; x.note=el.querySelector('#lotNote').value.trim();
+        },{action:'stock.lot.edit',entity:'stock',entityId:id,detail:c.name+' · lot '+b.id+' → '+qty+' · exp '+exp});
+        close(); UI.toast('Lot updated',{type:'ok'}); LS.shell.refresh();
+      };
+    }});
+}
+function editConsumable(cid){
+  if(!LS.auth.guard('edit')) return;
+  const c=S.consumable(cid); if(!c) return;
+  UI.modal({title:'Edit '+c.name,sub:'Label and threshold on the stock register.',width:'min(480px,100%)',
+    body:'<div class="form-grid"><div class="field span2"><label>Name</label><input class="input" id="cnName" value="'+U.esc(c.name)+'"></div>'
+      +'<div class="field"><label>Unit</label><input class="input" id="cnUnit" value="'+U.esc(c.unit||'')+'"></div>'
+      +'<div class="field"><label>Minimum threshold</label><input class="input mono" id="cnMin" type="number" min="0" value="'+(c.threshold||0)+'"></div></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-cn-save>'+UI.ic('check',15)+'Save</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-cn-save]').onclick=()=>{
+        const name=el.querySelector('#cnName').value.trim(); if(!name) return UI.toast('A name is required',{type:'warn'});
+        S.commit(d=>{ const x=(d.catalog.consumables||[]).find(y=>y.id===cid); if(!x) return;
+          x.name=name; x.unit=el.querySelector('#cnUnit').value.trim()||x.unit; x.threshold=Math.max(0,+el.querySelector('#cnMin').value||0);
+        },{action:'stock.item.edit',entity:'catalog',entityId:cid,detail:name});
+        close(); UI.toast('Consumable updated',{type:'ok'}); LS.shell.refresh();
+      };
+    }});
 }
 function deleteLine(cid){
   const c=S.consumable(cid); if(!c) return;
@@ -232,6 +282,7 @@ function wireBody(){
     r.querySelectorAll('[data-item]').forEach(tr=>tr.onclick=e=>{ if(e.target.closest('button')) return; lotDrawer(tr.dataset.item); });
     r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); lotDrawer(b.dataset.open); });
     r.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); deleteLine(b.dataset.del); });
+    r.querySelectorAll('[data-edit-item]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); editConsumable(b.dataset.editItem); });
     r.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>{ S.restoreConsumable(b.dataset.restore); UI.toast('Consumable restored',{type:'ok'}); LS.shell.refresh(); });
   }
   if(tab==='lots'){
@@ -241,7 +292,8 @@ function wireBody(){
       eh.innerHTML=lots.map(b=>{ const d=U.daysBetween(U.todayISO(),b.expiry); const c=S.consumable(b.cid)||{name:b.cid};
         return '<div style="margin-bottom:8px"><div class="row between"><span class="xs truncate" style="max-width:150px">'+U.esc(c.name)+'</span><span class="mono xs" style="color:'+(d<30?'var(--warn)':'var(--text-faint)')+'">'+d+'d</span></div>'+UI.meter(U.clamp(d/365*100,2,100),d<0?'rose':d<30?'amber':'teal')+'</div>'; }).join('');
     }
-    r.querySelectorAll('[data-lot]').forEach(tr=>tr.onclick=()=>{ const b=S.db().stock.batches.find(x=>x.id===tr.dataset.lot); if(b) lotDrawer(b.cid); });
+    r.querySelectorAll('[data-lot]').forEach(tr=>tr.onclick=e=>{ if(e.target.closest('button')) return; const b=S.db().stock.batches.find(x=>x.id===tr.dataset.lot); if(b) lotDrawer(b.cid); });
+    r.querySelectorAll('[data-edit-lot]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); editLot(b.dataset.editLot); });
   }
   if(tab==='consumption'){
     const months=monthlyIssues();
@@ -258,7 +310,9 @@ function wireBody(){
   }
   r.querySelectorAll('[data-receive]').forEach(b=>b.onclick=receiveModal);
   r.querySelectorAll('[data-pr]').forEach(b=>b.onclick=purchaseRequest);
-  r.querySelectorAll('[data-tab-stock]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tabStock; paint(); syncTabs(); });
+  /* The tab buttons carry data-stk-tab; the old handler listened for a different
+     attribute, so only the overview ever rendered. */
+  r.querySelectorAll('[data-stk-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.stkTab; paint(); syncTabs(); });
   r.querySelectorAll('[data-sup-orders]').forEach(b=>b.onclick=()=>{ const sup=S.db().suppliers.find(s=>s.id===b.dataset.supOrders); UI.drawer({title:sup.name,eyebrow:'Supplier scorecard',body:'<div class="split-2">'+[['Lead time',sup.leadDays+' days'],['Fill rate',sup.fillRate+'%'],['Price variance','±'+sup.priceVariance+'%'],['Region',sup.region]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl">'+U.esc(v)+'</span></div>').join('')+'</div><div class="section-head"><h2>Recent orders</h2></div>'+UI.empty({art:'boxes',title:'No open orders',body:'Purchase requests raised from this console appear here with their GRN references.'}),foot:'<button class="btn" data-close>Close</button>'}); });
 }
 function syncTabs(){ U.$$('[data-stk-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.stkTab===tab)); }

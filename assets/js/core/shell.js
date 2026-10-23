@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.8.1';
+const APP_VERSION='6.9.0';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -156,21 +156,35 @@ function startClock(){
   };
   tick(); clearInterval(SH._clock); SH._clock=setInterval(tick,1000);
 }
+/* 'auto' resolves against the operating system, light unless the device actually
+   asks for dark — most desktop browsers report no preference, so the console
+   opens light on a PC and dark only on a phone that is set to dark. */
+function resolvedTheme(){
+  const s=S.settings(); const t=s.theme||'auto';
+  if(t!=='auto') return t;
+  try{ return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'ink':'porcelain'; }
+  catch(e){ return 'porcelain'; }
+}
 function applyTheme(){
-  const s=S.settings(); const theme=s.theme||'ink';
+  const theme=resolvedTheme();
   document.documentElement.setAttribute('data-theme',theme);
   U.$$('[data-theme-label]').forEach(e=>e.textContent=theme==='ink'?'Ink':'Porcelain');
   U.$$('[data-theme-icon]').forEach(e=>e.innerHTML=U.ic(theme==='ink'?'moon':'sun',15));
+  U.$$('[data-theme-label]').forEach(e=>e.textContent=(S.settings().theme==='auto'?'Auto · ':'')+(theme==='ink'?'Ink':'Porcelain'));
   const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.content=theme==='ink'?'#05070D':'#F2EFE7';
 }
+SH.applyTheme=applyTheme;
+SH.resolvedTheme=resolvedTheme;
 function applyDensity(){
   const d=S.settings().density||'comfortable';
   document.documentElement.setAttribute('data-density',d);
   U.$$('[data-density-label]').forEach(e=>e.textContent=d==='compact'?'Compact':'Comfortable');
 }
 SH.toggleTheme=function(){
-  S.settings().theme = S.settings().theme==='ink'?'porcelain':'ink';
-  S.save(); applyTheme(); UI.toast('Theme: '+(S.settings().theme==='ink'?'Ink':'Porcelain'),{type:'info'});
+  const cur=resolvedTheme();
+  S.settings().theme = cur==='ink'?'porcelain':'ink';
+  S.db().meta.themeChosen=true;
+  S.save(); applyTheme(); UI.toast('Theme: '+(resolvedTheme()==='ink'?'Ink':'Porcelain'),{type:'info'});
 };
 SH.toggleDensity=function(){
   S.settings().density = S.settings().density==='compact'?'comfortable':'compact';
@@ -214,6 +228,7 @@ SH.route=async function(opts){
     await mod.render(root, params);
     clearTimeout(SH._failTimer);
     UI.animateCounts(root); UI.observeReveals(root);
+    wireChartExports(root);
     // scroll restore / top
     if(!opts||!opts.keepScroll) window.scrollTo({top:0,behavior:U.reduced()?'auto':'smooth'});
   }catch(err){
@@ -247,6 +262,30 @@ SH.fail=function(err,id,host){
   if(q('[data-diag]')) q('[data-diag]').onclick=async()=>{ const ok=await U.copy(diag); UI.toast(ok?'Diagnostics copied to clipboard':'Copy failed',{type:ok?'ok':'err'}); };
 };
 
+/* Every chart carries a PNG / SVG export. PNG renders at 3× for sharing on a
+   phone screen; SVG stays vector for print. */
+function wireChartExports(root){
+  U.$$('.chart-wrap, [data-chart="bars"]',root).forEach(w=>{
+    if(w.querySelector('.chart-export')) return;
+    if(!w.querySelector('svg') && !w.__chartCfg) return;
+    const bar=document.createElement('div');
+    bar.className='chart-export';
+    bar.innerHTML='<button type="button" data-export-png title="Download PNG (HD)">PNG</button><button type="button" data-export-svg title="Download SVG (vector)">SVG</button>';
+    w.appendChild(bar);
+    bar.querySelector('[data-export-png]').onclick=async(e)=>{
+      e.stopPropagation();
+      const ok=await U.exportChartPNG(w);
+      UI.toast(ok?'Chart saved as PNG · 3× resolution':'PNG export is not available in this browser',{type:ok?'ok':'warn'});
+    };
+    bar.querySelector('[data-export-svg]').onclick=(e)=>{
+      e.stopPropagation();
+      const ok=U.exportChartSVG(w);
+      UI.toast(ok?'Chart saved as SVG · vector':'Nothing to export here',{type:ok?'ok':'warn'});
+    };
+  });
+}
+SH.wireChartExports=wireChartExports;
+
 /* ——— Command palette ——————————————————— */
 let paletteOpen=false, paletteIdx=0, paletteItems=[];
 function commandItems(){
@@ -261,6 +300,11 @@ function commandItems(){
   items.push({group:'Actions',label:'Notification center',meta:'',icon:'bell',run:()=>openNotifs()});
   items.push({group:'Actions',label:'Keyboard shortcuts',meta:'?',icon:'keyboard',run:()=>SH.shortcuts()});
   if(LS.auth.can('settings')){
+    items.push({group:'Actions',label:'Sync the shared register now',meta:'',icon:'refresh-cw',run:async()=>{
+      if(!LS.sync) return;
+      const res=await LS.sync.sync();
+      UI.toast(res.ok?'Sync complete · '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000});
+    }});
     items.push({group:'Actions',label:'What changed in v'+APP_VERSION,meta:'',icon:'sparkles',run:()=>{ UI.closeAll(); SH.releaseNotes(); }});
     items.push({group:'Actions',label:'Install Lab Systems on this device',meta:'',icon:'download',run:()=>SH.install()});
   }
@@ -455,6 +499,24 @@ function wireGlobal(){
   document.addEventListener('focusout',e=>{ if(e.target.closest('.nav-item')) hideRailTip(); });
   document.addEventListener('click',e=>{ if(e.target.closest('.nav-item')) hideRailTip(); });
   window.addEventListener('scroll',hideRailTip,{passive:true});
+
+  /* Immersive reading: the header steps out of the way on the way down and comes
+     straight back on the way up, so the page owns the screen but navigation is
+     never more than a small upward flick away. It also returns at the top. */
+  let lastY=window.scrollY||0, ticking=false;
+  const onScroll=()=>{
+    if(ticking) return; ticking=true;
+    requestAnimationFrame(()=>{
+      const y=window.scrollY||0, bar=document.getElementById('topbar');
+      if(bar){
+        const down=y>lastY+4, up=y<lastY-4;
+        if(down && y>76 && !document.body.classList.contains('palette-open')) bar.classList.add('is-hidden');
+        else if(up || y<=76) bar.classList.remove('is-hidden');
+      }
+      lastY=y; ticking=false;
+    });
+  };
+  window.addEventListener('scroll',onScroll,{passive:true});
   // keyboard
   let gPending=0;
   document.addEventListener('keydown',e=>{

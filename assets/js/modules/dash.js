@@ -100,17 +100,25 @@ function eqaCard(){
     foot:'<span>'+(rows.length?'Mean score '+(Math.round(latest*10)/10)+'% across '+progs.length+' scheme'+(progs.length===1?'':'s'):'Scores appear as soon as a PT round is reported')+'</span><a class="more" href="#/eqa" style="color:var(--gold)">EQA workspace '+UI.ic('arrow-right',12)+'</a>'});
 }
 
+/* Category always comes from the referral catalogue, never from a roster or from
+   a stale field on an old record: the test name is looked up in
+   catalog.tests and the category is whatever the referral module says it is. */
+function referralCat(name){
+  const t=(S.db().catalog.tests||[]).find(x=>x.name===name);
+  return (t&&t.cat)||'Referral';
+}
 function tatCard(){
-  const db=S.db();
-  const samples=db.samples.filter(s=>s.resultedAt);
-  const byCat=U.groupBy(samples,s=>s.cat||'General');
+  /* Only referred samples count: in-house bench work is not a referral, so it has
+     no place in a referral turnaround card. */
+  const samples=S.referredSamples().filter(s=>s.resultedAt);
+  const byCat=U.groupBy(samples,s=>referralCat(s.test));
   const items=Object.keys(byCat).map(cat=>{
     const list=byCat[cat];
     const tat=U.avg(list.map(s=>S.tatFor(s).elapsedH));
     const target=U.avg(list.map(s=>S.tatFor(s).targetH));
     return {label:cat,value:Math.round(tat),display:Math.round(tat)+'h',suffix:'avg',target:Math.round(target),tone: tat>target?'amber':'teal', n:list.length};
   }).sort((a,b)=>b.value-a.value).slice(0,7);
-  return UI.card({title:'Turnaround by test category',sub:'Mean hours vs target marker',icon:'timer',
+  return UI.card({title:'Turnaround by test category',sub:'Referred samples only · category from the referral catalogue',icon:'timer',
     body:'<div id="tatBars"></div>',
     foot:'<span>Target marker shown per category</span><span class="mono">n='+samples.length+'</span>'});
 }
@@ -147,9 +155,9 @@ function equipmentCard(){
 }
 
 function feedCard(){
-  return UI.card({title:'Live activity',sub:'Chain of custody · signed actions',icon:'radio',
+  return UI.card({title:'Live activity',sub:'Registered and resulted, side by side',icon:'radio',
     tools:'<span class="pill teal"><span class="dot live"></span> live</span>',
-    body:'<div class="feed feed-fill" id="liveFeed" style="overflow:auto">'+S.feed().map(f=>'<div class="feed-item"><div class="fic '+f.tone+'">'+UI.ic(f.icon,12)+'</div><div class="grow" style="min-width:0"><div class="ftxt">'+f.text+'</div></div><time>'+U.relTime(f.ts)+'</time></div>').join('')+'</div>'});
+    body:'<div class="feed feed-fill" id="liveFeed">'+S.feed().map(f=>'<div class="feed-item"><div class="fic '+f.tone+'">'+UI.ic(f.icon,12)+'</div><div class="grow" style="min-width:0"><div class="ftxt">'+f.text+'</div></div><time>'+U.relTime(f.ts)+'</time></div>').join('')+'</div>'});
 }
 
 /* Shift language: no times on the card. During daylight a person on the day
@@ -270,8 +278,8 @@ M.render=function(root,params){
   ],labels:thr.map(d=>d.label),tipFmt:v=>U.fmtNum(v)+' samples',extraTip:i=>'<div class="tr"><span class="k">STAT</span><span class="v">'+thr[i].stat+'</span></div><div class="tr"><span class="k">Gap</span><span class="v">'+(thr[i].registered-thr[i].resulted)+'</span></div>'});
   // TAT bars
   C.hbars(root.querySelector('#tatBars'),{items:(function(){
-    const samples=db.samples.filter(s=>s.resultedAt);
-    const byCat=U.groupBy(samples,s=>s.cat||'General');
+    const samples=S.referredSamples().filter(s=>s.resultedAt);
+    const byCat=U.groupBy(samples,s=>referralCat(s.test));
     return Object.keys(byCat).map(cat=>{ const list=byCat[cat]; const tat=U.avg(list.map(s=>S.tatFor(s).elapsedH)); const target=U.avg(list.map(s=>S.tatFor(s).targetH));
       return {label:cat,value:Math.round(tat),display:Math.round(tat)+'h',suffix:'avg',target:Math.round(target),tone:tat>target?'amber':'teal'}; }).sort((a,b)=>b.value-a.value).slice(0,7);
   })()});

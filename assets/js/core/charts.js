@@ -118,9 +118,36 @@ C.line=function(el,cfg){
 };
 
 /* ——— Ranked horizontal bars with target markers ——— */
+/* Horizontal bars are HTML, not SVG, so the export path asks for this static
+   rendering of the same numbers when someone wants a picture of it. */
+C.barSVG=function(items,opts){
+  opts=opts||{};
+  const W=760, rowH=34, pad={l:190,r:96,t:18,b:16};
+  const H=pad.t+pad.b+items.length*rowH;
+  const max=Math.max.apply(null,items.map(i=>i.value).concat([1]));
+  const toneColor={gold:'#C9A84C',teal:'#3FD3B6',rose:'#E26D6D',amber:'#E0A33A',blue:'#7595C8'};
+  let out='';
+  items.forEach((it,i)=>{
+    const y=pad.t+i*rowH+rowH/2;
+    const w=Math.max(2,(it.value/max)*(W-pad.l-pad.r));
+    out+='<text x="0" y="'+(y+4)+'" font-family="system-ui,sans-serif" font-size="12" fill="#B9BFCB">'+U.esc(String(it.label).slice(0,26))+'</text>';
+    out+='<rect x="'+pad.l+'" y="'+(y-6)+'" width="'+(W-pad.l-pad.r)+'" height="12" rx="6" fill="rgba(255,255,255,.06)"/>';
+    out+='<rect x="'+pad.l+'" y="'+(y-6)+'" width="'+w.toFixed(1)+'" height="12" rx="6" fill="'+(toneColor[it.tone]||toneColor.gold)+'"/>';
+    const label=(it.display!=null?it.display:U.fmtNum(it.value))+(it.suffix?' '+it.suffix:'');
+    out+='<text x="'+(pad.l+w+10)+'" y="'+(y+4)+'" font-family="ui-monospace,monospace" font-size="11" fill="#E9D9A7">'+U.esc(label)+'</text>';
+    if(it.target!=null){
+      const tx=pad.l+(it.target/max)*(W-pad.l-pad.r);
+      out+='<line x1="'+tx.toFixed(1)+'" x2="'+tx.toFixed(1)+'" y1="'+(y-10)+'" y2="'+(y+10)+'" stroke="#8C93A3" stroke-width="1" stroke-dasharray="2 2"/>';
+    }
+  });
+  return {svg:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+out+'</svg>', width:W, height:H};
+};
 C.hbars=function(el,cfg){
   if(!el) return;
   const items=(cfg.items||[]).slice(0,cfg.limit||8);
+  el.__chartCfg={type:'bars',items,limit:cfg.limit||8};
+  el.setAttribute('data-chart','bars');
+  if(!el.style.position) el.style.position='relative';
   if(!items.length){ el.innerHTML='<div class="chart-empty">No data</div>'; return; }
   const max=Math.max.apply(null,items.map(i=>i.value).concat([1]));
   el.innerHTML='<div style="display:flex;flex-direction:column;gap:'+(cfg.gap||11)+'px">'+items.map((it,i)=>{

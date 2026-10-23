@@ -18,6 +18,16 @@ const REF={
   'Blood Slide for Malaria':{unit:'parasites/µL',lo:0,hi:0,dec:0},
   'TB Culture':{unit:'',lo:null,hi:null,dec:0}
 };
+/* Culture and microscopy results are not numbers. They are a call (negative or
+   positive) and, when positive, an organism and a susceptibility panel. The drug
+   list is the panel the receiving laboratory reports back to us. */
+const CULTURE_TESTS={
+  'Blood Culture':{drugs:['Ampicillin','Gentamicin','Ceftriaxone','Ciprofloxacin','Meropenem','Vancomycin'],organism:'Staphylococcus aureus'},
+  'TB Culture':{drugs:['Rifampicin','Isoniazid','Pyrazinamide','Ethambutol','Streptomycin'],organism:'Mycobacterium tuberculosis'},
+  'Sputum AFB (Ziehl-Neelsen)':{drugs:['Rifampicin','Isoniazid','Pyrazinamide','Ethambutol'],organism:'Mycobacterium tuberculosis'}
+};
+function cultureOf(test){ return CULTURE_TESTS[test]||null; }
+function isQualitative(test){ return !!cultureOf(test) || /culture|afb|microscopy/i.test(test||''); }
 const FILTERS=[
   {k:'all',label:'All samples'},
   {k:'active',label:'Active'},
@@ -256,10 +266,17 @@ function labEditor(){
 }
 
 /* ——— Drawer: sample detail + chain of custody ————— */
+/* datetime-local input value in local time, defaulting to "now". */
+function releaseStamp(s){
+  const d=s&&s.resultedAt?new Date(s.resultedAt):new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+}
 function openSample(id){
   const db=S.db(); const s=db.samples.find(x=>x.id===id); if(!s) return;
   const t=S.tatFor(s);
   const ref=REF[s.test]||{unit:'',lo:null,hi:null,dec:1};
+  const cult=cultureOf(s.test);
   const steps=[
     {k:'Collected',at:s.collectionAt||s.collectionDate,by:s.collector||'Phlebotomy',done:true},
     {k:'Received at Ruli DH',at:s.receivedAt||s.sentDate,by:'Sample reception · Beatrice NGEZEKURE',done:!!s.receivedAt||['Received','Pending','Resulted','Done','Positive','Negative'].indexOf(s.status)>=0},
@@ -285,12 +302,30 @@ function openSample(id){
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('git-branch',14,'ic')+'Chain of custody</div><div class="card-sub">Append-only · actor + timestamp on every handoff</div></div></div><div class="card-body"><div class="custody">'
      +steps.map((x,i)=>'<div class="custody-step '+(x.done?'done':(i===current?'current':'pending'))+'"><div class="node">'+UI.ic(x.done?'check':'circle-dot',9)+'</div><div class="cs-t">'+U.esc(x.k)+'</div><div class="cs-m">'+(x.done?U.fmtDT(x.at)+' · '+U.esc(x.by):'Pending')+'</div></div>').join('')
      +'</div></div></div>'
-   +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('test-tube',14,'ic')+'Result entry</div><div class="card-sub">Reference range '+ (ref.lo!=null?ref.lo+'–'+ref.hi+' '+ref.unit:'qualitative')+' · auto-flagged</div></div></div>'
+   +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('test-tube',14,'ic')+'Result entry</div><div class="card-sub">'+(cult?'Qualitative culture · negative / positive · susceptibility panel':'Reference range '+ (ref.lo!=null?ref.lo+'–'+ref.hi+' '+ref.unit:'qualitative')+' · auto-flagged')+'</div></div></div>'
      +'<div class="card-body">'
-       +(s.resultedAt?'<div class="row between" style="padding:10px 12px;border-radius:8px;background:var(--pos-soft);border:1px solid var(--pos-border);margin-bottom:10px"><div><div class="strong" style="font-size:13px">'+U.esc(s.resultValue||'Verified')+'</div><div class="xs faint">'+U.fmtDT(s.resultedAt)+' · '+U.esc(s.resultBy||'Laboratory')+'</div></div><span class="pill teal">Released</span></div>':'')
-       +'<div class="form-grid"><div class="field"><label>Result value</label><input class="input mono" id="resVal" placeholder="'+(ref.lo!=null?ref.lo+'–'+ref.hi:'e.g. Positive')+'" value="'+U.esc(s.resultValue||'')+'"></div>'
-       +'<div class="field"><label>Unit</label><input class="input mono" value="'+U.esc(ref.unit||'qualitative')+'" readonly></div></div>'
-       +'<div id="resFlag" class="hint" style="margin-top:8px">Out-of-range values are flagged automatically and require a comment.</div>'
+       +(s.resultedAt?'<div class="row between" style="padding:10px 12px;border-radius:8px;background:var(--pos-soft);border:1px solid var(--pos-border);margin-bottom:10px"><div><div class="strong" style="font-size:13px">'+U.esc(s.resultValue||'Verified')+(s.organism?' · '+U.esc(s.organism):'')+'</div><div class="xs faint">Released '+U.fmtDT(s.resultedAt)+' · '+U.esc(s.resultBy||'Laboratory')+'</div></div><span class="pill teal">Released</span></div>'
+          +(s.ast?'<div class="row wrap gap-sm" style="margin:-4px 0 10px">'+Object.keys(s.ast).map(d=>'<span class="pill '+(s.ast[d]==='R'?'rose':s.ast[d]==='I'?'amber':'teal')+'">'+U.esc(d)+' · '+U.esc(s.ast[d])+'</span>').join('')+'</div>':'')
+          :'')
+       +(cult
+         ? '<div class="field"><label>Culture call</label><div class="seg" id="resCall">'
+             +['Negative','Positive'].map(v=>'<button type="button" class="'+((s.resultStatus||s.resultValue||'Negative')===v?'on':'')+'" data-call="'+v+'">'+v+'</button>').join('')
+           +'</div></div>'
+           +'<div class="field" style="margin-top:10px"><label>Organism</label><input class="input" id="resOrg" placeholder="'+U.esc(cult.organism)+'" value="'+U.esc(s.organism||'')+'"></div>'
+           +'<div id="astWrap" style="margin-top:12px;'+(s.resultStatus==='Positive'?'':'display:none')+'">'
+             +'<div class="eyebrow" style="margin-bottom:6px">Antimicrobial susceptibility (AST)</div>'
+             +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Drug</th><th>S</th><th>I</th><th>R</th></tr></thead><tbody>'
+             +cult.drugs.map(d=>{ const cur=(s.ast||{})[d]||''; return '<tr><td class="small">'+U.esc(d)+'</td>'
+               +['S','I','R'].map(k=>'<td><label class="row gap-sm" style="cursor:pointer"><input type="radio" name="ast_'+U.esc(d)+'" data-ast="'+U.esc(d)+'" value="'+k+'"'+(cur===k?' checked':'')+' style="accent-color:#C9A84C"></label></td>').join('')
+               +'</tr>'; }).join('')
+             +'</tbody></table></div>'
+             +'<div class="hint" style="margin-top:6px">S susceptible · I intermediate · R resistant</div>'
+           +'</div>'
+         : '<div class="form-grid"><div class="field"><label>Result value</label><input class="input mono" id="resVal" placeholder="'+(ref.lo!=null?ref.lo+'–'+ref.hi:'e.g. Positive')+'" value="'+U.esc(s.resultValue||'')+'"></div>'
+           +'<div class="field"><label>Unit</label><input class="input mono" value="'+U.esc(ref.unit||'qualitative')+'" readonly></div></div>'
+           +'<div id="resFlag" class="hint" style="margin-top:8px">Out-of-range values are flagged automatically and require a comment.</div>')
+       +'<div class="field" style="margin-top:12px"><label>Result released on</label><input class="input mono" type="datetime-local" id="resWhen" value="'+releaseStamp(s)+'">'
+       +'<div class="hint" style="margin-top:4px">Back-date this when the result arrived earlier than you could record it — turnaround is measured from the release time on this field, not from when you typed it.</div></div>'
        +'<div class="field" style="margin-top:10px"><label>Comment</label><textarea class="textarea" id="resNote" placeholder="Optional — critical value notification, repeat, dilution…"></textarea></div>'
        +'<button class="btn primary sm" data-save-result style="margin-top:10px">'+UI.ic('check',14)+' Verify & release result</button>'
      +'</div></div>'
@@ -308,17 +343,54 @@ function openSample(id){
     box.innerHTML=high?'▲ Above reference range ('+ref.hi+' '+ref.unit+') — will be flagged HIGH':low?'▼ Below reference range ('+ref.lo+' '+ref.unit+') — will be flagged LOW':'Within reference range';
     box.style.color=high||low?'var(--crit)':'var(--pos)';
   });
+  // culture call switches the susceptibility panel in and out
+  const callBox=panel.querySelector('#resCall');
+  if(callBox){
+    callBox.querySelectorAll('[data-call]').forEach(b=>b.addEventListener('click',()=>{
+      callBox.querySelectorAll('[data-call]').forEach(x=>x.classList.toggle('on',x===b));
+      const wrap=panel.querySelector('#astWrap');
+      if(wrap) wrap.style.display=b.dataset.call==='Positive'?'':'none';
+    }));
+  }
   panel.querySelector('[data-save-result]')?.addEventListener('click',()=>{
     if(!LS.auth.guard('edit')) return;
-    const raw=panel.querySelector('#resVal').value.trim();
-    if(!raw) return UI.toast('Enter a result value first',{type:'warn'});
-    const v=parseFloat(raw);
-    let flag=null;
-    if(ref.lo!=null&&!isNaN(v)) flag = v>ref.hi?'HIGH':v<ref.lo?'LOW':null;
+    let raw, flag=null, ast=null, organism=null, call=null;
+    if(cult){
+      const btn=panel.querySelector('#resCall [data-call].on');
+      call=btn?btn.dataset.call:'Negative';
+      raw=call;
+      organism=call==='Positive'?((panel.querySelector('#resOrg')||{}).value||cult.organism||'').trim():null;
+      if(call==='Positive'){
+        ast={};
+        panel.querySelectorAll('[data-ast]:checked').forEach(r=>{ ast[r.dataset.ast]=r.value; });
+        if(!Object.keys(ast).length) return UI.toast('Record at least one drug on the susceptibility panel',{type:'warn'});
+        flag='POSITIVE';
+      }
+    } else {
+      raw=(panel.querySelector('#resVal')||{}).value||''; raw=raw.trim();
+      if(!raw) return UI.toast('Enter a result value first',{type:'warn'});
+      const v=parseFloat(raw);
+      if(ref.lo!=null&&!isNaN(v)) flag = v>ref.hi?'HIGH':v<ref.lo?'LOW':null;
+    }
+    /* The release time is whatever the operator confirms — recording a result a
+       day late must not turn a compliant turnaround into a breach. */
+    const whenEl=panel.querySelector('#resWhen');
+    const when=whenEl&&whenEl.value?new Date(whenEl.value):new Date();
+    if(isNaN(when.getTime())) return UI.toast('The release date is not valid',{type:'warn'});
+    if(when.getTime()>Date.now()+60000) return UI.toast('A result cannot be released in the future',{type:'warn'});
+    const releasedIso=when.toISOString(), localDate=U.isoLocal(when);
+    const late=Math.abs(Date.now()-when.getTime())>12*3600*1000;
     S.commit(db2=>{ const x=db2.samples.find(y=>y.id===s.id); if(!x) return;
-      x.resultValue=raw; x.flag=flag; x.resultedAt=U.nowISO(); x.resultDate=U.todayISO(); x.status='Done'; x.resultBy=LS.auth.user.name;
-    },{action:'sample.result',entity:'samples',entityId:s.id,detail:'Result released for '+s.sampleId+(flag?' · flagged '+flag:'')+' · '+raw});
-    UI.toast('Result released'+(flag?' · flagged '+flag:''),{type:'ok'});
+      x.resultValue=raw; x.flag=flag; x.resultedAt=releasedIso; x.resultDate=localDate;
+      x.status=call==='Positive'?'Positive':call==='Negative'?'Done':'Done';
+      x.resultBy=LS.auth.user.name;
+      if(call){ x.resultStatus=call; }
+      if(organism!=null) x.organism=organism;
+      if(ast) x.ast=ast;
+      if(late){ x.recordedLate=true; x.recordedAt=U.nowISO(); }
+      else { delete x.recordedLate; }
+    },{action:'sample.result',entity:'samples',entityId:s.id,detail:'Result released for '+s.sampleId+' on '+localDate+(flag?' · '+flag:'')+' · '+raw+(ast?' · AST '+Object.keys(ast).length+' drugs':'')+(late?' · back-dated':'')});
+    UI.toast('Result released'+(flag?' · '+flag:'')+(late?' · back-dated to '+U.fmtDate(localDate):''),{type:'ok'});
     d.close(); LS.shell.refresh();
   });
   panel.querySelector('[data-quick-result]')?.addEventListener('click',()=>{ panel.querySelector('#resVal')?.focus(); panel.querySelector('#resVal')?.scrollIntoView({block:'center',behavior:'smooth'}); });

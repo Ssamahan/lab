@@ -3,7 +3,7 @@
    ========================================================================== */
 (function(){
 'use strict';
-const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, A=LS.auth;
+const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, A=LS.auth, SY=LS.sync;
 const M={}; LS.modules.staff=M;
 let rootEl=null, tab='people';
 
@@ -201,7 +201,7 @@ function settingsView(){
      +[['setSign1','Laboratory Manager',st.signatories&&st.signatories[0]],['setSign2','Medical Director',st.signatories&&st.signatories[1]],['setSign3','Quality Officer',st.signatories&&st.signatories[2]]].map(([id,l,v])=>'<div class="field"><label>'+l+'</label><input class="input" id="'+id+'" value="'+U.esc(v||'')+'"></div>').join('')+'</div>'
      ,foot:'<span>Changes apply immediately across the app and printed documents</span><button class="btn primary sm" data-save-identity>Save identity</button>'})+'</div>'
    +'<div class="c5">'+UI.card({title:'Appearance &amp; language',sub:'Ink / Porcelain · density · locale',icon:'palette',body:
-     '<div class="field" style="margin-bottom:12px"><label>Theme</label><div class="seg" style="width:100%">'+[['ink','Ink'],['porcelain','Porcelain']].map(([k,l])=>'<button style="flex:1" class="'+(st.theme===k?'on':'')+'" data-set-theme="'+k+'">'+l+'</button>').join('')+'</div></div>'
+     '<div class="field" style="margin-bottom:12px"><label>Theme · <span class="faint" style="text-transform:none;letter-spacing:0">Auto follows the device and reads light on a computer</span></label><div class="seg" style="width:100%">'+[['auto','Auto'],['porcelain','Light'],['ink','Dark']].map(([k,l])=>'<button style="flex:1" class="'+(st.theme===k?'on':'')+'" data-set-theme="'+k+'">'+l+'</button>').join('')+'</div></div>'
      +'<div class="field" style="margin-bottom:12px"><label>Density</label><div class="seg" style="width:100%">'+[['comfortable','Comfortable'],['compact','Compact']].map(([k,l])=>'<button style="flex:1" class="'+(st.density===k?'on':'')+'" data-set-density="'+k+'">'+l+'</button>').join('')+'</div></div>'
      +'<div class="field"><label>Language</label><select class="select" id="setLang">'+LS.i18n.languages.map(l=>'<option value="'+l.code+'" '+(st.lang===l.code?'selected':'')+'>'+l.native+' — '+l.label+'</option>').join('')+'</select></div>'
      ,foot:'<span>Preference is stored on this device</span>'})+'</div>'
@@ -220,6 +220,7 @@ function settingsView(){
 }
 function dataView(){
   const db=S.db();
+  const cl=S.settings().cloud||{};
   let bytes=0; try{ bytes=(localStorage.getItem('labSystems.v1')||'').length; }catch(e){}
   const quota=5*1024*1024;
   return '<div class="grid-12">'
@@ -230,12 +231,19 @@ function dataView(){
      +'<div class="thread" style="margin:14px 0"></div>'
      +'<div class="row gap-sm wrap"><button class="btn sm" data-export-json>'+UI.ic('download',14)+'Export register</button><button class="btn sm" data-import-json>'+UI.ic('upload',14)+'Import</button><button class="btn sm" data-snapshot>'+UI.ic('database',14)+'Snapshot</button><button class="btn sm danger" data-reset>'+UI.ic('rotate-ccw',14)+'Reset to seed</button></div>'
      +'<div class="hint" style="margin-top:12px">Exports are plain JSON for portability; wrap them with your own encryption when moving between devices. Imports create a restore point first.</div>'})+'</div>'
-   +'<div class="c5">'+UI.card({title:'Cloud sync',sub:'Optional · off by default',icon:'cloud',body:
-     '<div class="row between" style="padding:6px 0"><span class="small">Status</span><span class="pill '+(S.settings().cloud.lastSync?'teal':'slate')+'">'+(S.settings().cloud.lastSync?'Synced '+U.relTime(S.settings().cloud.lastSync):'Local only')+'</span></div>'
-     +'<div class="field" style="margin-top:10px"><label>Endpoint</label><input class="input mono" id="cloudUrl" placeholder="https://…/v1/register" value="'+U.esc(S.settings().cloud.endpoint||'')+'"></div>'
-     +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode"><option value="push-pull">Two-way</option><option value="push">Push only</option><option value="pull">Pull only</option></select></div>'
-     +'<div class="row gap-sm" style="margin-top:12px"><button class="btn sm" data-cloud-test>Test connection</button><button class="btn sm primary" data-cloud-save>Save</button></div>'
-     +'<div class="hint" style="margin-top:12px">Offline-first: writes queue locally and flush when the endpoint is reachable. No PHI leaves the device until you enable this.</div>'})+'</div>'
+   +'<div class="c5">'+UI.card({title:'Cloud sync',sub:'Supabase · shared register across devices',icon:'cloud',
+     tools:'<span class="pill '+(SY.configured()?'teal':'slate')+'">'+U.esc(SY.statusText())+'</span>',
+     body:
+     '<div class="field" style="margin-top:2px"><label>Supabase project URL</label><input class="input mono" id="cloudUrl" placeholder="https://xxxxxxxx.supabase.co" value="'+U.esc(cl.endpoint||'')+'" spellcheck="false" autocomplete="off"></div>'
+     +'<div class="field" style="margin-top:10px"><label>Anon public key</label><input class="input mono" id="cloudKey" type="password" placeholder="eyJhbGciOi…" value="'+U.esc(cl.anonKey||'')+'" spellcheck="false" autocomplete="off"></div>'
+     +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
+       +[['push-pull','Two-way · pull then push'],['push','Push only — this device is the source'],['pull','Pull only — read the shared copy']].map(([v,l])=>'<option value="'+v+'"'+(cl.mode===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
+     +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
+     +'<div class="row between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><span class="xs faint">Pending local changes</span><span class="mono xs">'+(S.pendingChanges?S.pendingChanges():0)+'</span></div>'
+     +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last push</span><span class="mono xs">'+(SY.state().lastPushAt?U.relTime(SY.state().lastPushAt):'never')+'</span></div>'
+     +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last pull</span><span class="mono xs">'+(SY.state().lastPullAt?U.relTime(SY.state().lastPullAt):'never')+'</span></div>'
+     +(SY.state().lastError?'<div class="hint" style="margin-top:8px;color:var(--crit)">'+U.esc(SY.state().lastError)+'</div>':'')
+     +'<div class="hint" style="margin-top:12px">Every edit is still saved on this device first. The shared copy is what lets your phone see what you typed on the PC. Setup steps are in <span class="mono">supabase/README.md</span>; the table SQL is <span class="mono">supabase/schema.sql</span>. No patient data leaves the device until both fields are filled.</div>'})+'</div>'
    +'<div class="c12">'+UI.card({title:'Data provenance',sub:'What is real and what is modelled in this console',icon:'info',body:
      '<p class="small" style="line-height:1.7;color:var(--text-muted)">'+U.esc(S.settings().provenance||'')+'</p>'
      +'<div class="split-3" style="margin-top:12px">'+[['Register data','Carried forward from v5.3.1 (staff, referrals, leave, trainings, revenue, equipment)'],['Working records','Only what the department actually recorded — referred samples, issues, leave, EQA rounds. Nothing is generated to fill a screen.'],['Configuration','Stored in localStorage under labSystems.v1 · schema v'+db.meta.schema]].map(([k,v])=>'<div class="hstat" style="align-items:flex-start"><span class="lb">'+k+'</span><span class="xs muted" style="line-height:1.55;margin-top:4px">'+U.esc(v)+'</span></div>').join('')+'</div>'})+'</div></div>';
@@ -259,7 +267,7 @@ function wire(){
     LS.shell.build(); UI.toast('Identity saved across the console',{type:'ok'}); };
   const sc=r.querySelector('[data-save-cover]'); if(sc) sc.onclick=()=>{ S.commit(d=>{ r.querySelectorAll('[data-cover]').forEach(i=>{ d.settings[i.dataset.cover]=Math.max(0,+i.value||0); }); },{action:'settings.coverage',entity:'settings',detail:'Coverage minimums updated'}); UI.toast('Coverage minimums saved',{type:'ok'}); };
   const st=r.querySelector('[data-save-tat]'); if(st) st.onclick=()=>{ S.commit(d=>{ d.settings.tat=d.settings.tat||{}; r.querySelectorAll('[data-tat]').forEach(i=>{ d.settings.tat[i.dataset.tat]=Math.max(1,+i.value||1); }); },{action:'settings.tat',entity:'settings',detail:'TAT targets updated'}); UI.toast('Turnaround targets saved',{type:'ok'}); };
-  r.querySelectorAll('[data-set-theme]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ d.settings.theme=b.dataset.setTheme; },{action:'settings.theme',entity:'settings',detail:'Theme '+b.dataset.setTheme}); LS.shell.build(); paint(); });
+  r.querySelectorAll('[data-set-theme]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ d.settings.theme=b.dataset.setTheme; d.meta.themeChosen=true; },{action:'settings.theme',entity:'settings',detail:'Theme '+b.dataset.setTheme}); LS.shell.build(); paint(); });
   r.querySelectorAll('[data-set-density]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ d.settings.density=b.dataset.setDensity; },{action:'settings.density',entity:'settings',detail:'Density '+b.dataset.setDensity}); LS.shell.build(); paint(); });
   const lg=r.querySelector('#setLang'); if(lg) lg.onchange=()=>{ LS.i18n.set(lg.value); LS.shell.build(); paint(); UI.toast('Language updated',{type:'ok'}); };
   r.querySelectorAll('[data-feature]').forEach(el=>el.onclick=()=>{ const k=el.dataset.feature; S.commit(d=>{ d.settings.features[k]=!d.settings.features[k]; },{action:'settings.feature',entity:'settings',detail:'Feature '+k+' toggled'}); paint(); LS.shell.build(); });
@@ -268,9 +276,31 @@ function wire(){
     inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=async()=>{ try{ const obj=JSON.parse(rd.result); const ok=await UI.confirm({title:'Import register?',body:'Replaces the current local register after creating a restore point.',confirm:'Import',danger:true}); if(!ok) return; S.restorePoint(); S.importJSON(obj.db||obj); LS.shell.build(); paint(); UI.toast('Register imported',{type:'ok'}); }catch(e){ UI.toast('Invalid register file',{type:'err'}); } }; rd.readAsText(f); }; inp.click(); };
   const sn=r.querySelector('[data-snapshot]'); if(sn) sn.onclick=()=>{ S.restorePoint(); UI.toast('Restore point created',{type:'ok'}); };
   const rs=r.querySelector('[data-reset]'); if(rs) rs.onclick=async()=>{ const ok=await UI.confirm({title:'Reset to factory seed?',body:'All local changes on this device will be replaced by the seed register. Export first if you need the current data.',confirm:'Reset register',danger:true}); if(!ok) return; S.reset(); LS.shell.build(); paint(); UI.toast('Register reset to seed',{type:'warn'}); };
-  r.querySelectorAll('[data-cloud-test]').forEach(b=>b.onclick=()=>UI.toast('No endpoint configured — running local-only. Add a URL to enable sync.',{type:'info'}));
-  r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), m=r.querySelector('#cloudMode');
-    S.commit(d=>{ d.settings.cloud.endpoint=u?u.value:''; d.settings.cloud.mode=m?m.value:'push-pull'; d.settings.cloud.enabled=!!(u&&u.value); },{action:'settings.cloud',entity:'settings',detail:'Cloud sync settings saved'}); UI.toast(u&&u.value?'Sync endpoint saved — will flush when online':'Cloud sync disabled · staying local',{type:'ok'}); });
+  r.querySelectorAll('[data-cloud-test]').forEach(b=>b.onclick=async()=>{
+    const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
+    if(u) S.settings().cloud.endpoint=u.value.trim();
+    if(k) S.settings().cloud.anonKey=k.value.trim();
+    if(m) S.settings().cloud.mode=m.value;
+    UI.toast('Testing the Supabase project…',{type:'info'});
+    const res=await SY.ping();
+    UI.toast(res.ok?'Connected to Supabase — '+(res.remote?'shared register found':'ready for the first push'):res.reason,{type:res.ok?'ok':'err',duration:res.ok?4000:8000});
+    if(res.ok) paint();
+  });
+  r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
+    S.commit(d=>{ d.settings.cloud.endpoint=(u?u.value:'').trim(); d.settings.cloud.anonKey=(k?k.value:'').trim();
+      d.settings.cloud.mode=m?m.value:'push-pull'; d.settings.cloud.enabled=!!(u&&u.value&&k&&k.value); },
+      {action:'settings.cloud',entity:'settings',detail:'Cloud sync settings saved'});
+    const on=SY.configured();
+    UI.toast(on?'Sync configured — press Sync now to publish this register':'Cloud sync disabled · staying local',{type:'ok'});
+    if(on){ SY.sync().then(res=>{ UI.toast(res.ok?'Cloud sync: '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000}); paint(); }); }
+  });
+  r.querySelectorAll('[data-cloud-sync]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;
+    const res=await SY.sync({force:false});
+    b.disabled=false;
+    UI.toast(res.ok?'Sync complete · '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000});
+    paint();
+  });
 }
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'people';

@@ -27,13 +27,15 @@ const SHIFT_LINE = 'Day shift 08:00–17:00 · Night shift 17:00–08:00 the nex
 
 /* ——— default settings extensions ————————————————— */
 const DEFAULT_SETTINGS = {
-  theme:'ink', density:'comfortable', lang:'en',
+  /* 'auto' follows the operating system; the site itself reads light by default
+     because most desktop browsers report no dark preference at all. */
+  theme:'auto', density:'comfortable', lang:'en',
   fiscalStart:'july', fyLabel:'2026/2027',
   labName:'Laboratory Department', facilityCode:'RDH',
   samplePrefix:'RDH', manifestPrefix:'BLC',
   coverWeekdayDay:3, coverWeekdayNight:1, coverWeekendDay:2, coverWeekendNight:1,
   tat: { 'Blood Culture':4, 'TB Culture':21, 'HIV Recency Viral Load':5, 'Hepatitis (HEP)':7, default:3 },
-  cloud:{ enabled:false, endpoint:'', mode:'push-pull', lastSync:null },
+  cloud:{ enabled:false, endpoint:'', anonKey:'', mode:'push-pull', lastSync:null },
   onboarding:{ importStaff:true, configureTests:false, inviteUsers:false, baselineQC:false, dismissed:false },
   features:{ qc:true, pbf:true, equipment:true, cloud:true },
   provenance:'Register data carried forward from v5.3.1. Throughput, QC and TAT telemetry are generated locally for the console.'
@@ -435,6 +437,14 @@ function normalize(db){
     {id:'sv3', name:'Expiring ≤ 30 days', module:'stock', filter:{expiry:30}, owner:'Beatrice NGEZEKURE'}
   ];
   db.meta.schema=6;
+  /* v6.9 — light is the default. Older builds shipped 'ink' as the stored theme,
+     so an untouched setting is migrated to auto once; an explicit choice is kept. */
+  if(!db.meta.themeAutoV69){
+    if(!db.meta.themeChosen && db.settings.theme!=='porcelain') db.settings.theme='auto';
+    if(!db.settings.theme) db.settings.theme='auto';
+    db.meta.themeAutoV69=1;
+  }
+
   // sample fields upgrade
   db.samples.forEach(s=>{
     if(!s.priority) s.priority = /Marburg|MonkeyPox|Outbreaks/i.test(s.test||'')? 'STAT':'Routine';
@@ -569,6 +579,22 @@ function normalize(db){
     db.leaves=(db.leaves||[]).filter(l=>['lreq1','lreq2'].indexOf(l.id)<0);
     db.meta.workforceV63=1;
   }
+  /* v6.9 — bench contract for the two named people, stored as data rather than
+     hard-coded in a view: Beatrice is the reception desk, with roughly one week a
+     month on parasitology, biochemistry only in a pinch, and never phlebotomy or
+     TB. Kelvin is reserve cover and appears on the grid only when a weekday would
+     otherwise be down to two people. */
+  if(!db.meta.workforceV69){
+    const bea=(db.staff||[]).find(x=>/^Beatrice/i.test(x.name||''));
+    if(bea){
+      bea.homeBench='Reception'; bea.altBench='Parasitology'; bea.altMaxMonth=6;
+      bea.avoidBench=['Phlebotomy','TB/Molecular'];
+      bea.rareBench=['Biochemistry'];
+    }
+    db.staff.forEach(x=>{ if(/manager/i.test(x.role||'')){ x.reserveOnly=true; x.reserveMinDay=2; } });
+    (db.trainings||[]).forEach(t=>{ if(/Rwanda Biomedical/i.test(t.organizer||'')) t.organizer='RBC'; });
+    db.meta.workforceV69=1;
+  }
   // v6.3: two PT rounds received today (Hematology, Biochemistry) are recorded as
   // dispatched-and-submitted with no results yet, so the wait to report is measured.
   if(!db.meta.eqaAwaitingV63){
@@ -661,10 +687,19 @@ S.save=function(immediate){
 };
 S.subscribe=function(fn){ listeners.push(fn); return ()=>{ listeners=listeners.filter(f=>f!==fn); }; };
 S.emit=function(reason){ listeners.forEach(f=>{ try{ f(reason); }catch(e){ console.warn('listener',e); } }); window.dispatchEvent(new CustomEvent('ls:changed',{detail:reason})); };
+/* Local edits waiting to reach the shared copy. The sync layer reads this to know
+   whether a pull would overwrite work that has not been pushed yet. */
+let pending=0;
+try{ pending=Number(localStorage.getItem('labSystems.pending.v1')||0)||0; }catch(e){}
+function setPending(n){ pending=Math.max(0,n|0); try{ localStorage.setItem('labSystems.pending.v1',String(pending)); }catch(e){} }
+S.pendingChanges=()=>pending;
+S.clearPending=()=>setPending(0);
 S.commit=function(mutator, audit){
   const db=S.db(); mutator(db);
   if(audit){ S.audit(audit); }
+  delete db.meta.syncedAt;
   S.save();
+  setPending(pending+1);
   S.emit(audit&&audit.action||'commit');
 };
 S.audit=function(entry){
@@ -1117,7 +1152,18 @@ S.shiftState=function(who, iso){
   // No plan published for that day: fall back to the contract, clearly labelled.
   const dow=U.dow(iso);
   if(staff.weekendOnly) return dow>=5?{code:'DN',kind:'daynight',label:'On duty · day + night',tone:'teal',source:'pattern'}:{code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'};
-  if(staff.pattern==='manager'||staff.pattern==='dayonly') return dow>=5?{code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'}:{code:'D',kind:'day',label:'On duty · day 08:00–17:00',tone:'teal',source:'pattern'};
+  if(staff.pattern==='manager'){
+    /* The manager is reserve cover: never on the grid, only called in when a
+       weekday would otherwise be down to two people or fewer. */
+    if(dow>=5) return {code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'};
+    const peers=S.activeStaff().filter(s=>s.id!==staff.id && s.pattern!=='manager');
+    const atHome=(s)=>{ if(s.weekendOnly) return true; if(s.pattern==='dayonly') return false; return false; };
+    const available=peers.filter(s=>!atHome(s)).length;
+    return available<=2
+      ? {code:'D',kind:'day',label:'Reserve cover · day',tone:'teal',source:'pattern'}
+      : {code:'OFF',kind:'off',label:'At home · reserve only',tone:'slate',source:'pattern'};
+  }
+  if(staff.pattern==='dayonly') return dow>=5?{code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'}:{code:'D',kind:'day',label:'On duty · day 08:00–17:00',tone:'teal',source:'pattern'};
   if(dow>=5) return {code:'OFF',kind:'off',label:'At home',tone:'slate',source:'pattern'};
   // weekday: the night block alternates every two days across eligible staff
   const eligible=S.activeStaff().filter(s=>!s.weekendOnly && s.nightPref!=='no' && (s.maxNights||0)>0);
@@ -1200,11 +1246,23 @@ S.notifications=function(){
   return out.map(n=>Object.assign(n,{read:(db.notifRead||[]).includes(n.id)}));
 };
 S.markNotifsRead=function(ids){ const db=S.db(); ids.forEach(id=>{ if(!db.notifRead.includes(id)) db.notifRead.push(id); }); S.save(); };
+/* Live activity reads the referral register in both directions: a sample being
+   registered and a result being released are separate events with separate
+   timestamps, so the feed shows the same registered → resulted story the
+   throughput chart draws. */
 S.feed=function(){
   const db=S.db();
-  const fromAudit=(db.audit||[]).slice(0,8).map(a=>({icon:a.action.startsWith('stock')?'package':a.action.startsWith('sample')?'flask-conical':a.action.startsWith('leave')?'calendar-clock':'check-circle', tone:a.action.includes('reject')?'rose':a.action.startsWith('sample')?'teal':'gold', text:'<b>'+U.esc(a.actor)+'</b> — '+U.esc(a.detail||a.action), ts:a.ts}));
-  const recent=db.samples.filter(s=>s.collectionDate>=U.addDays(U.todayISO(),-2)).slice(-4).reverse().map(s=>({icon:'flask-conical',tone:'teal',text:'Sample <b>'+U.esc(s.sampleId)+'</b> registered · '+U.esc(s.test)+' · '+U.esc(s.priority),ts:new Date(s.collectionAt||s.collectionDate).toISOString()}));
-  return fromAudit.concat(recent).sort((a,b)=>String(b.ts).localeCompare(String(a.ts))).slice(0,8);
+  const fromAudit=(db.audit||[]).slice(0,8).map(a=>({icon:a.action.startsWith('stock')?'package':a.action.startsWith('sample')?'flask-conical':a.action.startsWith('leave')?'calendar-clock':'check-circle', tone:a.action.includes('reject')?'rose':a.action==='sample.result'?'teal':a.action.startsWith('sample')?'gold':'gold', text:'<b>'+U.esc(a.actor||'System')+'</b> — '+U.esc(a.detail||a.action), ts:a.ts}));
+  const ref=S.referredSamples();
+  const registered=ref.filter(s=>String(s.collectionDate||'')>=U.addDays(U.todayISO(),-2)).slice(-5).reverse().map(s=>({
+    icon:'flask-conical', tone:'gold',
+    text:'<b>'+U.esc(s.sampleId)+'</b> registered · '+U.esc(s.test)+' · '+U.esc(s.priority)+' → '+U.esc(s.hospital||'referral'),
+    ts:new Date(s.collectionAt||s.collectionDate).toISOString()}));
+  const resulted=ref.filter(s=>s.resultedAt && String(s.resultedAt).slice(0,10)>=U.addDays(U.todayISO(),-3)).slice(-5).reverse().map(s=>({
+    icon:'check-circle', tone:'teal',
+    text:'Result back on <b>'+U.esc(s.sampleId)+'</b> · '+U.esc(s.test)+' · '+U.esc(s.resultValue||'released'),
+    ts:new Date(s.resultedAt).toISOString()}));
+  return fromAudit.concat(registered,resulted).sort((a,b)=>String(b.ts).localeCompare(String(a.ts))).slice(0,10);
 };
 
 /* ——— Backup / restore ——————————————————————— */

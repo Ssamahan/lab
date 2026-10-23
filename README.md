@@ -5,7 +5,69 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.8.1** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.0** · FY 2026/2027 · works with no network, installs as a PWA.
+
+---
+
+## What changed in 6.9.0
+
+**The console can now share one register between your phone and your PC, and the
+day-to-day screens behave the way the bench actually works.**
+
+### Sync (new)
+- **Supabase backend included.** `supabase/schema.sql` creates the single
+  `lab_registers` table with row-level security; `supabase/README.md` is the
+  five-minute setup. Paste the project URL and the **anon** key into
+  **Staff & Settings → Cloud sync**, press *Test connection*, then *Sync now*.
+- Offline-first: every edit is still written to the device first, pushes happen
+  1.5 s after a change, failed syncs retry when the network returns.
+- Two devices editing at once is **not silent**: the console asks which copy to
+  keep and takes a restore point before replacing anything.
+- Sync is off until both fields are filled. Nothing leaves the device before that.
+
+### Screen
+- **The header hides while you scroll down** and returns on any upward flick, so
+  the page owns the screen.
+- **Light is the default.** *Auto* follows the device; a computer with no dark
+  preference opens light, a phone set to dark opens Ink. The toggle now records an
+  explicit choice instead of flipping a stored default.
+- **Live activity shows both directions** — a sample registered and a result back —
+  and re-flows into two or three columns on a wide card instead of leaving blank
+  space.
+- **Charts export as PNG (3× resolution) or SVG (vector)** from the small control
+  that appears on hover, ready for the lab social-media groups.
+- Lab services and the weekly allocation now use the full width in a responsive
+  column grid.
+
+### Referral register
+- **Turnaround by test category reads the referral catalogue**, not a roster or a
+  stale category on an old record; the compliance KPI counts referred samples only.
+- **Culture results are configured, not free text.** Blood culture and TB culture
+  take a *Negative / Positive* call; a positive opens the susceptibility panel
+  (S / I / R per drug), and the released result carries the organism and the AST
+  table.
+- **You choose the result release date.** Back-date the release when the result
+  arrived earlier than you could type it: turnaround is measured from that field,
+  the correction is audited, and the sample is flagged as *back-dated*.
+
+### Stock
+- **Lots & expiry, consumption and suppliers open again** — the tab handler was
+  listening to the wrong attribute, so only the overview ever rendered.
+- **Every row is editable:** lots (quantity, expiry, receipt date, age group, note)
+  and consumable lines (name, unit, minimum) open in a small correction dialog,
+  audited like any other change.
+
+### Roster & training
+- **Night is the last row of the weekly roster**, one name per night, editable like
+  any cell; shift codes no longer repeat inside every service cell.
+- **Kelvin stays off the grid** unless a weekday would otherwise be down to two
+  people; **Beatrice is the reception desk**, with about one week a month on
+  parasitology, biochemistry only in a pinch, and never phlebotomy or TB.
+- **In-house sessions at Ruli DH no longer move the FIFO queue** — only training
+  attended elsewhere is a turn served (the session is still recorded).
+- **Certificates are recorded, not assumed:** each session is marked *certified* or
+  *not certified* when it is entered, and can be toggled later.
+- The organizer default is now simply **RBC**.
 
 ---
 

@@ -18,6 +18,7 @@ function init(){
   try{
     LS.store.init();
     LS.i18n.init();
+    try{ if(window.LS.sync) LS.sync.start(); }catch(e){ console.warn('sync start',e); }
     const user=LS.auth.init();
     const jump=()=>{
       const wait=Math.max(0,SPLASH_MIN-(performance.now()-t0));

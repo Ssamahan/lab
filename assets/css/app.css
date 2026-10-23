@@ -114,6 +114,9 @@
   border-bottom:1px solid var(--border);
 }
 .topbar::after{content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:var(--gold-thread); opacity:.35}
+.topbar{transition:transform var(--dur-3) var(--spring-soft), box-shadow var(--dur-2) var(--ease)}
+.topbar.is-hidden{transform:translateY(-100%); box-shadow:none}
+@media (prefers-reduced-motion: reduce){ .topbar{transition:none} }
 .topbar-left{display:flex; align-items:center; gap:12px; min-width:0; flex:0 1 auto}
 .hamburger{display:none; width:38px; height:38px; border-radius:10px; align-items:center; justify-content:center; border:1px solid var(--border); color:var(--text)}
 .crumbs{display:flex; align-items:center; gap:6px; font-size:var(--fs-micro); letter-spacing:.04em; color:var(--text-faint); text-transform:uppercase; font-weight:600; margin-bottom:2px}
@@ -560,3 +563,22 @@ select.role-select:hover{border-color:var(--border-strong)}
 @media (max-width:760px){
   .rail-tip{display:none}
 }
+
+/* ——— 19. v6.9 — tidy tables, roster and service grids ————————————— */
+tr.row-click{cursor:pointer}
+tr.row-click:hover td{background:var(--surface-inset)}
+.cal tfoot .night-row td{background:var(--surface-inset); border-top:1px solid var(--border-strong)}
+.cal tfoot .night-row .staff-cell .nm{font-weight:600; font-size:11.4px; color:var(--text)}
+.cal tfoot .night-row .staff-cell .rl{font-size:9px; color:var(--text-faint); letter-spacing:.04em}
+.warn-name{color:var(--amber)}
+/* Service columns share the width instead of hiding in a narrow sidebar. */
+.services-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px}
+.service-cell{padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-inset); min-width:0}
+
+/* Chart export control — appears on hover, keyboard reachable. */
+.chart-wrap{position:relative}
+.chart-export{position:absolute; top:6px; right:6px; z-index:3; display:inline-flex; gap:4px; opacity:0; transition:opacity var(--dur-1) var(--ease)}
+.chart-wrap:hover .chart-export, .chart-export:focus-within{opacity:1}
+.chart-export button{width:24px; height:24px; border-radius:6px; border:1px solid var(--border-strong); background:color-mix(in srgb,var(--surface-2) 86%,transparent); color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:9px; font-family:var(--font-mono); letter-spacing:.02em}
+.chart-export button:hover{color:var(--text-strong); border-color:var(--gold); background:var(--surface-2)}
+@media (hover:none){ .chart-export{opacity:1} }
