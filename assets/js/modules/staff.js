@@ -21,21 +21,6 @@ function roleFor(s){
 /* On authorised leave today — annual leave, sick leave, maternity or any other
    approved leave type. Nobody is described as absent without an unexcused record. */
 function onLeaveNow(){ const t=U.todayISO(); const ids=S.db().leaves.filter(l=>l.status!=='Declined'&&t>=l.from&&t<=l.to).map(l=>l.staffId); return staff().filter(s=>ids.indexOf(s.id)>=0); }
-/* Result release is not a per-person switch: every active member of staff may
-   authorise release. The single exception is a new joiner still inside the
-   30-day orientation window, whose work is countersigned until it ends. */
-const ORIENTATION_DAYS=30;
-function orientationDays(s){
-  if(s.status!=='active'||!s.joinDate) return null;
-  return Math.max(0,U.daysBetween(s.joinDate,U.todayISO()));
-}
-function releaseStatus(s){
-  if(s.status!=='active') return {ok:false,label:'Archived record',tone:'slate'};
-  const d=orientationDays(s);
-  if(d!=null&&d<ORIENTATION_DAYS) return {ok:false,label:'Orientation · day '+Math.max(1,d+1)+' of '+ORIENTATION_DAYS,tone:'amber'};
-  return {ok:true,label:'Releases results',tone:'teal'};
-}
-function inOrientation(){ return staff().filter(s=>releaseStatus(s).tone==='amber'); }
 function ageOf(s){
   if(!s.dob) return null;
   const b=U.parseISO(s.dob), t=U.parseISO(U.todayISO());
@@ -91,63 +76,95 @@ function kpis(){
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
    +'<div class="c3">'+UI.stat({label:'Active staff',value:a.length,icon:'users',formatted:'0',note:staff().length-a.length+' archived · '+S.db().staff.filter(s=>s.weekendOnly).length+' weekend-only',spark:C.spark([7,7,8,8,9,9,9,a.length],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'On authorised leave',value:leave.length,icon:'plane-takeoff',formatted:'0',note:leave.length?leave.map(s=>s.name.split(' ')[0]).join(', '):'Everyone on the plan today',spark:C.spark([0,1,0,1,1,0,1,leave.length],{color:'var(--info)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Competency records',value:S.db().competency.length,icon:'badge-check',formatted:'0',note:S.db().competency.filter(c=>c.level==='full').length+' full authorisations',spark:C.spark([28,34,39,42,46,49,52,S.db().competency.length],{color:'var(--pos)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Contract mix',value:a.filter(x=>S.contractOf(x)==='statute').length,icon:'file-signature',formatted:'0',note:a.filter(x=>S.contractOf(x)==='statute').length+' under statute · '+a.filter(x=>S.contractOf(x)==='contractual').length+' contractual',spark:C.spark(a.map(x=>S.contractOf(x)==='statute'?1:0),{color:'var(--pos)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'2FA not enrolled',value:exp,icon:'shield-alert',formatted:'0',note:exp?A.users.filter(u=>!u.twoFactor).map(u=>u.name.split(' ')[0]).join(', '):'Every account enrolled',spark:C.spark([4,4,3,3,2,2,1,exp],{color:'var(--amber)'})})+'</div></div>';
 }
 function people(){
   return '<div class="grid-12 stagger">'+staff().map(s=>{
-    const comp=S.db().competency.filter(c=>c.staffId===s.id);
-    const full=comp.filter(c=>c.level==='full');
     const shift=S.shiftState(s);
-    const user=A.users.find(u=>u.staffId===s.id);
-    const release=releaseStatus(s);
+    const book=S.leaveBook(s,U.fyLabel());
     return '<div class="c4"><div class="card hover pad" data-person="'+s.id+'" style="cursor:pointer">'
       +'<div class="row gap-sm" style="align-items:flex-start;margin-bottom:10px">'+U.avatar(s.name,'lg')
       +'<div style="min-width:0"><div class="card-title truncate">'+U.esc(s.name)+'</div><div class="card-sub truncate">'+U.esc(s.role)+'</div>'
       +'<div class="row gap-xs wrap" style="margin-top:5px">'+UI.roleBadge(roleFor(s))+'<span class="pill '+shift.tone+'"><span class="dot '+((shift.kind==='day'||shift.kind==='night'||shift.kind==='daynight')?'live':'')+'"></span>'+U.esc(shift.label)+'</span>'+(s.status!=='active'?'<span class="pill slate">'+UI.ic('log-out',9)+' archived</span>':'')+'</div></div></div>'
       +'<div class="thread" style="margin:10px 0"></div>'
-      +'<div class="row between"><span class="xs faint">Competency</span><span class="mono xs">'+full.length+' of '+comp.length+' assays</span></div>'
-      +UI.meter(comp.length?full.length/comp.length*100:0,full.length/comp.length>.6?'teal':'amber')
-      +'<div class="row between" style="margin-top:7px"><span class="xs faint">Result release</span><span class="pill '+release.tone+'">'+U.esc(release.label)+'</span></div>'
+      +'<div class="row between"><span class="xs faint">Annual leave · FY '+U.esc(book.fy)+'</span><span class="mono xs">'+book.charged+' of '+book.pool+' days</span></div>'
+      +UI.meter(book.pool?U.clamp(book.charged/book.pool*100,0,100):0,book.over?'rose':book.balance>5?'teal':'amber')
+      +'<div class="row between" style="margin-top:7px"><span class="xs faint">Balance</span><span class="pill '+(book.balance>0?'teal':'slate')+'">'+book.balance+' days left'+(book.carry.days?' · '+book.carry.days+' carried':'')+'</span></div>'
       +'<div class="row between" style="margin-top:9px"><span class="xs faint">'+U.esc(S.leaveEntitlement(s).label)+(s.sponsor?' · '+U.esc(s.sponsor):'')+'</span><span class="xs faint mono">'+U.esc(s.phone||'')+'</span></div>'
       +'</div></div>';
-  }).join('')+'</div>'+orientationNote()+workforce();
+  }).join('')+'</div>'+workforce();
 }
-function orientationNote(){
-  const list=inOrientation();
-  return '<div class="card pad" style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
-   +'<span class="pill '+(list.length?'amber':'teal')+'">'+UI.ic(list.length?'hourglass':'check-check',12)+(list.length?list.length+' in orientation':'Everyone cleared')+'</span>'
-   +'<span class="small grow">Every active member of staff authorises result release. '+(list.length
-     ? 'Only '+list.map(s=>U.esc(s.name)+' (day '+Math.max(1,orientationDays(s)+1)+' of '+ORIENTATION_DAYS+')').join(', ')+' is still inside the 30-day orientation window, so their results are countersigned.'
-     : 'No one is inside the 30-day orientation window today.')+'</span>'
-   +'<span class="xs faint">Nobody is marked absent — leave is always authorised leave.</span></div>';
-}
+
 function personDrawer(id){
   const s=staff().find(x=>x.id===id); if(!s) return;
-  const comp=S.db().competency.filter(c=>c.staffId===s.id);
+  const book=S.leaveBook(s,U.fyLabel());
   const leaves=S.db().leaves.filter(l=>l.staffId===s.id);
   const roster=S.db().workingPlans[U.monthKey()];
   const row=roster&&roster.primary?roster.primary.staff.find(x=>x.id===s.id):null;
   const shift=S.shiftState(s);
   const user=A.users.find(u=>u.staffId===s.id);
   UI.drawer({title:s.name,eyebrow:'Staff record',sub:s.role+' · since '+U.fmtDate(s.joinDate||'2019-01-01'),wide:true,body:
-    '<div class="row gap-lg" style="align-items:center;margin-bottom:16px">'+U.avatar(s.name,'xl')
+    '<div class="row gap-lg" style="align-items:center;margin-bottom:16px"><div style="position:relative;flex:0 0 auto">'+U.avatar(s.name,'xl')
+    +'<button class="icon-btn" data-photo-upload title="Upload a profile photo" style="position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#241A06;border:2px solid var(--surface)">'+UI.ic('camera',12)+'</button></div>'
     +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')+'</div>'
     +(shift.note?'<div class="xs faint" style="margin-top:5px">'+U.esc(shift.note)+'</div>':'')
-    +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(s.phone||'')+'</div></div></div>'
+    +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(s.phone||'')+'</div>'
+    +'<div class="row gap-xs" style="margin-top:6px"><button class="btn xs" data-photo-upload>'+UI.ic('camera',11)+(s.photo?'Replace photo':'Add a photo')+'</button>'
+    +(s.photo?'<button class="btn xs" data-photo-clear>'+UI.ic('x',11)+'Remove</button>':'')+'</div></div></div>'
     +'<div class="split-4">'+[['Joined',U.fmtDateShort(s.joinDate)],['Pattern',s.pattern||'—'],['Max nights',(s.maxNights||0)+'/mo'],['Contract',S.leaveEntitlement(s).label]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
     +'<div class="split-3" style="margin-top:12px">'+[['Sponsor',S.leaveEntitlement(s).sponsor],['Leave entitlement',S.leaveEntitlement(s).days+(S.contractOf(s)==='contractual'?' weekdays':' days')],['Leave taken',S.leaveUsed(s).days+' days']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
     +'<div class="section-head"><h2>This month</h2><span class="more">'+(row?row.codes.filter(c=>c==='D'||c==='N'||c==='DN').length:0)+' shifts</span></div>'
     +(row?'<div class="row wrap gap-xs">'+row.codes.map(c=>'<span class="shift-code '+(c||'OFF')+'" data-tip="'+U.fmtDateShort(roster.primary.dates[row.codes.indexOf(c)])+'">'+(c||'·')+'</span>').join('')+'</div>':'<p class="xs faint">No working plan for this month yet.</p>')
-    +'<div class="section-head"><h2>Competency</h2><span class="more">'+comp.filter(c=>c.level==='full').length+' full</span></div>'
-    +'<div class="dt-scroll" style="max-height:260px"><table class="dt"><thead><tr><th>Assay</th><th>Level</th><th>Expires</th></tr></thead><tbody>'
-    +comp.map(c=>'<tr><td class="small">'+U.esc(c.testCode)+'</td><td><span class="pill '+(c.level==='full'?'teal':c.level==='supervised'?'amber':'slate')+'">'+U.esc(c.level)+'</span></td><td class="num xs">'+U.fmtDate(c.expires)+'</td></tr>').join('')
-    +(comp.length?'':'<tr><td colspan="3" class="xs faint">No competency records.</td></tr>')+'</tbody></table></div>'
+    +'<div class="section-head"><h2>Annual leave · FY '+U.esc(book.fy)+'</h2><span class="more">'+book.charged+' of '+book.pool+' days charged</span></div>'
+    +'<div class="split-4">'+[['Balance',book.balance+' days'],['Carried in',book.carry.days+' days'+(book.carry.prevFy?' from '+book.carry.prevFy:'')],['Booked ahead',book.planned+' days'],['Entitlement',book.entitlement.days+' days']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
     +'<div class="section-head"><h2>Leave history</h2></div>'
     +leaves.slice(-5).reverse().map(l=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(S.leaveTypeLabel(l.type))+' · '+U.daysBetween(l.from,l.to)+1+' days</div><div class="lr-sub">'+U.fmtDate(l.from)+' → '+U.fmtDate(l.to)+'</div></div><span class="pill '+(l.status==='Approved'?'teal':l.status==='Pending'?'amber':'slate')+'">'+U.esc(l.status||'—')+'</span></div>').join('')
     ||'<p class="xs faint">No leave recorded.</p>',
     foot:'<button class="btn" data-close>Close</button><button class="btn" data-edit-person>'+UI.ic('pencil',15)+'Edit</button>',
-    onMount:(panel,close)=>{ const b=panel.querySelector('[data-edit-person]'); if(b) b.onclick=()=>{ close(); editStaff(s.id); }; }});
+    onMount:(panel,close)=>{
+      const b=panel.querySelector('[data-edit-person]'); if(b) b.onclick=()=>{ close(); editStaff(s.id); };
+      U.$$('[data-photo-upload]',panel).forEach(x=>x.onclick=()=>uploadPhoto(s.id));
+      const c=panel.querySelector('[data-photo-clear]');
+      if(c) c.onclick=async()=>{
+        const ok=await UI.confirm({title:'Remove the profile photo?',body:'The record goes back to initials on every screen.',confirm:'Remove photo',danger:true});
+        if(!ok) return;
+        S.commit(d=>{ const p=d.staff.find(x=>x.id===s.id); if(p) delete p.photo; },{action:'staff.photo.clear',entity:'staff',entityId:s.id,detail:s.name+' profile photo removed'});
+        UI.closeAll(); UI.toast('Profile photo removed',{type:'warn'}); LS.shell.refresh();
+      };
+    }});
+}
+/* Photo upload: the chosen image is cropped square, scaled to 256 px and stored as
+   a JPEG on the staff record, so it survives offline and never bloats the register. */
+function uploadPhoto(staffId){
+  if(!A.guard('staff')) return;
+  const input=document.createElement('input');
+  input.type='file'; input.accept='image/*';
+  input.onchange=()=>{
+    const f=input.files&&input.files[0]; if(!f) return;
+    if(f.size>8*1024*1024) return UI.toast('Choose an image smaller than 8 MB',{type:'warn'});
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const box=document.createElement('canvas'); box.width=256; box.height=256;
+        const ctx=box.getContext&&box.getContext('2d');
+        if(!ctx) return UI.toast('This browser cannot process the image',{type:'warn'});
+        const m=Math.min(img.width,img.height);
+        ctx.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,256,256);
+        const data=box.toDataURL('image/jpeg',0.82);
+        const who=(S.db().staff.find(x=>x.id===staffId)||{}).name||'Staff member';
+        S.commit(d=>{ const p=d.staff.find(x=>x.id===staffId); if(p) p.photo=data; },
+          {action:'staff.photo',entity:'staff',entityId:staffId,detail:who+' profile photo updated'});
+        UI.toast('Profile photo updated',{type:'ok'});
+        UI.closeAll(); LS.shell.refresh(); personDrawer(staffId);
+      };
+      img.onerror=()=>UI.toast('That file could not be read as an image',{type:'warn'});
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+  input.click();
 }
 function editStaff(id){
   if(!A.guard('staff')) return;
@@ -182,6 +199,66 @@ function editStaff(id){
     }});
 }
 /* ——— settings ————————————————————— */
+/* ——— Test menu ————————————————————————————————
+   Which examinations this laboratory actually offers. Every row is confirmed or
+   switched off here; anything that is not performed can be removed for good, one
+   at a time or in bulk, and it disappears from the sample wizard, the TAT table
+   and every picker while the samples that already reference it keep their name. */
+function testMenuCard(){
+  const all=S.allTests();
+  const activeCount=all.filter(t=>t.active!==false).length;
+  const groups=U.groupBy(all,t=>t.cat||'General');
+  return UI.card({title:'Test menu',sub:activeCount+' of '+all.length+' examinations confirmed on this bench',icon:'list-checks',
+    tools:'<button class="btn xs" data-add-test>'+UI.ic('plus',12)+'Add examination</button>',
+    body:'<div class="row between gap-sm" style="padding:2px 0 8px;border-bottom:1px solid var(--border);flex-wrap:wrap">'
+      +'<label class="row gap-sm" style="cursor:pointer"><input type="checkbox" data-test-all style="accent-color:var(--gold)"><span class="small">Select all '+all.length+'</span></label>'
+      +'<span class="grow"></span><span class="pill slate mono" id="testSel">0 selected</span>'
+      +'<button class="btn xs danger" data-del-tests disabled>'+UI.ic('trash-2',12)+'Delete selected</button>'
+      +'<button class="btn xs" data-save-tat>'+UI.ic('check',12)+'Save TAT</button></div>'
+      +Object.keys(groups).map(cat=>'<div style="margin-top:9px"><div class="eyebrow">'+U.esc(cat)+' · '+groups[cat].length+'</div>'
+        +groups[cat].map(t=>'<div class="list-row" style="padding:5px 0">'
+          +'<input type="checkbox" data-test-sel="'+t.id+'" style="accent-color:var(--gold);margin-right:7px">'
+          +'<label class="row gap-xs" style="cursor:pointer;min-width:76px"><input type="checkbox" data-test-active="'+t.id+'" style="accent-color:var(--gold)"'+(t.active!==false?' checked':'')+'><span class="xs '+(t.active!==false?'':'faint')+'">'+(t.active!==false?'on menu':'off menu')+'</span></label>'
+          +'<div class="lr-main"><div class="lr-title" style="font-size:11.6px;'+(t.active!==false?'':'opacity:.55')+'">'+U.esc(t.name)+'</div>'
+            +'<div class="lr-sub">'+U.esc(t.code||'—')+' · '+U.esc(t.cat||'General')+'</div></div>'
+          +'<span class="row gap-xs" style="align-items:center"><input class="input mono" type="number" min="1" max="60" style="width:54px;height:26px" data-tat="'+U.esc(t.name)+'" value="'+(S.tatTarget(t.name)||t.tat||3)+'" title="Target turnaround in days"><span class="xs faint">d</span></span>'
+          +'<button class="icon-btn" style="width:24px;height:24px" data-del-test="'+t.id+'" title="Delete this examination">'+UI.ic('trash-2',12)+'</button>'
+        +'</div>').join('')+'</div>').join('')
+      +(!all.length?'<p class="xs faint" style="margin:0">No examinations on the menu yet.</p>':'')
+      +'<div class="xs faint" style="margin-top:9px;border-top:1px solid var(--border);padding-top:7px">“On menu” means the examination is confirmed and appears in the sample wizard and every picker. Switching it off keeps it out of the way without losing history; deleting removes it from the catalogue altogether — samples already registered keep the name they were recorded with.</div>',
+    foot:'<span>Turnaround targets are set per examination here too.</span><span class="mono">'+activeCount+' active · '+all.length+' total</span>'});
+}
+function deleteTests(ids){
+  if(!ids.length) return;
+  const all=S.allTests();
+  const names=all.filter(t=>ids.indexOf(t.id)>=0).map(t=>t.name);
+  if(!names.length) return;
+  const used=(S.db().samples||[]).filter(s=>names.indexOf(s.test)>=0).length;
+  S.commit(d=>{ d.catalog.tests=(d.catalog.tests||[]).filter(t=>ids.indexOf(t.id)<0); },
+    {action:'settings.test.delete',entity:'catalog',detail:names.length+' examinations removed · '+names.join(' | ').slice(0,140)});
+  LS.shell.refresh(); paint();
+  UI.toast(names.length+' examination'+(names.length===1?'':'s')+' deleted'+(used?' · '+used+' earlier samples keep their recorded test':''),{type:'ok'});
+}
+function addTestModal(){
+  if(!A.guard('staff')) return;
+  const cats=U.uniq(S.allTests().map(t=>t.cat||'General'));
+  UI.modal({title:'Add an examination',sub:'It joins the menu immediately and can be confirmed or removed at any time.',width:'min(520px,100%)',
+    body:'<div class="form-grid"><div class="field span2"><label>Name</label><input class="input" id="newTestName" placeholder="e.g. Sputum AFB"></div>'
+      +'<div class="field"><label>Code</label><input class="input mono" id="newTestCode" placeholder="AFB" maxlength="6"></div>'
+      +'<div class="field"><label>Category</label><input class="input" id="newTestCat" list="testCats" value="'+(cats[0]||'General')+'"><datalist id="testCats">'+cats.map(c=>'<option>'+U.esc(c)+'</option>').join('')+'</datalist></div>'
+      +'<div class="field"><label>Target turnaround (days)</label><input class="input mono" type="number" min="1" max="60" id="newTestTat" value="3"></div></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Add to menu</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-save]').onclick=()=>{
+        const name=el.querySelector('#newTestName').value.trim();
+        if(!name) return UI.toast('Give the examination a name',{type:'warn'});
+        if(S.allTests().some(t=>t.name.toLowerCase()===name.toLowerCase())) return UI.toast('That examination is already on the menu',{type:'warn'});
+        const rec={id:U.uid('t'),name,code:(el.querySelector('#newTestCode').value||name.slice(0,3)).toUpperCase(),cat:el.querySelector('#newTestCat').value.trim()||'General',tat:Math.max(1,+el.querySelector('#newTestTat').value||3),active:true};
+        S.commit(d=>{ d.catalog.tests=d.catalog.tests||[]; d.catalog.tests.push(rec); },{action:'settings.test.add',entity:'catalog',entityId:rec.id,detail:name});
+        close(); paint(); UI.toast('Examination added to the menu',{type:'ok'});
+      };
+    }});
+}
 function settingsView(){
   if(!A.can('staff')) return UI.card({body:UI.empty({art:'lock',title:'Administrator access required',body:'Only the Admin role can change laboratory settings.'})});
   const st=S.settings();
@@ -209,10 +286,7 @@ function settingsView(){
      [['coverWeekdayDay','Weekday · day'],['coverWeekdayNight','Weekday · night'],['coverWeekendDay','Weekend · day'],['coverWeekendNight','Weekend · night']].map(([k,l])=>
        '<div class="row between" style="padding:7px 0"><span class="small">'+l+'</span><input class="input mono" type="number" min="0" max="12" style="width:64px;height:30px" data-cover="'+k+'" value="'+(st[k]||0)+'"></div>').join('')
      ,foot:'<button class="btn sm" data-save-cover>Save minimums</button>'})+'</div>'
-   +'<div class="c7">'+UI.card({title:'Turnaround targets',sub:'Hours from collection to verified result',icon:'timer',body:
-     '<div class="dt-scroll" style="max-height:300px"><table class="dt"><thead><tr><th>Test</th><th>Code</th><th>Target (days)</th></tr></thead><tbody>'
-     +tests.map(t=>'<tr><td class="small">'+U.esc(t.name)+'</td><td class="mono xs">'+U.esc(t.code)+'</td><td><input class="input mono" type="number" min="1" max="60" style="width:70px;height:28px" data-tat="'+U.esc(t.name)+'" value="'+(S.tatTarget(t.name)||3)+'"></td></tr>').join('')
-     +'</tbody></table></div>',foot:'<button class="btn sm" data-save-tat>Save TAT targets</button>'})+'</div>'
+   +'<div class="c7">'+testMenuCard()+'</div>'
    +'<div class="c12">'+UI.card({title:'Modules',sub:'Enable or hide optional surfaces',icon:'layers',body:
      '<div class="row wrap gap-sm">'+[['qc','QC & EQA'],['pbf','PBF evaluation'],['equipment','Equipment'],['cloud','Cloud sync']].map(([k,l])=>
        '<label class="choice '+(st.features[k]?'on':'')+'" data-feature="'+k+'" style="width:auto;min-width:150px"><span class="ct">'+l+'</span><span class="switch" style="margin-left:auto"></span></label>').join('')+'</div>'
@@ -266,6 +340,42 @@ function wire(){
       st.signatories=[g('setSign1'),g('setSign2'),g('setSign3')]; },{action:'settings.identity',entity:'settings',detail:'Laboratory identity updated'});
     LS.shell.build(); UI.toast('Identity saved across the console',{type:'ok'}); };
   const sc=r.querySelector('[data-save-cover]'); if(sc) sc.onclick=()=>{ S.commit(d=>{ r.querySelectorAll('[data-cover]').forEach(i=>{ d.settings[i.dataset.cover]=Math.max(0,+i.value||0); }); },{action:'settings.coverage',entity:'settings',detail:'Coverage minimums updated'}); UI.toast('Coverage minimums saved',{type:'ok'}); };
+  /* test menu: confirm / switch off / delete / add */
+  const testSelState=()=>U.$$('[data-test-sel]',r).filter(c=>c.checked).map(c=>c.dataset.testSel);
+  const refreshTestSel=()=>{
+    const ids=testSelState();
+    const pill=r.querySelector('#testSel'); if(pill) pill.textContent=ids.length+' selected';
+    const del=r.querySelector('[data-del-tests]'); if(del) del.disabled=!ids.length;
+    const all=r.querySelector('[data-test-all]');
+    if(all){ const boxes=U.$$('[data-test-sel]',r); all.checked=boxes.length>0&&ids.length===boxes.length; all.indeterminate=ids.length>0&&ids.length<boxes.length; }
+  };
+  U.$$('[data-test-sel]',r).forEach(c=>c.onclick=()=>refreshTestSel());
+  const testAll=r.querySelector('[data-test-all]');
+  if(testAll) testAll.onclick=()=>{ U.$$('[data-test-sel]',r).forEach(c=>{ c.checked=testAll.checked; }); refreshTestSel(); };
+  const delTests=r.querySelector('[data-del-tests]');
+  if(delTests) delTests.onclick=async()=>{
+    const ids=testSelState(); if(!ids.length) return;
+    const names=S.allTests().filter(t=>ids.indexOf(t.id)>=0).map(t=>t.name);
+    const ok=await UI.confirm({title:'Delete '+names.length+' examination'+(names.length===1?'':'s')+'?',
+      body:names.slice(0,8).map(U.esc).join(' · ')+(names.length>8?' and '+(names.length-8)+' more':'')
+        +'<div style="margin-top:8px">They leave the menu, the sample wizard and every picker. Samples already registered keep the test name they were recorded with.</div>',
+      confirm:'Delete from menu',danger:true});
+    if(!ok) return;
+    deleteTests(ids);
+  };
+  U.$$('[data-del-test]',r).forEach(b=>b.onclick=async()=>{
+    const t=S.allTests().find(x=>x.id===b.dataset.delTest); if(!t) return;
+    const ok=await UI.confirm({title:'Delete '+t.name+'?',body:'It leaves the test menu, the sample wizard and every picker. Registered samples keep the name they were recorded with.',confirm:'Delete examination',danger:true});
+    if(ok) deleteTests([t.id]);
+  });
+  U.$$('[data-test-active]',r).forEach(c=>c.onclick=()=>{
+    const id=c.dataset.testActive;
+    S.commit(d=>{ const t=(d.catalog.tests||[]).find(x=>x.id===id); if(t){ t.active=!c.checked?false:true; if(t.active) delete t.deleted; } },
+      {action:'settings.test.confirm',entity:'catalog',entityId:id,detail:(c.checked?'Confirmed on menu':'Switched off menu')});
+    paint();
+  });
+  const addTest=r.querySelector('[data-add-test]'); if(addTest) addTest.onclick=addTestModal;
+  refreshTestSel();
   const st=r.querySelector('[data-save-tat]'); if(st) st.onclick=()=>{ S.commit(d=>{ d.settings.tat=d.settings.tat||{}; r.querySelectorAll('[data-tat]').forEach(i=>{ d.settings.tat[i.dataset.tat]=Math.max(1,+i.value||1); }); },{action:'settings.tat',entity:'settings',detail:'TAT targets updated'}); UI.toast('Turnaround targets saved',{type:'ok'}); };
   r.querySelectorAll('[data-set-theme]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ d.settings.theme=b.dataset.setTheme; d.meta.themeChosen=true; },{action:'settings.theme',entity:'settings',detail:'Theme '+b.dataset.setTheme}); LS.shell.build(); paint(); });
   r.querySelectorAll('[data-set-density]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ d.settings.density=b.dataset.setDensity; },{action:'settings.density',entity:'settings',detail:'Density '+b.dataset.setDensity}); LS.shell.build(); paint(); });

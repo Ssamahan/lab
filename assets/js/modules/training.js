@@ -80,7 +80,9 @@ function registryView(){
       +'<td class="num">'+U.fmtDateShort(t.start)+(t.end&&t.end!==t.start?' – '+U.fmtDateShort(t.end):'')+'</td>'
       +'<td><div class="avatar-stack">'+names.slice(0,3).map(n=>U.avatar(n,'sm')).join('')+(names.length>3?'<span class="avatar sm" style="background:var(--surface-3);color:var(--text-muted)">+'+(names.length-3)+'</span>':'')+'</div></td>'
       +'<td>'+certPill(t)+'</td>'
-      +'<td><button class="icon-btn" style="width:26px;height:26px" data-open="'+t.id+'">'+UI.ic('chevron-right',14)+'</button></td></tr>'; }).join('')
+      +'<td style="white-space:nowrap"><button class="icon-btn" style="width:26px;height:26px" data-edit-tr="'+t.id+'" title="Edit this record">'+UI.ic('pencil',13)+'</button>'
+      +'<button class="icon-btn" style="width:26px;height:26px;color:var(--crit)" data-del-tr="'+t.id+'" title="Delete this record">'+UI.ic('trash-2',13)+'</button>'
+      +'<button class="icon-btn" style="width:26px;height:26px" data-open="'+t.id+'">'+UI.ic('chevron-right',14)+'</button></td></tr>'; }).join('')
    +'</tbody></table></div><div class="card-foot"><span>'+list.length+' of '+S.db().trainings.length+' sessions</span><span class="mono">FIFO queue auto-updates</span></div></div></div></div>';
 }
 function historyView(){
@@ -109,37 +111,67 @@ function trainingDrawer(id){
     +'<div class="section-head" style="margin-top:0"><h2>Attendees</h2></div>'
     +(names.length?names.map(s=>'<div class="list-row">'+U.avatar(s.name,'sm')+'<div class="lr-main"><div class="lr-title">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.esc(s.role)+'</div></div>'+(certGiven(t)?'<span class="pill teal">certified</span>':'<span class="xs faint">not certified</span>')+'</div>').join(''):'<p class="xs faint">No attendees recorded.</p>')
     +'<div class="hint" style="margin-top:14px">Linked to leave and revenue trackers automatically when recorded from those registers.</div>',
-    foot:'<button class="btn" data-close>Close</button><button class="btn" data-print>'+UI.ic('printer',15)+'Certificate list</button>',
+    foot:'<button class="btn" data-close>Close</button><button class="btn danger" data-del-rec>'+UI.ic('trash-2',15)+'Delete</button><button class="btn" data-edit-rec>'+UI.ic('pencil',15)+'Edit</button><button class="btn" data-print>'+UI.ic('printer',15)+'Certificate list</button>',
     onMount:(panel)=>{ const ct=panel.querySelector('[data-cert-toggle]'); if(ct) ct.onclick=()=>{
         const next=!certGiven(t);
         S.commit(d=>{ const x=d.trainings.find(y=>y.id===t.id); if(x){ x.certificateGiven=next; x.certificate=next?(x.certificate||'Certificate issued'):''; } },
           {action:'training.certificate',entity:'trainings',entityId:t.id,detail:t.title+' · '+(next?'certificates issued':'no certificates')});
         UI.closeAll(); UI.toast(next?'Marked as certified':'Marked as not certified',{type:next?'ok':'info'}); LS.shell.refresh();
       };
+      panel.querySelector('[data-edit-rec]').onclick=()=>{ UI.closeAll(); scheduleModal(t.id); };
+      panel.querySelector('[data-del-rec]').onclick=async()=>{
+        const ok=await UI.confirm({title:'Delete “'+t.title+'”?',body:'The session leaves the registry and every attendee\u2019s history. The audit trail keeps the record of the deletion.',confirm:'Delete training',danger:true});
+        if(!ok) return;
+        S.commit(d=>{ d.trainings=(d.trainings||[]).filter(y=>y.id!==t.id); },{action:'training.delete',entity:'trainings',entityId:t.id,detail:t.title+' · '+U.fmtDate(t.start)});
+        UI.closeAll(); UI.toast('Training record deleted',{type:'warn'}); LS.shell.refresh();
+      };
       panel.querySelector('[data-print]').onclick=()=>{ U.printDoc('Training attendance — '+t.title,'<table><thead><tr><th>#</th><th>Name</th><th>Role</th><th>Signature</th></tr></thead><tbody>'+names.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.name)+'</td><td>'+U.esc(s.role)+'</td><td style="width:120px"></td></tr>').join('')+'</tbody></table>',{meta:'<span>'+U.esc(t.organizer||'')+'</span><span>'+U.fmtDate(t.start)+'</span>'}); }; }});
 }
-function scheduleModal(){
+function scheduleModal(id){
   if(!LS.auth.guard('edit')) return;
   const staff=S.activeStaff();
-  UI.modal({title:'Schedule training',sub:'Adds to the registry and advances the FIFO queue.',width:'min(640px,100%)',
-    body:'<div class="form-grid"><div class="field span2"><label>Title</label><input class="input" id="trTitle" placeholder="e.g. GeneXpert module maintenance"></div>'
-     +'<div class="field"><label>Organizer</label><input class="input" id="trOrg" value="RBC"></div>'
-     +'<div class="field"><label>Location</label><input class="input" id="trLoc" value="Ruli DH"></div>'
-     +'<div class="field"><label>Start</label><input class="input mono" type="date" id="trStart" value="'+U.addDays(U.todayISO(),7)+'"></div>'
-     +'<div class="field"><label>End</label><input class="input mono" type="date" id="trEnd" value="'+U.addDays(U.todayISO(),9)+'"></div>'
-     +'<div class="field span2"><label>Attendees</label><div style="display:flex;flex-wrap:wrap;gap:6px">'+staff.map(s=>'<label class="row gap-sm" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;cursor:pointer"><input type="checkbox" data-att value="'+s.id+'" style="accent-color:#C9A84C"><span class="xs">'+U.esc(s.name)+'</span></label>').join('')+'</div></div>'
-     +'<div class="field span2"><label>Description</label><textarea class="textarea" id="trDesc" placeholder="Objectives, competencies covered, facilitator…"></textarea></div>'
-     +'<div class="field span2"><label class="row gap-sm" style="cursor:pointer"><input type="checkbox" id="trCert" style="accent-color:#C9A84C"><span class="small">This session issues certificates</span></label>'
+  const t=id?S.db().trainings.find(x=>x.id===id):null;
+  const att=t?(t.attendees||[]):[];
+  UI.modal({title:t?'Edit training record':'Schedule training',width:'min(640px,100%)',
+    sub:t?'Correct anything that was entered wrongly — the FIFO queue recalculates from these dates.':'Adds to the registry and advances the FIFO queue.',
+    body:'<div class="form-grid"><div class="field span2"><label>Title</label><input class="input" id="trTitle" value="'+U.esc(t?t.title:'')+'" placeholder="e.g. GeneXpert module maintenance"></div>'
+     +'<div class="field"><label>Organizer</label><input class="input" id="trOrg" value="'+U.esc(t?t.organizer||'':'RBC')+'"></div>'
+     +'<div class="field"><label>Location</label><input class="input" id="trLoc" value="'+U.esc(t?t.location||'':'Ruli DH')+'"></div>'
+     +'<div class="field"><label>Start</label><input class="input mono" type="date" id="trStart" value="'+(t?t.start:U.addDays(U.todayISO(),7))+'"></div>'
+     +'<div class="field"><label>End</label><input class="input mono" type="date" id="trEnd" value="'+(t?t.end||t.start:U.addDays(U.todayISO(),9))+'"></div>'
+     +'<div class="field span2"><label>Attendees</label><div style="display:flex;flex-wrap:wrap;gap:6px">'+staff.map(s=>'<label class="row gap-sm" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;cursor:pointer"><input type="checkbox" data-att value="'+s.id+'" style="accent-color:#C9A84C"'+(att.indexOf(s.id)>=0?' checked':'')+'><span class="xs">'+U.esc(s.name)+'</span></label>').join('')+'</div></div>'
+     +'<div class="field span2"><label>Description</label><textarea class="textarea" id="trDesc" placeholder="Objectives, competencies covered, facilitator…">'+U.esc(t?(t.description||t.note||''):'')+'</textarea></div>'
+     +'<div class="field span2"><label class="row gap-sm" style="cursor:pointer"><input type="checkbox" id="trCert" style="accent-color:#C9A84C"'+(t&&certGiven(t)?' checked':'')+'><span class="small">This session issues certificates</span></label>'
      +'<div class="hint" style="margin-top:4px">Leave unticked for internal briefings — attendees show as <b>not certified</b>. Sessions held at Ruli DH never advance the FIFO queue.</div></div></div>',
-    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('calendar-check',15)+'Add to registry</button>',
+    foot:'<button class="btn" data-close>Cancel</button>'+(t?'<button class="btn danger" data-del>'+UI.ic('trash-2',15)+'Delete</button>':'')+'<button class="btn primary" data-save>'+UI.ic('calendar-check',15)+(t?'Save changes':'Add to registry')+'</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save]').onclick=()=>{
         const title=el.querySelector('#trTitle').value.trim();
         if(!title) return UI.toast('Give the training a title',{type:'warn'});
         const attendees=U.$$('[data-att]:checked',el).map(x=>x.value);
-        const rec={id:U.uid('tr'),title,organizer:el.querySelector('#trOrg').value,location:el.querySelector('#trLoc').value,start:el.querySelector('#trStart').value,end:el.querySelector('#trEnd').value,description:el.querySelector('#trDesc').value,attendees,certificate:el.querySelector('#trCert').checked?'Certificate issued':'',certificateGiven:el.querySelector('#trCert').checked,status:'completed',completionDate:el.querySelector('#trEnd').value,note:''};
-        S.commit(d=>{ d.trainings.unshift(rec); },{action:'training.create',entity:'trainings',entityId:rec.id,detail:title+' · '+attendees.length+' attendees'});
+        const cert=el.querySelector('#trCert').checked;
+        const rec={title,organizer:el.querySelector('#trOrg').value,location:el.querySelector('#trLoc').value,
+          start:el.querySelector('#trStart').value,end:el.querySelector('#trEnd').value,
+          description:el.querySelector('#trDesc').value,attendees,
+          certificate:cert?'Certificate issued':'',certificateGiven:cert,status:'completed',completionDate:el.querySelector('#trEnd').value};
+        if(t){
+          S.commit(d=>{ const x=d.trainings.find(y=>y.id===t.id); if(x) Object.assign(x,rec); },
+            {action:'training.edit',entity:'trainings',entityId:t.id,detail:title+' · '+attendees.length+' attendees'});
+          close(); UI.toast('Training record updated',{type:'ok'}); LS.shell.refresh(); return;
+        }
+        const created=Object.assign({id:U.uid('tr'),note:''},rec);
+        S.commit(d=>{ d.trainings.unshift(created); },{action:'training.create',entity:'trainings',entityId:created.id,detail:title+' · '+attendees.length+' attendees'});
         close(); UI.toast('Training added to the registry',{type:'ok'}); LS.shell.refresh();
+      };
+      const del=el.querySelector('[data-del]');
+      if(del) del.onclick=async()=>{
+        const ok=await UI.confirm({title:'Delete “'+t.title+'”?',
+          body:'The session is removed from the registry and from every attendee’s competency history. The FIFO queue recalculates from the sessions that remain. This is recorded in the audit trail.',
+          confirm:'Delete training',danger:true});
+        if(!ok) return;
+        S.commit(d=>{ d.trainings=(d.trainings||[]).filter(y=>y.id!==t.id); },
+          {action:'training.delete',entity:'trainings',entityId:t.id,detail:t.title+' · '+U.fmtDate(t.start)});
+        close(); UI.toast('Training record deleted',{type:'warn'}); LS.shell.refresh();
       };
     }});
 }
@@ -152,13 +184,22 @@ function paint(){
 }
 function wireBody(){
   const r=rootEl;
-  r.querySelectorAll('[data-schedule]').forEach(b=>b.onclick=scheduleModal);
+  r.querySelectorAll('[data-schedule]').forEach(b=>b.onclick=()=>scheduleModal());
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>{
     const rows=[['Title','Organizer','Location','Start','End','Attendees','Certificate','Counts for FIFO']].concat(S.db().trainings.map(t=>[t.title,t.organizer,t.location,t.start,t.end,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join('; '),certLabel(t),isInHouse(t)?'no':'yes']));
     U.exportCSV('training-register-'+U.todayISO()+'.csv',rows,{title:'Training registry',actor:LS.auth.user.name}); UI.toast('Training register exported',{type:'ok'});
   });
   r.querySelectorAll('[data-tr]').forEach(tr=>tr.onclick=()=>trainingDrawer(tr.dataset.tr));
   r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); trainingDrawer(b.dataset.open); });
+  r.querySelectorAll('[data-edit-tr]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); scheduleModal(b.dataset.editTr); });
+  r.querySelectorAll('[data-del-tr]').forEach(b=>b.onclick=async e=>{
+    e.stopPropagation();
+    const t=S.db().trainings.find(x=>x.id===b.dataset.delTr); if(!t) return;
+    const ok=await UI.confirm({title:'Delete “'+t.title+'”?',body:'Removed from the registry and from every attendee\u2019s history. '+U.fmtDate(t.start)+' · '+(t.attendees||[]).length+' attendees.',confirm:'Delete training',danger:true});
+    if(!ok) return;
+    S.commit(d=>{ d.trainings=(d.trainings||[]).filter(y=>y.id!==t.id); },{action:'training.delete',entity:'trainings',entityId:t.id,detail:t.title+' · '+U.fmtDate(t.start)});
+    UI.toast('Training record deleted',{type:'warn'}); LS.shell.refresh();
+  });
   const search=r.querySelector('#trSearch');
   if(search){ search.addEventListener('input',U.debounce(()=>{ q=search.value; paint(); const s=rootEl.querySelector('#trSearch'); if(s){ s.focus(); s.setSelectionRange(q.length,q.length); } },220)); }
   const drawYears=(el,id)=>{

@@ -28,6 +28,11 @@ function kpis(){
       note:cover.noConsumption?cover.noConsumption+' line(s) with no consumption yet':'Consumption rate is steady — no purchase request needed',
       spark:C.spark(trend.filter(x=>x.daysLeft!=null).map(x=>x.daysLeft).slice(0,14),{color:'var(--gold)'})})+'</div></div>';
 }
+/* "3.4 of 5 bottles a month" reads better on this bench than "0.11 a day". */
+function monthLabel(perMonth,x){
+  const n=Math.round((+perMonth||0)*10)/10;
+  return n+' '+((x&&x.unit)||'units')+'/mo';
+}
 function itemRow(x){
   const days=x.daysLeft;
   const tone=x.low?'rose':days<21?'amber':'teal';
@@ -37,7 +42,9 @@ function itemRow(x){
    +'<td><div class="primary-cell"><b>'+U.esc(x.name)+'</b><small>'+U.esc(x.unit)+'</small></div></td>'
    +'<td class="num">'+U.fmtNum(x.onHand)+'</td>'
    +'<td class="num hide-sm">'+U.fmtNum(x.threshold||0)+'</td>'
-   +'<td style="width:130px"><div class="meter '+tone+'"><i style="width:'+U.clamp(x.onHand/Math.max(1,(x.max||x.threshold*3))*100,2,100)+'%"></i></div><div class="xs faint" style="margin-top:3px">'+x.burn.toFixed(1)+'/day</div></td>'
+   +'<td style="width:150px"><div class="meter '+tone+'"><i style="width:'+U.clamp(x.onHand/Math.max(1,(x.max||x.threshold*3))*100,2,100)+'%"></i></div>'
+     +'<div class="xs faint" style="margin-top:3px">'+x.burn.toFixed(1)+'/day · <b style="color:var(--text-muted)">'+monthLabel(x.perMonth,x)+'</b>'
+     +(x.cap?' <span style="color:'+(x.capPct>100?'var(--crit)':x.capPct>85?'var(--warn)':'var(--pos)')+'">of '+x.cap+' cap</span>':'')+'</div></td>'
    +'<td><span class="mono small" style="color:'+(days<14?'var(--crit)':days<30?'var(--warn)':'var(--text)')+'">'+Math.min(days,999)+'d</span></td>'
    +'<td>'+(expiry!=null?'<span class="pill '+expTone+' mono">'+expiry+'d</span>':'<span class="xs faint">—</span>')+'</td>'
    +'<td class="num hide-sm">'+(x.daysLeft==null?'<span class="xs faint">—</span>':x.daysLeft+'d')+'</td>'
@@ -121,8 +128,33 @@ function consumptionView(){
    +'<div class="c5">'+UI.card({title:'Issued vs received',sub:'Monthly units from the distribution log',icon:'chart-bar',
       body:empty?'<div class="chart-empty">No movements in this window</div>':'<div id="dualCons"></div>',
       foot:'<span>Bars = issued or used · line = received</span><span class="mono">'+U.fmtNum(U.sum(issued,v=>v))+' issued</span>'})+'</div>'
+   +'<div class="c12">'+monthlyCeilingsCard()+'</div>'
    +'<div class="c12">'+UI.card({title:'Burn-rate forecast',sub:'How many days the current stock lasts if the trend continues',icon:'gauge',
       body:'<div id="burnBars" style="margin-top:4px"></div><div class="hint" style="margin-top:12px">Days of cover = stock on hand ÷ daily burn. Burn is a blend of the last 30 days and the last 90 days of recorded issues. A line under 21 days raises a purchase-request suggestion.</div>'})+'</div></div>';
+}
+/* Monthly ceilings: the department sets how much of each item a month may use,
+   and the issue log says what it actually used. */
+function monthlyCeilingsCard(){
+  const items=S.stockOverview();
+  const withCap=items.filter(x=>x.cap);
+  return UI.card({title:'Monthly capacity',sub:'Planned ceiling against what the issue log says is used each month',icon:'calendar-range',
+    tools:'<span class="pill '+(withCap.length?'gold':'slate')+'">'+withCap.length+' of '+items.length+' ceilings set</span>',
+    body:'<div class="dt-scroll"><table class="dt"><thead><tr><th>Consumable</th><th class="num">Used / month</th><th class="num">Ceiling</th><th>Against the ceiling</th><th class="num">Stock covers</th><th></th></tr></thead><tbody>'
+      +items.map(x=>{
+        const pct=x.cap?Math.round(x.perMonth/x.cap*100):null;
+        const tone=pct==null?'slate':pct>100?'rose':pct>85?'amber':'teal';
+        return '<tr><td><div class="primary-cell"><b>'+U.esc(x.name)+'</b><small>'+U.esc(x.unit)+(x.perMonth?' · '+x.used30+' issued in the last 30 days':' · nothing issued in 90 days')+'</small></div></td>'
+          +'<td class="num mono">'+(x.perMonth||'0')+'</td>'
+          +'<td class="num">'+(x.cap?'<span class="mono">'+x.cap+'</span>':'<span class="xs faint">not set</span>')+'</td>'
+          +'<td style="min-width:150px">'+(x.cap
+            ?'<div class="meter '+tone+'"><i style="width:'+U.clamp(pct,2,100)+'%"></i></div><div class="xs" style="margin-top:3px;color:var(--'+(pct>100?'crit':pct>85?'warn':'text-faint')+')">'+(pct>100?(pct-100)+'% over the monthly ceiling':pct+'% of the ceiling')+'</div>'
+            :'<span class="xs faint">Set a ceiling to track it</span>')+'</td>'
+          +'<td class="num mono">'+(x.perMonth?(x.monthsLeft==null?'—':x.monthsLeft+' mo'):'<span class="xs faint">no draw</span>')+'</td>'
+          +'<td><button class="icon-btn" style="width:26px;height:26px" data-edit-item="'+x.id+'" title="Set the monthly ceiling">'+UI.ic('pencil',13)+'</button></td></tr>';
+      }).join('')
+      +'</tbody></table></div>'
+      +'<div class="hint" style="margin-top:10px">A ceiling is the most the bench expects to use in one month — for example five blood-culture bottles. Usage is measured from the distribution log over the last 90 days and expressed per month; when a line runs past its ceiling the row turns amber, then red.</div>',
+    foot:'<span>Ceilings are set per consumable, on the same form as the minimum threshold.</span><span class="mono">'+items.length+' lines</span>'});
 }
 function suppliersView(){
   const sups=S.db().suppliers; const items=S.stockOverview();
@@ -137,7 +169,7 @@ function suppliersView(){
 }
 function reorderItems(){
   const items=S.stockOverview().filter(x=>x.low||x.daysLeft<25).sort((a,b)=>a.daysLeft-b.daysLeft);
-  return '<div style="display:flex;flex-direction:column;gap:10px">'+(items.length?items.slice(0,5).map(x=>'<div><div class="row between"><span class="small truncate">'+U.esc(x.name)+'</span><span class="pill '+(x.low?'rose':'amber')+'">'+Math.min(x.daysLeft,999)+'d</span></div><div class="xs faint" style="margin-top:2px">Order '+Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand))+' '+U.esc(x.unit)+' · '+x.burn.toFixed(1)+'/day used</div></div>').join(''):'<p class="xs faint">No reorder needed.</p>')+'</div>';
+  return '<div style="display:flex;flex-direction:column;gap:10px">'+(items.length?items.slice(0,5).map(x=>'<div><div class="row between"><span class="small truncate">'+U.esc(x.name)+'</span><span class="pill '+(x.low?'rose':'amber')+'">'+Math.min(x.daysLeft,999)+'d</span></div><div class="xs faint" style="margin-top:2px">Order '+Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand))+' '+U.esc(x.unit)+' · '+monthLabel(x.perMonth,x)+' used'+(x.cap?' of '+x.cap+' cap':'')+'</div></div>').join(''):'<p class="xs faint">No reorder needed.</p>')+'</div>';
 }
 
 /* ——— Actions —————————————————————————— */
@@ -241,16 +273,19 @@ function editLot(id){
 function editConsumable(cid){
   if(!LS.auth.guard('edit')) return;
   const c=S.consumable(cid); if(!c) return;
-  UI.modal({title:'Edit '+c.name,sub:'Label and threshold on the stock register.',width:'min(480px,100%)',
+  UI.modal({title:'Edit '+c.name,sub:'Label, minimum threshold and the monthly ceiling on the stock register.',width:'min(520px,100%)',
     body:'<div class="form-grid"><div class="field span2"><label>Name</label><input class="input" id="cnName" value="'+U.esc(c.name)+'"></div>'
       +'<div class="field"><label>Unit</label><input class="input" id="cnUnit" value="'+U.esc(c.unit||'')+'"></div>'
-      +'<div class="field"><label>Minimum threshold</label><input class="input mono" id="cnMin" type="number" min="0" value="'+(c.threshold||0)+'"></div></div>',
+      +'<div class="field"><label>Minimum threshold</label><input class="input mono" id="cnMin" type="number" min="0" value="'+(c.threshold||0)+'"></div>'
+      +'<div class="field"><label>Monthly ceiling ('+U.esc(c.unit||'units')+'/month)</label><input class="input mono" id="cnCap" type="number" min="0" step="1" value="'+(c.monthlyCap||'')+'" placeholder="e.g. 5"></div>'
+      +'<div class="field span2"><div class="xs faint">The ceiling is the most the bench plans to use in a month — five blood-culture bottles, for example. Leave it blank if no ceiling applies.</div></div></div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-cn-save>'+UI.ic('check',15)+'Save</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-cn-save]').onclick=()=>{
         const name=el.querySelector('#cnName').value.trim(); if(!name) return UI.toast('A name is required',{type:'warn'});
         S.commit(d=>{ const x=(d.catalog.consumables||[]).find(y=>y.id===cid); if(!x) return;
           x.name=name; x.unit=el.querySelector('#cnUnit').value.trim()||x.unit; x.threshold=Math.max(0,+el.querySelector('#cnMin').value||0);
+          const cap=+el.querySelector('#cnCap').value; x.monthlyCap=cap>0?cap:null;
         },{action:'stock.item.edit',entity:'catalog',entityId:cid,detail:name});
         close(); UI.toast('Consumable updated',{type:'ok'}); LS.shell.refresh();
       };
@@ -308,6 +343,7 @@ function wireBody(){
     const none=r.querySelector('#burnBars');
     if(none && !trend.length) none.innerHTML='<div class="chart-empty">No issues recorded yet, so days of cover cannot be projected</div>';
   }
+  r.querySelectorAll('[data-edit-item]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); editConsumable(b.dataset.editItem); });
   r.querySelectorAll('[data-receive]').forEach(b=>b.onclick=receiveModal);
   r.querySelectorAll('[data-pr]').forEach(b=>b.onclick=purchaseRequest);
   /* The tab buttons carry data-stk-tab; the old handler listened for a different

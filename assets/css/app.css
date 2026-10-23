@@ -577,8 +577,11 @@ tr.row-click:hover td{background:var(--surface-inset)}
 
 /* Chart export control — appears on hover, keyboard reachable. */
 .chart-wrap{position:relative}
-.chart-export{position:absolute; top:6px; right:6px; z-index:3; display:inline-flex; gap:4px; opacity:0; transition:opacity var(--dur-1) var(--ease)}
-.chart-wrap:hover .chart-export, .chart-export:focus-within{opacity:1}
+.chart-export{position:absolute; top:6px; right:6px; z-index:3; display:inline-flex; gap:4px; opacity:.42; transition:opacity var(--dur-1) var(--ease)}
+.chart-wrap:hover .chart-export, [data-chart]:hover .chart-export, .chart-export:hover, .chart-export:focus-within{opacity:1}
+.chart-wrap, [data-chart], .pbf-strip, .pbf-heat{position:relative}
+/* the index strip prints its numbers inside the bars, so its export buttons sit outside the plot */
+.pbf-strip{padding-right:4px}
 .chart-export button{width:24px; height:24px; border-radius:6px; border:1px solid var(--border-strong); background:color-mix(in srgb,var(--surface-2) 86%,transparent); color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:9px; font-family:var(--font-mono); letter-spacing:.02em}
 .chart-export button:hover{color:var(--text-strong); border-color:var(--gold); background:var(--surface-2)}
 @media (hover:none){ .chart-export{opacity:1} }

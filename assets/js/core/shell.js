@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.4';
+const APP_VERSION='6.9.5';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -229,6 +229,9 @@ SH.route=async function(opts){
     clearTimeout(SH._failTimer);
     UI.animateCounts(root); UI.observeReveals(root);
     wireChartExports(root);
+    /* Charts drawn after the first paint (trends, dashboard plots, tab switches)
+       still get their export buttons without the module having to ask. */
+    watchCharts(root);
     // scroll restore / top
     if(!opts||!opts.keepScroll) window.scrollTo({top:0,behavior:U.reduced()?'auto':'smooth'});
   }catch(err){
@@ -265,25 +268,42 @@ SH.fail=function(err,id,host){
 /* Every chart carries a PNG / SVG export. PNG renders at 3× for sharing on a
    phone screen; SVG stays vector for print. */
 function wireChartExports(root){
-  U.$$('.chart-wrap, [data-chart="bars"]',root).forEach(w=>{
+  /* Every chart on the page gets PNG + SVG, however it happens to be drawn:
+     .chart-wrap and [data-chart] cover the SVG plots, the ranked bar sets, the
+     heat strips, index columns and capacity bars drawn in HTML. */
+  U.$$('.chart-wrap, [data-chart], .pbf-strip, .pbf-heat, .score-ring',root).forEach(w=>{
+    if(w.closest('.chart-export')) return;
     if(w.querySelector('.chart-export')) return;
-    if(!w.querySelector('svg') && !w.__chartCfg) return;
+    if(w.classList.contains('score-ring') && w.parentElement.querySelector('.chart-export')) return;
+    if(!w.querySelector('svg') && !w.__chartCfg && !w.getAttribute('data-chart')) return;
     const bar=document.createElement('div');
     bar.className='chart-export';
-    bar.innerHTML='<button type="button" data-export-png title="Download PNG (HD)">PNG</button><button type="button" data-export-svg title="Download SVG (vector)">SVG</button>';
+    const name=(w.closest('.card')&&w.closest('.card').querySelector('.card-title')?w.closest('.card').querySelector('.card-title').textContent.trim():'')||w.getAttribute('data-chart')||'chart';
+    bar.innerHTML='<button type="button" data-export-png title="Download PNG (HD · 3×)">PNG</button><button type="button" data-export-svg title="Download SVG (vector)">SVG</button>';
     w.appendChild(bar);
     bar.querySelector('[data-export-png]').onclick=async(e)=>{
       e.stopPropagation();
-      const ok=await U.exportChartPNG(w);
+      const ok=await U.exportChartPNG(w,{name:name});
       UI.toast(ok?'Chart saved as PNG · 3× resolution':'PNG export is not available in this browser',{type:ok?'ok':'warn'});
     };
     bar.querySelector('[data-export-svg]').onclick=(e)=>{
       e.stopPropagation();
-      const ok=U.exportChartSVG(w);
+      const ok=U.exportChartSVG(w,{name:name});
       UI.toast(ok?'Chart saved as SVG · vector':'Nothing to export here',{type:ok?'ok':'warn'});
     };
   });
 }
+let chartObserver=null, chartRaf=0;
+function watchCharts(root){
+  if(chartObserver) chartObserver.disconnect();
+  if(typeof MutationObserver!=='function'||!root) return;
+  chartObserver=new MutationObserver(()=>{
+    if(chartRaf) return;
+    chartRaf=requestAnimationFrame(()=>{ chartRaf=0; try{ wireChartExports(document.getElementById('page')||root); }catch(e){} });
+  });
+  chartObserver.observe(root,{childList:true,subtree:true});
+}
+SH.watchCharts=watchCharts;
 SH.wireChartExports=wireChartExports;
 
 /* ——— Command palette ——————————————————— */

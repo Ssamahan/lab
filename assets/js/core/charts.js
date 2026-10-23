@@ -67,12 +67,26 @@ C.line=function(el,cfg){
   series.forEach((s,si)=>{
     const gid=gradId((cfg.id||'ln')+s.name+si);
     if(s.area!==false) defs+='<linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+s.color+'" stop-opacity=".22"/><stop offset="92%" stop-color="'+s.color+'" stop-opacity="0"/></linearGradient>';
-    const pts=s.values.map((v,i)=>[X(i),Y(v==null?min:v)]).filter((p,i)=>s.values[i]!=null);
-    if(!pts.length) return;
-    const d=smoothPath(pts);
-    if(s.area!==false) paths+='<path d="'+d+' L'+pts[pts.length-1][0].toFixed(1)+' '+(H-pad.b)+' L'+pts[0][0].toFixed(1)+' '+(H-pad.b)+' Z" fill="url(#'+gid+')" class="area"/>';
-    if(s.dashed) paths+='<path d="'+d+'" fill="none" stroke="'+s.color+'" stroke-width="1.4" stroke-dasharray="4 4" opacity=".7"/>';
-    else paths+='<path class="path-line" d="'+d+'" stroke="'+s.color+'" pathLength="1" style="stroke-dasharray:1;stroke-dashoffset:1;animation:drawIn '+(cfg.drawMs||1500)+'ms var(--ease) forwards"/>';
+    /* A missing value is a gap, never a zero. Running the line through the floor
+       would claim a score that was never recorded — so each run of real points is
+       drawn as its own segment and the gap is simply left blank. */
+    const segs=[]; let run=[];
+    s.values.forEach((v,i)=>{
+      if(v==null||isNaN(v)){ if(run.length) segs.push(run); run=[]; return; }
+      run.push([X(i),Y(v)]);
+    });
+    if(run.length) segs.push(run);
+    if(!segs.length) return;
+    segs.forEach((pts,pi)=>{
+      if(pts.length===1){
+        paths+='<circle cx="'+pts[0][0].toFixed(1)+'" cy="'+pts[0][1].toFixed(1)+'" r="3.4" fill="'+s.color+'" opacity=".9"/>';
+        return;
+      }
+      const d=smoothPath(pts);
+      if(s.area!==false && segs.length===1) paths+='<path d="'+d+' L'+pts[pts.length-1][0].toFixed(1)+' '+(H-pad.b)+' L'+pts[0][0].toFixed(1)+' '+(H-pad.b)+' Z" fill="url(#'+gid+')" class="area"/>';
+      if(s.dashed) paths+='<path d="'+d+'" fill="none" stroke="'+s.color+'" stroke-width="1.4" stroke-dasharray="4 4" opacity=".7"/>';
+      else paths+='<path class="path-line" d="'+d+'" stroke="'+s.color+'" pathLength="1" style="stroke-dasharray:1;stroke-dashoffset:1;animation:drawIn '+(cfg.drawMs||1500)+'ms var(--ease) forwards'+(pi?'':'')+'"/>';
+    });
   });
   let targetLine='';
   if(tgt&&tgt.value!=null){
@@ -181,6 +195,7 @@ C.ring=(pct,cfg)=>{
 /* ——— Heatmap ————————————————————————— */
 C.heat=function(el,cfg){
   if(!el) return;
+  el.setAttribute('data-chart','heat');
   const values=cfg.values||[]; const max=Math.max.apply(null,values.concat([1]));
   const tone=cfg.tone||'201,168,76';
   el.innerHTML='<div class="heat" style="grid-template-rows:repeat(7,1fr);grid-auto-flow:column">'

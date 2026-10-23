@@ -23,7 +23,9 @@ const TYPE={AL:{label:'Annual',cls:'al',kind:'annual'},
 function ensureRequests(){ /* no-op by design — see the empty state instead */ }
 function days(l){ return U.daysBetween(l.from,l.to)+1; }
 function tOf(l){ return TYPE[l.type]||{label:S.leaveTypeLabel(l.type),cls:'al',kind:'annual'}; }
-function fyOfLeave(l){ return l.fy||U.fyInfo(l.from).label; }
+/* Always derived from the dates: a label typed into the form can never move a
+   record into a fiscal year the person was not actually away in. */
+function fyOfLeave(l){ return U.fyInfo(l.from||l.to||U.todayISO()).label; }
 function currentFy(){ return fy||U.fyLabel(); }
 function fyList(){ return S.leaveFys(); }
 function onLeaveToday(){ const t=U.todayISO(); return S.leaves().filter(l=>l.status!=='Declined'&&l.status!=='Rejected'&&t>=l.from&&t<=l.to); }
@@ -83,18 +85,19 @@ function kpis(){
 function planBookView(){
   const book=(S.db().leavePlans&&S.db().leavePlans.fy)||currentFy();
   const rows=S.activeStaff().map(s=>S.leaveBook(s,currentFy()));
-  const totals=rows.reduce((a,r)=>({ent:a.ent+r.entitlement.days,taken:a.taken+r.taken,planned:a.planned+r.planned,bal:a.bal+r.balance}),{ent:0,taken:0,planned:0,bal:0});
+  const totals=rows.reduce((a,r)=>({ent:a.ent+r.entitlement.days,carry:a.carry+r.carry.days,taken:a.taken+r.taken,planned:a.planned+r.planned,bal:a.bal+r.balance}),{ent:0,carry:0,taken:0,planned:0,bal:0});
   return '<div class="row between wrap gap-sm" style="margin-bottom:10px">'
     +'<div class="row gap-sm"><span class="xs faint">Fiscal year</span><div class="seg">'+fyList().map(f=>'<button data-fy="'+f+'" class="'+(f===currentFy()?'on':'')+'">FY '+f+'</button>').join('')+'</div></div>'
-    +'<div class="row gap-sm"><span class="pill gold">'+totals.taken+' taken</span><span class="pill blue">'+totals.planned+' booked</span><span class="pill teal">'+totals.bal+' days left</span>'
+    +'<div class="row gap-sm">'+(totals.carry?'<span class="pill gold">'+totals.carry+'d carried in</span>':'')+'<span class="pill gold">'+totals.taken+' taken</span><span class="pill blue">'+totals.planned+' booked</span><span class="pill teal">'+totals.bal+' days left</span>'
     +'<button class="btn sm primary" data-newplan>'+UI.ic('plus',13)+'Add leave plan</button></div></div>'
    +'<div class="card table-card"><div class="toolbar"><div><div class="card-title">'+UI.ic('calendar-check',14,'ic')+'Annual leave plan book · FY '+currentFy()+'</div><div class="card-sub">Entitlement by contract · days already taken · days booked ahead · plan a block for any month</div></div></div>'
-   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Staff</th><th>Contract</th><th class="num">Entitlement</th><th class="num">Taken</th><th class="num">On leave now</th><th class="num">Booked ahead</th><th class="num">Balance</th><th>Planned blocks</th><th></th></tr></thead><tbody>'
+   +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Staff</th><th>Contract</th><th class="num">Entitlement</th><th class="num" title="Unused days carried in from the previous fiscal year">Carried in</th><th class="num">Taken</th><th class="num">On leave now</th><th class="num">Booked ahead</th><th class="num">Balance</th><th>Planned blocks</th><th></th></tr></thead><tbody>'
    +rows.map(r=>{
-      const blocks=r.annual.filter(l=>l.to>=U.todayISO());
+      const blocks=r.annual.slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
       return '<tr><td><div class="row gap-sm">'+U.avatar(r.staff.name,'sm')+'<div><div class="small">'+U.esc(r.staff.name)+'</div><div class="xs faint">'+U.esc(r.staff.role||'')+'</div></div></div></td>'
       +'<td><span class="pill '+(r.entitlement.kind==='contractual'?'blue':'teal')+'">'+U.esc(r.entitlement.label)+'</span><div class="xs faint" style="margin-top:2px">'+U.esc(r.entitlement.sponsor)+'</div></td>'
       +'<td class="num">'+r.entitlement.days+' <span class="xs faint">'+(r.entitlement.workingDays?'wd':'d')+'</span></td>'
+      +'<td class="num">'+(r.carry.days?'<span class="pill gold mono" title="Unused in FY '+U.esc(r.carry.prevFy||'')+'">'+r.carry.days+'d</span>':'<span class="faint">—</span>')+'</td>'
       +'<td class="num">'+r.taken+'</td>'
       +'<td class="num">'+(r.running? '<span class="pill amber">'+r.running+'d</span>':'<span class="faint">—</span>')+'</td>'
       +'<td class="num">'+r.planned+'</td>'
@@ -102,7 +105,7 @@ function planBookView(){
       +'<td style="max-width:250px">'+(blocks.length? blocks.map(l=>'<button class="chip" data-editplan="'+l.id+'" style="margin:0 3px 3px 0;cursor:pointer" title="Edit this block">'+U.fmtDateShort(l.from)+'–'+U.fmtDateShort(l.to)+' <span class="faint">'+S.leaveDays(r.staff,l)+'d</span></button>').join('') : '<span class="xs faint">No block booked</span>')+'</td>'
       +'<td><button class="icon-btn" style="width:26px;height:26px" data-newplan="'+r.staff.id+'" aria-label="Plan leave for '+U.esc(r.staff.name)+'">'+UI.ic('plus',13)+'</button></td></tr>';
    }).join('')
-   +'</tbody></table></div><div class="card-foot"><span>Entitlement follows the contract: under statute 30 calendar days, contractual 21 working days. Blocks are charged to the fiscal year they fall in.</span><span class="mono">'+rows.length+' staff</span></div></div>'
+   +'</tbody></table></div><div class="card-foot"><span>Entitlement follows the contract: under statute 30 calendar days, contractual 21 working days. A block is charged to the fiscal year its dates fall in — never to a label typed on it — and unused days are carried into the next year.</span><span class="mono">'+rows.length+' staff</span></div></div>'
    +'<div class="grid-12" style="margin-top:14px">'
      +'<div class="c7">'+forecastCard()+'</div>'
      +'<div class="c5">'+whoOffCard()+'</div>'
@@ -163,7 +166,7 @@ function planModal(staffId, leaveId){
     body:'<div class="form-grid">'
       +'<div class="field span2"><label>Staff member</label><select class="select" id="plStaff">'+staff.map(s=>'<option value="'+s.id+'"'+(sel===s.id?' selected':'')+'>'+U.esc(s.name)+' · '+U.esc(s.role||'')+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Leave type</label><select class="select" id="plType">'+Object.keys(TYPE).map(k=>'<option value="'+k+'"'+((l&&l.type===k)?' selected':'')+'>'+TYPE[k].label+'</option>').join('')+'</select></div>'
-      +'<div class="field"><label>Charged to fiscal year</label><select class="select" id="plFy">'+fys.map(f=>'<option value="'+f+'"'+((l?fyOfLeave(l):currentFy())===f?' selected':'')+'>FY '+f+'</option>').join('')+'</select></div>'
+      +'<div class="field"><label>Charged to fiscal year</label><select class="select" id="plFy" disabled>'+fys.map(f=>'<option value="'+f+'"'+((l?fyOfLeave(l):currentFy())===f?' selected':'')+'>FY '+f+'</option>').join('')+'</select><div class="xs faint" style="margin-top:4px">Follows the start date — a record can never sit under the wrong year.</div></div>'
       +'<div class="field"><label>From</label><input class="input" type="date" id="plFrom" value="'+(l?l.from:U.addDays(U.todayISO(),30))+'"></div>'
       +'<div class="field"><label>To</label><input class="input" type="date" id="plTo" value="'+(l?l.to:U.addDays(U.todayISO(),44))+'"></div>'
       +'<div class="field"><label>Status</label><select class="select" id="plStatus">'+['Planned','Approved','Pending'].map(x=>'<option '+(l&&l.status===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
@@ -179,10 +182,14 @@ function planModal(staffId, leaveId){
         const from=q('#plFrom').value, to=q('#plTo').value, f=q('#plFy').value;
         if(!from||!to||to<from){ q('#plSummary').innerHTML='Pick a start and end date — the end cannot precede the start.'; return; }
         const n=U.daysBetween(from,to)+1;
-        const b=S.leaveBook(s,f);
+        const derived=U.fyInfo(from).label;
+        q('#plFy').value=derived;
+        const b=S.leaveBook(s,derived);
         const overlap=S.leaves().find(x=>x.id!==(l&&l.id)&&x.staffId===s.id&&!(x.to<from||x.from>to));
         const after=Math.max(0,b.balance-(S.leaveCountsAgainstEntitlement(q('#plType').value)?n:0));
-        q('#plSummary').innerHTML='<b style="color:var(--text)">'+n+' day'+(n===1?'':'s')+'</b> on '+U.esc(s.name)+' · charges FY '+f+' · balance after booking <b style="color:var(--text)">'+after+' of '+b.entitlement.days+'</b>.'
+        q('#plSummary').innerHTML='<b style="color:var(--text)">'+n+' day'+(n===1?'':'s')+'</b> on '+U.esc(s.name)+' · charges FY '+derived
+          +(b.carry.days?' (includes '+b.carry.days+'d carried in from '+U.esc(b.carry.prevFy)+')':'')
+          +' · balance after booking <b style="color:var(--text)">'+after+' of '+b.pool+'</b>.'
           +(overlap?'<br><span style="color:var(--warn)">Overlaps an existing block ('+U.fmtDate(overlap.from)+' – '+U.fmtDate(overlap.to)+'): '+U.esc(overlap.status||'Planned')+'.</span>':'');
       };
       ['#plStaff','#plFrom','#plTo','#plFy','#plType'].forEach(s=>{ q(s).addEventListener('change',summary); q(s).addEventListener('input',summary); });
@@ -192,7 +199,7 @@ function planModal(staffId, leaveId){
         if(!from||!to) return UI.toast('Pick both dates',{type:'warn'});
         if(to<from) return UI.toast('End date cannot precede start date',{type:'warn'});
         const rec={staffId:id,type:q('#plType').value,from,to,backOn:U.addDays(to,1),
-          fy:q('#plFy').value,status:q('#plStatus').value,
+          fy:U.fyInfo(from).label,status:q('#plStatus').value,
           note:q('#plNote').value.trim(),requested:(l?l.requested:U.nowISO()),plannedBy:LS.auth.user.name,plannedAt:U.nowISO()};
         S.commit(d=>{
           if(l){ const x=(d.leaves||[]).find(y=>y.id===l.id); if(x) Object.assign(x,rec); }

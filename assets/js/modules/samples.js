@@ -404,7 +404,7 @@ function editSample(id){
   const s=S.db().samples.find(x=>x.id===id); if(!s) return;
   if(!LS.auth.guard('edit')) return;
   const opts=(list,cur)=>list.map(v=>'<option value="'+U.esc(v)+'"'+(v===cur?' selected':'')+'>'+U.esc(v)+'</option>').join('');
-  const tests=U.uniq(S.db().catalog.tests.map(t=>t.name).concat([s.test]));
+  const tests=U.uniq(S.tests().map(t=>t.name).concat([s.test]));
   const facilities=U.uniq(S.db().catalog.healthCenters.map(h=>h.name).concat([s.healthFacility||'Ruli DH']));
   const labs=U.uniq(S.db().catalog.hospitals.map(h=>h.name).concat(['Ruli DH - GeneXpert',s.hospital||''])).filter(Boolean);
   const statuses=['Registered','Received','Pending','Resulting','Resulted','Done','Positive','Negative','Rejected'];
@@ -503,7 +503,7 @@ function manifestPreviewModal(man){
 function newWizard(){
   if(!LS.auth.guard('edit')) return;
   const db=S.db();
-  const tests=db.catalog.tests;
+  const tests=S.tests();
   const hcs=db.catalog.healthCenters.map(h=>h.name);
   const hospitals=db.catalog.hospitals.map(h=>h.name).concat(['Ruli DH - GeneXpert']);
   const state={step:1,patient:{name:'',pid:'',sex:'Female',age:''},tests:[],priority:'Routine',origin:hcs[0],hospital:hospitals[0],transporter:'',notes:'',sampleId:''};

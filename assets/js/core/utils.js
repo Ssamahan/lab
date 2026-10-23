@@ -139,6 +139,82 @@ function resolvePaint(value){
     return v||(fallback?fallback.trim():'currentColor');
   });
 }
+/* ——— HTML chart → SVG ————————————————————————————————
+   Charts drawn with divs (bars, heat tiles, index columns, meters) have no <svg>
+   to clone. This walks the rendered box and repaints it as rectangles and text,
+   using the computed colours, so a screenshot-quality SVG can always be produced
+   without any third-party rasteriser. */
+U.htmlChartSVG = (host,opts)=>{
+  opts=opts||{};
+  if(!host||!host.getBoundingClientRect||!host.ownerDocument) return null;
+  const box=host.getBoundingClientRect?host.getBoundingClientRect():null;
+  const W=Math.round((box&&box.width)||host.offsetWidth||0);
+  const H=Math.round((box&&box.height)||host.offsetHeight||0);
+  if(W<8||H<8) return null;                      /* not laid out — nothing to trace */
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(NS,'svg');
+  svg.setAttribute('xmlns',NS);
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  svg.setAttribute('width',W); svg.setAttribute('height',H);
+  const bg=document.createElementNS(NS,'rect');
+  bg.setAttribute('x',0); bg.setAttribute('y',0); bg.setAttribute('width',W); bg.setAttribute('height',H);
+  bg.setAttribute('fill','#ffffff');
+  svg.appendChild(bg);
+  const origin={x:box.left+window.scrollX, y:box.top+window.scrollY};
+  const firstColor=str=>{
+    if(!str) return null;
+    const m=str.match(/rgba?\([^)]+\)|#[0-9a-f]{3,8}/i);
+    return m?m[0]:null;
+  };
+  const opaque=c=>c&&!/rgba\([^)]*,\s*0\s*\)/.test(c);
+  const paint=(el)=>{
+    const cs=window.getComputedStyle(el);
+    if(!cs||cs.display==='none'||+cs.opacity===0) return;
+    const r=el.getBoundingClientRect();
+    if(r.width<0.5||r.height<0.5) return;
+    const x=r.left-origin.x, y=r.top-origin.y;
+    let fill=opaque(cs.backgroundColor)?cs.backgroundColor:null;
+    if(!fill && cs.backgroundImage && cs.backgroundImage!=='none') fill=firstColor(cs.backgroundImage);
+    if(fill && opaque(fill)){
+      const rect=document.createElementNS(NS,'rect');
+      rect.setAttribute('x',x.toFixed(1)); rect.setAttribute('y',y.toFixed(1));
+      rect.setAttribute('width',r.width.toFixed(1)); rect.setAttribute('height',r.height.toFixed(1));
+      const rad=parseFloat(cs.borderTopLeftRadius||'0')||0;
+      if(rad) rect.setAttribute('rx',Math.min(rad,r.width/2,r.height/2).toFixed(1));
+      rect.setAttribute('fill',fill);
+      if(cs.opacity&&+cs.opacity<1) rect.setAttribute('opacity',cs.opacity);
+      svg.appendChild(rect);
+    }
+    /* text: only leaves, so nothing is written twice */
+    const kids=[...el.childNodes].filter(n=>n.nodeType===1);
+    const ownText=[...el.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();
+    if(ownText && !kids.length){
+      const t=document.createElementNS(NS,'text');
+      const fs=parseFloat(cs.fontSize||'11')||11;
+      t.setAttribute('x',(x+2).toFixed(1));
+      t.setAttribute('y',(y+r.height/2+fs*0.35).toFixed(1));
+      t.setAttribute('font-family','system-ui, sans-serif');
+      t.setAttribute('font-size',fs.toFixed(1));
+      t.setAttribute('fill',opaque(cs.color)?cs.color:'#333333');
+      t.setAttribute('text-anchor',/center/.test(cs.textAlign)?'middle':'start');
+      if(/center/.test(cs.textAlign)) t.setAttribute('x',(x+r.width/2).toFixed(1));
+      t.textContent=ownText.slice(0,120);
+      svg.appendChild(t);
+    }
+    kids.forEach(paint);
+  };
+  [...host.children].forEach(paint);
+  const title=(opts.name||'').toString();
+  if(title){
+    const t=document.createElementNS(NS,'text');
+    t.setAttribute('x',10); t.setAttribute('y',H-6);
+    t.setAttribute('font-family','system-ui, sans-serif'); t.setAttribute('font-size','9');
+    t.setAttribute('fill','#8A93A5');
+    t.textContent='Lab Systems · Ruli DH · '+title;
+    svg.appendChild(t);
+  }
+  return {svg:new XMLSerializer().serializeToString(svg), width:W, height:H, name:title||'chart'};
+};
 U.chartSVG = (host,opts)=>{
   opts=opts||{};
   if(!host) return null;
@@ -146,13 +222,19 @@ U.chartSVG = (host,opts)=>{
      export never silently returns nothing. */
   const barHost=(host.__chartCfg&&host.__chartCfg.type==='bars')?host:(host.querySelector&&host.querySelector('[data-bar]')?host:null);
   if(!(host.tagName||'').toLowerCase().match(/svg/) && !host.querySelector('svg')){
-    const cfg=barHost&&barHost.__chartCfg;
-    if(!cfg) return null;
-    const built=window.LS&&LS.charts&&LS.charts.barSVG?LS.charts.barSVG(cfg.items,{}):null;
-    if(!built) return null;
     const card=host.closest&&host.closest('.card');
     const title=card&&card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'';
-    return {svg:built.svg, width:built.width, height:built.height, name:(opts.name||title||'chart')};
+    /* A ranked bar set is rebuilt from its own numbers — cleaner than tracing the DOM. */
+    const cfg=barHost&&barHost.__chartCfg;
+    if(cfg && window.LS && LS.charts && LS.charts.barSVG){
+      const built=LS.charts.barSVG(cfg.items,{});
+      if(built) return {svg:built.svg, width:built.width, height:built.height, name:(opts.name||title||'chart')};
+    }
+    /* Everything else drawn in HTML — heat strips, index columns, capacity bars,
+       ring gauges, allocation tiles — is traced into real SVG elements, so both
+       the SVG and the PNG download come out as vector art of exactly what the
+       screen shows. */
+    return U.htmlChartSVG(host,{name:opts.name||title||'chart'});
   }
   const svg=(host.tagName||'').toLowerCase()==='svg'?host:host.querySelector('svg');
   if(!svg) return null;
@@ -278,8 +360,15 @@ U.statusTone = (s)=>{
 };
 U.initials = name=> String(name||'?').replace(/[^A-Za-z\s]/g,'').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const AV=['#D4B76A','#8FB3D9','#7FC7B6','#D9A0A8','#B3A0D9','#C7B888','#8FC7A0','#D9BFA0'];
+/* A staff portrait, wherever one has been uploaded. Kept on the staff record and
+   read by name so the same face appears on cards, lists, rosters and prints. */
+U.staffPhoto = name=>{
+  if(!name) return '';
+  try{ const st=(LS.store&&LS.store.db&&LS.store.db().staff)||[]; const p=st.find(x=>x&&x.name===name); return (p&&p.photo)||''; }catch(e){ return ''; }
+};
 U.avatar = (name,cls,photo)=>{
-  if(photo) return '<span class="avatar '+(cls||'')+'"><img src="'+U.esc(photo)+'" alt=""></span>';
+  photo=photo||U.staffPhoto(name);
+  if(photo) return '<span class="avatar '+(cls||'')+'"><img src="'+U.esc(photo)+'" alt="'+U.esc(name||'')+'"></span>';
   const c=AV[U.hash(name)%AV.length];
   return '<span class="avatar '+(cls||'')+'" style="background:linear-gradient(140deg,'+c+',color-mix(in srgb,'+c+' 65%,#5F4A1C))" title="'+U.esc(name||'')+'">'+U.esc(U.initials(name))+'</span>';
 };
