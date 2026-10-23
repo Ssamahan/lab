@@ -211,7 +211,9 @@ U.htmlChartSVG = (host,opts)=>{
       t.setAttribute('y',(y+r.height/2+fs*0.35).toFixed(1));
       t.setAttribute('font-family','system-ui, sans-serif');
       t.setAttribute('font-size',fs.toFixed(1));
-      t.setAttribute('fill',resolvePaint(opaque(cs.color)?cs.color:'#333333'));
+      let inkCol=resolvePaint(opaque(cs.color)?cs.color:'#333333');
+      if(paleOnWhite(inkCol)) inkCol=INK.ink;
+      t.setAttribute('fill',inkCol);
       t.setAttribute('text-anchor',/center/.test(cs.textAlign)?'middle':'start');
       if(/center/.test(cs.textAlign)) t.setAttribute('x',(x+r.width/2).toFixed(1));
       t.textContent=fullText.slice(0,120);
@@ -237,14 +239,30 @@ U.htmlChartSVG = (host,opts)=>{
    positioned fills). These renderers draw from the numbers instead, so an exported
    chart is always a clean, legible image with concrete colours. */
 const INK={ink:'#1B1F27', muted:'#5A6472', faint:'#8A93A5', line:'#D8D3C6', head:'#F4F1E8', zebra:'#FAF8F2', white:'#FFFFFF'};
-U.ink=()=>{
-  try{
-    const cs=getComputedStyle(document.documentElement);
-    const g=n=>{ const v=(cs.getPropertyValue(n)||'').trim(); return v||null; };
-    return {ink:g('--text-strong')||INK.ink, muted:g('--text-muted')||INK.muted, faint:g('--text-faint')||INK.faint,
-      line:g('--border')||INK.line, head:g('--surface-inset')||INK.head, zebra:INK.zebra, white:'#FFFFFF'};
-  }catch(e){ return INK; }
-};
+/* Every exported sheet is white paper, in either theme. Reading the theme's text
+   colour would paint Ink-mode text (near-white) onto that white paper and produce a
+   blank-looking file — so the export palette is fixed, not inherited. */
+U.ink=()=>INK;
+/* Is this paint too pale to read on white? Used to keep traced charts legible when
+   the app is in the dark theme. */
+function paleOnWhite(col){
+  if(!col) return false;
+  const m=String(col).trim();
+  let r,g,b,a=1;
+  if(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(m)){
+    let h=m.slice(1); if(h.length===3) h=h.split('').map(c=>c+c).join('');
+    r=parseInt(h.slice(0,2),16); g=parseInt(h.slice(2,4),16); b=parseInt(h.slice(4,6),16);
+  } else {
+    const mm=/rgba?\(([^)]+)\)/.exec(m); if(!mm) return false;
+    const p=mm[1].split(',').map(x=>parseFloat(x));
+    r=p[0]; g=p[1]; b=p[2]; if(p.length>3) a=p[3];
+  }
+  if(a===0) return true;
+  /* Fade the colour onto white before judging it: an 8 % ink wash would otherwise
+     look "dark" and be kept, while a 95 % white text is invisible. */
+  const mix=v=>Math.round(v*a+255*(1-a));
+  return (0.299*mix(r)+0.587*mix(g)+0.114*mix(b))>190;
+}
 const BAND_HEX={g2:'#17A97B',g1:'#3FA57E',r1:'#E29AA2',r2:'#A3212E',teal:'#3FB3A6',amber:'#D9A13B',rose:'#E26D6D',slate:'#8C93A3',gold:'#C9A84C',blue:'#7595C8'};
 const hexOf=t=>BAND_HEX[t]||BAND_HEX.slate;
 function esc2(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -580,7 +598,7 @@ U.chartSVG = (host,opts)=>{
     n.setAttribute('style','fill:none;stroke-dasharray:none;stroke-dashoffset:0;stroke-width:'+sw.trim()+';stroke-linecap:round;stroke-linejoin:round');
   });
   const card=(host.closest&&host.closest('.card'))||null;
-  const bg=getComputedStyle(document.documentElement).getPropertyValue('--surface-1').trim()||'#ffffff';
+  const bg='#ffffff';
   const title=card&&card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'';
   const footer='Lab Systems · Ruli DH'+(title?' · '+title:'');
   /* The key to the lines lives beside the chart, in HTML, so a clone of the plot
@@ -622,14 +640,14 @@ U.chartSVG = (host,opts)=>{
     const t1=document.createElementNS('http://www.w3.org/2000/svg','text');
     t1.setAttribute('x',12); t1.setAttribute('y',26);
     t1.setAttribute('font-family','Georgia, serif'); t1.setAttribute('font-size',17);
-    t1.setAttribute('fill',resolvePaint('var(--text-strong)')||'#090E1A');
+    t1.setAttribute('fill',INK.ink);
     t1.textContent=title;
     outWrap.appendChild(t1);
     if(sub){
       const t2=document.createElementNS('http://www.w3.org/2000/svg','text');
       t2.setAttribute('x',12); t2.setAttribute('y',41);
       t2.setAttribute('font-family','system-ui, sans-serif'); t2.setAttribute('font-size',10.5);
-      t2.setAttribute('fill',resolvePaint('var(--text-faint)')||'#8A93A5');
+      t2.setAttribute('fill',INK.faint);
       t2.textContent=sub.slice(0,120);
       outWrap.appendChild(t2);
     }
@@ -639,7 +657,7 @@ U.chartSVG = (host,opts)=>{
   while(clone.firstChild) g.appendChild(clone.firstChild);
   outWrap.appendChild(g);
   if(legend.length){
-    const ink=getComputedStyle(document.documentElement).getPropertyValue('--text-soft').trim()||'#3A4250';
+    const ink=INK.ink;
     let x=12;
     legend.forEach(it=>{
       /* Swatch and label share one baseline; the label sits to the right of a 9px
@@ -662,7 +680,7 @@ U.chartSVG = (host,opts)=>{
   const foot=document.createElementNS('http://www.w3.org/2000/svg','text');
   foot.setAttribute('x',12); foot.setAttribute('y',totalH-10);
   foot.setAttribute('font-family','system-ui, sans-serif'); foot.setAttribute('font-size',10);
-  foot.setAttribute('fill',resolvePaint('var(--text-faint)')||'#888');
+  foot.setAttribute('fill',INK.faint);
   foot.textContent=footer;
   outWrap.appendChild(foot);
   return {svg:new XMLSerializer().serializeToString(outWrap), width:W, height:totalH, name:(opts.name||title||'chart')};
