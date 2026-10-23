@@ -5,9 +5,41 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.1** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.2** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.2
+
+**The PBF index is now arithmetic anyone can check, and the domains belong to the district rather than to the code.**
+
+- **The index is marks, not weights.** Every question is marked out of its own
+  maximum — 25 by default — so 25/25 is 100 % of that question. The index is the
+  whole scorecard's **marks earned ÷ marks available × 100**. Nothing is weighted,
+  nothing is renormalised, and a centre is still only ranked once every question
+  carries a mark.
+- **Domains are editable.** *Manage domains* in the question bank renames,
+  re-weights, adds and retires domains; the list is stored with the register
+  (`db.pbfDomains`) and weights are normalised to exactly 100 % with a
+  largest-remainder rounding (no more 101 %). A domain with no questions is left
+  out of the scorecard, the heatmap and every report, exactly as before.
+- **Questions are allocated by hand.** Pick any set of questions in the bank and use
+  *Move to domain*, or choose the domain in the question editor. Each domain keeps
+  reporting **its own percentage** — its marks earned over its own marks available —
+  so a centre can be at 60 % on commodity security while the district index is 88 %.
+- **Quality index colours.** 90 % and above is the deepest green, 80–89 green,
+  75–79 light red and below 75 blood red. The percentage is printed **inside** the
+  index chart — above every bar in the quarterly strip, inside every heatmap cell,
+  in the centre ring and in the tooltip.
+- **The supervision calendar is clickable.** Tap any day to see what is planned,
+  record the visit that happened on it, or put a new one on the plan. Recorded
+  visits fill in the matching planned slot automatically.
+- **Assessor compliance.** Assessors default to you — Kelvin — and you can pick any
+  lab staff member from the roster or type a new one in once. Every planned visit is
+  compared with the date it was actually recorded: on time, late by *n* days, missed
+  or still upcoming. A new compliance card shows the on-time percentage per assessor
+  and the district total, and each recorded visit's toast tells you whether it landed
+  on the plan or how late it was.
 
 ## What changed in 6.9.1
 
