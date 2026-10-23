@@ -125,6 +125,101 @@ U.exportCSV = (name,rows,meta)=>{
   const csv='\uFEFF'+U.toCSV(head.concat(rows));
   U.download(name.endsWith('.csv')?name:name+'.csv',csv,'text/csv;charset=utf-8');
 };
+/* ——— Chart export ————————————————————————————————
+   The charts are inline SVG drawn with CSS variables, which mean nothing in a
+   downloaded file. This clones the node, resolves every var() against the live
+   document, paints the card background and hands back a standalone SVG. The PNG
+   path renders that SVG at 3× so the result is print-sharp rather than a
+   screenshot of a 300-pixel column. */
+function resolvePaint(value){
+  if(!value || value.indexOf('var(')<0) return value;
+  const el=document.documentElement;
+  return value.replace(/var\((--[a-z0-9-]+)(?:,\s*([^)]+))?\)/gi,(m,name,fallback)=>{
+    const v=getComputedStyle(el).getPropertyValue(name).trim();
+    return v||(fallback?fallback.trim():'currentColor');
+  });
+}
+U.chartSVG = (host,opts)=>{
+  opts=opts||{};
+  if(!host) return null;
+  /* HTML bar charts have no <svg>; rebuild the same numbers as vector art so an
+     export never silently returns nothing. */
+  const barHost=(host.__chartCfg&&host.__chartCfg.type==='bars')?host:(host.querySelector&&host.querySelector('[data-bar]')?host:null);
+  if(!(host.tagName||'').toLowerCase().match(/svg/) && !host.querySelector('svg')){
+    const cfg=barHost&&barHost.__chartCfg;
+    if(!cfg) return null;
+    const built=window.LS&&LS.charts&&LS.charts.barSVG?LS.charts.barSVG(cfg.items,{}):null;
+    if(!built) return null;
+    const card=host.closest&&host.closest('.card');
+    const title=card&&card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'';
+    return {svg:built.svg, width:built.width, height:built.height, name:(opts.name||title||'chart')};
+  }
+  const svg=(host.tagName||'').toLowerCase()==='svg'?host:host.querySelector('svg');
+  if(!svg) return null;
+  const clone=svg.cloneNode(true);
+  const box=svg.getBoundingClientRect?svg.getBoundingClientRect():{width:0,height:0};
+  const vb=(svg.getAttribute('viewBox')||'0 0 760 240').split(/\s+/).map(Number);
+  const W=vb[2]||box.width||760, H=vb[3]||box.height||240;
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  clone.removeAttribute('preserveAspectRatio');
+  clone.setAttribute('width',W); clone.setAttribute('height',H);
+  clone.querySelectorAll('[style]').forEach(n=>{ n.setAttribute('style',resolvePaint(n.getAttribute('style'))); });
+  [clone].concat([...clone.querySelectorAll('*')]).forEach(n=>{
+    ['fill','stroke','stop-color','color'].forEach(attr=>{
+      if(n.hasAttribute&&n.hasAttribute(attr)){ const v=resolvePaint(n.getAttribute(attr)); if(v) n.setAttribute(attr,v); }
+    });
+  });
+  const card=(host.closest&&host.closest('.card'))||null;
+  const bg=getComputedStyle(document.documentElement).getPropertyValue('--surface-1').trim()||'#ffffff';
+  const title=card&&card.querySelector('.card-title')?card.querySelector('.card-title').textContent.trim():'';
+  const footer='Lab Systems · Ruli DH'+(title?' · '+title:'');
+  const outWrap=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  outWrap.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  outWrap.setAttribute('viewBox','0 0 '+W+' '+(H+34));
+  outWrap.setAttribute('width',W); outWrap.setAttribute('height',H+34);
+  const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  rect.setAttribute('x',0); rect.setAttribute('y',0); rect.setAttribute('width',W); rect.setAttribute('height',H+34);
+  rect.setAttribute('fill',resolvePaint(bg)||'#fff');
+  outWrap.appendChild(rect);
+  const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('transform','translate(0,6)');
+  while(clone.firstChild) g.appendChild(clone.firstChild);
+  outWrap.appendChild(g);
+  const foot=document.createElementNS('http://www.w3.org/2000/svg','text');
+  foot.setAttribute('x',12); foot.setAttribute('y',H+26);
+  foot.setAttribute('font-family','system-ui, sans-serif'); foot.setAttribute('font-size',10);
+  foot.setAttribute('fill',resolvePaint('var(--text-faint)')||'#888');
+  foot.textContent=footer;
+  outWrap.appendChild(foot);
+  return {svg:new XMLSerializer().serializeToString(outWrap), width:W, height:H+34, name:(opts.name||title||'chart')};
+};
+U.exportChartSVG = (host,opts)=>{
+  const d=U.chartSVG(host,opts); if(!d){ U.toast&&U.toast('Nothing to export here',{type:'warn'}); return false; }
+  const safe=(d.name||'chart').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  U.download(safe+'-'+U.todayISO()+'.svg','<?xml version="1.0" encoding="UTF-8"?>\n'+d.svg,'image/svg+xml;charset=utf-8');
+  return true;
+};
+U.exportChartPNG = (host,opts)=>{
+  const d=U.chartSVG(host,opts); if(!d) return Promise.resolve(false);
+  const scale=(opts&&opts.scale)||3;
+  const safe=(d.name||'chart').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(d.svg);
+    img.onload=()=>{
+      try{
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.round(d.width*scale); canvas.height=Math.round(d.height*scale);
+        const ctx=canvas.getContext('2d');
+        ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        canvas.toBlob(blob=>{ if(blob) U.download(safe+'-'+U.todayISO()+'.png',blob,'image/png'); resolve(!!blob); },'image/png');
+      }catch(e){ resolve(false); }
+    };
+    img.onerror=()=>resolve(false);
+    img.src=url;
+  });
+};
 U.copy = async (text)=>{
   try{ await navigator.clipboard.writeText(text); return true; }
   catch(e){ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); return true; }catch(e2){ return false; } }

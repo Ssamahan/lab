@@ -389,6 +389,9 @@
    block under it on wide screens. Two independent columns stack cards directly,
    and on a phone the columns dissolve so the original reading order is kept. */
 .dash-flow{display:grid; grid-template-columns:minmax(0,1.72fr) minmax(0,1fr); gap:16px; align-items:start}
+/* Wide screens give the secondary column room; the feed inside it then splits
+   into two columns of its own instead of one long empty strip. */
+@media (min-width:1500px){ .dash-flow{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)} }
 .dash-col{display:flex; flex-direction:column; gap:16px; min-width:0}
 .dash-col > .dash-card{min-width:0}
 .dash-col > .dash-card > .card{height:100%}
@@ -400,4 +403,8 @@
 }
 /* the two lists that looked empty now use the height they are given */
 .duty-fill{display:flex; flex-direction:column; height:100%; gap:8px; justify-content:space-between}
-.feed-fill{display:flex; flex-direction:column; height:100%}
+/* The feed re-flows to two or three columns when the card is wide enough, so a
+   short list no longer leaves half the card blank. */
+.feed-fill{display:grid; grid-template-columns:repeat(auto-fit,minmax(268px,1fr)); align-content:start; column-gap:20px; height:100%}
+.feed-fill .feed-item{border-bottom:1px solid var(--border)}
+@media (max-width:520px){ .feed-fill{grid-template-columns:minmax(0,1fr)} }
