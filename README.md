@@ -5,9 +5,45 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.10** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.11** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.11
+
+**The unit is staffed by posts, and the posts change with the number on duty — plus a
+night week with three named owners.**
+
+### Posts
+
+A post is one person covering one or more benches. The manager is never counted in
+the head-count, and is never posted on a day that carries more than his threshold.
+
+| on day duty | posts |
+|---|---|
+| 6 or more | Reception · **Phlebotomy · Haematology** · Biochemistry · Serology · **Parasitology + TB** |
+| 5 | Reception · **Phlebotomy + Haematology** · Biochemistry · Serology · Parasitology + TB |
+| 4 | Reception · Phlebotomy + Haematology · **Biochemistry + Serology** · Parasitology + TB |
+| 3 | **Reception + Parasitology + TB** · Phlebotomy + Haematology · Biochemistry + Serology |
+| 2 or fewer | the same three posts, with **Biochemistry + Serology taken by the manager** |
+
+Each post writes one name into every bench it covers, so the grid, the printed sheet
+and the XLSX all agree. The thresholds are editable in **Post model**, and a *Posting
+today* card names the posts and who holds each one.
+
+### Nights
+
+- **Mon–Wed** — one technologist does **three consecutive nights**; the two
+  three-night technologists alternate week to week.
+- **Thu–Fri** — a **different** technologist does two.
+- **Sat–Sun** — the weekend technologist takes **day + night**, unless she is on
+  leave; then the two-night technologist covers the weekend nights rather than
+  leaving them open.
+- Nobody is given a night their contract forbids (`nightPref`, `maxConsecN`,
+  `maxNights`), that falls inside leave, or that would exceed the month's night
+  count. The manager never takes a night.
+
+*Auto nights* fills the week in one click.
 
 ## What changed in 6.9.10
 
