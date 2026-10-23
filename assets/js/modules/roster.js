@@ -213,6 +213,8 @@ function weekView(){
       return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(tip?' data-tip="'+U.esc(tip)+'"':'')+'>'
         +(name?'<span class="small'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.esc(name.split(' ')[0])+' <span class="xs faint">'+U.esc(name.split(' ').slice(1).join(' '))+'</span></span>'
           :'<span class="xs faint">—</span>')
+        +(()=>{ const covers=name?Object.keys(alloc[iso]||{}).filter(b=>alloc[iso][b]===name).length:0;
+                return covers>1?'<span class="xs mono" style="display:block;font-size:8.5px;color:var(--text-faint)">'+covers+' benches</span>':''; })()
         +(ov?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">override</span>':'')
         +(breach?'<span class="pill rose" style="font-size:8.5px;padding:1px 5px;margin-top:2px">rule</span>':'')
         +'</td>';
@@ -226,6 +228,7 @@ function weekView(){
     +'<span class="pill '+(breaches.length?'rose':'teal')+'">'+breaches.length+' rule '+(breaches.length===1?'breach':'breaches')+'</span>'
     +'<span class="pill '+(unstaffed?'rose':'teal')+'">'+unstaffed+' empty slots</span>'
     +'<button class="btn sm" data-auto-week>'+UI.ic('wand-sparkles',13)+' Auto-allocate</button>'
+    +'<button class="btn sm" data-auto-nights>'+UI.ic('moon',13)+' Auto nights</button>'
     +'<button class="btn sm" data-print-week>'+UI.ic('printer',13)+' Print week</button>'
     +'<button class="btn sm" data-week-png>'+UI.ic('image',13)+' PNG</button>'
     +'<button class="btn sm" data-week-pdf>'+UI.ic('file-text',13)+' PDF</button>'
@@ -239,6 +242,7 @@ function weekView(){
     +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
       +UI.card({title:'Weekly allocation',sub:'Services covered per staff member',icon:'users',body:Object.keys(load).length?Object.keys(load).sort((a,b)=>load[b]-load[a]).map(n=>'<div style="margin-bottom:8px"><div class="row between"><span class="xs truncate">'+U.esc(n)+'</span><span class="mono xs faint">'+load[n]+'</span></div>'+UI.meter(load[n]/maxLoad*100,'teal')+'</div>').join(''):'<p class="xs faint">No allocations this week.</p>'})
+      +postsCard()
       +benchRulesCard()
       +UI.card({title:'Services in this laboratory',sub:'Derived from the service register',icon:'flask-conical',body:svcs.map(sv=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(sv.name)+'</div><div class="lr-sub">'+U.esc(sv.code)+' · min '+sv.min+' staff</div></div><span class="pill '+(svcs.length?'slate':'rose')+'">'+U.esc(sv.note||'').slice(0,18)+'</span></div>').join('')+'<div style="margin-top:8px"><button class="btn xs" data-manage-services>'+UI.ic('settings-2',12)+'Manage services</button></div>'})
     +'</div></div></div>';
@@ -254,6 +258,59 @@ function ruleLine(r){
   if(r.solo.length) bits.push('alone only '+r.solo.join(', '));
   if(r.reserve) bits.push('reserve ≤ '+r.reserveMax+' on the plan');
   return bits.length?bits.join(' · '):'no bench contract — fills any open bench';
+}
+/* What the unit is staffed by today, and who holds each post. This is the view that
+   makes the shift logic checkable: change the post model and this card moves. */
+function postsCard(){
+  const iso=U.todayISO();
+  const {core,alone}=dutyContext(iso);
+  const n=core.length;
+  const groups=postGroupsFor(n);
+  const w=(S.db().unitRosters||{})[weekStart()]||{};
+  const alloc=(w.assignments||{})[iso]||{};
+  const holder=post=>{
+    const names=U.uniq(post.services.map(b=>alloc[b]).filter(Boolean));
+    return names.length?names.join(' · '):'';
+  };
+  const rows=groups.map(post=>{
+    const who=holder(post);
+    return '<div class="list-row" style="padding:6px 0"><div class="lr-main">'
+      +'<div class="lr-title" style="font-size:11.2px">'+U.esc(post.label)+'</div>'
+      +'<div class="lr-sub">'+post.services.length+' bench'+(post.services.length===1?'':'es')+(post.reservePost?' · manager':'')+'</div></div>'
+      +(who?'<span class="pill teal">'+U.esc(who.split(' ')[0])+'</span>':'<span class="pill '+(post.reservePost?'gold':'rose')+'">open</span>')
+      +'</div>';
+  }).join('');
+  return UI.card({title:'Posting today',sub:postModeLabel(n),icon:'layout-grid',
+    tools:'<button class="btn xs" data-post-model>'+UI.ic('settings-2',12)+'Model</button>',
+    body:rows
+      +'<div class="hint" style="margin-top:8px">'+(n<=postModel().reserveMax
+        ? 'Two or fewer on duty: you take <b>Biochemistry + Serology</b>, the two on the plan take the other posts.'
+        : 'You are not on a post today — the plan carries '+n+' staff, more than your reserve threshold of '+postModel().reserveMax+'.')
+      +'</div>'});
+}
+function postModelModal(){
+  if(!LS.auth.guard('edit')) return;
+  const m=postModel();
+  const field=(id,label,val,min,max)=>'<div class="field"><label>'+label+'</label><input class="input" id="'+id+'" type="number" min="'+min+'" max="'+max+'" value="'+val+'"></div>';
+  UI.modal({title:'Post model',sub:'How the unit splits its work as staff get scarce.',width:'min(560px,100%)',
+    body:'<div class="form-grid">'
+      +field('pmSplit','Phlebotomy and haematology split at',m.splitManyAt,2,20)
+      +field('pmBioSer','Biochemistry + serology merge below',m.mergeBioSerBelow,2,20)
+      +field('pmRec','Reception joins parasitology + TB below',m.mergeReceptionBelow,1,20)
+      +'</div>'
+      +'<div class="hint" style="margin-top:12px">Counts are people on day duty, <b>never including you</b>. At two or fewer the Biochemistry + Serology post is yours. Defaults: split at 6, merge biochemistry + serology below 5, merge reception below 4.</div>'
+      +'<div class="hint" style="margin-top:8px">A post is one person covering every bench in it: five on duty sit on Reception · Phlebotomy + Haematology · Biochemistry · Serology · Parasitology + TB.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-pm-save>'+UI.ic('check',15)+'Save model</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-pm-save]').onclick=()=>{
+        const num=(id,d)=>{ const v=+el.querySelector('#'+id).value; return isFinite(v)&&v>=0?v:d; };
+        S.commit(d=>{
+          d.settings=d.settings||{};
+          d.settings.rosterModel={splitManyAt:num('pmSplit',6), mergeBioSerBelow:num('pmBioSer',5), mergeReceptionBelow:num('pmRec',4)};
+        },{action:'roster.postmodel',entity:'settings',detail:'Post model updated'});
+        close(); paint(); UI.toast('Post model saved · auto-allocate follows it',{type:'ok'});
+      };
+    }});
 }
 function benchRulesCard(){
   const rules=benchPlan();
@@ -457,6 +514,71 @@ function altUsedThisMonth(name, bench, monthKey){
   });
   return n;
 }
+/* ——— Posts ————————————————————————————————————————————————
+   A post is the unit of work, not a bench. The laboratory is staffed by posts, and
+   the post list adapts to how many people are actually on duty that day (never
+   counting the manager, who is reserve):
+
+     six or more   Reception · Phlebotomy · Haematology · Biochemistry · Serology · Para+TB
+     five          Phlebotomy + Haematology are one person             (5 posts)
+     four          …and Biochemistry + Serology are one person          (4 posts)
+     three         …and Reception joins Parasitology + TB               (3 posts)
+     two or fewer  …and the Biochemistry + Serology post is the manager's (3 posts)
+
+   A post holds one person, and that person covers every bench in the post — the
+   grid writes their name into each of those services. */
+const POST_BASE=[
+  {key:'REC', services:['Reception']},
+  {key:'PHL', services:['Phlebotomy']},
+  {key:'HAE', services:['Hematology']},
+  {key:'BIO', services:['Biochemistry']},
+  {key:'SER', services:['Serology']},
+  {key:'PBT', services:['Parasitology','TB/Molecular']}
+];
+const POST_DEFAULTS={splitManyAt:6, mergeBioSerBelow:5, mergeReceptionBelow:4};
+function postModel(){
+  const st=(S.settings&&S.settings())||{};
+  const m=Object.assign({},POST_DEFAULTS,st.rosterModel||{});
+  const r=(S.staffByName&&S.activeStaff().filter(x=>x.reserveOnly)[0])||{};
+  m.reserveMax=r.reserveMinDay==null?2:r.reserveMinDay;
+  return m;
+}
+function shortBench(b){ return b==='TB/Molecular'?'TB':b; }
+function postLabel(services){ return services.map(shortBench).join(' + '); }
+function postGroupsFor(n){
+  const m=postModel();
+  const reg=S.services().map(x=>x.name);
+  let groups=POST_BASE
+    .map(g=>({key:g.key, services:g.services.filter(b=>reg.indexOf(b)>=0)}))
+    .filter(g=>g.services.length);
+  /* a service added by the manager is its own post until it is merged below */
+  reg.forEach(b=>{ if(!POST_BASE.some(g=>g.services.indexOf(b)>=0)) groups.push({key:'X'+b, services:[b]}); });
+  const merge=(keys,at)=>{
+    const picked=groups.filter(g=>keys.indexOf(g.key)>=0);
+    if(picked.length<2) return;
+    const idx=Math.min.apply(null,picked.map(g=>groups.indexOf(g)));
+    const services=[]; picked.forEach(g=>g.services.forEach(b=>{ if(services.indexOf(b)<0) services.push(b); }));
+    const key=keys.join('+');
+    groups=groups.filter(g=>keys.indexOf(g.key)<0);
+    groups.splice(idx,0,{key, services});
+  };
+  if(n<m.splitManyAt) merge(['PHL','HAE']);                 /* phlebotomy + haematology, one person */
+  if(n<m.mergeBioSerBelow) merge(['BIO','SER']);            /* one person does both */
+  if(n<m.mergeReceptionBelow) merge(['REC','PBT']);         /* reception joins parasitology + TB */
+  return groups.map(g=>Object.assign({},g,{
+    label:postLabel(g.services),
+    /* in a two-person unit the biochemistry + serology post belongs to the manager */
+    reservePost: n<=m.reserveMax && g.services.indexOf('Biochemistry')>=0 && g.services.indexOf('Serology')>=0
+  }));
+}
+function postModeLabel(n){
+  const m=postModel();
+  if(n<=m.reserveMax) return 'Very few · '+n+' on duty, manager takes Biochemistry + Serology';
+  if(n<m.mergeReceptionBelow) return 'Few · '+n+' on duty';
+  if(n<m.mergeBioSerBelow) return 'Short · '+n+' on duty';
+  if(n<m.splitManyAt) return 'Full · '+n+' on duty';
+  return 'Many · '+n+' on duty, phlebotomy and haematology split';
+}
 /* Everyone on duty that day, split so the reserve is never counted as "cover" when
    deciding whether the unit is short-staffed. */
 function dutyContext(iso){
@@ -489,117 +611,197 @@ function nightModal(iso){
 }
 function autoAllocate(){
   if(!LS.auth.guard('edit')) return;
-  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), mkOf=String(start).slice(0,7);
+  const start=weekStart(), dates=S.weekDates(start), mkOf=String(start).slice(0,7);
   const rules=benchPlan();
-  let filled=0, skipped=0, paired=0, reserveDays=0, cleared=0;
+  let posts=0, servicesFilled=0, skipped=0, reservePosts=0, cleared=0, split=0;
   S.commit(d=>{
     d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
     const w=d.unitRosters[start];
     w.overrides=w.overrides||{}; w.auto=w.auto||{};
     const altTally={};
     dates.forEach(iso=>{
-      const {duty,core,alone,planCount}=dutyContext(iso);
+      const {duty,core,alone}=dutyContext(iso);
+      const n=core.length;                                   /* never counts the manager */
+      const groups=postGroupsFor(n);
       w.assignments[iso]=w.assignments[iso]||{};
       const day=w.assignments[iso];
       const ovr=w.overrides[iso]||{};
-      /* A re-run must reflect today's rules: the previous automatic pass is taken
+      /* A re-run reflects today's post list: the previous automatic pass is taken
          back, while manual allocations and recorded overrides stay put. */
       const prevAuto=w.auto[iso]||{};
       Object.keys(prevAuto).forEach(b=>{ if(day[b]===prevAuto[b] && !ovr[b]){ delete day[b]; cleared++; } });
       w.auto[iso]={};
-      const loadOf=n=>Object.keys(day).filter(b=>day[b]===n).length;
+      const held=()=>U.uniq(Object.keys(day).map(b=>day[b]).filter(Boolean));
       const placedOn=bench=>day[bench]||'';
       const gateFor=(name,bench)=>gate(rules[name],bench,{alone,override:!!ovr[bench]});
-      const blockedByPlan=name=>{ const r=rules[name]; return !!r && !reserveAllowed(r,planCount); };
-      const candidates=(bench,cap)=>duty.filter(s=>{
-        if(loadOf(s.name)>=cap) return false;
-        if(blockedByPlan(s.name)) return false;
-        return gateFor(s.name,bench).ok;
-      });
-      const rankOf=(s,bench)=>{
-        const r=rules[s.name]||{home:'',alt:'',altMax:0,rare:[],reserve:false};
-        if(r.reserve) return 60;                                  /* only when needed */
-        if(r.home===bench) return 0;
-        if(!r.home && !r.alt) return 20;                          /* no contract: fill in */
-        if(r.alt===bench){
-          const used=(altUsedThisMonth(s.name,bench,mkOf)+(altTally[s.name+'|'+bench]||0));
+      const mayWorkAll=(name,services)=>services.every(b=>gateFor(name,b).ok);
+      const reserveOf=name=>!!(rules[name]&&rules[name].reserve);
+      const rankFor=(name,services)=>{
+        const r=rules[name]||{home:'',alt:'',altMax:0,rare:[],reserve:false};
+        if(r.reserve) return 70;
+        if(services.indexOf(r.home)>=0) return 0;
+        if(!r.home && !r.alt) return 20;
+        if(services.indexOf(r.alt)>=0){
+          const used=services.reduce((a,b)=>a+(altUsedThisMonth(name,b,mkOf)+(altTally[name+'|'+b]||0)),0);
           return used<(r.altMax||0)?10:35;
         }
-        if((r.rare||[]).indexOf(bench)>=0) return 40;
+        if((r.rare||[]).some(b=>services.indexOf(b)>=0)) return 40;
         return 50;
       };
-      const pickFor=(bench,cap)=>{
-        const list=candidates(bench,cap);
-        if(!list.length) return null;
-        list.sort((a,b)=>{
-          const ra=rankOf(a,bench), rb=rankOf(b,bench);
-          if(ra!==rb) return ra-rb;
-          return loadOf(a.name)-loadOf(b.name);
-        });
-        return list[0];
-      };
-      const put=(bench,who)=>{
+      const write=(bench,who)=>{
         day[bench]=who.name; w.auto[iso][bench]=who.name;
-        const r=rules[who.name]; if(r&&r.reserve) reserveDays++;
-        if(r&&r.alt===bench) altTally[who.name+'|'+bench]=(altTally[who.name+'|'+bench]||0)+1;
-        filled++;
+        const r=rules[who.name]||{};
+        if(r.alt&&(r.alt===bench)) altTally[who.name+'|'+bench]=(altTally[who.name+'|'+bench]||0)+1;
       };
-      const empty=()=>svcs.filter(sv=>!placedOn(sv.name));
-      const short=core.length<svcs.length;
-      /* 1 — scarcity first: Biochemistry + Serology go to ONE person, chosen before
-             any other bench is doubled up — exactly the rule for a short day. */
-      if(short){
-        SCARCITY_PAIRS.forEach(pair=>{
-          const both=pair.filter(b=>svcs.some(sv=>sv.name===b));
-          if(both.length<2) return;
-          const [a,b]=both;
-          if(placedOn(a)&&placedOn(b)) return;
-          const cands=duty.filter(x=>{
-            if(blockedByPlan(x.name)) return false;
-            if(loadOf(x.name)!==0) return false;
-            return gateFor(x.name,a).ok && gateFor(x.name,b).ok;
-          }).sort((x,y)=>rankOf(x,a)-rankOf(y,a));
-          if(!cands.length) return;
-          const who=cands[0];
-          put(a,who); put(b,who); paired++;
-        });
+      /* one post = one person covering every bench in it */
+      const assignPost=(post,who)=>{
+        post.services.forEach(b=>{ if(!placedOn(b)) write(b,who); });
+        posts++; servicesFilled+=post.services.filter(b=>day[b]===who.name).length;
+        if(reserveOf(who.name)) reservePosts++;
+        if(post.services.length>1) split++;
+      };
+      const freePool=()=>{ const used=held(); return duty.filter(x=>used.indexOf(x.name)<0); };
+      const mayBeOnPlan=x=>!reserveOf(x.name)||n<=postModel().reserveMax;
+      const couldCover=(x,post)=>mayBeOnPlan(x)&&post.services.every(b=>gateFor(x.name,b).ok);
+      const openPost=g=>g.services.some(b=>!placedOn(b));
+
+      /* 1 — the manager's own post on a very-few day, so he is never pushed onto
+             somebody else's bench. */
+      const reservePost=groups.find(g=>g.reservePost);
+      if(reservePost&&openPost(reservePost)){
+        const rp=freePool().filter(x=>reserveOf(x.name)).filter(x=>couldCover(x,reservePost));
+        const rp2=freePool().filter(x=>couldCover(x,reservePost));
+        const who=rp[0]||rp2[0];
+        if(who) assignPost(reservePost,who);
       }
-      /* 2 — one bench per person on a fully staffed day; when the unit is short, a
-             person may take a second bench, but only after everyone has one. */
-      svcs.forEach(sv=>{
-        if(placedOn(sv.name)) return;
-        const pick=pickFor(sv.name,short?2:1);
-        if(pick) put(sv.name,pick);
+      /* 2 — most-constrained person first. Someone who cannot cover a whole post
+             because of a bench rule still gets the part they may work, instead of
+             standing idle while every bench is handed out around them. */
+      const remaining=groups.filter(g=>g!==reservePost);
+      const breadth=x=>remaining.filter(g=>g.services.every(b=>!placedOn(b))&&couldCover(x,g)).length;
+      const people=freePool().filter(mayBeOnPlan).sort((a,b)=>{
+        const d=breadth(a)-breadth(b); if(d) return d;
+        return rankFor(a.name,['Reception'])-rankFor(b.name,['Reception']);
       });
-      /* 3 — anything still open has no one the rules allow. */
-      /* 4 — the reserve is never on a busy day: if a plan carries more staff than the
-             contract allows, anything auto-assigned to them is withdrawn. */
-      Object.keys(day).forEach(bench=>{
-        const who=day[bench]; if(!who||ovr[bench]) return;
-        const r=rules[who]; if(!r) return;
-        if(r.reserve && planCount>r.reserveMax){
-          delete day[bench]; delete w.auto[iso][bench];
-          cleared++;
+      people.forEach(x=>{
+        const whole=remaining.find(g=>g.services.every(b=>!placedOn(b))&&couldCover(x,g));
+        if(whole){ assignPost(whole,x); return; }
+        /* best partial: the post where this person may work the most benches */
+        let best=null, bestN=0;
+        remaining.forEach(g=>{
+          const allowed=g.services.filter(b=>!placedOn(b)&&gateFor(x.name,b).ok);
+          if(allowed.length>bestN){ bestN=allowed.length; best={g,allowed}; }
+        });
+        if(best&&bestN){
+          best.allowed.forEach(b=>write(b,x));
+          servicesFilled+=bestN;
+          if(bestN>1) split++;
         }
       });
-      /* 5 — benches left empty by that withdrawal get one last look from the rest. */
-      svcs.forEach(sv=>{
-        if(placedOn(sv.name)) return;
-        const pick=pickFor(sv.name,2);
-        if(pick) put(sv.name,pick);
+      /* 3 — everyone has had one turn; a second post only if benches are still open
+             and the person may work them (a truly short day). */
+      if(n<remaining.length+ (reservePost?1:0)){
+        remaining.forEach(g=>{
+          const open=g.services.filter(b=>!placedOn(b));
+          if(!open.length) return;
+          const cand=freePool().concat(duty.filter(y=>held().indexOf(y.name)>=0))
+            .filter(y=>mayBeOnPlan(y)&&open.every(b=>gateFor(y.name,b).ok))
+            .sort((a,b)=>rankFor(a.name,open)-rankFor(b.name,open));
+          if(cand.length){ open.forEach(b=>write(b,cand[0])); servicesFilled+=open.length; }
+        });
+      }
+      /* 3 — the manager never sits on a day that carries more than his threshold. */
+      Object.keys(day).forEach(bench=>{
+        const who=day[bench]; if(!who||ovr[bench]) return;
+        if(reserveOf(who)&&n>postModel().reserveMax){ delete day[bench]; delete w.auto[iso][bench]; cleared++; }
       });
-      /* what is still open is open because no rule allows anyone on that bench */
-      skipped+=svcs.filter(sv=>!placedOn(sv.name)).length;
+      skipped+=S.services().filter(sv=>!placedOn(sv.name)).length;
     });
   },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,
-     detail:'Auto-allocation under bench contracts (never/solo benches, reserve threshold, scarcity pairing), week of '+start});
+     detail:'Auto-allocation by post (Reception · Phleb+Hem · Bio+Ser · Para+TB), week of '+start});
   paint();
-  const bits=[filled+' slots allocated'];
-  if(paired) bits.push(paired+' double-covered (Biochemistry + Serology first)');
-  if(reserveDays) bits.push('reserve cover used on '+reserveDays+' slot'+(reserveDays===1?'':'s'));
+  const bits=[servicesFilled+' benches covered in '+posts+' posts'];
+  if(split) bits.push(split+' post'+(split===1?'':'s')+' combining two benches');
+  if(reservePosts) bits.push('manager on '+reservePosts+' post'+(reservePosts===1?'':'s'));
   if(cleared) bits.push(cleared+' auto slot'+(cleared===1?'':'s')+' withdrawn by a bench rule');
   if(skipped) bits.push(skipped+' left open (no one may work that bench)');
   UI.toast(bits.join(' · '),{type:'ok',duration:5200});
+}
+/* ——— Nights ——————————————————————————————————————————————
+   The night week has three owners, not seven:
+     Mon–Wed  one person does three nights
+     Thu–Fri  a second person does two
+     Sat–Sun  the weekend-only technologist, day + night, when she is not on leave
+   Nobody is given a night they cannot take: contract (nightPref / maxConsecN /
+   maxNights), leave, and the month's night count are all checked first. */
+function nightEligible(dates){
+  return S.activeStaff().filter(st=>{
+    if(st.reserveOnly||st.pattern==='manager') return false;
+    if(st.nightPref==='no'||!(st.maxNights>0)) return false;
+    if(st.weekendOnly) return false;
+    /* not on leave for any of the nights in question */
+    const lv=dates.some(iso=>{
+      const s2=S.shiftState(st,iso);
+      return s2.kind==='leave'||s2.kind==='exited'||s2.kind==='training';
+    });
+    return !lv;
+  });
+}
+function weekendOwner(dates){
+  const wk=S.activeStaff().find(st=>st.weekendOnly&&st.status==='active');
+  if(!wk) return null;
+  const free=dates.every(iso=>{ const st=S.shiftState(wk,iso); return st.kind!=='leave'&&st.kind!=='exited'&&st.kind!=='training'; });
+  return free?wk:null;
+}
+function nightsThisMonth(name, mkOf){
+  const db=S.db(); let n=0;
+  Object.keys(db.unitRosters||{}).forEach(w=>{
+    if(String(w).slice(0,7)!==mkOf) return;
+    const map=(db.unitRosters[w].night)||{};
+    Object.keys(map).forEach(iso=>{ if(map[iso]===name) n++; });
+  });
+  return n;
+}
+function nightPlanFor(start){
+  const dates=S.weekDates(start), mkOf=String(start).slice(0,7);
+  const out={}, notes=[];
+  const week=Math.floor(U.parseISO(start)/86400000/7);
+  const monWed=dates.slice(0,3), thuFri=dates.slice(3,5), weekend=dates.slice(5,7);
+  const pool=nightEligible(dates).filter(st=>(st.maxConsecN||0)>=2)
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  const three=pool.filter(st=>(st.maxConsecN||0)>=3);
+  const capOk=(st,days)=>nightsThisMonth(st.name,mkOf)+days<=st.maxNights;
+  /* three nights, Mon–Wed — the two three-night technologists alternate weekly */
+  const threePick=three.length?three[week%three.length]:null;
+  if(threePick&&capOk(threePick,3)){ monWed.forEach(iso=>{ out[iso]=threePick.name; }); notes.push('Mon–Wed · '+threePick.name); }
+  else if(pool.length){ const alt=pool.find(st=>st!==threePick&&capOk(st,3))||pool[0]; monWed.forEach(iso=>{ out[iso]=alt.name; }); notes.push('Mon–Wed · '+alt.name+' (three-night cover unavailable)'); }
+  /* two nights, Thu–Fri — a different person */
+  const twoPick=pool.find(st=>st!==(out[monWed[0]]&&S.staffByName(out[monWed[0]])||{}).name&&capOk(st,2));
+  if(twoPick){ thuFri.forEach(iso=>{ out[iso]=twoPick.name; }); notes.push('Thu–Fri · '+twoPick.name); }
+  else notes.push('Thu–Fri · nobody free');
+  /* the weekend, day + night */
+  const wk=weekendOwner(weekend);
+  if(wk){ weekend.forEach(iso=>{ out[iso]=wk.name; }); notes.push('Sat–Sun (day + night) · '+wk.name); }
+  else {
+    /* she is away: the two-night person takes the weekend nights rather than leaving them open */
+    const spare=pool.filter(st=>capOk(st,2));
+    if(spare.length){ weekend.forEach(iso=>{ out[iso]=spare[0].name; }); notes.push('Sat–Sun · '+spare[0].name+' (weekend technologist away)'); }
+    else notes.push('Sat–Sun · nobody free');
+  }
+  return {map:out, notes};
+}
+function autoNights(){
+  if(!LS.auth.guard('edit')) return;
+  const start=weekStart();
+  const {map, notes}=nightPlanFor(start);
+  S.commit(d=>{
+    d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
+    const w=d.unitRosters[start]; w.night=w.night||{};
+    S.weekDates(start).forEach(iso=>{ if(map[iso]) w.night[iso]=map[iso]; });
+  },{action:'roster.night.auto',entity:'unitRosters',entityId:start,
+     detail:'Night cover planned: '+notes.join(' · ')});
+  paint();
+  UI.toast('Nights planned · '+notes.join(' · '),{type:'ok',duration:5600});
 }
 function printWeek(){
   SH.printSVG(SH.weeklySVG(weekData()),{title:'Weekly unit roster — week of '+U.fmtDateShort(weekStart())});
@@ -824,6 +1026,7 @@ function wireBody(){
   r.querySelectorAll('[data-wcell]').forEach(td=>td.onclick=()=>{ const [iso,svc]=td.dataset.wcell.split('|'); servicePicker(iso,svc); });
   r.querySelectorAll('[data-night]').forEach(td=>td.onclick=()=>nightModal(td.dataset.night));
   r.querySelectorAll('[data-auto-week]').forEach(b=>b.onclick=autoAllocate);
+  r.querySelectorAll('[data-auto-nights]').forEach(b=>b.onclick=autoNights);
   r.querySelectorAll('[data-print-week]').forEach(b=>b.onclick=printWeek);
   r.querySelectorAll('[data-week-sheet]').forEach(b=>b.onclick=openWeekSheet);
   const wkSvg=function(){ const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start), night={};
@@ -856,6 +1059,7 @@ function wireBody(){
     r.querySelectorAll('[data-sheet-print]').forEach(b=>b.onclick=go(svg=>SH.printSVG(svg,{title:'Working plan — '+fn})));
   }
   r.querySelectorAll('[data-bench-rules]').forEach(el=>el.onclick=()=>benchRulesModal(el.dataset.benchRules));
+  r.querySelectorAll('[data-post-model]').forEach(b=>b.onclick=postModelModal);
   r.querySelectorAll('[data-manage-services]').forEach(b=>b.onclick=()=>{ view='services'; paint(); });
   r.querySelectorAll('[data-view-jump]').forEach(b=>b.onclick=()=>{ view=b.dataset.viewJump; paint(); });
   r.querySelectorAll('[data-add-svc]').forEach(b=>b.onclick=()=>serviceModal(null));
