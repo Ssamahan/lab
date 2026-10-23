@@ -245,27 +245,82 @@ function trustFooter(){
    +'<div class="row gap-sm xs faint"><span>Powered by</span><span style="font-family:var(--font-display);color:var(--text-muted);letter-spacing:-.02em;font-size:12px">Lab <b>Systems</b></span><span>· © 2026 Ruli DH</span></div></div>';
 }
 
+/* ——— Masonry layout ————————————————————————————————
+   Cards are laid into as many columns as the screen can carry and packed into the
+   first free slot, so the page ends level instead of leaving a column of nothing.
+   Heights are measured after the cards are in place, then converted into a row
+   span on an 8 px row grid; the gap between cards is part of the span. */
+let dashOnResize=null, dashRaf=0, dashObserver=null;
+function layoutDash(root){
+  const flow=root&&root.querySelector('#dashFlow'); if(!flow) return;
+  const cards=Array.prototype.slice.call(flow.children).filter(el=>el.classList.contains('dash-card'));
+  if(!cards.length) return;
+  const width=flow.clientWidth||root.clientWidth||window.innerWidth||1100;
+  /* Three columns need ~430 px each to stay readable; below 880 px one column is
+     the honest layout, not a squeezed pair. */
+  const cols=width>=1320?3:width>=880?2:1;
+  flow.style.setProperty('--dash-cols',String(cols));
+  flow.dataset.cols=String(cols);
+  const unit=8, gap=16;
+  // 1. column spans first, so every card is measured at its final width
+  cards.forEach(card=>{
+    const pref=card.getAttribute('data-span')||'';
+    /* 'wide' takes two columns on a medium screen; 'table' takes the full width
+       only when the screen cannot give it two, because a six-column register needs
+       the room. */
+    const span=pref==='full'?cols:pref==='table'?(cols>=3?2:cols):pref==='wide'?Math.min(cols,2):1;
+    card.style.gridColumn='span '+span;
+    card.style.gridRowEnd='auto';
+  });
+  // 2. one read pass (no thrash), then one write pass
+  const heights=cards.map(c=>c.getBoundingClientRect().height||c.offsetHeight||320);
+  cards.forEach((card,i)=>{
+    const rows=Math.max(2,Math.ceil((heights[i]+gap)/unit));
+    card.style.gridRowEnd='span '+rows;
+  });
+  flow.dataset.height=String(Math.max.apply(null,heights));
+}
+function watchDashLayout(root){
+  if(dashOnResize) window.removeEventListener('resize',dashOnResize);
+  dashOnResize=()=>{
+    cancelAnimationFrame(dashRaf);
+    dashRaf=requestAnimationFrame(()=>{ if(document.body.contains(root)) layoutDash(root); });
+  };
+  window.addEventListener('resize',dashOnResize);
+  // fonts and the first chart paint can change heights after render
+  setTimeout(()=>{ if(document.body.contains(root)) layoutDash(root); },180);
+  setTimeout(()=>{ if(document.body.contains(root)) layoutDash(root); },900);
+  /* If a card grows afterwards — a chart redrawn, a list expanded — re-pack, so the
+     row span never falls behind the content and lets cards overlap. */
+  if(window.ResizeObserver){
+    if(dashObserver) dashObserver.disconnect();
+    dashObserver=new window.ResizeObserver(()=>{
+      cancelAnimationFrame(dashRaf);
+      dashRaf=requestAnimationFrame(()=>{ if(document.body.contains(root)) layoutDash(root); });
+    });
+    const flow=root.querySelector('#dashFlow');
+    if(flow) Array.prototype.forEach.call(flow.children,c=>dashObserver.observe(c));
+  }
+}
+M.layout=layoutDash;
+
 M.render=function(root,params){
   clearTimers();
+  if(dashOnResize){ window.removeEventListener('resize',dashOnResize); dashOnResize=null; }
   const db=S.db();
-  /* Two independent columns instead of a 12-column row grid. On a wide screen the
-     old grid aligned every row to its tallest card, so a short card (On duty now,
-     Live activity) left a block of white space underneath it. Columns stack each
-     card directly under the previous one, so there is nothing to leave a gap. */
+  /* Cards go in reading order into one packed grid. `data-span` says how much
+     room a card earns: the throughput chart and the activity feed take two
+     columns, the worklist table takes the whole width because it is a table. */
   root.innerHTML=hero()+kpiRow()
-   +'<div class="dash-flow">'
-     +'<div class="dash-col">'
-       +'<div class="dash-card" style="--o:1">'+throughputCard()+'</div>'
-       +'<div class="dash-card" style="--o:3">'+tatCard()+'</div>'
-       +'<div class="dash-card" style="--o:5">'+eqaCard()+'</div>'
-       +'<div class="dash-card" style="--o:7">'+worklistCard()+'</div>'
-     +'</div>'
-     +'<div class="dash-col">'
-       +'<div class="dash-card" style="--o:2">'+dutyCard()+'</div>'
-       +'<div class="dash-card" style="--o:4">'+referralCard()+'</div>'
-       +'<div class="dash-card" style="--o:6">'+equipmentCard()+'</div>'
-       +'<div class="dash-card" style="--o:8" id="feedCol">'+feedCard()+'</div>'
-     +'</div>'
+   +'<div class="dash-flow" id="dashFlow">'
+     +'<div class="dash-card" data-span="wide">'+throughputCard()+'</div>'
+     +'<div class="dash-card">'+dutyCard()+'</div>'
+     +'<div class="dash-card">'+tatCard()+'</div>'
+     +'<div class="dash-card">'+referralCard()+'</div>'
+     +'<div class="dash-card">'+eqaCard()+'</div>'
+     +'<div class="dash-card">'+equipmentCard()+'</div>'
+     +'<div class="dash-card" data-span="table">'+worklistCard()+'</div>'
+     +'<div class="dash-card" data-span="full" id="feedCol">'+feedCard()+'</div>'
    +'</div>'
    +'<div style="margin-top:16px" id="obCol">'+onboardingCard()+'</div>'
    +trustFooter();
@@ -311,6 +366,10 @@ M.render=function(root,params){
     UI.toast('Setup step completed',{type:'ok'}); LS.shell.refresh();
   });
   const dis=root.querySelector('[data-ob-dismiss]'); if(dis) dis.onclick=()=>{ S.commit(d=>{ d.settings.onboarding.dismissed=true; },{action:'onboarding.dismiss',entity:'settings'}); LS.shell.refresh(); };
+
+  // pack the cards once the charts have painted, then keep them packed on resize
+  layoutDash(root);
+  watchDashLayout(root);
 
   // gentle magnetic hover on primary CTAs
   if(!U.reduced() && window.matchMedia('(pointer:fine)').matches){
