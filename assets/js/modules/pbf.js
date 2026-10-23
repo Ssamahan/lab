@@ -104,10 +104,16 @@ const DEFAULT_QUESTIONS=[
   ['infra','Waste segregation and sharps disposal correct'],
   ['infra','Water, power and bench space adequate for the workload']
 ];
-/* Every question is marked out of its own maximum — 25 by default, editable per
-   question. A question the district no longer evaluates is deleted from the bank
-   (soft delete, so past visits keep their marks). */
-const Q_MAX_DEFAULT=25;
+/* The questionnaire is worth 25 marks in total, and the marks are not spread
+   evenly across the nine questions — the chain-of-custody and register items are
+   worth more than a document check. Each question carries its own maximum, so a
+   question can be re-weighted without touching the others. */
+const Q_MARKS_25=[5,3,3.5,2,2,2,3,2.5,2];
+const Q_MARK_DEFAULT=2;          /* a new question starts at 2 of the 25 marks */
+const Q_MAX_DEFAULT=25;          /* legacy constant used by the 6.6 migration only */
+/* Marks are shown as written on the form: 5, 3.5, 2.5 — never 3.5000000001. */
+function fmtMarks(v){ const n=Math.round((+v||0)*10)/10; return String(n); }
+function totalMarks(qs){ return Math.round(U.sum(qs||questions(),q=>+q.max||0)*10)/10; }
 
 function questions(){
   const db=S.db();
@@ -145,6 +151,27 @@ function questions(){
       const KEEP=['q1','q2','q4','q5','q7','q8','q9','q13','q16'];
       (db.pbfQuestions||[]).forEach(q=>{ if(KEEP.indexOf(q.id)<0) q.deleted=true; });
     }
+    try{ S.save(); }catch(e){}
+  }
+  /* One-time: the district questionnaire is out of 25 marks, split
+     5 · 3 · 3.5 · 2 · 2 · 2 · 3 · 2.5 · 2. Marks are applied in questionnaire
+     order and stored on the question, so moving a question carries its marks with
+     it. Marks already recorded on the old 25-per-question scale are rescaled so
+     every stored percentage is unchanged. */
+  if(!db.meta.pbfMarks694){
+    db.meta.pbfMarks694=true;
+    const ordered=(db.pbfQuestions||[]).filter(q=>!q.deleted)
+      .map((q,i)=>({q,o:q.order==null?(i+1)*10:+q.order})).sort((a,b)=>a.o-b.o).map(x=>x.q);
+    ordered.slice(0,Q_MARKS_25.length).forEach((q,i)=>{
+      const from=+q.max||1, to=Q_MARKS_25[i];
+      if(from===to) return;
+      const f=to/from;
+      (db.pbfVisits||[]).forEach(v=>{
+        if(!v.answers||v.answers[q.id]==null) return;
+        v.answers[q.id]=Math.round(v.answers[q.id]*f*2)/2;
+      });
+      q.max=to;
+    });
     try{ S.save(); }catch(e){}
   }
   const list=(db.pbfQuestions||[]).filter(q=>!q.deleted);
@@ -224,7 +251,7 @@ function scorecardOf(visit){
   return {answered, total:qs.length, complete:qs.length>0&&answered===qs.length, missing:qs.filter(q=>!(visit&&visit.answers&&visit.answers[q.id]!=null&&visit.answers[q.id]!==''))};
 }
 /* ——— Marks, domain percentages and the index ————————————————
-   Every question is marked out of its own maximum (25 by default), so 25/25 is
+   Every question is marked out of its own maximum (they add up to 25), so 25/25 is
    100 % of that question. A domain's percentage is its own marks earned over its
    own marks available — a health centre can score 60 % on a domain without that
    domain being worth 60 % of anything. The index is the whole scorecard's marks
@@ -323,7 +350,7 @@ function list(){
   });
 }
 /* The index is the whole scorecard's marks earned over the marks available, out of
-   100. Nothing is weighted: 25-mark questions mean 25/25 is full marks and the
+   100. Nothing is weighted: the nine questions carry 25 marks, so 25/25 is full marks and the
    district index is a plain percentage of everything that was marked. */
 function total(row){
   if(!row) return null;
@@ -363,7 +390,7 @@ function kpis(){
    +'<div class="c3">'+UI.stat({label:'Marks pending',value:s.pending,icon:'clipboard-list',formatted:'0',note:s.pending?'Visits recorded without a full scorecard':'Every visit has a full scorecard',spark:spark([s.pending])})+'</div></div>'
    +'<div class="card pad" style="margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
      +'<span class="pill '+(s.scored?'teal':'slate')+'">'+UI.ic('calculator',12)+'Index auto-calculated</span>'
-     +'<span class="small grow">The index is <b>marks earned ÷ marks available × 100</b> — every question is marked out of 25, so 25/25 is 100 %. Each domain reports its own percentage of its own marks; the weights only describe how the report is composed and add to 100 %. A centre gets an index once <b>every</b> question is marked.</span>'
+     +'<span class="small grow">The index is <b>marks earned ÷ marks available × 100</b> — the nine questions carry 25 marks between them, so 25/25 is 100 %. Each domain reports its own percentage of its own marks; the weights only describe how the report is composed and add to 100 %. A centre gets an index once <b>every</b> question is marked.</span>'
      +'<span class="xs faint">'+questions().length+' questions · '+liveDomains().length+' domains in use</span></div>';
 }
 function hero(){
@@ -373,7 +400,7 @@ function hero(){
     tools:'<span class="chip gold">'+UI.ic('file-text',12)+s.pending+' awaiting marks</span>',
     body:(rows.length?'<div class="pbf-strip">'+rows.map((r,i)=>{
       const t=total(r), d=delta(r)||0;
-      return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'% · '+r.marks.got+' of '+r.marks.max+' marks">'
+      return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'% · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks">'
         +'<div class="pbf-pct idx-text '+bandOf(t)+'">'+t+'<span>%</span></div>'
         +'<div class="pbf-bar" style="height:'+U.clamp(t,4,100)+'%"><span class="pbf-fill '+bandOf(t)+'"></span></div>'
         +'<div class="pbf-rank mono">#'+(i+1)+'</div><div class="pbf-name">'+U.esc(r.name.replace(' HC',''))+'</div>'
@@ -399,7 +426,7 @@ function rowsHTML(){
     return '<tr data-pbf-row="'+r.id+'" style="cursor:pointer">'
       +'<td><div class="primary-cell"><b>'+U.esc(r.name)+'</b><small>'+U.esc(statusLine(r))+'</small></div></td>'
       +liveDomains().map(d=>{ const v=r.scores?r.scores[d.key]:null; const m=r.dm?r.dm[d.key]:null;
-        return '<td class="num" title="'+U.esc(d.label)+(m?' · '+m.got+' of '+m.max+' marks':'')+'"><span class="idx-chip '+bandOf(v)+'">'+(v==null?'—':v)+'</span></td>'; }).join('')
+        return '<td class="num" title="'+U.esc(d.label)+(m?' · '+fmtMarks(m.got)+' of '+fmtMarks(m.max)+' marks':'')+'"><span class="idx-chip '+bandOf(v)+'">'+(v==null?'—':v)+'</span></td>'; }).join('')
       +'<td>'+(t!=null?'<span class="pill '+tone(t)+'">'+t+'%</span>'
         :r.state&&r.state.key==='pending'?'<span class="pill amber">marks pending</span>'
         :'<span class="pill blue">not yet visited</span>')+'</td>'
@@ -423,7 +450,7 @@ function matrix(){
     '<div style="overflow-x:auto"><table class="pbf-heat"><thead><tr><th></th>'+liveDomains().map(d=>'<th>'+U.esc(d.label.split(' ')[0])+'<span class="w">'+w[d.key]+'%</span></th>').join('')+'<th>Index</th></tr></thead><tbody>'
     +rows.map(r=>'<tr><td class="pbf-hc">'+U.esc(r.name)+'</td>'+liveDomains().map(d=>{
         const v=r.scores?r.scores[d.key]:null, m=r.dm?r.dm[d.key]:null;
-        const tip=U.esc(d.label)+(m?' · '+m.got+'/'+m.max+' marks':'')+(v==null?' · no marks recorded':' · '+v+'%');
+        const tip=U.esc(d.label)+(m?' · '+fmtMarks(m.got)+'/'+fmtMarks(m.max)+' marks':'')+(v==null?' · no marks recorded':' · '+v+'%');
         if(v==null) return '<td><span class="heat-tile empty" data-tip="'+tip+'" style="--a:0.04;--tone:120,130,150">—</span></td>';
         return '<td><span class="heat-tile" data-tip="'+tip+'" style="--a:'+((v/100)*0.9+0.06).toFixed(2)+';--tone:'+bandRgb(v)+'">'+v+'</span></td>';
       }).join('')+'<td><b class="mono '+(total(r)==null?'':'idx-text '+bandOf(total(r)))+'">'+(total(r)==null?'—':total(r))+'</b></td></tr>').join('')
@@ -456,13 +483,13 @@ function drawer(id){
     +'<div><div class="row gap-sm">'+(t==null?'<span class="pill amber">Index not calculated</span>':'<span class="pill '+tone(t)+'">Index '+t+'%</span>')
     +(r.prior!=null?'<span class="pill slate">Previous '+r.prior+'%</span>':'')
     +(d!=null?'<span class="delta '+(d<0?'down':'')+'">'+UI.ic(d>=0?'arrow-up':'arrow-down',10)+(d>0?'+':'')+d+' pts</span>':'')+'</div>'
-    +'<div class="xs faint" style="margin-top:8px;max-width:380px">'+questions().length+' questions across '+liveDomains().length+' domains, '+(r.marks?r.marks.got+' of '+r.marks.max+' marks':'marks pending')+'. The index is marks earned ÷ marks available ×100 — the only place the weights appear is the report wording. A partial scorecard is never ranked.</div></div></div>'
+    +'<div class="xs faint" style="margin-top:8px;max-width:380px">'+questions().length+' questions across '+liveDomains().length+' domains, '(r.marks?fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks':'marks pending')+'. The index is marks earned ÷ marks available ×100 — the only place the weights appear is the report wording. A partial scorecard is never ranked.</div></div></div>'
     +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="row between"><span class="small">Scorecard completeness</span>'
     +'<span class="pill '+(card.complete?'teal':'amber')+'">'+card.answered+' / '+card.total+' marked</span></div>'
     +UI.meter(card.total?card.answered/card.total*100:0,card.complete?'teal':'amber')
     +(card.complete?'':'<div class="xs faint" style="margin-top:6px">'+card.missing.length+' question'+(card.missing.length===1?'':'s')+' still blank — open the visit and mark them all to calculate the index.</div>')+'</div>'
     +liveDomains().map(d=>{ const v=r.scores?r.scores[d.key]:null; const m=r.dm?r.dm[d.key]:null;
-      return '<div style="margin-bottom:14px"><div class="row between" style="margin-bottom:5px"><span class="small">'+U.esc(d.label)+' <span class="xs faint">· '+w[d.key]+'% of index weight · '+(m?m.got+'/'+m.max+' marks':'no marks')+'</span></span>'
+      return '<div style="margin-bottom:14px"><div class="row between" style="margin-bottom:5px"><span class="small">'+U.esc(d.label)+' <span class="xs faint">· '+w[d.key]+'% of index weight · '+(m?fmtMarks(m.got)+'/'+fmtMarks(m.max)+' marks':'no marks')+'</span></span>'
       +'<span class="mono small idx-text '+bandOf(v)+'">'+(v==null?'—':v+'%')+'</span></div>'
       +UI.meter(v==null?0:v,v==null?'slate':v>=90?'teal':v>=80?'teal':v>=75?'rose':'rose')+'</div>'; }).join('')
     +'<div class="section-head"><h2>Verification</h2></div>'
@@ -481,7 +508,7 @@ function drawer(id){
         const qs=domainQuestions(k); if(!qs.length) return '';
         return '<div style="margin-bottom:10px"><div class="eyebrow">'+U.esc(label)+'</div>'
           +qs.map(q=>{ const v=r.visit.answers&&r.visit.answers[q.id]; const pct=v==null?null:Math.round(+v/q.max*100); const ok=pct!=null&&pct>=S.PBF_MIN;
-            return '<div class="list-row" style="padding:6px 0"><span class="q-no mono" style="margin-right:8px">'+questionNumber(q.id)+'</span><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks</div></div><span class="pill '+(v==null?'slate':ok?'teal':+v>=q.max*0.5?'amber':'rose')+' mono">'+(v==null?'blank':v+'/'+q.max+' · '+pct+'%')+'</span></div>';
+            return '<div class="list-row" style="padding:6px 0"><span class="q-no mono" style="margin-right:8px">'+questionNumber(q.id)+'</span><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+fmtMarks(q.max)+' marks</div></div><span class="pill '+(v==null?'slate':ok?'teal':+v>=q.max*0.5?'amber':'rose')+' mono">'+(v==null?'blank':fmtMarks(v)+'/'+fmtMarks(q.max)+' · '+pct+'%')+'</span></div>';
           }).join('')+'</div>';
       }).join(''):'<p class="xs faint">No question-level visit has been logged for this centre yet.</p>')
     +'<div class="section-head"><h2>Visit history</h2><span class="more">'+(r.visits||0)+' visit'+(r.visits===1?'':'s')+'</span></div>'
@@ -565,8 +592,8 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
   const answers=v?(v.answers||{}):{};
   const section=k=>domainQuestions(k).map(q=>{
     const val=answers[q.id];
-    return '<div class="row between gap-sm" style="padding:5px 0;border-bottom:1px solid var(--border)"><span class="q-no mono" style="margin-right:6px">'+questionNumber(q.id)+'</span><span class="small grow" style="max-width:65%">'+U.esc(q.text)+'<span class="xs faint"> · max '+q.max+'</span></span>'
-      +'<span class="row gap-sm"><input class="input mono" data-q="'+q.id+'" type="number" min="0" max="'+q.max+'" step="1" value="'+(val==null?'':val)+'" style="width:64px" placeholder="—" aria-label="'+U.esc(q.text)+'"><span class="xs faint">/'+q.max+'</span><span class="pill slate mono" data-qpct="'+q.id+'">'+(val==null?'—':Math.round(val/q.max*100)+'%')+'</span></span></div>';
+    return '<div class="row between gap-sm" style="padding:5px 0;border-bottom:1px solid var(--border)"><span class="q-no mono" style="margin-right:6px">'+questionNumber(q.id)+'</span><span class="small grow" style="max-width:65%">'+U.esc(q.text)+'<span class="xs faint"> · max '+fmtMarks(q.max)+'</span></span>'
+      +'<span class="row gap-sm"><input class="input mono" data-q="'+q.id+'" type="number" min="0" max="'+q.max+'" step="0.5" value="'+(val==null?'':val)+'" style="width:64px" placeholder="—" aria-label="'+U.esc(q.text)+'"><span class="xs faint">/'+fmtMarks(q.max)+'</span><span class="pill slate mono" data-qpct="'+q.id+'">'+(val==null?'—':Math.round(val/q.max*100)+'%')+'</span></span></div>';
   }).join('');
   UI.modal({title:v?'Edit PBF visit':'Record PBF visit',
     sub:'Every question must carry a mark — a supervision only counts once the scorecard is complete.',width:'min(800px,100%)',
@@ -580,7 +607,7 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
         +'<option value="__other">＋ Add another staff member…</option></select>'
         +'<input class="input" id="pvAssessorOther" placeholder="Type the assessor’s name" style="margin-top:6px;display:none"></div>'
       +'<div class="field span2"><label>Marks — every question, no blanks</label>'
-        +liveDomains().map(d=>'<div style="margin-top:8px"><div class="eyebrow">'+U.esc(d.label)+' · '+domainQuestions(d.key).length+' questions · '+U.sum(domainQuestions(d.key),x=>+x.max||0)+' marks</div>'+section(d.key)+'</div>').join('')
+        +liveDomains().map(d=>'<div style="margin-top:8px"><div class="eyebrow">'+U.esc(d.label)+' · '+domainQuestions(d.key).length+' questions · '+fmtMarks(totalMarks(domainQuestions(d.key)))+' marks</div>'+section(d.key)+'</div>').join('')
         +'<div class="row gap-sm" style="margin-top:10px;flex-wrap:wrap"><span class="pill amber" id="pvPreview">0 / '+qs.length+' marked</span><span class="pill slate" id="pvIndex">Index —</span><button class="btn xs" type="button" data-all-max>'+UI.ic('check-check',12)+'Mark all full</button><button class="btn xs" type="button" data-clear>'+UI.ic('eraser',12)+'Clear marks</button></div>'
       +'</div>'
       +'<div class="field span2" style="margin-top:6px"><label>Recommendations given at this visit</label>'
@@ -594,10 +621,19 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
       const syncOther=()=>{ aOther.style.display=aSel.value==='__other'?'':'none'; if(aSel.value==='__other') aOther.focus(); };
       aSel.addEventListener('change',syncOther); syncOther();
       const inputs=()=>Array.from(el.querySelectorAll('[data-q]'));
-      const currentAnswers=()=>{ const a={}; inputs().forEach(i=>{ if(i.value!=='') a[i.dataset.q]=U.clamp(+i.value,0,+(i.max||Q_MAX_DEFAULT)); }); return a; };
+      /* Half marks are real: a 3.5-mark question can be scored 2.5. Anything typed is
+         rounded to the nearest half mark and held inside the question's maximum. */
+      const currentAnswers=()=>{ const a={}; inputs().forEach(i=>{
+        if(i.value==='') return;
+        const m=+(i.max||Q_MARK_DEFAULT);
+        a[i.dataset.q]=U.clamp(Math.round(+i.value*2)/2,0,m); }); return a; };
       const pct=i=>{ const cell=el.querySelector('[data-qpct="'+i.dataset.q+'"]'); if(!cell) return;
-        const q=qById(i.dataset.q); const m=q?+q.max:Q_MAX_DEFAULT;
-        cell.textContent = i.value===''?'—':Math.round(U.clamp(+i.value,0,m)/m*100)+'%'; };
+        const q=qById(i.dataset.q); const m=q?+q.max:Q_MARK_DEFAULT;
+        /* the mark is held to the nearest half and inside the question's maximum, so
+           the percentage shown is the percentage that will be saved */
+        const v=i.value===''?null:U.clamp(Math.round(+i.value*2)/2,0,m);
+        cell.textContent = v==null?'—':Math.round(v/m*100)+'%';
+        cell.className='pill '+(v==null?'slate':'mono')+(v==null?'':' '+(v>=m?'teal':v>=m*0.5?'amber':'rose')); };
       const preview=()=>{ const a=currentAnswers(); const n=Object.keys(a).length;
         const card=scorecardOf({answers:a});
         el.querySelector('#pvPreview').textContent=n+' / '+qs.length+' marked';
@@ -625,7 +661,7 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
       };
       paintPrev();
       el.querySelector('#pvCentre').addEventListener('change',paintPrev);
-      el.querySelector('[data-all-max]').onclick=()=>{ inputs().forEach(i=>{ const q=qById(i.dataset.q); i.value=q?q.max:Q_MAX_DEFAULT; pct(i); }); preview(); };
+      el.querySelector('[data-all-max]').onclick=()=>{ inputs().forEach(i=>{ const q=qById(i.dataset.q); i.value=q?q.max:Q_MARK_DEFAULT; pct(i); }); preview(); };
       el.querySelector('[data-clear]').onclick=()=>{ inputs().forEach(i=>{ i.value=''; pct(i); }); preview(); };
       el.querySelector('[data-save]').onclick=()=>{
         const hcName=el.querySelector('#pvCentre').value;
@@ -690,14 +726,17 @@ function questionModal(id){
     sub:'Every question belongs to exactly one domain. The index ignores the weights — it is marks earned over marks available.',width:'min(560px,100%)',
     body:'<div class="form-grid"><div class="field span2"><label>Question</label><textarea class="textarea" id="qbText" rows="2">'+U.esc(q?q.text:'')+'</textarea></div>'
       +'<div class="field"><label>Domain</label><select class="select" id="qbDomain">'+domains().map(d=>{ const n=domainQuestions(d.key).length; return '<option value="'+d.key+'"'+((q?q.domain:(liveDomains()[0]||domains()[0]).key)===d.key?' selected':'')+'>'+U.esc(d.label)+' ('+n+' question'+(n===1?'':'s')+', weight '+d.weight+')</option>'; }).join('')+'</select><div class="xs faint" style="margin-top:4px">Need a new domain? Use <b>Manage domains</b> in the question bank.</div></div>'
-      +'<div class="field"><label>Maximum marks</label><input class="input mono" type="number" min="1" max="100" id="qbMax" value="'+(q?q.max:Q_MAX_DEFAULT)+'"></div></div>'
-      +'<div class="hint" style="margin-top:10px">Each question carries its own maximum — 25 by default, so 25/25 is 100 % of that question. A domain reports its own percentage (its marks earned over its marks available); the weights are how the report describes the composition and are renormalised to 100 over the domains that hold questions.</div>',
+      +'<div class="field"><label>Maximum marks</label><input class="input mono" type="number" min="0.5" max="25" step="0.5" id="qbMax" value="'+(q?fmtMarks(q.max):Q_MARK_DEFAULT)+'">'
+        +'<div class="xs faint" style="margin-top:4px">The nine questions add up to the 25-mark questionnaire.</div></div></div>'
+      +'<div class="hint" style="margin-top:10px">Each question carries its own maximum — the nine questions add up to 25 marks, so 25/25 is 100 % of the questionnaire. A domain reports its own percentage (its marks earned over its marks available); the weights are how the report describes the composition and are renormalised to 100 over the domains that hold questions.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save question</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save]').onclick=()=>{
         const text=el.querySelector('#qbText').value.trim();
         if(!text) return UI.toast('Question text required',{type:'warn'});
-        const rec={domain:el.querySelector('#qbDomain').value,text,max:U.clamp(parseInt(el.querySelector('#qbMax').value,10)||Q_MAX_DEFAULT,1,100),active:true};
+        const raw=parseFloat(el.querySelector('#qbMax').value);
+        const max=U.clamp(Math.round((isFinite(raw)?raw:Q_MARK_DEFAULT)*2)/2,0.5,25);
+        const rec={domain:el.querySelector('#qbDomain').value,text,max,active:true};
         S.commit(d=>{ d.pbfQuestions=d.pbfQuestions||questions().slice();
           if(q){ const i=d.pbfQuestions.findIndex(x=>x.id===q.id); if(i>=0) d.pbfQuestions[i]=Object.assign({},d.pbfQuestions[i],rec); }
           else d.pbfQuestions.push(Object.assign({id:U.uid('q')},rec)); },
@@ -744,7 +783,7 @@ function domainModal(){
     return '<div class="dom-row" data-dom="'+U.esc(d.key)+'">'
       +'<input class="input" data-dom-label value="'+U.esc(d.label)+'" placeholder="Domain name">'
       +'<input class="input mono" data-dom-weight type="number" min="0" max="100" step="1" value="'+(+d.weight||0)+'" style="width:78px">'
-      +'<span class="xs faint" style="min-width:88px">'+qs.length+' q · '+U.sum(qs,q=>+q.max||0)+' marks</span>'
+      +'<span class="xs faint" style="min-width:88px">'+qs.length+' q · '+fmtMarks(totalMarks(qs))+' marks</span>'
       +'<button class="icon-btn" data-dom-del="'+U.esc(d.key)+'" title="'+(qs.length?'Move its questions first':'Remove domain')+'"'+(qs.length?' disabled style="opacity:.35"':'')+'>'+UI.ic('trash-2',13)+'</button>'
       +'</div>';
   }).join('');
@@ -821,6 +860,7 @@ function moveQuestions(ids,key){
 function questionBank(){
   const qs=questions();
   const w=domainWeights();
+  const all=totalMarks(qs);
   /* One flat list in questionnaire order: the number on the left is the number on
      the paper form, the domain is a chip beside it, and the arrows move a question
      up or down until the console reads exactly like the sheet the assessor carries. */
@@ -839,7 +879,7 @@ function questionBank(){
         +'<input type="checkbox" data-q-sel="'+q.id+'" style="accent-color:var(--gold)">'
         +'<span class="q-no mono">'+(i+1)+'</span>'
         +'<div class="q-text"><div class="q-title">'+U.esc(q.text)+'</div>'
-          +'<div class="q-meta"><span class="q-domain">'+U.esc(domainLabel(q.domain))+'</span> · max '+q.max+' marks · '+w[q.domain]+'% of the report</div></div>'
+          +'<div class="q-meta"><span class="q-domain">'+U.esc(domainLabel(q.domain))+'</span> · max '+fmtMarks(q.max)+' mark'+(+q.max===1?'':'s')+' · '+Math.round(q.max/Math.max(1,all)*100)+'% of the questionnaire</div></div>'
         +'<div class="q-acts">'
           +'<button class="icon-btn q-mv" data-q-up="'+q.id+'" title="Move up"'+(i===0?' disabled':'')+'>'+UI.ic('chevron-up',12)+'</button>'
           +'<button class="icon-btn q-mv" data-q-down="'+q.id+'" title="Move down"'+(i===qs.length-1?' disabled':'')+'>'+UI.ic('chevron-down',12)+'</button>'
@@ -847,7 +887,8 @@ function questionBank(){
         +'</div></div>').join('')
       +'</div>'
       +'<div class="row between" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);flex-wrap:wrap;gap:6px">'
-        +'<span class="xs faint">'+qs.length+' questions · '+U.sum(qs,q=>+q.max||0)+' marks available · numbered 1–'+qs.length+'</span>'
+        +'<span class="xs faint">'+qs.length+' questions · <b>'+fmtMarks(totalMarks(qs))+' marks available</b> · numbered 1–'+qs.length
+          +(Math.abs(totalMarks(qs)-25)>0.01?' <span class="pill amber mono" title="The district questionnaire is out of 25 marks">not 25</span>':'')+'</span>'
         +'<span class="row gap-sm wrap">'+liveDomains().map(d=>'<span class="pill slate mono" title="'+U.esc(d.label)+'">'+U.esc(d.label.split(' ')[0])+' '+w[d.key]+'%</span>').join('')+'</span></div>'
       +'<div class="xs faint" style="margin-top:6px">Drag a question by its grip, or use the arrows, to match the order of the paper questionnaire. A domain with no questions is dropped from the scorecards, the heatmap and every report, and its weight is shared across the domains that remain.</div>'
     +(retiredQuestions().length?'<div class="row between" style="margin-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' retired question'+(retiredQuestions().length===1?'':'s')+' · not scored or numbered</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
@@ -1164,7 +1205,7 @@ function trendCard(){
         ?'<span class="lg"><span class="sw" style="background:var(--gold-bright)"></span>District index</span>'+t.doms.map(d=>'<span class="lg"><span class="sw" style="background:'+d.color+'"></span>'+U.esc(d.name.split(' ')[0])+'</span>').join('')
         :t.centres.filter(c=>c.values.some(v=>v!=null)).slice(0,8).map(c=>'<span class="lg"><span class="sw" style="background:'+c.color+'"></span>'+U.esc(c.name)+'</span>').join(''))
       +'</div></div><div class="trend-side">'+trendSide()+'</div></div>',
-    foot:'<span>'+(t.keys.length?t.keys.length+' quarter'+(t.keys.length===1?'':'s')+' recorded':'nothing recorded yet')+' · the line only moves when a full scorecard is entered</span><span class="mono">'+questions().length+' questions · '+U.sum(questions(),q=>+q.max||0)+' marks</span>'});
+    foot:'<span>'+(t.keys.length?t.keys.length+' quarter'+(t.keys.length===1?'':'s')+' recorded':'nothing recorded yet')+' · the line only moves when a full scorecard is entered</span><span class="mono">'+questions().length+' questions · '+fmtMarks(totalMarks())+' marks</span>'});
 }
 function visitLog(){
   const visits=(S.db().pbfVisits||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
@@ -1183,8 +1224,8 @@ function printCentre(r){
   U.printDoc('PBF laboratory evaluation — '+r.name,
     '<table><thead><tr><th>Domain</th><th>Weight</th><th>Questions</th><th>Marks earned</th><th>Domain score</th><th>Weighted</th></tr></thead><tbody>'
     +liveDomains().map(d=>{ const k=d.key; const v=r.scores?r.scores[k]:null; const m=r.dm?r.dm[k]:null;
-      return '<tr><td>'+U.esc(d.label)+'</td><td>'+w[k]+'%</td><td>'+domainQuestions(k).length+'</td><td>'+(m?m.got+' / '+m.max:'—')+'</td><td>'+(v==null?'—':v+'%')+'</td><td>'+(v==null?'—':(v*w[k]/100).toFixed(1))+'</td></tr>'; }).join('')
-    +'<tr><td colspan="3"><b>Index — marks earned over marks available</b></td><td><b>'+(r.marks?r.marks.got+' / '+r.marks.max:'—')+'</b></td><td colspan="2"><b>'+(total(r)==null?'marks pending':total(r)+'%')+'</b></td></tr></tbody></table>'
+      return '<tr><td>'+U.esc(d.label)+'</td><td>'+w[k]+'%</td><td>'+domainQuestions(k).length+'</td><td>'+(m?fmtMarks(m.got)+' / '+fmtMarks(m.max):'—')+'</td><td>'+(v==null?'—':v+'%')+'</td><td>'+(v==null?'—':(v*w[k]/100).toFixed(1))+'</td></tr>'; }).join('')
+    +'<tr><td colspan="3"><b>Index — marks earned over marks available</b></td><td><b>'+(r.marks?fmtMarks(r.marks.got)+' / '+fmtMarks(r.marks.max):'—')+'</b></td><td colspan="2"><b>'+(total(r)==null?'marks pending':total(r)+'%')+'</b></td></tr></tbody></table>'
     +'<p style="font-size:8.5px;margin:4px 0">Domain scores are percentages of each domain’s own marks. The index is the whole scorecard’s marks out of the marks available, converted to 100; the weights describe the composition of the report and are not applied to the index.</p>'
     +'<p style="font-size:9px;margin:6px 0">Scorecard '+(card.complete?'complete':'incomplete — '+card.answered+' of '+card.total+' questions marked')+'.</p>'
     +(r.visit?'<h3 style="font-size:9px;margin:10px 0 4px">Questions evaluated — '+U.esc(r.visit.quarter||'')+' · '+U.fmtDate(r.visit.date)+'</h3><table><thead><tr><th>#</th><th>Question</th><th>Domain</th><th>Marks</th></tr></thead><tbody>'
