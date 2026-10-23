@@ -180,6 +180,7 @@ function editStaff(id){
      +'<div class="field"><label>Contract sponsor</label><select class="select" id="sfSponsor">'+S.SPONSORS.map(sp=>'<option'+(sp===s.sponsor?' selected':'')+'>'+U.esc(sp)+'</option>').join('')+'</select></div>'
      +'<div class="field"><label>Joined</label><input class="input" type="date" id="sfJoin" value="'+(s.joinDate||U.todayISO())+'"></div>'
      +'<div class="field"><label>Date of birth</label><input class="input" type="date" id="sfDob" value="'+(s.dob||'')+'"></div>'
+     +'<div class="field"><label>Orientation begins</label><input class="input" type="date" id="sfOrient" value="'+(s.orientationStart||s.joinDate||U.todayISO())+'"><div class="xs faint" style="margin-top:4px">Thirty days on the four-week rotation, then the assessment</div></div>'
      +'<div class="field"><label>Exit date</label><input class="input" type="date" id="sfExit" value="'+(s.exitDate||'')+'"><div class="xs faint" style="margin-top:4px">Drives tenure and the exit forecast</div></div>'
      +'<div class="field"><label>Max nights / month</label><input class="input" type="number" id="sfNights" min="0" max="20" value="'+(s.maxNights==null?8:s.maxNights)+'"></div>'
      +'<div class="field"><label>Status</label><select class="select" id="sfStatus"><option value="active">Active</option><option value="exited"'+(s.status==='exited'?' selected':'')+'>Exited</option></select></div></div>'
@@ -191,6 +192,7 @@ function editStaff(id){
         const rec={name, role:el.querySelector('#sfRole').value, sex:el.querySelector('#sfSex').value, phone:el.querySelector('#sfPhone').value, email:el.querySelector('#sfEmail').value,
           pattern:el.querySelector('#sfPattern').value, contract:el.querySelector('#sfContract').value, sponsor:el.querySelector('#sfSponsor').value,
           joinDate:el.querySelector('#sfJoin').value, dob:el.querySelector('#sfDob').value,
+          orientationStart:el.querySelector('#sfOrient').value||el.querySelector('#sfJoin').value,
           exitDate:el.querySelector('#sfExit').value||'', maxNights:+el.querySelector('#sfNights').value, status:el.querySelector('#sfStatus').value};
         S.commit(d=>{ if(id){ Object.assign(d.staff.find(x=>x.id===id),rec); } else { d.staff.push(Object.assign({id:U.uid('s'), maxConsecN:2, nightPref:'neutral'},rec)); } },
           {action:id?'staff.update':'staff.create',entity:'staff',entityId:id||name,detail:(id?'Updated ':'Created ')+name});

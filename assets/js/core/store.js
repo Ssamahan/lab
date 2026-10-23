@@ -773,6 +773,71 @@ S.tests=()=>S.allTests().filter(t=>t.active!==false);
 S.testByName=n=>(S.db().catalog.tests||[]).find(t=>t.name===n)||null;
 S.staffById=id=>S.db().staff.find(s=>s.id===id);
 S.staffByName=n=>S.db().staff.find(s=>s.name===n);
+
+/* ——— Orientation ———————————————————————————————————————————
+   A new technologist spends the first 30 days rotating through the benches in four
+   weeks, then sits an end-of-orientation assessment on the Wednesday (or Thursday)
+   of week 4 — always before the thirtieth day.
+
+     W1  Phlebotomy for the first three working days, then Reception
+     W2  Haematology · Parasitology · TB
+     W3  Biochemistry · Serology
+     W4  works as a full member of staff and is assessed Wed or Thu */
+const ORIENT_WEEKS=[
+  {n:1, label:'Week 1 · Phlebotomy, then Reception',
+   days:['Phlebotomy','Phlebotomy','Phlebotomy','Reception','Reception']},
+  {n:2, label:'Week 2 · Haematology, Parasitology, TB', benches:['Hematology','Parasitology','TB/Molecular']},
+  {n:3, label:'Week 3 · Biochemistry, Serology', benches:['Biochemistry','Serology']},
+  {n:4, label:'Week 4 · full staff, end-of-orientation assessment', benches:[]}
+];
+S.orientationStart=function(st){
+  if(!st) return null;
+  const v=st.orientationStart||st.joinDate;
+  return v?String(v).slice(0,10):null;
+};
+/* working days only — a weekend day does not count toward the five-day rotation */
+S.workingDaysBetween=function(from,to){
+  const out=[]; let d=U.parseISO(from), guard=0;
+  while(U.isoLocal(d)<=to&&guard++<400){
+    const dow=U.dow(U.isoLocal(d));
+    if(dow<5) out.push(U.isoLocal(d));
+    d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1);
+  }
+  return out;
+};
+S.orientationPlan=function(st, iso){
+  iso=iso||U.todayISO();
+  const start=S.orientationStart(st);
+  if(!start) return null;
+  const day0=U.parseISO(start), target=U.parseISO(iso);
+  const elapsed=Math.round((target-day0)/86400000);
+  if(elapsed<0||elapsed>=30) return null;
+  /* which five-day block is this date in, counting working days from the start */
+  const worked=S.workingDaysBetween(start,iso).filter(d=>d<iso).length;
+  const week=Math.min(4,Math.floor(worked/5)+1);
+  const inWeek=worked%5;
+  let benches=[];
+  if(week===1){ benches=[ORIENT_WEEKS[0].days[Math.min(4,inWeek)]]; }
+  else if(week===2){ benches=[ORIENT_WEEKS[1].benches[Math.min(2,inWeek%3)]]; }
+  else if(week===3){ benches=[ORIENT_WEEKS[2].benches[Math.min(1,inWeek%2)]]; }
+  else { benches=[]; }                       /* week 4: a full member of staff */
+  /* the assessment falls on the Wednesday of week 4, Thursday if the Wednesday
+     would land on or after the thirtieth day */
+  let exam=null;
+  const w4=S.workingDaysBetween(start, U.addDays(start,29));
+  const idx=w4.findIndex(d=>Math.floor((U.parseISO(d)-day0)/86400000)>=21);
+  const block=w4.slice(idx<0?w4.length:idx, (idx<0?w4.length:idx)+5);
+  const pick=(dow)=>block.find(d=>U.dow(d)===dow);
+  exam=pick(2)||pick(3)||null;
+  return {start,week,weekLabel:ORIENT_WEEKS[week-1].label,benches,exam,
+    dayNo:elapsed+1, remaining:30-(elapsed+1),
+    weeks:ORIENT_WEEKS};
+};
+/* Every active person still inside their first thirty days. */
+S.onOrientation=function(){
+  return S.activeStaff().map(st=>({staff:st, plan:S.orientationPlan(st, U.todayISO())}))
+    .filter(x=>x.plan);
+};
 S.consumables=()=>S.db().catalog.consumables.filter(c=>!c.deleted);
 S.consumable=id=>S.db().catalog.consumables.find(c=>c.id===id&&!c.deleted);
 S.batchesFor=cid=>S.db().stock.batches.filter(b=>b.cid===cid && (b.qty||0)>0);

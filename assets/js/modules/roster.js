@@ -173,6 +173,7 @@ function weekView(){
   const cellStaff=(iso,svc)=>alloc[iso]&&alloc[iso][svc]?alloc[iso][svc]:'';
   const wRec=(S.db().unitRosters||{})[start]||{};
   const overrides=wRec.overrides||{};
+  const orientMap=wRec.orientation||{};
   const ctxOf=iso=>dutyContext(iso);
   const statusOf=(iso,name)=>{ const st=S.staffByName(name); return st?S.shiftState(st,iso):null; };
   const unstaffed=dates.reduce((a,iso)=>a+svcs.filter(sv=>!cellStaff(iso,sv.name)).length,0);
@@ -182,6 +183,7 @@ function weekView(){
     /* a hard block, or the reserve on a busy plan, without a recorded override
        is a rule breach — not a preference */
     const ctx=ctxOf(iso), ov=!!((overrides[iso]||{})[sv.name]);
+    if(ctx.nightOnly.some(x=>x.name===n)) breaches.push({iso,svc:sv.name,staff:n,why:n+' is on nights that day — a night is a whole shift, not a day post'});
     let g=gate(ctx.rules[n],sv.name,{alone:ctx.alone,override:ov});
     if(g.ok&&!ov){
       const r=ctx.rules[n];
@@ -215,6 +217,8 @@ function weekView(){
           :'<span class="xs faint">—</span>')
         +(()=>{ const covers=name?Object.keys(alloc[iso]||{}).filter(b=>alloc[iso][b]===name).length:0;
                 return covers>1?'<span class="xs mono" style="display:block;font-size:8.5px;color:var(--text-faint)">'+covers+' benches</span>':''; })()
+        +(()=>{ const o=(orientMap[iso]||{})[name];
+                return o?'<span class="pill blue" style="font-size:8.5px;padding:1px 5px;margin-top:2px">W'+o.week+'</span>':''; })()
         +(ov?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">override</span>':'')
         +(breach?'<span class="pill rose" style="font-size:8.5px;padding:1px 5px;margin-top:2px">rule</span>':'')
         +'</td>';
@@ -243,6 +247,7 @@ function weekView(){
     +'<div class="c3"><div class="col" style="gap:14px">'
       +UI.card({title:'Weekly allocation',sub:'Services covered per staff member',icon:'users',body:Object.keys(load).length?Object.keys(load).sort((a,b)=>load[b]-load[a]).map(n=>'<div style="margin-bottom:8px"><div class="row between"><span class="xs truncate">'+U.esc(n)+'</span><span class="mono xs faint">'+load[n]+'</span></div>'+UI.meter(load[n]/maxLoad*100,'teal')+'</div>').join(''):'<p class="xs faint">No allocations this week.</p>'})
       +postsCard()
+      +orientationCard()
       +benchRulesCard()
       +UI.card({title:'Services in this laboratory',sub:'Derived from the service register',icon:'flask-conical',body:svcs.map(sv=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(sv.name)+'</div><div class="lr-sub">'+U.esc(sv.code)+' · min '+sv.min+' staff</div></div><span class="pill '+(svcs.length?'slate':'rose')+'">'+U.esc(sv.note||'').slice(0,18)+'</span></div>').join('')+'<div style="margin-top:8px"><button class="btn xs" data-manage-services>'+UI.ic('settings-2',12)+'Manage services</button></div>'})
     +'</div></div></div>';
@@ -287,6 +292,23 @@ function postsCard(){
         ? 'Two or fewer on duty: you take <b>Biochemistry + Serology</b>, the two on the plan take the other posts.'
         : 'You are not on a post today — the plan carries '+n+' staff, more than your reserve threshold of '+postModel().reserveMax+'.')
       +'</div>'});
+}
+/* New technologists: where the thirty-day rotation has them today, and when they
+   sit the end-of-orientation assessment. */
+function orientationCard(){
+  const rows=S.activeStaff().map(st=>({st, plan:S.orientationPlan(st, U.todayISO())})).filter(x=>x.plan);
+  if(!rows.length) return '';
+  return UI.card({title:'Orientation',sub:'First thirty days · four-week bench rotation',icon:'graduation-cap',
+    body:rows.map(({st,plan})=>{
+      const exam=plan.exam?U.fmtDate(plan.exam):'to be set';
+      const bench=plan.benches.length?plan.benches.join(' + '):'full staff rotation';
+      return '<div class="list-row" style="padding:7px 0"><div class="lr-main">'
+        +'<div class="lr-title" style="font-size:11.4px">'+U.esc(st.name)+'</div>'
+        +'<div class="lr-sub">Week '+plan.week+' · '+U.esc(bench)+' · day '+plan.dayNo+' of 30</div>'
+        +'<div class="lr-sub" style="color:var(--text-faint)">Assessment '+U.esc(exam)+'</div></div>'
+        +'<span class="pill '+(plan.week===4?'gold':'blue')+'">W'+plan.week+'</span></div>';
+    }).join('')
+    +'<div class="hint" style="margin-top:8px">W1 phlebotomy then reception · W2 haematology, parasitology, TB · W3 biochemistry, serology · W4 full staff, assessed on the Wednesday (or Thursday) before day 30.</div>'});
 }
 function postModelModal(){
   if(!LS.auth.guard('edit')) return;
@@ -582,10 +604,25 @@ function postModeLabel(n){
 /* Everyone on duty that day, split so the reserve is never counted as "cover" when
    deciding whether the unit is short-staffed. */
 function dutyContext(iso){
-  const duty=S.onDuty(iso).map(x=>x.staff);
+  const all=S.onDuty(iso);
   const rules=benchPlan();
+  /* A night is a whole shift of its own: whoever is on nights that day is not on the
+     day roster, and cannot hold a bench post. Only day and day+night staff are
+     available for the day's work. */
+  const duty=all.filter(x=>x.kind==='day'||x.kind==='daynight').map(x=>x.staff);
+  const nightOnly=all.filter(x=>x.kind==='night').map(x=>x.staff);
   const core=duty.filter(s=>!(rules[s.name]||{}).reserve);
-  return {duty, core, alone:core.length<=1, planCount:duty.length, rules};
+  return {duty, core, nightOnly, alone:core.length<=1, planCount:duty.length, rules};
+}
+/* A new technologist inside their first thirty days follows the orientation rota
+   instead of taking a normal post. */
+function orientationFor(iso){
+  const out={};
+  S.activeStaff().forEach(st=>{
+    const p=S.orientationPlan(st,iso);
+    if(p && p.week<4 && p.benches.length) out[st.name]=p;
+  });
+  return out;
 }
 /* Night cover is its own row: one name per night, chosen from the people whose
    contract allows it. It writes the same unitRosters.night map the printed sheet
@@ -665,8 +702,19 @@ function autoAllocate(){
       const couldCover=(x,post)=>mayBeOnPlan(x)&&post.services.every(b=>gateFor(x.name,b).ok);
       const openPost=g=>g.services.some(b=>!placedOn(b));
 
-      /* 1 — the manager's own post on a very-few day, so he is never pushed onto
-             somebody else's bench. */
+      /* 0 — the orientation rota comes first: a new technologist works the benches
+             their week names, and is not handed a normal post. */
+      const orient=orientationFor(iso);
+      Object.keys(orient).forEach(name=>{
+        const person=duty.filter(x=>x.name===name)[0];
+        if(!person) return;
+        const plan=orient[name];
+        const allowed=plan.benches.filter(b=>S.services().some(sv=>sv.name===b)&&!placedOn(b));
+        allowed.forEach(b=>write(b,person));
+        w.orientation=w.orientation||{}; w.orientation[iso]=w.orientation[iso]||{};
+        w.orientation[iso][name]={week:plan.week,label:plan.weekLabel,benches:plan.benches};
+      });
+      /* the reserve's own post on a very-few day, so he is never pushed elsewhere */
       const reservePost=groups.find(g=>g.reservePost);
       if(reservePost&&openPost(reservePost)){
         const rp=freePool().filter(x=>reserveOf(x.name)).filter(x=>couldCover(x,reservePost));
@@ -683,8 +731,10 @@ function autoAllocate(){
         const d=breadth(a)-breadth(b); if(d) return d;
         return rankFor(a.name,['Reception'])-rankFor(b.name,['Reception']);
       });
+      const homeOf=x=>(rules[x.name]||{}).home||'';
       people.forEach(x=>{
-        const whole=remaining.find(g=>g.services.every(b=>!placedOn(b))&&couldCover(x,g));
+        const whole=remaining.find(g=>g.services.indexOf(homeOf(x))>=0&&g.services.every(b=>!placedOn(b))&&couldCover(x,g))
+          ||remaining.find(g=>g.services.every(b=>!placedOn(b))&&couldCover(x,g));
         if(whole){ assignPost(whole,x); return; }
         /* best partial: the post where this person may work the most benches */
         let best=null, bestN=0;
@@ -964,7 +1014,7 @@ function weekData(){
   const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={};
   dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
   const wRec=(S.db().unitRosters||{})[start]||{};
-  return {weekStart:start,dates,services:S.services(),alloc,night,overrides:wRec.overrides||{}};
+  return {weekStart:start,dates,services:S.services(),alloc,night,overrides:wRec.overrides||{},orientation:wRec.orientation||{}};
 }
 function onDutyName(iso){
   const p=planForDate(iso);
@@ -1032,7 +1082,7 @@ function wireBody(){
   const wkSvg=function(){ const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start), night={};
     dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
     const wRec=(S.db().unitRosters||{})[start]||{};
-    const data={weekStart:start,dates,services:svcs,alloc,night,overrides:wRec.overrides||{}};
+    const data={weekStart:start,dates,services:svcs,alloc,night,overrides:wRec.overrides||{},orientation:wRec.orientation||{}};
     return {start,dates,data,svg:SH.weeklySVG(data)}; };
   r.querySelectorAll('[data-week-png]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('png',o.svg,'unit-roster-'+o.start,o.data); });
   r.querySelectorAll('[data-week-pdf]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('pdf',o.svg,'unit-roster-'+o.start,o.data); });

@@ -121,7 +121,20 @@ function staffExceptions(names){
   return out;
 }
 SH.staffExceptions=staffExceptions;
-/* "Serology · Mon 5 Oct — Beatrice NGEZEKURE (by Kelvin SAMAHANI)" */
+/* "Beatrice NGEZEKURE · week 1 — phlebotomy, then reception" */
+function orientationLines(map, alloc){
+  const seen={}, out=[];
+  Object.keys(map||{}).forEach(iso=>{
+    const day=map[iso]||{};
+    Object.keys(day).forEach(name=>{
+      if(seen[name]) return; seen[name]=1;
+      const o=day[name]||{};
+      const ben=((alloc[iso]||{}) && Object.keys(alloc[iso]).filter(b=>alloc[iso][b]===name))||[];
+      out.push(name+' · week '+o.week+' — '+(ben.length?ben.join(', ').toLowerCase():'full staff rotation'));
+    });
+  });
+  return out;
+}
 function overrideLines(map, alloc){
   alloc=alloc||{};
   const out=[];
@@ -402,8 +415,9 @@ SH.weeklySVG=function(data,opts){
   const exceptions=staffExceptions([].concat(...dates.map(iso=>Object.values(alloc[iso]||{}))).concat(Object.values(night)));
   /* A recorded override is part of the record, so the signed sheet prints it. */
   const overrides=overrideLines(data.overrides||{}, alloc);
+  const orient=orientationLines(data.orientation||{}, alloc);
   const noteLines=exceptionLines(exceptions,W-pad*2,21).length;
-  const noteH=(exceptions.length?noteLines*29+76:0)+(overrides.length?overrides.length*29+60:0);
+  const noteH=(exceptions.length?noteLines*29+76:0)+(overrides.length?overrides.length*29+60:0)+(orient.length?orient.length*29+58:0);
   const H=top+headH+dateH+rowH*services.length+nightH+noteH+150;
 
   let g='';
@@ -446,6 +460,9 @@ SH.weeklySVG=function(data,opts){
         const ov=(data.overrides&&data.overrides[iso]&&data.overrides[iso][sv.name]);
         g+=nameBlock(x+colW/2,y+rowH/2-(ov?9:0), colW-20, who, {pref:34,min:19,anchor:'middle'});
         if(ov) g+=text(x+colW/2,y+rowH/2+26,'OVERRIDE',{size:15,weight:700,anchor:'middle',fill:C.alInk||'#8A2B33'});
+        const orow=(data.orientation&&data.orientation[iso])||{};
+        const o=orow[who||(alloc[iso]||{})[sv.name]];
+        if(o) g+=text(x+colW/2,y+rowH/2+26,'WEEK '+o.week,{size:14,weight:700,anchor:'middle',fill:'#1F3F7A'});
       }
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
@@ -472,6 +489,12 @@ SH.weeklySVG=function(data,opts){
     g+=text(pad,noteY,'Recorded overrides — bench rule lifted for one cell',{size:19,weight:700,fill:'#8A2B33'});
     noteY+=26;
     overrides.forEach((ln,i)=>{ g+=text(pad,noteY+i*29,ln,{size:19,fill:'#3D4759'}); });
+    noteY+=overrides.length*29+22;
+  }
+  if(orient.length){
+    g+=text(pad,noteY,'Orientation — new staff on the thirty-day rotation',{size:19,weight:700,fill:'#1F3F7A'});
+    noteY+=26;
+    orient.forEach((ln,i)=>{ g+=text(pad,noteY+i*29,ln,{size:19,fill:'#3D4759'}); });
   }
 
   g+=text(W/2,H-60,'Week of '+U.fmtDateShort(data.weekStart)+' · Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day · Generated '+U.todayISO(),{size:24,anchor:'middle',fill:'#3D4759'});

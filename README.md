@@ -5,9 +5,49 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.11** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.12** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.12
+
+**Nights are a whole shift, new staff get a four-week orientation, and Beatrice keeps
+Reception.**
+
+### A night is not a day post
+
+Anyone recorded on nights on a given day is removed from that day's roster before the
+posts are built. The week view raises a breach if the plan still carries them:
+*"<name> is on nights that day — a night is a whole shift, not a day post."*
+The head-count that drives the post table counts only the people actually on day duty,
+so a night shift never inflates the bench plan.
+
+### Thirty-day orientation for a new staff member
+
+A new staff member is on a four-week rotation, starting from the **Orientation begins**
+date on their staff record.
+
+| week | rotation |
+|---|---|
+| 1 | Phlebotomy on days 1–3, then Reception on days 4–5 |
+| 2 | Haematology · Parasitology · TB |
+| 3 | Biochemistry · Serology |
+| 4 | a full member of staff — no fixed bench |
+
+The end-of-orientation assessment is set on the **Wednesday of week 4**, or the Thursday
+when the Wednesday would fall on or after the thirtieth day.
+
+The rotation is applied before any other allocation, so it always wins. The grid marks
+the week with a small `W1`–`W4` chip, the sidebar shows the day's bench and the count of
+days left, and the printed weekly sheet carries a *Orientation — new staff on the
+thirty-day rotation* note listing each name with their week and bench. Past thirty days
+the person is an ordinary member of staff everywhere.
+
+### Beatrice on Reception
+
+When a person has a home bench and that bench is part of an open post, the post is given
+to them: Beatrice takes Reception whenever a Reception post exists, instead of being
+carried to Phytology or Biochemistry by turn order.
 
 ## What changed in 6.9.11
 
