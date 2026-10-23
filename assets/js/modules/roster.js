@@ -171,11 +171,25 @@ function weekView(){
   const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
   const p=plan();
   const cellStaff=(iso,svc)=>alloc[iso]&&alloc[iso][svc]?alloc[iso][svc]:'';
+  const wRec=(S.db().unitRosters||{})[start]||{};
+  const overrides=wRec.overrides||{};
+  const ctxOf=iso=>dutyContext(iso);
   const statusOf=(iso,name)=>{ const st=S.staffByName(name); return st?S.shiftState(st,iso):null; };
   const unstaffed=dates.reduce((a,iso)=>a+svcs.filter(sv=>!cellStaff(iso,sv.name)).length,0);
-  const conflicts=[];
+  const conflicts=[], breaches=[];
   dates.forEach(iso=>svcs.forEach(sv=>{ const n=cellStaff(iso,sv.name); if(!n) return; const st=statusOf(iso,n);
-    if(st && (st.kind==='off'||st.kind==='leave'||st.kind==='exited')) conflicts.push({iso,svc:sv.name,staff:n,state:st}); }));
+    if(st && (st.kind==='off'||st.kind==='leave'||st.kind==='exited')) conflicts.push({iso,svc:sv.name,staff:n,state:st});
+    /* a hard block, or the reserve on a busy plan, without a recorded override
+       is a rule breach — not a preference */
+    const ctx=ctxOf(iso), ov=!!((overrides[iso]||{})[sv.name]);
+    let g=gate(ctx.rules[n],sv.name,{alone:ctx.alone,override:ov});
+    if(g.ok&&!ov){
+      const r=ctx.rules[n];
+      if(r&&r.reserve&&!reserveAllowed(r,ctx.planCount))
+        g={ok:false,why:r.name+' is reserve cover — the plan carries '+ctx.planCount+' staff (limit '+r.reserveMax+')'};
+    }
+    if(!g.ok) breaches.push({iso,svc:sv.name,staff:n,why:g.why});
+  }));
   const head='<thead><tr><th class="staff-cell" style="z-index:4">Service</th>'+dates.map(iso=>{
     const dow=U.dow(iso), today=iso===U.todayISO();
     return '<th class="'+(dow>=5?'wkend':'')+'" style="'+(today?'color:var(--gold)':'')+'">'+U.DOWL[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
@@ -186,9 +200,22 @@ function weekView(){
       const danger=st&&(st.kind==='off'||st.kind==='leave'||st.kind==='exited');
       /* The shift code belongs on the working plan, not repeated in every service
          cell. Here a name is all the roster needs; a conflict is shown by colour. */
-      return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(danger?' data-tip="'+U.esc(st.label)+' — not on duty that day"':'')+'>'
-        +(name?'<span class="small'+(danger?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.esc(name.split(' ')[0])+' <span class="xs faint">'+U.esc(name.split(' ').slice(1).join(' '))+'</span></span>'
-          :'<span class="xs faint">—</span>')+'</td>';
+      const ov=(overrides[iso]||{})[sv.name];
+      const ctx=ctxOf(iso);
+      let g=name?gate(ctx.rules[name],sv.name,{alone:ctx.alone,override:!!ov}):{ok:true};
+      if(g.ok&&name&&!ov){
+        const r=ctx.rules[name];
+        if(r&&r.reserve&&!reserveAllowed(r,ctx.planCount))
+          g={ok:false,why:r.name+' is reserve cover — the plan carries '+ctx.planCount+' staff (limit '+r.reserveMax+')'};
+      }
+      const breach=!!name&&!g.ok;
+      const tip=danger?st.label+' — not on duty that day':breach?g.why:ov?('Override by '+(ov.by||'manager')+' · '+(ov.rule||ov.why||'')):'';
+      return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(tip?' data-tip="'+U.esc(tip)+'"':'')+'>'
+        +(name?'<span class="small'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.esc(name.split(' ')[0])+' <span class="xs faint">'+U.esc(name.split(' ').slice(1).join(' '))+'</span></span>'
+          :'<span class="xs faint">—</span>')
+        +(ov?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">override</span>':'')
+        +(breach?'<span class="pill rose" style="font-size:8.5px;padding:1px 5px;margin-top:2px">rule</span>':'')
+        +'</td>';
     }).join('')+'</tr>').join('');
   const load={};
   dates.forEach(iso=>svcs.forEach(sv=>{ const n=cellStaff(iso,sv.name); if(n) load[n]=(load[n]||0)+1; }));
@@ -196,6 +223,7 @@ function weekView(){
   return '<div class="row between wrap gap-sm" style="margin-bottom:10px">'
     +'<div class="seg"><button data-wknav="-1" aria-label="Previous week">'+UI.ic('chevron-left',14)+'</button><button data-wknav="0" style="font-family:var(--font-mono);font-size:11px;min-width:150px">'+U.esc(weekNavLabel(start))+'</button><button data-wknav="1" aria-label="Next week">'+UI.ic('chevron-right',14)+'</button></div>'
     +'<div class="row gap-sm"><span class="pill '+(conflicts.length?'amber':'teal')+'">'+conflicts.length+' allocation conflict'+(conflicts.length===1?'':'s')+'</span>'
+    +'<span class="pill '+(breaches.length?'rose':'teal')+'">'+breaches.length+' rule '+(breaches.length===1?'breach':'breaches')+'</span>'
     +'<span class="pill '+(unstaffed?'rose':'teal')+'">'+unstaffed+' empty slots</span>'
     +'<button class="btn sm" data-auto-week>'+UI.ic('wand-sparkles',13)+' Auto-allocate</button>'
     +'<button class="btn sm" data-print-week>'+UI.ic('printer',13)+' Print week</button>'
@@ -211,8 +239,77 @@ function weekView(){
     +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
       +UI.card({title:'Weekly allocation',sub:'Services covered per staff member',icon:'users',body:Object.keys(load).length?Object.keys(load).sort((a,b)=>load[b]-load[a]).map(n=>'<div style="margin-bottom:8px"><div class="row between"><span class="xs truncate">'+U.esc(n)+'</span><span class="mono xs faint">'+load[n]+'</span></div>'+UI.meter(load[n]/maxLoad*100,'teal')+'</div>').join(''):'<p class="xs faint">No allocations this week.</p>'})
+      +benchRulesCard()
       +UI.card({title:'Services in this laboratory',sub:'Derived from the service register',icon:'flask-conical',body:svcs.map(sv=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(sv.name)+'</div><div class="lr-sub">'+U.esc(sv.code)+' · min '+sv.min+' staff</div></div><span class="pill '+(svcs.length?'slate':'rose')+'">'+U.esc(sv.note||'').slice(0,18)+'</span></div>').join('')+'<div style="margin-top:8px"><button class="btn xs" data-manage-services>'+UI.ic('settings-2',12)+'Manage services</button></div>'})
     +'</div></div></div>';
+}
+/* The rules are data, so they are shown as data — and can be corrected without a
+   code change. Each line is one person's contract: home bench, what they never do,
+   what they do only when alone, and the reserve threshold. */
+function ruleLine(r){
+  const bits=[];
+  if(r.home) bits.push('home '+r.home);
+  if(r.alt) bits.push('alt '+r.alt+(r.altMax?' · '+r.altMax+'/mo':''));
+  if(r.never.length) bits.push('never '+r.never.join(', '));
+  if(r.solo.length) bits.push('alone only '+r.solo.join(', '));
+  if(r.reserve) bits.push('reserve ≤ '+r.reserveMax+' on the plan');
+  return bits.length?bits.join(' · '):'no bench contract — fills any open bench';
+}
+function benchRulesCard(){
+  const rules=benchPlan();
+  const names=Object.keys(rules);
+  return UI.card({title:'Bench rules',sub:'Enforced by Auto-allocate — never, alone-only, and the reserve threshold',icon:'shield-check',
+    body:names.map(n=>{
+      const r=rules[n];
+      const tone=r.never.length?'rose':r.reserve?'gold':r.solo.length?'amber':'teal';
+      return '<div class="list-row" data-bench-rules="'+U.esc(n)+'" style="cursor:pointer"><div class="lr-main">'
+        +'<div class="lr-title" style="font-size:11.4px">'+U.esc(n)+'</div>'
+        +'<div class="lr-sub">'+U.esc(ruleLine(r))+'</div></div>'
+        +'<span class="pill '+tone+'">'+UI.ic('pencil',10)+'</span></div>';
+    }).join('')
+    +'<div class="hint" style="margin-top:8px">Biochemistry and Serology are the scarcity pair: on a day with fewer staff than benches, one person covers both rather than leaving one empty.</div>'});
+}
+function benchRulesModal(name){
+  if(!LS.auth.guard('edit')) return;
+  const st=S.staffByName(name); if(!st) return;
+  const r=rulesOf(name);
+  const svcs=S.services().map(sv=>sv.name);
+  const sel=(cur,id)=>'<select class="select" id="'+id+'"><option value="">— none —</option>'+svcs.map(b=>'<option'+(b===cur?' selected':'')+'>'+U.esc(b)+'</option>').join('')+'</select>';
+  const checks=(list,id)=>'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 10px">'+svcs.map(b=>
+    '<label class="row gap-sm" style="cursor:pointer"><input type="checkbox" data-'+id+'="'+U.esc(b)+'"'+(list.indexOf(b)>=0?' checked':'')+' style="accent-color:var(--gold)"><span class="small">'+U.esc(b)+'</span></label>').join('')+'</div>';
+  UI.modal({title:'Bench rules · '+name,sub:'What the allocator may and may not do for this person.',width:'min(640px,100%)',
+    body:'<div class="form-grid">'
+      +'<div class="field"><label>Home bench</label>'+sel(r.home,'brHome')+'</div>'
+      +'<div class="field"><label>Alternative bench</label>'+sel(r.alt,'brAlt')+'</div>'
+      +'<div class="field"><label>Alternative quota (days a month)</label><input class="input" id="brAltMax" type="number" min="0" max="31" value="'+r.altMax+'"></div>'
+      +'<div class="field"><label>Reserve threshold</label><input class="input" id="brResMax" type="number" min="0" max="20" value="'+r.reserveMax+'"></div>'
+      +'</div>'
+      +'<div class="field" style="margin-top:10px"><label>Never works these benches (hard block)</label>'+checks(r.never,'never')+'</div>'
+      +'<div class="field" style="margin-top:10px"><label>Only when alone on the unit</label>'+checks(r.solo,'solo')+'</div>'
+      +'<label class="row gap-sm" style="margin-top:12px;cursor:pointer"><input type="checkbox" id="brReserve"'+(r.reserve?' checked':'')+' style="accent-color:var(--gold)"><span class="small">Reserve cover — on the weekly roster only when the day\'s plan has no more than the threshold above</span></label>'
+      +'<div class="hint" style="margin-top:10px">A hard block can still be overridden for a single cell, with a reason and your name recorded against it. The weekly sheet and the grid both print that override.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-br-save>'+UI.ic('check',15)+'Save rules</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-br-save]').onclick=()=>{
+        const pick=id=>[...el.querySelectorAll('[data-'+id+']')].filter(x=>x.checked).map(x=>x.getAttribute('data-'+id));
+        const never=U.uniq(pick('never'));
+        const solo=pick('solo').filter(b=>never.indexOf(b)<0);
+        S.commit(d=>{
+          const p=d.staff.find(x=>x.id===st.id); if(!p) return;
+          p.homeBench=el.querySelector('#brHome').value||'';
+          p.altBench=el.querySelector('#brAlt').value||'';
+          p.altMaxMonth=Math.max(0,+el.querySelector('#brAltMax').value||0);
+          p.neverBench=never;
+          p.soloBench=solo;
+          p.avoidBench=[];                    /* migrated into neverBench */
+          p.rareBench=[];
+          p.reserveOnly=el.querySelector('#brReserve').checked;
+          p.reserveMinDay=Math.max(0,+el.querySelector('#brResMax').value||0);
+        },{action:'roster.rules.edit',entity:'staff',entityId:st.id,
+           detail:'Bench rules for '+name+': never '+(never.join(', ')||'—')+' · alone only '+(solo.join(', ')||'—')+' · reserve '+el.querySelector('#brReserve').checked});
+        close(); paint(); UI.toast('Bench rules saved · auto-allocate will follow them',{type:'ok'});
+      };
+    }});
 }
 function servicesView(){
   const svcs=S.services();
@@ -260,32 +357,97 @@ function serviceModal(id){
 }
 function servicePicker(iso,svc){
   if(!LS.auth.guard('edit')) return;
-  const start=weekStart(); const st=S.staffByName((allocationOf(start)[iso]||{})[svc]||'');
-  const onDuty=S.onDuty(iso).map(d=>d.staff);
+  const start=weekStart(); const w=S.db().unitRosters&&S.db().unitRosters[start];
+  const ovr=(w&&w.overrides&&w.overrides[iso])||{};
+  const st=S.staffByName((allocationOf(start)[iso]||{})[svc]||'');
+  const {duty:onDuty,core,alone,planCount}=dutyContext(iso);
   const others=S.activeStaff().filter(s=>!onDuty.some(d=>d.id===s.id));
-  const opt=(s,sel)=>'<option value="'+U.esc(s.name)+'"'+(sel&&st&&st.id===s.id?' selected':'')+'>'+U.esc(s.name)+' · '+U.esc(S.shiftState(s,iso).label)+'</option>';
-  UI.modal({title:'Allocate '+svc,sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · week of '+weekNavLabel(start),width:'min(520px,100%)',
+  const rules=benchPlan();
+  /* Anyone who may not work this bench is still selectable — with the reason shown —
+     because a manager may override it; the override is recorded, not silent. */
+  const whyBlocked=s=>{
+    if(!reserveAllowed(rules[s.name]||{},planCount)) return 'reserve · plan has '+planCount+' staff (limit '+(rules[s.name].reserveMax)+')';
+    const g=gate(rules[s.name],svc,{alone});
+    return g.ok?'':g.why;
+  };
+  const opt=(s,sel)=>{
+    const why=whyBlocked(s);
+    return '<option value="'+U.esc(s.name)+'"'+(sel&&st&&st.id===s.id?' selected':'')+(why?' data-blocked="1"':'')+'>'
+      +U.esc(s.name)+' · '+U.esc(S.shiftState(s,iso).label)+(why?' — '+U.esc(why):'')+'</option>';
+  };
+  UI.modal({title:'Allocate '+svc,sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · week of '+weekNavLabel(start),width:'min(560px,100%)',
     body:'<div class="field"><label>Staff member on this service</label><select class="select" id="alStaff"><option value="">— Unassigned —</option><optgroup label="On duty this day">'+onDuty.map(s=>opt(s,true)).join('')+'</optgroup><optgroup label="Off duty / leave">'+others.map(s=>opt(s,false)).join('')+'</optgroup></select></div>'
-      +'<div class="hint" style="margin-top:10px">Allocating someone who is off duty or on leave is allowed but flagged in amber on the weekly roster.</div>',
+      +'<div class="field" style="margin-top:10px"><label>Reason (only needed for a recorded override)</label><input class="input" id="alWhy" placeholder="e.g. only technologist on the unit that morning"></div>'
+      +'<div class="hint" style="margin-top:10px">Bench rules are enforced: <b>never</b> benches, <b>alone-only</b> benches and the reserve threshold. Choosing someone the rules exclude asks you to confirm and writes a dated override against that cell — it then shows as <b>override</b> on the grid, in print and in the sheet.</div>'
+      +(alone?'<div class="hint" style="margin-top:6px">Only one person is on this unit today, so alone-only benches are open.</div>':''),
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Allocate</button>',
     onMount:(el,close)=>{
-      el.querySelector('[data-save]').onclick=()=>{
+      el.querySelector('[data-save]').onclick=async()=>{
         const name=el.querySelector('#alStaff').value;
-        S.commit(d=>{ d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
-          const w=d.unitRosters[start]; w.assignments[iso]=w.assignments[iso]||{}; if(name) w.assignments[iso][svc]=name; else delete w.assignments[iso][svc]; },
-          {action:'roster.allocate',entity:'unitRosters',entityId:start,detail:svc+' · '+U.fmtDate(iso)+' → '+(name||'unassigned')});
-        close(); paint(); UI.toast(name?svc+' allocated to '+name:'Allocation cleared',{type:'ok'});
+        const why=el.querySelector('#alWhy').value.trim();
+        const who=name?S.staffByName(name):null;
+        const mustOverride=!!(who&&whyBlocked(who));
+        if(mustOverride){
+          const ok=await UI.confirm({title:'Record an override for '+svc+'?',confirm:'Record override',
+            body:whyBlocked(who)+'. If you continue, this allocation is saved as a dated override by '+((LS.auth.user&&LS.auth.user.name)||'you')+' and flagged wherever the roster is shown or printed.'});
+          if(!ok) return;
+        }
+        const at=U.nowISO(), by=(LS.auth.user&&LS.auth.user.name)||'';
+        S.commit(d=>{
+          d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
+          const we=d.unitRosters[start];
+          we.assignments[iso]=we.assignments[iso]||{};
+          we.overrides=we.overrides||{}; we.overrides[iso]=we.overrides[iso]||{};
+          if(name) we.assignments[iso][svc]=name; else delete we.assignments[iso][svc];
+          if(name&&mustOverride) we.overrides[iso][svc]={by,at,why:why||whyBlocked(who),rule:whyBlocked(who)};
+          else delete we.overrides[iso][svc];
+          if(we.auto&&we.auto[iso]) delete we.auto[iso][svc];   /* manual now, not automatic */
+        },{action:mustOverride?'roster.allocate.override':'roster.allocate',entity:'unitRosters',entityId:start,
+           detail:svc+' · '+U.fmtDate(iso)+' → '+(name||'unassigned')+(mustOverride?' · OVERRIDE: '+whyBlocked(who):'')});
+        close(); paint();
+        UI.toast(name?(mustOverride?'Allocated with a recorded override':'Allocated to '+name):'Allocation cleared',{type:mustOverride?'warn':'ok'});
       };
     }});
 }
-/* Bench preferences: a staff member's home bench comes first, the alternative
-   bench only when the bench would otherwise be empty and the monthly quota
-   (e.g. two days a month in Parasitology) allows it. */
+/* ——— Bench rules —————————————————————————————————————————
+   Three strengths, not one preference list:
+     home / alt(+monthly quota) / rare — preference, used to order candidates
+     never  — a hard block; only a recorded manual override may place them
+     solo   — allowed only when they are the only person on duty that day
+     reserve— on the roster only when the day's plan carries no more than N staff
+   Biochemistry + Serology are the scarcity pair: when a day has fewer people than
+   benches, one person covers both rather than leaving one empty. */
+const SCARCITY_PAIRS=[['Biochemistry','Serology']];
+function rulesOf(name){
+  const st=S.staffByName(name)||{};
+  const never=U.uniq([].concat(st.neverBench||[], st.avoidBench||[]).filter(Boolean));
+  return {
+    name,
+    home: st.homeBench||'',
+    alt: st.altBench||'',
+    altMax: st.altMaxMonth==null?0:st.altMaxMonth,
+    rare: [].concat(st.rareBench||[]).filter(b=>never.indexOf(b)<0),
+    never,
+    solo: [].concat(st.soloBench||[]).filter(b=>never.indexOf(b)<0),
+    reserve: !!st.reserveOnly,
+    reserveMax: st.reserveMinDay==null?2:st.reserveMinDay
+  };
+}
 function benchPlan(){
-  const out={};
-  S.activeStaff().forEach(s=>{ out[s.name]={home:s.homeBench||'',alt:s.altBench||'',altMax:s.altMaxMonth==null?0:s.altMaxMonth,avoid:s.avoidBench||[],rare:s.rareBench||[],reserve:!!s.reserveOnly}; });
+  const out={}; S.activeStaff().forEach(s=>{ out[s.name]=rulesOf(s.name); });
   return out;
 }
+/* ctx: {alone, override}. An override is a recorded, attributed exception — it is
+   the only thing that lifts a hard block. */
+function gate(r, bench, ctx){
+  ctx=ctx||{};
+  if(!r) return {ok:true};
+  if(ctx.override) return {ok:true,overridden:true};
+  if(r.never.indexOf(bench)>=0) return {ok:false,why:r.name+' never works '+bench};
+  if(r.solo.indexOf(bench)>=0 && !ctx.alone) return {ok:false,why:r.name+' works '+bench+' only when alone on the unit'};
+  return {ok:true};
+}
+function reserveAllowed(r, planCount){ return !r.reserve || planCount<=r.reserveMax; }
 function altUsedThisMonth(name, bench, monthKey){
   const db=S.db(); let n=0;
   Object.keys(db.unitRosters||{}).forEach(w=>{
@@ -294,6 +456,14 @@ function altUsedThisMonth(name, bench, monthKey){
     Object.keys(as).forEach(iso=>{ if((as[iso]||{})[bench]===name) n++; });
   });
   return n;
+}
+/* Everyone on duty that day, split so the reserve is never counted as "cover" when
+   deciding whether the unit is short-staffed. */
+function dutyContext(iso){
+  const duty=S.onDuty(iso).map(x=>x.staff);
+  const rules=benchPlan();
+  const core=duty.filter(s=>!(rules[s.name]||{}).reserve);
+  return {duty, core, alone:core.length<=1, planCount:duty.length, rules};
 }
 /* Night cover is its own row: one name per night, chosen from the people whose
    contract allows it. It writes the same unitRosters.night map the printed sheet
@@ -319,47 +489,117 @@ function nightModal(iso){
 }
 function autoAllocate(){
   if(!LS.auth.guard('edit')) return;
-  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), prefs=benchPlan(), mkOf=String(start).slice(0,7);
-  let filled=0, skipped=0;
+  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), mkOf=String(start).slice(0,7);
+  const rules=benchPlan();
+  let filled=0, skipped=0, paired=0, reserveDays=0, cleared=0;
   S.commit(d=>{
     d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
     const w=d.unitRosters[start];
+    w.overrides=w.overrides||{}; w.auto=w.auto||{};
     const altTally={};
     dates.forEach(iso=>{
-      const duty=S.onDuty(iso).map(x=>x.staff);
+      const {duty,core,alone,planCount}=dutyContext(iso);
       w.assignments[iso]=w.assignments[iso]||{};
       const day=w.assignments[iso];
-      const taken=Object.keys(day).map(k=>day[k]);
-      svcs.forEach(sv=>{
-        if(day[sv.name]) return;
-        const free=duty.filter(s=>taken.indexOf(s.name)<0);
-        if(!free.length) return;
-        const prefsOf=s=>prefs[s.name]||{home:'',alt:'',altMax:0,avoid:[],rare:[]};
-        const okFor=s=>prefsOf(s).avoid.indexOf(sv.name)<0;
-        const onBench=s=>prefsOf(s).home===sv.name;
-        // 1) home bench, 2) staff with no bench preference, 3) quota-limited alt bench
-        let pick=free.find(s=>okFor(s)&&prefsOf(s).home===sv.name);
-        if(!pick) pick=free.find(s=>okFor(s)&&!prefsOf(s).home&&!prefsOf(s).alt);
-        if(!pick) pick=free.find(s=>{
-          const p=prefsOf(s);
-          if(!okFor(s)||p.alt!==sv.name) return false;
-          const used=(altUsedThisMonth(s.name,sv.name,mkOf)+(altTally[s.name+'|'+sv.name]||0));
-          return used<p.altMax;
-        });
-        // 4) a bench someone works only occasionally, or a short-staffed day
-        if(!pick) pick=free.find(s=>okFor(s)&&(prefsOf(s).rare||[]).indexOf(sv.name)>=0);
-        if(!pick) pick=free.find(s=>prefsOf(s).home!==sv.name && okFor(s) && !prefsOf(s).reserve && svcs.length>free.length);
-        // 5) last resort — reserve cover fills in rather than leaving the bench empty
-        if(!pick) pick=free.find(s=>okFor(s)&&!onBench(s));
-        if(!pick){ skipped++; return; }
-        const p=prefsOf(pick);
-        if(p.alt===sv.name) altTally[pick.name+'|'+sv.name]=(altTally[pick.name+'|'+sv.name]||0)+1;
-        day[sv.name]=pick.name; taken.push(pick.name); filled++;
+      const ovr=w.overrides[iso]||{};
+      /* A re-run must reflect today's rules: the previous automatic pass is taken
+         back, while manual allocations and recorded overrides stay put. */
+      const prevAuto=w.auto[iso]||{};
+      Object.keys(prevAuto).forEach(b=>{ if(day[b]===prevAuto[b] && !ovr[b]){ delete day[b]; cleared++; } });
+      w.auto[iso]={};
+      const loadOf=n=>Object.keys(day).filter(b=>day[b]===n).length;
+      const placedOn=bench=>day[bench]||'';
+      const gateFor=(name,bench)=>gate(rules[name],bench,{alone,override:!!ovr[bench]});
+      const blockedByPlan=name=>{ const r=rules[name]; return !!r && !reserveAllowed(r,planCount); };
+      const candidates=(bench,cap)=>duty.filter(s=>{
+        if(loadOf(s.name)>=cap) return false;
+        if(blockedByPlan(s.name)) return false;
+        return gateFor(s.name,bench).ok;
       });
+      const rankOf=(s,bench)=>{
+        const r=rules[s.name]||{home:'',alt:'',altMax:0,rare:[],reserve:false};
+        if(r.reserve) return 60;                                  /* only when needed */
+        if(r.home===bench) return 0;
+        if(!r.home && !r.alt) return 20;                          /* no contract: fill in */
+        if(r.alt===bench){
+          const used=(altUsedThisMonth(s.name,bench,mkOf)+(altTally[s.name+'|'+bench]||0));
+          return used<(r.altMax||0)?10:35;
+        }
+        if((r.rare||[]).indexOf(bench)>=0) return 40;
+        return 50;
+      };
+      const pickFor=(bench,cap)=>{
+        const list=candidates(bench,cap);
+        if(!list.length) return null;
+        list.sort((a,b)=>{
+          const ra=rankOf(a,bench), rb=rankOf(b,bench);
+          if(ra!==rb) return ra-rb;
+          return loadOf(a.name)-loadOf(b.name);
+        });
+        return list[0];
+      };
+      const put=(bench,who)=>{
+        day[bench]=who.name; w.auto[iso][bench]=who.name;
+        const r=rules[who.name]; if(r&&r.reserve) reserveDays++;
+        if(r&&r.alt===bench) altTally[who.name+'|'+bench]=(altTally[who.name+'|'+bench]||0)+1;
+        filled++;
+      };
+      const empty=()=>svcs.filter(sv=>!placedOn(sv.name));
+      const short=core.length<svcs.length;
+      /* 1 — scarcity first: Biochemistry + Serology go to ONE person, chosen before
+             any other bench is doubled up — exactly the rule for a short day. */
+      if(short){
+        SCARCITY_PAIRS.forEach(pair=>{
+          const both=pair.filter(b=>svcs.some(sv=>sv.name===b));
+          if(both.length<2) return;
+          const [a,b]=both;
+          if(placedOn(a)&&placedOn(b)) return;
+          const cands=duty.filter(x=>{
+            if(blockedByPlan(x.name)) return false;
+            if(loadOf(x.name)!==0) return false;
+            return gateFor(x.name,a).ok && gateFor(x.name,b).ok;
+          }).sort((x,y)=>rankOf(x,a)-rankOf(y,a));
+          if(!cands.length) return;
+          const who=cands[0];
+          put(a,who); put(b,who); paired++;
+        });
+      }
+      /* 2 — one bench per person on a fully staffed day; when the unit is short, a
+             person may take a second bench, but only after everyone has one. */
+      svcs.forEach(sv=>{
+        if(placedOn(sv.name)) return;
+        const pick=pickFor(sv.name,short?2:1);
+        if(pick) put(sv.name,pick);
+      });
+      /* 3 — anything still open has no one the rules allow. */
+      /* 4 — the reserve is never on a busy day: if a plan carries more staff than the
+             contract allows, anything auto-assigned to them is withdrawn. */
+      Object.keys(day).forEach(bench=>{
+        const who=day[bench]; if(!who||ovr[bench]) return;
+        const r=rules[who]; if(!r) return;
+        if(r.reserve && planCount>r.reserveMax){
+          delete day[bench]; delete w.auto[iso][bench];
+          cleared++;
+        }
+      });
+      /* 5 — benches left empty by that withdrawal get one last look from the rest. */
+      svcs.forEach(sv=>{
+        if(placedOn(sv.name)) return;
+        const pick=pickFor(sv.name,2);
+        if(pick) put(sv.name,pick);
+      });
+      /* what is still open is open because no rule allows anyone on that bench */
+      skipped+=svcs.filter(sv=>!placedOn(sv.name)).length;
     });
-  },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,detail:'Auto-allocation from on-duty staff and bench preferences, week of '+start});
+  },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,
+     detail:'Auto-allocation under bench contracts (never/solo benches, reserve threshold, scarcity pairing), week of '+start});
   paint();
-  UI.toast(filled+' slots allocated'+(skipped?' · '+skipped+' left open (no one free on that bench)':'')+' — bench preferences respected',{type:'ok'});
+  const bits=[filled+' slots allocated'];
+  if(paired) bits.push(paired+' double-covered (Biochemistry + Serology first)');
+  if(reserveDays) bits.push('reserve cover used on '+reserveDays+' slot'+(reserveDays===1?'':'s'));
+  if(cleared) bits.push(cleared+' auto slot'+(cleared===1?'':'s')+' withdrawn by a bench rule');
+  if(skipped) bits.push(skipped+' left open (no one may work that bench)');
+  UI.toast(bits.join(' · '),{type:'ok',duration:5200});
 }
 function printWeek(){
   SH.printSVG(SH.weeklySVG(weekData()),{title:'Weekly unit roster — week of '+U.fmtDateShort(weekStart())});
@@ -521,7 +761,8 @@ async function exportWeek(fmt,svg,filename,data){
 function weekData(){
   const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={};
   dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
-  return {weekStart:start,dates,services:S.services(),alloc,night};
+  const wRec=(S.db().unitRosters||{})[start]||{};
+  return {weekStart:start,dates,services:S.services(),alloc,night,overrides:wRec.overrides||{}};
 }
 function onDutyName(iso){
   const p=planForDate(iso);
@@ -587,7 +828,9 @@ function wireBody(){
   r.querySelectorAll('[data-week-sheet]').forEach(b=>b.onclick=openWeekSheet);
   const wkSvg=function(){ const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start), night={};
     dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
-    return {start,dates,data:{weekStart:start,dates,services:svcs,alloc,night},svg:SH.weeklySVG({weekStart:start,dates,services:svcs,alloc,night})}; };
+    const wRec=(S.db().unitRosters||{})[start]||{};
+    const data={weekStart:start,dates,services:svcs,alloc,night,overrides:wRec.overrides||{}};
+    return {start,dates,data,svg:SH.weeklySVG(data)}; };
   r.querySelectorAll('[data-week-png]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('png',o.svg,'unit-roster-'+o.start,o.data); });
   r.querySelectorAll('[data-week-pdf]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('pdf',o.svg,'unit-roster-'+o.start,o.data); });
   r.querySelectorAll('[data-week-xlsx]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('xlsx',o.svg,'unit-roster-'+o.start,o.data); });
@@ -612,6 +855,7 @@ function wireBody(){
     r.querySelectorAll('[data-sheet-xlsx]').forEach(b=>b.onclick=()=>exportSheet('xlsx',getSVG(),fn));
     r.querySelectorAll('[data-sheet-print]').forEach(b=>b.onclick=go(svg=>SH.printSVG(svg,{title:'Working plan — '+fn})));
   }
+  r.querySelectorAll('[data-bench-rules]').forEach(el=>el.onclick=()=>benchRulesModal(el.dataset.benchRules));
   r.querySelectorAll('[data-manage-services]').forEach(b=>b.onclick=()=>{ view='services'; paint(); });
   r.querySelectorAll('[data-view-jump]').forEach(b=>b.onclick=()=>{ view=b.dataset.viewJump; paint(); });
   r.querySelectorAll('[data-add-svc]').forEach(b=>b.onclick=()=>serviceModal(null));

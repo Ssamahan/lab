@@ -625,6 +625,29 @@ function normalize(db){
     (db.trainings||[]).forEach(t=>{ if(/Rwanda Biomedical/i.test(t.organizer||'')) t.organizer='RBC'; });
     db.meta.workforceV69=1;
   }
+  /* v6.9.10 — the bench contract as three strengths, stored as data:
+       neverBench — a hard block (only a recorded manual override can place them)
+       soloBench  — allowed only when they are the only person on duty that day
+       reserveOnly/reserveMinDay — on the weekly roster only when the day's plan
+                    carries no more than that many staff.
+     Beatrice: never Biochemistry, Serology or TB; Phlebotomy only when she is
+     alone. Kelvin: reserve cover, at most a two-person day. */
+  if(!db.meta.workforceV610){
+    const bea=(db.staff||[]).find(x=>/^Beatrice/i.test(x.name||''));
+    if(bea){
+      bea.homeBench='Reception'; bea.altBench='Parasitology'; bea.altMaxMonth=6;
+      bea.neverBench=['Biochemistry','Serology','TB/Molecular'];
+      bea.soloBench=['Phlebotomy'];
+      bea.avoidBench=['TB/Molecular'];
+      bea.rareBench=[];
+    }
+    (db.staff||[]).forEach(x=>{
+      x.neverBench=[].concat(x.neverBench||[]);
+      x.soloBench=[].concat(x.soloBench||[]);
+      if(/manager/i.test(x.role||'')){ x.reserveOnly=true; if(x.reserveMinDay==null) x.reserveMinDay=2; }
+    });
+    db.meta.workforceV610=1;
+  }
   // v6.3: two PT rounds received today (Hematology, Biochemistry) are recorded as
   // dispatched-and-submitted with no results yet, so the wait to report is measured.
   if(!db.meta.eqaAwaitingV63){

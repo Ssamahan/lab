@@ -121,6 +121,22 @@ function staffExceptions(names){
   return out;
 }
 SH.staffExceptions=staffExceptions;
+/* "Serology · Mon 5 Oct — Beatrice NGEZEKURE (by Kelvin SAMAHANI)" */
+function overrideLines(map, alloc){
+  alloc=alloc||{};
+  const out=[];
+  Object.keys(map||{}).forEach(iso=>{
+    const day=map[iso]||{};
+    Object.keys(day).forEach(bench=>{
+      const o=day[bench]||{};
+      const d=U.parseISO(iso);
+      const when=U.DOWL[(d.getDay()+6)%7]+' '+d.getDate()+' '+U.MONTHS[d.getMonth()].slice(0,3);
+      const who=((alloc[iso]||{})[bench])||o.who||o.name||'';
+      out.push(bench+' · '+when+' — '+who+(o.by?' (by '+o.by+')':'')+(o.why?' · '+o.why:''));
+    });
+  });
+  return out;
+}
 /* The annotations, wrapped to the page width. Long exception text used to run
    off the sheet, so it is broken into lines that actually fit. */
 function wrapText(str,width,size){
@@ -384,8 +400,10 @@ SH.weeklySVG=function(data,opts){
   const headH=48, dateH=36, rowH=92, nightH=80;
   const top=446;
   const exceptions=staffExceptions([].concat(...dates.map(iso=>Object.values(alloc[iso]||{}))).concat(Object.values(night)));
+  /* A recorded override is part of the record, so the signed sheet prints it. */
+  const overrides=overrideLines(data.overrides||{}, alloc);
   const noteLines=exceptionLines(exceptions,W-pad*2,21).length;
-  const noteH=exceptions.length?noteLines*29+76:0;
+  const noteH=(exceptions.length?noteLines*29+76:0)+(overrides.length?overrides.length*29+60:0);
   const H=top+headH+dateH+rowH*services.length+nightH+noteH+150;
 
   let g='';
@@ -424,7 +442,11 @@ SH.weeklySVG=function(data,opts){
       g+=rect(x,y,colW,rowH,we?C.creamBand:'#FFFFFF');
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       const who=(alloc[iso]&&alloc[iso][sv.name])||'';
-      if(who) g+=nameBlock(x+colW/2,y+rowH/2, colW-20, who, {pref:34,min:19,anchor:'middle'});
+        if(who){
+        const ov=(data.overrides&&data.overrides[iso]&&data.overrides[iso][sv.name]);
+        g+=nameBlock(x+colW/2,y+rowH/2-(ov?9:0), colW-20, who, {pref:34,min:19,anchor:'middle'});
+        if(ov) g+=text(x+colW/2,y+rowH/2+26,'OVERRIDE',{size:15,weight:700,anchor:'middle',fill:C.alInk||'#8A2B33'});
+      }
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
   });
@@ -441,8 +463,15 @@ SH.weeklySVG=function(data,opts){
   });
   g+=rect(pad,ny+nightH,W-pad*2,3,C.goldLine);
 
+  let noteY=ny+nightH+44;
   if(exceptions.length){
-    g+=drawExceptions(pad,ny+nightH+44,W-pad*2,exceptions,{size:21,pitch:29});
+    g+=drawExceptions(pad,noteY,W-pad*2,exceptions,{size:21,pitch:29});
+    noteY+=exceptionLines(exceptions,W-pad*2,21).length*29+36;
+  }
+  if(overrides.length){
+    g+=text(pad,noteY,'Recorded overrides — bench rule lifted for one cell',{size:19,weight:700,fill:'#8A2B33'});
+    noteY+=26;
+    overrides.forEach((ln,i)=>{ g+=text(pad,noteY+i*29,ln,{size:19,fill:'#3D4759'}); });
   }
 
   g+=text(W/2,H-60,'Week of '+U.fmtDateShort(data.weekStart)+' · Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day · Generated '+U.todayISO(),{size:24,anchor:'middle',fill:'#3D4759'});
@@ -763,6 +792,12 @@ SH.weeklyXLSX=function(data){
       cells.push({c:cells.length,v:(alloc[iso]&&alloc[iso][sv.name])||'',s:we?11:4}); });
     out.push({h:20,cells});
   });
+  const ovLines=[];
+  Object.keys(data.overrides||{}).forEach(iso=>{
+    const day=data.overrides[iso]||{};
+    Object.keys(day).forEach(bench=>{ ovLines.push(U.fmtDate(iso)+' · '+bench+' · OVERRIDE by '+((day[bench]||{}).by||'manager')); });
+  });
+  if(ovLines.length){ out.push({h:18,cells:[{c:0,v:'Overrides',s:3},{c:1,v:ovLines.join('  ·  '),s:4}]}); }
   const nrow=[{c:0,v:'Night Shift',s:2}];
   cols.forEach(iso=>nrow.push({c:nrow.length,v:night[iso]||'',s:6}));
   out.push({h:20,cells:nrow});
