@@ -130,9 +130,56 @@ function questions(){
     });
     try{ S.save(); }catch(e){}
   }
-  return (db.pbfQuestions||[]).filter(q=>!q.deleted);
+  /* The questionnaire has an order of its own. It is stored as `order` on each
+     question so a question can be dragged into the position it has on the paper
+     form, and the numbering you see in the console is the same numbering the
+     assessor writes on the sheet. */
+  if(!db.meta.pbfQ692){
+    db.meta.pbfQ692=true;
+    const seeded=(db.pbfQuestions||[]).length===DEFAULT_QUESTIONS.length
+      && (db.pbfQuestions||[]).every((x,i)=>x.id==='q'+(i+1));
+    if(seeded){
+      /* The paper questionnaire carried by the district has nine questions. The
+         eight that are not on it are retired, not deleted — they can be restored
+         from the bank at any time. */
+      const KEEP=['q1','q2','q4','q5','q7','q8','q9','q13','q16'];
+      (db.pbfQuestions||[]).forEach(q=>{ if(KEEP.indexOf(q.id)<0) q.deleted=true; });
+    }
+    try{ S.save(); }catch(e){}
+  }
+  const list=(db.pbfQuestions||[]).filter(q=>!q.deleted);
+  list.forEach((q,i)=>{ if(q.order==null) q.order=(i+1)*10; });
+  return list.sort((a,b)=>(+a.order||0)-(+b.order||0));
 }
 function retiredQuestions(){ return (S.db().pbfQuestions||[]).filter(q=>q.deleted); }
+/* The number printed beside a question — its position on the questionnaire. */
+function questionNumber(id){ const i=questions().findIndex(q=>q.id===id); return i<0?null:i+1; }
+/* Drag-and-drop: put `dragId` immediately before or after `targetId`, then
+   renumber the whole bank 10, 20, 30 … so the list always starts at 1. */
+function dropQuestion(dragId,targetId,after){
+  if(!LS.auth.guard('edit')||dragId===targetId) return;
+  const list=questions().filter(q=>q.id!==dragId);
+  const moving=questions().find(q=>q.id===dragId);
+  if(!moving) return;
+  const at=list.findIndex(q=>q.id===targetId);
+  if(at<0) return;
+  list.splice(at+(after?1:0),0,moving);
+  const order={}; list.forEach((q,k)=>{ order[q.id]=(k+1)*10; });
+  S.commit(d=>{ (d.pbfQuestions||[]).forEach(q=>{ if(order[q.id]) q.order=order[q.id]; }); },
+    {action:'pbf.question.reorder',entity:'pbf',entityId:dragId,detail:'moved to position '+(list.findIndex(q=>q.id===dragId)+1)});
+  LS.shell.refresh();
+}
+function reorderQuestion(id,dir){
+  if(!LS.auth.guard('edit')) return;
+  const list=questions().slice();
+  const i=list.findIndex(q=>q.id===id); const j=i+dir;
+  if(i<0||j<0||j>=list.length) return;
+  const a=list[i], b=list[j]; list[i]=b; list[j]=a;
+  const order={}; list.forEach((q,k)=>{ order[q.id]=(k+1)*10; });
+  S.commit(d=>{ (d.pbfQuestions||[]).forEach(q=>{ if(order[q.id]) q.order=order[q.id]; }); },
+    {action:'pbf.question.reorder',entity:'pbf',entityId:id,detail:(a.text||'').slice(0,50)+' ⇄ '+(b.text||'').slice(0,50)});
+  LS.shell.refresh();
+}
 function qById(id){ return questions().find(q=>q.id===id); }
 function domainQuestions(k){ return questions().filter(q=>q.domain===k); }
 
@@ -426,12 +473,15 @@ function drawer(id){
       '<div class="custody-item'+(dt?'':' pending')+'"><span class="custody-dot"></span><div class="custody-body"><div class="custody-title">'+U.esc(ti)+'</div><div class="custody-meta">'+(dt?U.fmtDate(dt)+' · ':'Pending · ')+U.esc(note)+'</div></div></div>').join('')+'</div>'
     +recommendationBlock(r.visit)
     +'<div class="section-head"><h2>Questions evaluated</h2><span class="more">'+(r.visit?card.answered+' of '+card.total+' questions':'no visit recorded')+'</span></div>'
-    +(r.visit?liveDomains().map(d=>{
+    +(r.visit?liveDomains().slice().sort((a,b)=>{
+        const an=questionNumber((domainQuestions(a.key)[0]||{}).id)||999, bn=questionNumber((domainQuestions(b.key)[0]||{}).id)||999;
+        return an-bn;
+      }).map(d=>{
         const k=d.key, label=d.label;
         const qs=domainQuestions(k); if(!qs.length) return '';
         return '<div style="margin-bottom:10px"><div class="eyebrow">'+U.esc(label)+'</div>'
           +qs.map(q=>{ const v=r.visit.answers&&r.visit.answers[q.id]; const pct=v==null?null:Math.round(+v/q.max*100); const ok=pct!=null&&pct>=S.PBF_MIN;
-            return '<div class="list-row" style="padding:6px 0"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks</div></div><span class="pill '+(v==null?'slate':ok?'teal':+v>=q.max*0.5?'amber':'rose')+' mono">'+(v==null?'blank':v+'/'+q.max+' · '+pct+'%')+'</span></div>';
+            return '<div class="list-row" style="padding:6px 0"><span class="q-no mono" style="margin-right:8px">'+questionNumber(q.id)+'</span><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks</div></div><span class="pill '+(v==null?'slate':ok?'teal':+v>=q.max*0.5?'amber':'rose')+' mono">'+(v==null?'blank':v+'/'+q.max+' · '+pct+'%')+'</span></div>';
           }).join('')+'</div>';
       }).join(''):'<p class="xs faint">No question-level visit has been logged for this centre yet.</p>')
     +'<div class="section-head"><h2>Visit history</h2><span class="more">'+(r.visits||0)+' visit'+(r.visits===1?'':'s')+'</span></div>'
@@ -515,7 +565,7 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
   const answers=v?(v.answers||{}):{};
   const section=k=>domainQuestions(k).map(q=>{
     const val=answers[q.id];
-    return '<div class="row between gap-sm" style="padding:5px 0;border-bottom:1px solid var(--border)"><span class="small grow" style="max-width:72%">'+U.esc(q.text)+'<span class="xs faint"> · max '+q.max+'</span></span>'
+    return '<div class="row between gap-sm" style="padding:5px 0;border-bottom:1px solid var(--border)"><span class="q-no mono" style="margin-right:6px">'+questionNumber(q.id)+'</span><span class="small grow" style="max-width:65%">'+U.esc(q.text)+'<span class="xs faint"> · max '+q.max+'</span></span>'
       +'<span class="row gap-sm"><input class="input mono" data-q="'+q.id+'" type="number" min="0" max="'+q.max+'" step="1" value="'+(val==null?'':val)+'" style="width:64px" placeholder="—" aria-label="'+U.esc(q.text)+'"><span class="xs faint">/'+q.max+'</span><span class="pill slate mono" data-qpct="'+q.id+'">'+(val==null?'—':Math.round(val/q.max*100)+'%')+'</span></span></div>';
   }).join('');
   UI.modal({title:v?'Edit PBF visit':'Record PBF visit',
@@ -635,7 +685,9 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
 function questionModal(id){
   if(!LS.auth.guard('edit')) return;
   const q=id?qById(id):null;
-  UI.modal({title:q?'Edit question':'Add evaluation question',sub:'Every question belongs to exactly one domain. The index ignores the weights — it is marks earned over marks available.',width:'min(560px,100%)',
+  const no=q?questionNumber(q.id):null;
+  UI.modal({title:q?'Edit question '+(no||''):'Add evaluation question',
+    sub:'Every question belongs to exactly one domain. The index ignores the weights — it is marks earned over marks available.',width:'min(560px,100%)',
     body:'<div class="form-grid"><div class="field span2"><label>Question</label><textarea class="textarea" id="qbText" rows="2">'+U.esc(q?q.text:'')+'</textarea></div>'
       +'<div class="field"><label>Domain</label><select class="select" id="qbDomain">'+domains().map(d=>{ const n=domainQuestions(d.key).length; return '<option value="'+d.key+'"'+((q?q.domain:(liveDomains()[0]||domains()[0]).key)===d.key?' selected':'')+'>'+U.esc(d.label)+' ('+n+' question'+(n===1?'':'s')+', weight '+d.weight+')</option>'; }).join('')+'</select><div class="xs faint" style="margin-top:4px">Need a new domain? Use <b>Manage domains</b> in the question bank.</div></div>'
       +'<div class="field"><label>Maximum marks</label><input class="input mono" type="number" min="1" max="100" id="qbMax" value="'+(q?q.max:Q_MAX_DEFAULT)+'"></div></div>'
@@ -673,7 +725,10 @@ async function deleteQuestions(ids){
 function restoreQuestion(id){
   const q=(S.db().pbfQuestions||[]).find(x=>x.id===id); if(!q) return;
   S.commit(d=>{ const x=(d.pbfQuestions||[]).find(y=>y.id===id);
-    if(x){ delete x.deleted; delete x.deletedAt; delete x.deletedBy; x.active=true; } },
+    if(x){ delete x.deleted; delete x.deletedAt; delete x.deletedBy; x.active=true;
+      /* a restored question goes to the end of the questionnaire */
+      const max=U.sum((d.pbfQuestions||[]).filter(y=>!y.deleted&&y.id!==id),y=>+y.order||0);
+      x.order=(max||0)+10; } },
     {action:'pbf.question.restore',entity:'pbf',entityId:id,detail:q.text.slice(0,80)});
   LS.shell.refresh(); UI.toast('Question restored',{type:'ok'});
 }
@@ -766,7 +821,10 @@ function moveQuestions(ids,key){
 function questionBank(){
   const qs=questions();
   const w=domainWeights();
-  return UI.card({title:'Question bank',sub:'Tick the questions you want to drop · '+qs.length+' in use',icon:'list-checks',
+  /* One flat list in questionnaire order: the number on the left is the number on
+     the paper form, the domain is a chip beside it, and the arrows move a question
+     up or down until the console reads exactly like the sheet the assessor carries. */
+  return UI.card({title:'Question bank',sub:qs.length+' questions, numbered in your questionnaire order',icon:'list-checks',
     tools:'<button class="btn xs" data-manage-domains>'+UI.ic('layers',12)+'Manage domains</button><button class="btn xs" data-add-q>'+UI.ic('plus',12)+'Add question</button>',
     body:'<div class="row between gap-sm" style="padding:4px 0 8px;border-bottom:1px solid var(--border);flex-wrap:wrap">'
       +'<label class="row gap-sm" style="cursor:pointer"><input type="checkbox" data-q-all style="accent-color:var(--gold)"><span class="small">Select all '+qs.length+'</span></label>'
@@ -775,16 +833,24 @@ function questionBank(){
       +'<select class="select" id="qMoveTarget" style="width:auto;min-width:150px;height:30px;font-size:11px">'+domains().map(d=>'<option value="'+d.key+'">Move to: '+U.esc(d.label)+'</option>').join('')+'</select>'
       +'<button class="btn xs" data-move-selected disabled>'+UI.ic('folder-input',12)+'Move</button>'
       +'<button class="btn xs danger" data-del-selected disabled>'+UI.ic('trash-2',12)+'Delete selected</button></div>'
-      +liveDomains().map(dd=>{ const k=dd.key, label=dd.label; const group=qs.filter(q=>q.domain===k);
-      return '<div style="margin-top:10px" data-q-group="'+k+'"><div class="row between"><span class="eyebrow">'+U.esc(label)+' <span class="faint">· '+w[k]+'% weight · '+U.sum(group,x=>+x.max||0)+' marks</span></span>'
-        +'<span class="xs faint" style="display:flex;gap:8px;align-items:center">'+group.length+' question'+(group.length===1?'':'s')+'<label class="row gap-xs" style="cursor:pointer;gap:4px"><input type="checkbox" data-q-group-all="'+k+'" style="accent-color:var(--gold)"><span>all</span></label></span></div>'
-        +group.map(q=>'<div class="list-row" style="padding:6px 0"><input type="checkbox" data-q-sel="'+q.id+'" style="accent-color:var(--gold);margin-right:8px">'
-          +'<div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(q.text)+'</div><div class="lr-sub">max '+q.max+' marks · '+Math.round(q.max/Math.max(1,U.sum(group,x=>+x.max||0))*100)+'% of the domain</div></div>'
-          +'<div class="row gap-sm"><button class="icon-btn" style="width:24px;height:24px" data-edit-q="'+q.id+'" title="Edit">'+UI.ic('pencil',12)+'</button></div></div>').join('')
-        +'</div>';
-    }).join('')
-    +'<div class="xs faint" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">'+liveDomains().length+' of '+domains().length+' domains in use — a domain with no questions is dropped from the scorecards, the heatmap and every report, and its weight is shared across the domains that remain.</div>'
-    +(retiredQuestions().length?'<div class="row between" style="margin-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' deleted question'+(retiredQuestions().length===1?'':'s')+' · not scored</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
+      +'<div class="q-list">'
+      +qs.map((q,i)=>'<div class="q-row" data-q-row="'+q.id+'" draggable="true">'
+        +'<span class="q-grip" title="Drag to reorder">'+UI.ic('grip-vertical',12)+'</span>'
+        +'<input type="checkbox" data-q-sel="'+q.id+'" style="accent-color:var(--gold)">'
+        +'<span class="q-no mono">'+(i+1)+'</span>'
+        +'<div class="q-text"><div class="q-title">'+U.esc(q.text)+'</div>'
+          +'<div class="q-meta"><span class="q-domain">'+U.esc(domainLabel(q.domain))+'</span> · max '+q.max+' marks · '+w[q.domain]+'% of the report</div></div>'
+        +'<div class="q-acts">'
+          +'<button class="icon-btn q-mv" data-q-up="'+q.id+'" title="Move up"'+(i===0?' disabled':'')+'>'+UI.ic('chevron-up',12)+'</button>'
+          +'<button class="icon-btn q-mv" data-q-down="'+q.id+'" title="Move down"'+(i===qs.length-1?' disabled':'')+'>'+UI.ic('chevron-down',12)+'</button>'
+          +'<button class="icon-btn q-mv" data-edit-q="'+q.id+'" title="Edit">'+UI.ic('pencil',12)+'</button>'
+        +'</div></div>').join('')
+      +'</div>'
+      +'<div class="row between" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);flex-wrap:wrap;gap:6px">'
+        +'<span class="xs faint">'+qs.length+' questions · '+U.sum(qs,q=>+q.max||0)+' marks available · numbered 1–'+qs.length+'</span>'
+        +'<span class="row gap-sm wrap">'+liveDomains().map(d=>'<span class="pill slate mono" title="'+U.esc(d.label)+'">'+U.esc(d.label.split(' ')[0])+' '+w[d.key]+'%</span>').join('')+'</span></div>'
+      +'<div class="xs faint" style="margin-top:6px">Drag a question by its grip, or use the arrows, to match the order of the paper questionnaire. A domain with no questions is dropped from the scorecards, the heatmap and every report, and its weight is shared across the domains that remain.</div>'
+    +(retiredQuestions().length?'<div class="row between" style="margin-top:8px;flex-wrap:wrap;gap:6px"><span class="xs faint">'+retiredQuestions().length+' retired question'+(retiredQuestions().length===1?'':'s')+' · not scored or numbered</span><span class="row gap-sm wrap">'+retiredQuestions().map(q=>'<button class="btn xs" data-restore-q="'+q.id+'">'+UI.ic('rotate-ccw',11)+U.esc(q.text.slice(0,18))+(q.text.length>18?'…':'')+'</button>').join('')+'</span></div>':'')
     });
 }
 /* ——— Scheduling ————————————————————————————————— */
@@ -1014,6 +1080,92 @@ function planQuarterModal(){
       };
     }});
 }
+/* ——— Progress by quarter ————————————————————————————————
+   The history is the point of a quarterly evaluation: as Q2, Q3 and Q4 are
+   recorded the index should visibly climb. Every chart here is drawn from the
+   visits themselves, so a new quarter adds a point the day it is entered. */
+let trendTab='district';
+const TREND_COLORS=['var(--chart-2)','var(--chart-3)','var(--chart-5)','var(--chart-4)','var(--chart-1)','#8E7CC3','#59A5B8','#C98F5A'];
+function qKey(v){ return String(v.fy||'')+'|'+(v.quarter||'Q1'); }
+function qLabel(k){ const [fy,q]=k.split('|'); return q+' '+(fy?fy.replace(/\//g,'/'):''); }
+function qSort(a,b){
+  const [fa,qa]=a.split('|'), [fb,qb]=b.split('|');
+  if(fa!==fb) return fa<b?-1:1;
+  return (+(qa||'Q1').replace(/\D/g,'')||1)-(+(qb||'Q1').replace(/\D/g,'')||1);
+}
+function trendModel(){
+  const visits=(S.db().pbfVisits||[]).filter(v=>visitMarks(v).complete);
+  const keys=U.uniq(visits.map(qKey)).sort(qSort);
+  const avg=arr=>{ const xs=arr.filter(v=>v!=null); return xs.length?Math.round(U.avg(xs)):null; };
+  const district=keys.map(k=>avg(visits.filter(v=>qKey(v)===k).map(v=>visitMarks(v).pct)));
+  const doms=liveDomains().map((d,i)=>({name:d.label,color:TREND_COLORS[i%TREND_COLORS.length],
+    values:keys.map(k=>avg(visits.filter(v=>qKey(v)===k).map(v=>domainMarksFor(v,d.key).pct)))}));
+  const names=U.uniq(visits.map(v=>v.hcName));
+  const centres=names.map((n,i)=>{
+    const mine=visits.filter(v=>v.hcName===n);
+    return {name:n.replace(' HC',''),color:TREND_COLORS[i%TREND_COLORS.length],
+      values:keys.map(k=>{ const hit=mine.filter(v=>qKey(v)===k); return hit.length?visitMarks(hit[0]).pct:null; })};
+  });
+  const scored=centres.map(c=>{ const vals=c.values.filter(v=>v!=null); return Object.assign({},c,{first:vals[0],last:vals[vals.length-1],gain:vals.length>1?vals[vals.length-1]-vals[0]:0}); })
+    .sort((a,b)=>(b.last==null?-1:b.last)-(a.last==null?-1:a.last));
+  return {keys,labels:keys.map(qLabel),district,doms,centres:scored,
+    first:district.find(v=>v!=null), last:[].concat(district).reverse().find(v=>v!=null)};
+}
+function trendChart(){
+  const t=trendModel();
+  if(!t.keys.length) return '<div class="chart-empty">No complete scorecard yet — the trend starts with the first visit you record.</div>';
+  if(trendTab==='centres'){
+    return '<div id="pbfTrend" data-labels="'+U.esc(t.labels.join('|'))+'"></div>';
+  }
+  return '<div id="pbfTrend" data-labels="'+U.esc(t.labels.join('|'))+'"></div>';
+}
+function paintTrend(root){
+  const t=trendModel();
+  const el=root.querySelector('#pbfTrend');
+  if(!el) return;
+  if(!t.keys.length){ el.innerHTML='<div class="chart-empty">No complete scorecard yet — the trend starts with the first visit you record.</div>'; return; }
+  if(trendTab==='district'){
+    const series=[{name:'District index',color:'var(--gold-bright)',values:t.district}]
+      .concat(t.doms.map(d=>({name:d.name,color:d.color,values:d.values,area:false,dashed:true})));
+    C.line(el,{series,labels:t.labels,height:250,min:0,max:100,yTicks:4,target:{value:S.PBF_MIN,label:S.PBF_MIN+'% floor'},id:'pbfTrend',tipFmt:v=>v+'%'});
+  } else {
+    const shown=t.centres.filter(c=>c.values.some(v=>v!=null)).slice(0,8);
+    C.line(el,{series:shown.map(c=>({name:c.name,color:c.color,values:c.values,area:false})),labels:t.labels,height:250,min:0,max:100,yTicks:4,id:'pbfTrend',tipFmt:v=>v+'%'});
+  }
+}
+function trendSide(){
+  const t=trendModel();
+  if(!t.keys.length) return '';
+  const gain=(t.first!=null&&t.last!=null)?t.last-t.first:null;
+  const rows=t.keys.map((k,i)=>{
+    const v=t.district[i], prev=i?t.district[i-1]:null, d=(v!=null&&prev!=null)?v-prev:null;
+    return '<div class="list-row" style="padding:5px 0"><div class="lr-main"><div class="lr-title" style="font-size:11px">'+U.esc(t.labels[i])+'</div>'
+      +'<div class="lr-sub">'+t.centres.filter(c=>c.values[i]!=null).length+' centre'+(t.centres.filter(c=>c.values[i]!=null).length===1?'':'s')+' scored</div></div>'
+      +'<div class="row gap-sm">'+(v==null?'<span class="pill slate mono">—</span>':'<span class="pill '+bandOf(v)+' mono">'+v+'%</span>')
+      +(d!=null?'<span class="delta '+(d<0?'down':'')+'" style="min-width:38px">'+UI.ic(d>=0?'arrow-up':'arrow-down',10)+(d>0?'+':'')+d+'</span>':'')+'</div></div>';
+  }).join('');
+  const movers=(trendTab==='centres'?t.centres.slice().sort((a,b)=>b.gain-a.gain):t.doms.map(d=>{
+    const vals=d.values.filter(v=>v!=null); return {name:d.name,first:vals[0],last:vals[vals.length-1],gain:vals.length>1?vals[vals.length-1]-vals[0]:0};
+  }).sort((a,b)=>b.gain-a.gain)).filter(x=>x.gain!==0).slice(0,3);
+  return '<div class="trend-head"><div class="eyebrow">District index this quarter</div>'
+    +'<div class="row gap-sm" style="align-items:baseline"><span class="serif" style="font-size:1.7rem;letter-spacing:-.03em;color:var(--text-strong)">'+(t.last==null?'—':t.last+'<span style="font-size:.5em">%</span>')+'</span>'
+    +(gain!=null?'<span class="delta '+(gain<0?'down':'')+'">'+UI.ic(gain>=0?'trending-up':'trending-down',12)+(gain>0?'+':'')+gain+' pts since '+U.esc(t.labels[0])+'</span>':'<span class="xs faint">first quarter recorded</span>')+'</div></div>'
+    +'<div class="trend-q">'+rows+'</div>'
+    +(movers.length?'<div class="trend-movers"><div class="eyebrow" style="margin-bottom:4px">'+(trendTab==='centres'?'Most improved centre':'Most improved domain')+'</div>'
+      +movers.map(m=>'<div class="row between" style="padding:3px 0"><span class="xs truncate" style="max-width:62%">'+U.esc(m.name)+'</span><span class="mono xs" style="color:var(--pos)">+'+m.gain+'</span></div>').join('')+'</div>'
+      :'<div class="xs faint" style="margin-top:8px">Record another quarter to see improvement.</div>');
+}
+function trendCard(){
+  const t=trendModel();
+  return UI.card({title:'Progress by quarter',sub:'Every quarter you record adds a point — the index should climb',icon:'trending-up',
+    tools:'<div class="seg">'+[['district','District & domains'],['centres','Health centres']].map(([k,l])=>'<button class="'+(trendTab===k?'on':'')+'" data-trend="'+k+'">'+l+'</button>').join('')+'</div>',
+    body:'<div class="trend-grid"><div class="trend-chart">'+trendChart()
+      +'<div class="legend" style="margin-top:6px">'+(trendTab==='district'
+        ?'<span class="lg"><span class="sw" style="background:var(--gold-bright)"></span>District index</span>'+t.doms.map(d=>'<span class="lg"><span class="sw" style="background:'+d.color+'"></span>'+U.esc(d.name.split(' ')[0])+'</span>').join('')
+        :t.centres.filter(c=>c.values.some(v=>v!=null)).slice(0,8).map(c=>'<span class="lg"><span class="sw" style="background:'+c.color+'"></span>'+U.esc(c.name)+'</span>').join(''))
+      +'</div></div><div class="trend-side">'+trendSide()+'</div></div>',
+    foot:'<span>'+(t.keys.length?t.keys.length+' quarter'+(t.keys.length===1?'':'s')+' recorded':'nothing recorded yet')+' · the line only moves when a full scorecard is entered</span><span class="mono">'+questions().length+' questions · '+U.sum(questions(),q=>+q.max||0)+' marks</span>'});
+}
 function visitLog(){
   const visits=(S.db().pbfVisits||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   return UI.card({title:'Quarterly visits',sub:'Every visit is kept — a centre’s marks accumulate over time',icon:'calendar-check',
@@ -1035,9 +1187,9 @@ function printCentre(r){
     +'<tr><td colspan="3"><b>Index — marks earned over marks available</b></td><td><b>'+(r.marks?r.marks.got+' / '+r.marks.max:'—')+'</b></td><td colspan="2"><b>'+(total(r)==null?'marks pending':total(r)+'%')+'</b></td></tr></tbody></table>'
     +'<p style="font-size:8.5px;margin:4px 0">Domain scores are percentages of each domain’s own marks. The index is the whole scorecard’s marks out of the marks available, converted to 100; the weights describe the composition of the report and are not applied to the index.</p>'
     +'<p style="font-size:9px;margin:6px 0">Scorecard '+(card.complete?'complete':'incomplete — '+card.answered+' of '+card.total+' questions marked')+'.</p>'
-    +(r.visit?'<h3 style="font-size:9px;margin:10px 0 4px">Questions evaluated — '+U.esc(r.visit.quarter||'')+' · '+U.fmtDate(r.visit.date)+'</h3><table><thead><tr><th>Question</th><th>Domain</th><th>Marks</th></tr></thead><tbody>'
-      +questions().map(q=>{ const v=r.visit.answers&&r.visit.answers[q.id];
-        return '<tr><td>'+U.esc(q.text)+'</td><td>'+U.esc(domainLabel(q.domain))+'</td><td style="text-align:center">'+(v==null?'—':v+' / '+q.max)+'</td></tr>'; }).join('')
+    +(r.visit?'<h3 style="font-size:9px;margin:10px 0 4px">Questions evaluated — '+U.esc(r.visit.quarter||'')+' · '+U.fmtDate(r.visit.date)+'</h3><table><thead><tr><th>#</th><th>Question</th><th>Domain</th><th>Marks</th></tr></thead><tbody>'
+      +questions().map((q,qi)=>{ const v=r.visit.answers&&r.visit.answers[q.id];
+        return '<tr><td style="text-align:center">'+(qi+1)+'</td><td>'+U.esc(q.text)+'</td><td>'+U.esc(domainLabel(q.domain))+'</td><td style="text-align:center">'+(v==null?'—':v+' / '+q.max)+'</td></tr>'; }).join('')
       +'</tbody></table>':'')
     +(r.visit&&r.visit.recommendations?'<h3 style="font-size:9px;margin:10px 0 4px">Recommendations</h3><p style="font-size:9px">'+U.esc(r.visit.recommendations)+'</p>':'')
     +(r.visit&&r.visit.previous?'<p style="font-size:9px">Previous ('+U.esc(r.visit.previous.quarter||'')+'): '+U.esc(r.visit.previous.text||'—')+' — addressed: '+U.esc(r.visit.previous.addressed||'not stated')+'</p>':'')
@@ -1063,6 +1215,8 @@ M.render=function(root,params){
    +kpis()+hero()
    +'<div class="section-head"><h2>Centre scorecards</h2><span class="more">Click any row for the full evaluation</span></div>'
    +table()
+   +'<div class="section-head"><h2>Progress by quarter</h2><span class="more">Improvement against the previous quarters, and against the '+S.PBF_MIN+'% floor</span></div>'
+   +trendCard()
    +'<div class="section-head"><h2>Domain comparison</h2><span class="more">'+liveDomains().length+' domains in use · each cell is that domain’s own % <button class="btn xs" data-manage-domains>'+UI.ic('layers',11)+'Manage domains</button></span></div>'
    +matrix()
    +'<div class="section-head"><h2>Evaluation questions & visits</h2><span class="more">Questions, marks and the supervision calendar</span></div>'
@@ -1108,6 +1262,13 @@ M.render=function(root,params){
   };
   const paintCal=()=>{ const cal=root.querySelector('#pbfCal'); if(!cal) return; cal.innerHTML=calendarHTML(); bindCal(); };
   bindCal();
+  /* quarter trend: drawn after the markup exists, repainted when the tab changes */
+  paintTrend(root);
+  root.querySelectorAll('[data-trend]').forEach(b=>b.onclick=()=>{
+    trendTab=b.dataset.trend;
+    root.querySelectorAll('[data-trend]').forEach(x=>x.classList.toggle('on',x.dataset.trend===trendTab));
+    LS.shell.refresh();
+  });
   root.querySelectorAll('[data-sched-edit]').forEach(b=>b.onclick=()=>scheduleModal(b.dataset.schedEdit));
   /* multi-select question bank */
   const selState=()=>U.$$('[data-q-sel]',root).filter(c=>c.checked).map(c=>c.dataset.qSel);
@@ -1118,15 +1279,29 @@ M.render=function(root,params){
     const mv=root.querySelector('[data-move-selected]'); if(mv) mv.disabled=!ids.length;
     const mt=root.querySelector('#qMoveTarget'); if(mt) mt.disabled=!ids.length;
     const all=root.querySelector('[data-q-all]'); if(all){ const boxes=U.$$('[data-q-sel]',root); all.checked=boxes.length>0&&ids.length===boxes.length; all.indeterminate=ids.length>0&&ids.length<boxes.length; }
-    U.$$('[data-q-group-all]',root).forEach(g=>{ const boxes=U.$$('[data-q-sel]',root).filter(c=>{ const q=qById(c.dataset.qSel); return q&&q.domain===g.dataset.qGroupAll; });
-      g.checked=boxes.length>0&&boxes.every(c=>c.checked); g.indeterminate=boxes.some(c=>c.checked)&&!g.checked; });
   };
   root.querySelectorAll('[data-q-sel]').forEach(c=>{ c.onclick=ev=>{ ev.stopPropagation(); refreshSel(); }; });
   const allBox=root.querySelector('[data-q-all]');
   if(allBox) allBox.onclick=()=>{ U.$$('[data-q-sel]',root).forEach(c=>{ c.checked=allBox.checked; }); refreshSel(); };
-  root.querySelectorAll('[data-q-group-all]').forEach(g=>{ g.onclick=()=>{ U.$$('[data-q-sel]',root).forEach(c=>{ const q=qById(c.dataset.qSel); if(q&&q.domain===g.dataset.qGroupAll) c.checked=g.checked; }); refreshSel(); }; });
   const delSel=root.querySelector('[data-del-selected]');
   if(delSel) delSel.onclick=()=>deleteQuestions(selState());
+  /* order the questionnaire: arrows and drag-and-drop write the same `order` field */
+  root.querySelectorAll('[data-q-up]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); reorderQuestion(b.dataset.qUp,-1); });
+  root.querySelectorAll('[data-q-down]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); reorderQuestion(b.dataset.qDown,1); });
+  let dragId=null;
+  const rows=()=>U.$$('[data-q-row]',root);
+  rows().forEach(row=>{
+    row.addEventListener('dragstart',ev=>{ dragId=row.dataset.qRow; row.classList.add('dragging'); if(ev.dataTransfer){ ev.dataTransfer.effectAllowed='move'; try{ ev.dataTransfer.setData('text/plain',dragId); }catch(e){} } });
+    row.addEventListener('dragend',()=>{ row.classList.remove('dragging'); rows().forEach(r=>r.classList.remove('drop-before','drop-after')); dragId=null; });
+    row.addEventListener('dragover',ev=>{ if(!dragId||dragId===row.dataset.qRow) return; ev.preventDefault();
+      const r=row.getBoundingClientRect(); const after=(ev.clientY-r.top)>r.height/2;
+      rows().forEach(x=>x.classList.remove('drop-before','drop-after'));
+      row.classList.add(after?'drop-after':'drop-before'); });
+    row.addEventListener('dragleave',()=>row.classList.remove('drop-before','drop-after'));
+    row.addEventListener('drop',ev=>{ ev.preventDefault(); if(!dragId||dragId===row.dataset.qRow) return;
+      const r=row.getBoundingClientRect(); const after=(ev.clientY-r.top)>r.height/2;
+      dropQuestion(dragId,row.dataset.qRow,after); dragId=null; });
+  });
   const mvSel=root.querySelector('[data-move-selected]');
   if(mvSel) mvSel.onclick=()=>{ const t=root.querySelector('#qMoveTarget'); moveQuestions(selState(), t?t.value:null); };
   refreshSel();
