@@ -144,22 +144,25 @@ C.line=function(el,cfg){
    rendering of the same numbers when someone wants a picture of it. */
 C.barSVG=function(items,opts){
   opts=opts||{};
-  const W=760, rowH=34, pad={l:190,r:96,t:18,b:16};
+  /* Drawn for paper, not for the dark console: ink labels, a pale track and the
+     same tone colours the screen uses, on a white sheet. */
+  const W=760, rowH=34, pad={l:210,r:104,t:opts.title?44:18,b:20};
   const H=pad.t+pad.b+items.length*rowH;
   const max=Math.max.apply(null,items.map(i=>i.value).concat([1]));
-  const toneColor={gold:'#C9A84C',teal:'#3FD3B6',rose:'#E26D6D',amber:'#E0A33A',blue:'#7595C8'};
-  let out='';
+  const toneColor={gold:'#C9A84C',teal:'#3FB3A6',rose:'#E26D6D',amber:'#D9A13B',blue:'#7595C8',g1:'#3FA57E',g2:'#17A97B',r1:'#E29AA2',r2:'#A3212E',slate:'#8C93A3'};
+  let out='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
+  if(opts.title) out+='<text x="24" y="30" font-family="Georgia,serif" font-size="17" fill="#1B1F27">'+U.esc(opts.title)+'</text>';
   items.forEach((it,i)=>{
     const y=pad.t+i*rowH+rowH/2;
     const w=Math.max(2,(it.value/max)*(W-pad.l-pad.r));
-    out+='<text x="0" y="'+(y+4)+'" font-family="system-ui,sans-serif" font-size="12" fill="#B9BFCB">'+U.esc(String(it.label).slice(0,26))+'</text>';
-    out+='<rect x="'+pad.l+'" y="'+(y-6)+'" width="'+(W-pad.l-pad.r)+'" height="12" rx="6" fill="rgba(255,255,255,.06)"/>';
-    out+='<rect x="'+pad.l+'" y="'+(y-6)+'" width="'+w.toFixed(1)+'" height="12" rx="6" fill="'+(toneColor[it.tone]||toneColor.gold)+'"/>';
+    out+='<text x="24" y="'+(y+4)+'" font-family="system-ui,sans-serif" font-size="12" fill="#3A4250">'+U.esc(String(it.label).slice(0,30))+'</text>';
+    out+='<rect x="'+pad.l+'" y="'+(y-7)+'" width="'+(W-pad.l-pad.r)+'" height="14" rx="7" fill="rgba(9,14,26,.07)"/>';
+    out+='<rect x="'+pad.l+'" y="'+(y-7)+'" width="'+w.toFixed(1)+'" height="14" rx="7" fill="'+(toneColor[it.tone]||toneColor.gold)+'"/>';
     const label=(it.display!=null?it.display:U.fmtNum(it.value))+(it.suffix?' '+it.suffix:'');
-    out+='<text x="'+(pad.l+w+10)+'" y="'+(y+4)+'" font-family="ui-monospace,monospace" font-size="11" fill="#E9D9A7">'+U.esc(label)+'</text>';
+    out+='<text x="'+(pad.l+w+10)+'" y="'+(y+4)+'" font-family="ui-monospace,monospace" font-size="11.5" fill="#1B1F27">'+U.esc(label)+'</text>';
     if(it.target!=null){
       const tx=pad.l+(it.target/max)*(W-pad.l-pad.r);
-      out+='<line x1="'+tx.toFixed(1)+'" x2="'+tx.toFixed(1)+'" y1="'+(y-10)+'" y2="'+(y+10)+'" stroke="#8C93A3" stroke-width="1" stroke-dasharray="2 2"/>';
+      out+='<line x1="'+tx.toFixed(1)+'" x2="'+tx.toFixed(1)+'" y1="'+(y-11)+'" y2="'+(y+11)+'" stroke="#8A93A5" stroke-width="1" stroke-dasharray="2 2"/>';
     }
   });
   return {svg:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+out+'</svg>', width:W, height:H};
