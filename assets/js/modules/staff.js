@@ -294,6 +294,18 @@ function settingsView(){
        '<label class="choice '+(st.features[k]?'on':'')+'" data-feature="'+k+'" style="width:auto;min-width:150px"><span class="ct">'+l+'</span><span class="switch" style="margin-left:auto"></span></label>').join('')+'</div>'
      +'<div class="hint" style="margin-top:10px">Disabling a module hides it from navigation but never deletes data.</div>'})+'</div></div>';
 }
+/* The switches live in another website, so hand over a link instead of a description.
+   Deriving the project reference from the pasted address costs nothing and is exact. */
+function cloudLinks(){
+  const L=[['Open Auth providers',LS.sync.authProvidersUrl()],['Open Auth users',LS.sync.authUsersUrl()],['Open SQL editor',LS.sync.sqlEditorUrl()]].filter(x=>x[1]);
+  if(!L.length) return '';
+  return '<div class="row wrap gap-sm" style="margin-top:8px">'+L.map(([t,h])=>
+    '<a class="btn xs" href="'+U.esc(h)+'" target="_blank" rel="noopener">'+UI.ic('arrow-up-right',12)+U.esc(t)+'</a>').join('')+'</div>';
+}
+/* Turn bare https://… in a diagnostic detail into something clickable, after escaping. */
+function linkify(plain){
+  return U.esc(plain).replace(/(https:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
 function dataView(){
   const db=S.db();
   const cl=S.settings().cloud||{};
@@ -317,7 +329,8 @@ function dataView(){
      +'<div class="field" style="margin-top:10px"><label>Project user · password</label><input class="input mono" id="cloudPass" type="password" placeholder="the user from Authentication → Users" value="'+U.esc(cl.password||'')+'" autocomplete="current-password"></div>'
      +'<div class="field" style="margin-top:10px"><label>No password instead?</label>'
        +'<label class="choice '+(cl.anonAuth?'on':'')+'" style="width:auto"><input type="checkbox" id="cloudAnon" '+(cl.anonAuth?'checked':'')+' style="margin-right:8px"><span class="ct">Anonymous session</span></label>'
-       +'<div class="xs faint" style="margin-top:5px">Needs one toggle in Supabase: <b>Authentication → Sign In / Providers → Allow anonymous sign-ins</b>. Anyone holding the publishable key could then create such a session, so use it only while you are setting up, or with the patient fields kept empty.</div></div>'
+       +'<div class="xs faint" style="margin-top:5px">Needs one toggle in Supabase: <b>Authentication → Sign In / Providers → Allow anonymous sign-ins</b>. Anyone holding the publishable key could then create such a session, so use it only while you are setting up, or with the patient fields kept empty.</div>'
+       +cloudLinks()+'</div>'
      +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
        +[['push-pull','Two-way · pull then push'],['push','Push only — this device is the source'],['pull','Pull only — read the shared copy']].map(([v,l])=>'<option value="'+v+'"'+(cl.mode===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
      +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-check>'+UI.ic('shield-question',13)+'Check setup</button><button class="btn sm" data-cloud-sql>'+UI.ic('file-text',13)+'Copy the table SQL</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
@@ -407,8 +420,18 @@ function wire(){
     if(an) S.settings().cloud.anonAuth=!!an.checked;
     UI.toast('Testing the Supabase project…',{type:'info'});
     const res=await SY.ping();
-    UI.toast(res.ok?'Connected to Supabase — '+(res.remote?'shared register found':'ready for the first push'):res.reason,{type:res.ok?'ok':'err',duration:res.ok?4000:8000});
-    if(res.ok) paint();
+    if(res.ok){
+      UI.toast('Connected to Supabase — '+(res.remote?'shared register found':'ready for the first push'),{type:'ok',duration:4000});
+      paint(); return;
+    }
+    /* A failure is never a toast that vanishes: it is a card with the reason and, where
+       the fix lives in the Supabase dashboard, a button straight to that page. */
+    const link=(String(res.reason).match(/https:\/\/[^\s)]+/)||[])[0]||null;
+    UI.modal({title:'Cloud sync needs one thing', sub:res.tableMissing?'the table is missing':'not connected yet',
+      body:'<p class="small" style="line-height:1.65">'+linkify(res.reason)+'</p>',
+      foot:'<button class="btn" data-close>Close</button>'
+        +(link?'<a class="btn primary" href="'+U.esc(link)+'" target="_blank" rel="noopener">'+UI.ic('arrow-up-right',14)+'Open the page that fixes it</a>':'')});
+    paint();
   });
   r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
     const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass'), an=r.querySelector('#cloudAnon');
@@ -447,7 +470,7 @@ function wire(){
         '<div class="row" style="gap:10px;align-items:flex-start;padding:9px 11px;border-radius:9px;background:var(--surface-inset)">'
         +'<span style="color:'+(x.ok?'var(--ok)':'var(--crit)')+';flex:none;margin-top:1px">'+UI.ic(x.ok?'circle-check':'circle-x',15)+'</span>'
         +'<div><div class="small strong">'+U.esc(x.label)+'</div>'
-        +(x.detail?'<div class="xs muted" style="margin-top:2px;line-height:1.55">'+U.esc(x.detail)+'</div>':'')
+        +(x.detail?'<div class="xs muted" style="margin-top:2px;line-height:1.55">'+linkify(x.detail)+'</div>':'')
         +'</div></div>').join('')+'</div>'
         +'<div class="hint" style="margin-top:12px">This asked your project four things: is the address right, does the key work, can a session be created, and does the table answer. No patient data was read.</div>',
       foot:'<button class="btn primary" data-close>Close</button>'});
