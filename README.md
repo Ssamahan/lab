@@ -5,9 +5,40 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.16** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.17** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.17
+
+**Two ways to get a Supabase session — and neither is your dashboard login.**
+
+Signing into supabase.com with GitHub, Google or email only opens the dashboard. The
+console needs a *user of the project*, which is why the app appeared to demand a
+password nobody had. The Cloud sync card now says so in plain words and offers a second
+route:
+
+**Way A — a project user (recommended).** Authentication → Users → Add user, email +
+password, *Auto confirm* ticked. The card calls these fields *Project user · email* and
+*Project user · password*.
+
+**Way B — an anonymous session.** One toggle in Authentication → Sign In / Providers, then
+tick **Anonymous session** and leave the fields empty. `POST /auth/v1/signup` with an empty
+body returns a Supabase session whose Postgres role is `authenticated`, so the existing
+row-level policies work unchanged. The card states the trade-off: anyone with the
+publishable key could create such a session too, so it is for setting up, or for a
+register without patient identifiers.
+
+The session (access token **and** refresh token) is now kept in `localStorage`, so a
+reload reuses it instead of minting a fresh anonymous user — anonymous sign-ups are rate
+limited per IP. An expiring session is refreshed with its refresh token before any
+password is used, and a 401 retries once with a new session.
+
+Errors now name the cause: *"Supabase does not recognise that email and password. This is
+the app user from Authentication → Users, not the login you use on supabase.com"* and
+*"Supabase refused an anonymous session — turn it on: Authentication → Sign In /
+Providers → Allow anonymous sign-ins"*. Neither is dressed up as a network problem any
+more. `docs/supabase-setup.html` Part 4 was rewritten with both ways.
 
 ## What changed in 6.9.16
 
