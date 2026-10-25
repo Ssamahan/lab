@@ -347,10 +347,64 @@ function dataView(){
      +(SY.state().conflictNote?'<div class="hint" style="margin-top:8px">'+UI.ic('alert-triangle',12)+' '+U.esc(SY.state().conflictNote)+' A snapshot of the replaced copy is in Settings → Data &amp; backup → restore points.</div>':'')
      +(SY.state().lastError?'<div class="hint" style="margin-top:8px;color:var(--crit)">'+U.esc(SY.state().lastError)+'</div>':'')
      +'<div class="hint" style="margin-top:12px">Every edit is still saved on this device first. The shared copy is what lets your phone see what you typed on the PC. Setup steps are in the <a href="docs/supabase-setup.html" target="_blank" rel="noopener">step-by-step guide</a>; the table SQL is <span class="mono">supabase/schema.sql</span>. No patient data leaves the device until the fields are filled. The login is stored on this device only.</div>'})+'</div>'
+   +'<div class="c12">'+sharedCopyCard()+'</div>'
    +'<div class="c12">'+UI.card({title:'Data provenance',sub:'What is real and what is modelled in this console',icon:'info',body:
      '<p class="small" style="line-height:1.7;color:var(--text-muted)">'+U.esc(S.settings().provenance||'')+'</p>'
      +'<div class="split-3" style="margin-top:12px">'+[['Register data','Carried forward from v5.3.1 (staff, referrals, leave, trainings, revenue, equipment)'],['Working records','Only what the department actually recorded — referred samples, issues, leave, EQA rounds. Nothing is generated to fill a screen.'],['Configuration','Stored in localStorage under labSystems.v1 · schema v'+db.meta.schema]].map(([k,v])=>'<div class="hstat" style="align-items:flex-start"><span class="lb">'+k+'</span><span class="xs muted" style="line-height:1.55;margin-top:4px">'+U.esc(v)+'</span></div>').join('')+'</div>'})+'</div></div>';
 }
+/* ——— Two browsers, one register ——————————————————————————————
+   The card that answers "why are my marks missing on the other browser?".
+   A browser starts from the built-in seed; it only sees the shared register once it
+   has the address and key. So both copies are counted side by side, and both
+   directions are one press: push everything up, or download the cloud copy down. */
+function tallies(){
+  const t=SY.localTally();
+  const rows=[['Samples','samples'],['Staff records','staff'],['Leave records','leaves'],
+    ['Referred samples','referrals'],['Equipment','equipment'],['Trainings','trainings'],
+    ['PBF visits','pbfVisits'],['PBF marks entered','pbfMarks'],['PBF questions','pbfQuestions']];
+  return '<div class="dt-scroll"><table class="dt"><thead><tr><th>Register</th><th class="num">This browser</th><th class="num">The shared copy</th></tr></thead><tbody>'
+    +rows.map(([l,k])=>'<tr><td class="small">'+l+'</td><td class="num mono" data-local="'+k+'">'+(t[k]|0)+'</td><td class="num mono faint" data-remote="'+k+'">—</td></tr>').join('')
+    +'</tbody></table></div>';
+}
+function sharedCopyCard(){
+  return UI.card({title:'Two browsers, one register',sub:'What this browser holds, and what the cloud holds',icon:'monitor-smartphone',
+    body:tallies()
+    +'<div id="scStatus" class="hint" style="margin-top:10px">'
+      +(SY.configured()?'Press <b>Compare</b> to read the shared copy.':'This browser has no project URL or key yet, so it shows the built-in seed — which is why a fresh or incognito window looks empty of everything you typed. Use <b>Paste setup code</b> or fill the fields above.')
+    +'</div>'
+    +'<div class="row gap-sm wrap" style="margin-top:12px">'
+      +'<button class="btn sm primary" data-cloud-pushall>'+UI.ic('upload',13)+' Push everything now</button>'
+      +'<button class="btn sm" data-cloud-counts>'+UI.ic('refresh-cw',13)+' Compare</button>'
+      +'<button class="btn sm" data-cloud-pull>'+UI.ic('download',13)+' Download the shared copy</button>'
+      +'<button class="btn sm" data-cloud-code>'+UI.ic('key-round',13)+' Copy setup code</button>'
+      +'<button class="btn sm" data-cloud-paste>'+UI.ic('clipboard-list',13)+' Paste setup code</button>'
+    +'</div>'
+    +'<div class="hint" style="margin-top:12px">'
+      +'<b>Push everything now</b> publishes this browser\'s whole register — samples, rosters, leave, EQA and every PBF mark — and reports the revision Supabase stored. '
+      +'<b>Download the shared copy</b> replaces this browser with the cloud version and keeps a restore point of what was here. '
+      +'<b>Setup code</b> carries the address and publishable key to another browser as text; it never contains a password.'
+    +'</div>'});
+}
+function paintShared(){
+  const host=rootEl.querySelector('#scStatus'); if(!host) return;
+  if(!SY.configured()) return;
+  host.innerHTML='Reading the shared copy…';
+  (SY.remoteTally?SY.remoteTally():Promise.resolve({ok:false})).then(res=>{
+    if(!rootEl.querySelector('#scStatus')) return;
+    if(!res.ok){ host.innerHTML=U.esc(res.reason||'Could not read the shared copy'); return; }
+    const t=res.counts||{};
+    U.$$('[data-remote]',rootEl).forEach(c=>{
+      const k=c.dataset.remote;
+      const v=(t[k]|0);
+      c.textContent=v;
+      c.classList.toggle('faint',!(v>0));
+      c.classList.toggle('strong',v>0);
+    });
+    host.innerHTML='Shared copy read '+U.relTime(res.updated_at||U.nowISO())+(res.updated_by?' · written by '+U.esc(res.updated_by):'')
+      +(res.empty?' · <b>empty</b> — nothing has been published yet':'')+'.';
+  }).catch(e=>{ host.innerHTML=U.esc((e&&e.message)||'Could not read the shared copy'); });
+}
+
 /* A failure is never a toast that vanishes: it is a card with the reason and, where the
    fix lives in the Supabase dashboard, a button straight to that page. */
 function showSyncFailure(res){
@@ -393,12 +447,82 @@ function wire(){
   r.querySelectorAll('[data-st-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.stTab; paint(); });
   r.querySelectorAll('[data-person]').forEach(c=>c.onclick=()=>personDrawer(c.dataset.person));
   if(tab==='people') paintWorkforceCharts();
+  if(tab==='data') paintShared();
   const add=r.querySelector('[data-add]'); if(add) add.onclick=()=>editStaff(null);
   const si=r.querySelector('[data-save-identity]');
   if(si) si.onclick=()=>{ const g=id=>{ const el=r.querySelector('#'+id); return el?el.value:''; };
     S.commit(d=>{ const st=d.settings; st.labName=g('setLab'); st.dept=g('setDept'); st.email=g('setEmail'); st.phone=g('setPhone'); st.samplePrefix=g('setPrefix')||'RDH'; st.manifestPrefix=g('setMprefix')||'BLC'; st.fiscalStart=g('setFy'); st.fyLabel=g('setFyLabel');
       st.signatories=[g('setSign1'),g('setSign2'),g('setSign3')]; },{action:'settings.identity',entity:'settings',detail:'Laboratory identity updated'});
     LS.shell.build(); UI.toast('Identity saved across the console',{type:'ok'}); };
+  /* ——— two browsers, one register ——— */
+  const pushAll=r.querySelector('[data-cloud-pushall]');
+  if(pushAll) pushAll.onclick=async()=>{
+    if(!SY.configured()) return UI.toast('Add the project URL and key first',{type:'warn'});
+    const t=SY.localTally();
+    const ok=await UI.confirm({title:'Publish this whole browser?',
+      body:'<p class="small" style="line-height:1.7">This replaces the shared copy with what is on this device: '
+        +'<b>'+t.samples+'</b> samples, <b>'+t.staff+'</b> staff records, <b>'+t.pbfVisits+'</b> PBF visits and <b>'+t.pbfMarks+'</b> PBF marks.</p>'
+        +'<p class="small" style="margin-top:8px;line-height:1.7">Use it when this browser is the one with the real work — the PC you type on. The other devices pull it within a few seconds.</p>',
+      confirm:'Push everything', danger:true});
+    if(!ok) return;
+    pushAll.disabled=true;
+    try{
+      const row=await SY.publishAll();
+      UI.toast('Published · revision '+(row&&row.revision!=null?row.revision:'ok')+' · '+t.pbfMarks+' PBF marks',{type:'ok',duration:6000});
+      if(SY.startLive) SY.startLive();
+      paint();
+      setTimeout(()=>paintShared(),300);
+    }catch(e){
+      showSyncFailure({reason:(e&&e.message)||'Push failed'});
+    }finally{ pushAll.disabled=false; }
+  };
+  const cmp=r.querySelector('[data-cloud-counts]');
+  if(cmp) cmp.onclick=()=>paintShared();
+  const dl=r.querySelector('[data-cloud-pull]');
+  if(dl) dl.onclick=async()=>{
+    if(!SY.configured()) return UI.toast('Add the project URL and key first',{type:'warn'});
+    const ok=await UI.confirm({title:'Download the shared copy?',body:'This replaces the register on this browser with the cloud version. A restore point of what is here is taken first, so nothing is lost permanently.',confirm:'Download'});
+    if(!ok) return;
+    dl.disabled=true;
+    try{
+      const res=await SY.replaceFromCloud();
+      if(!res.ok) return showSyncFailure({reason:res.reason||'Nothing to download'});
+      UI.toast('Downloaded · '+res.after.samples+' samples · '+res.after.pbfMarks+' PBF marks',{type:'ok',duration:6000});
+      paint();
+      setTimeout(()=>paintShared(),300);
+    }catch(e){ showSyncFailure({reason:(e&&e.message)||'Download failed'}); }
+    finally{ dl.disabled=false; }
+  };
+  const code=r.querySelector('[data-cloud-code]');
+  if(code) code.onclick=async()=>{
+    const c=SY.setupCode();
+    if(!c) return UI.toast('Fill in the project URL and key first',{type:'warn'});
+    await U.copy(c);
+    UI.modal({title:'Setup code',sub:'carry it to the other browser',width:'min(560px,100%)',
+      body:'<p class="small" style="line-height:1.65">Paste this into <b>Data &amp; sync → Paste setup code</b> on the other browser — a new PC, a phone, an incognito window. It carries the address, the publishable key and the mode. <b>No password is in it.</b></p>'
+        +'<textarea class="input mono" id="scCode" rows="4" style="margin-top:10px;width:100%;font-size:11px" readonly>'+U.esc(c)+'</textarea>',
+      foot:'<button class="btn" data-close>Close</button>',
+      onMount:(el)=>{ const ta=el.querySelector('#scCode'); if(ta) ta.onclick=e=>e.target.select(); }});
+    UI.toast('Setup code copied',{type:'ok'});
+  };
+  const paste=r.querySelector('[data-cloud-paste]');
+  if(paste) paste.onclick=()=>{
+    UI.modal({title:'Paste a setup code',sub:'from the browser that already syncs',width:'min(560px,100%)',
+      body:'<p class="small" style="line-height:1.65">Copied from the other device: <b>Data &amp; sync → Copy setup code</b>. The address and key are applied here; you still sign in the same way that device does.</p>'
+        +'<textarea class="input mono" id="scPaste" rows="4" style="margin-top:10px;width:100%;font-size:11px" placeholder="paste the code here"></textarea>',
+      foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-apply>'+UI.ic('check',14)+' Apply</button>',
+      onMount:(el,close)=>{
+        el.querySelector('[data-apply]').onclick=()=>{
+          const res=SY.applySetupCode(el.querySelector('#scPaste').value);
+          if(!res.ok){ UI.toast(res.reason,{type:'err'}); return; }
+          S.commit(d=>{ const c=d.settings.cloud; c.endpoint=res.url; c.anonKey=res.key; c.mode=res.mode; if(res.anonAuth) c.anonAuth=true; },
+            {action:'settings.cloud.setupcode',entity:'settings',detail:'Setup code applied'});
+          close();
+          UI.toast('Setup applied — now Test connection, or sign in',{type:'ok',duration:6000});
+          paint();
+        };
+      }});
+  };
   const sc=r.querySelector('[data-save-cover]'); if(sc) sc.onclick=()=>{ S.commit(d=>{ r.querySelectorAll('[data-cover]').forEach(i=>{ d.settings[i.dataset.cover]=Math.max(0,+i.value||0); }); },{action:'settings.coverage',entity:'settings',detail:'Coverage minimums updated'}); UI.toast('Coverage minimums saved',{type:'ok'}); };
   /* test menu: confirm / switch off / delete / add */
   const testSelState=()=>U.$$('[data-test-sel]',r).filter(c=>c.checked).map(c=>c.dataset.testSel);

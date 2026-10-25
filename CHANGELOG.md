@@ -4,6 +4,35 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.28
+
+**"My PBF marks are gone in incognito" — answered with counts, not reassurance.**
+
+An incognito window has its own empty `localStorage`. It starts from the built-in sample register
+and cannot know the project address or key, so the work typed on the PC is not there. The marks
+were never lost; they were in another browser. Three things now make that visible and fixable:
+
+- **Two browsers, one register** (Settings → Data & sync): a table comparing *this browser* and
+  *the shared copy* for samples, staff, leave, referrals, equipment, trainings, **PBF visits, PBF
+  marks entered and PBF questions**. Press **Compare** to read the cloud side; the counts either
+  match or they do not, with nothing to interpret.
+- **Push everything now** publishes the whole register — every sample, roster, leave record, EQA
+  round and PBF mark — behind a confirmation that names the counts first, and reports the revision
+  Supabase stored.
+- **Download the shared copy** replaces this browser with the cloud version, taking a restore point
+  of what was here first.
+- **Setup code** — *Copy setup code* on the working device, *Paste setup code* on the new one. It
+  carries the address, publishable key, mode and anonymous flag as text; **it never carries a
+  password** (the test decodes it to prove that).
+
+**A guard against the worst mistake.** A browser that has never received the shared register used
+to be able to publish its seed over a real cloud copy — one pending edit was enough, and the
+background loop did it silently. That is exactly how "everything vanished" happens. The loop now
+refuses when `lastPullAt` is empty, says why in the card, and leaves the cloud copy alone; the
+explicit *Push everything now* is the only way to overwrite it from such a browser.
+
+The guide gained **Part 9: Incognito, a new PC, a new phone**.
+
 ## What changed in 6.9.27
 
 **A visitor is now a real Viewer: the register opens without a password, read-only.**
