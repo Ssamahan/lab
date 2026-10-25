@@ -498,7 +498,7 @@ SY.diagnose=async function(){
        this register. Say so in the same breath as "it works", while there is still time. */
     if(anon){
       let patients=0;
-      try{ patients=(S.db().samples||[]).filter(x=>x&&x.patientName).length; }catch(e){}
+      try{ patients=(S.db().samples||[]).filter(x=>x&&x.patientName).length; }catch(e){}   /* records, not names — every name is already 'Confidential' */
       row('Register privacy',patients===0,
         patients===0
           ? 'Anonymous sessions are on. This register holds no patient names yet — fine for now, but close this door before it does: create a user in Authentication → Users, switch every device to it, then turn Allow anonymous sign-ins off.'
@@ -783,6 +783,19 @@ SY.start=function(){
     if(SY.configured()) SY.pushSoon();
   });
   if(SY.configured()) setTimeout(()=>{ SY.startLive(); SY.sync({auto:true, quiet:true}).catch(()=>{}); },1200);
+  /* The privacy migration cleans the register on load. The shared copy must not keep
+     the old names, so the cleaned register is published once, without being asked. */
+  if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) && SY.configured()){
+    setTimeout(()=>{
+      try{
+        const meta=S.db().meta||{};
+        if(meta.patientNamesMasked && !meta.patientNamesPushed){
+          SY.push().then(()=>{ S.commit(d=>{ d.meta.patientNamesPushed=true; },
+            {action:'privacy.names.masked',entity:'samples',detail:'Patient names replaced with Confidential and published to the shared copy'}); }).catch(()=>{});
+        }
+      }catch(e){}
+    },2500);
+  }
 };
 SY.emit=function(kind){ listeners.forEach(fn=>{ try{ fn(kind,state()); }catch(e){} }); };
 SY.onChange=function(fn){ listeners.push(fn); return ()=>{ listeners=listeners.filter(x=>x!==fn); }; };

@@ -81,7 +81,7 @@ function components(){
     +'</div></div>'
     +'<div class="ds-demo"><div class="eyebrow">Table anatomy</div>'
       +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Sample</th><th>Facility</th><th>Priority</th><th class="num">TAT</th></tr></thead><tbody>'
-      +'<tr><td><div class="primary-cell"><b>RDH-2027-012345</b><small>MUKAMANA Alice · CBC</small></div></td><td class="small">Coko HC</td><td>'+UI.pill('STAT','rose')+'</td><td class="num mono">2.1h</td></tr>'
+      +'<tr><td><div class="primary-cell"><b>RDH-2027-012345</b><small>Confidential · CBC</small></div></td><td class="small">Coko HC</td><td>'+UI.pill('STAT','rose')+'</td><td class="num mono">2.1h</td></tr>'
       +'<tr><td><div class="primary-cell"><b>RDH-2027-012344</b><small>HABIMANA Jean · GeneXpert</small></div></td><td class="small">Nyange HC</td><td>'+UI.pill('Routine','slate')+'</td><td class="num mono">19h</td></tr>'
       +'</tbody></table></div></div>'
     +'<div class="ds-demo"><div class="eyebrow">Empty state</div>'+UI.empty({art:'search',title:'Nothing matches that filter',body:'Saved views are shareable by URL — copy the address bar to hand a filtered worklist to a colleague.',action:'<button class="btn sm">'+UI.ic('rotate-ccw',13)+'Clear filters</button>'})+'</div>'});

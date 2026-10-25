@@ -291,7 +291,7 @@ function generateSamples(seedDB,opts){
   const staff=seedDB.staff.filter(s=>s.status==='active');
   const hcs=seedDB.catalog.healthCenters.map(h=>h.name);
   const hospitals=seedDB.catalog.hospitals;
-  const names=['MUKAMANA Alice','NSENGIMANA Eric','UWIMANA Claudine','HABIMANA Jean','UWAYO Solange','NIRERE Diane','MUGISHA Patrick','AKIMANA Yvonne','BIZIMANA Olivier','KAYITESI Grace','NSHUTI Samuel','Uwase Marie','HAGENIMANA Fiston','MUKARUGWIZA Josiane','NDAYISABA Clément','INGABIRE Peace','RUKUNDO Aimable','MUKANDOLI Béatrice','SIBOMANA Romain','UWAMAHORO Chantal','NKURUNZIZA Innocent','TUMUKUNDE Fabrice','MUTONI Sandrine','HABIYAREMYE Aline','GAHIGI Emmanuel','KAMIKAZI Rose','MBONIMPA Thierry','NSABIMANA Liliane','MURENZI Damascène','UWASE Chantal','BIZIMUNGU Alice','NZABONIMPA Eric'];
+
   const priorities=['Routine','Routine','Routine','STAT','Routine','Follow-up','STAT','Routine'];
   const out=[]; let seq=opts.seq||120000; const span=opts.days||45; const tag=opts.tag||'';
   const skipDates=opts.skipDates||null;
@@ -325,7 +325,7 @@ function generateSamples(seedDB,opts){
       const resultedAt = status==='Done'||status==='Resulted' ? new Date(new Date(collectedAt+'Z').getTime()+resultDelayH*3600*1000).toISOString() : null;
       const source = (d>=17 && out.length<6) ? 'register' : 'telemetry';
       const rec={
-        id:'sm'+tag+seq, sampleId:'RDH-'+U.fyLabel().slice(-4)+'-'+String(seq).padStart(6,'0'), patientName:names[Math.floor(r()*names.length)],
+        id:'sm'+tag+seq, sampleId:'RDH-'+U.fyLabel().slice(-4)+'-'+String(seq).padStart(6,'0'), patientName:U.CONFIDENTIAL,
         patientId:'4'+Math.floor(r()*900000+100000), dob:'', sex:r()<0.55?'Female':'Male',
         test, testCode:t.code, cat:t.cat, hospital:hosp, healthFacility:hc, district:'Gakenke',
         collectionDate:date, sentDate:date, collectionAt:collectedAt, receivedAt, resultedAt,
@@ -437,6 +437,13 @@ function normalize(db){
     {id:'sv3', name:'Expiring ≤ 30 days', module:'stock', filter:{expiry:30}, owner:'Beatrice NGEZEKURE'}
   ];
   db.meta.schema=6;
+  /* v6.9.30 — the register identifies a specimen by its ID, never by a person.
+     Any name already stored is replaced here, once, on load: screens, sheets,
+     exports and the shared copy all carry the same single word. */
+  if(!db.meta.patientNamesMasked){
+    db.meta.patientNamesMasked=true;
+    db.samples.forEach(x=>{ if(x && x.patientName!==U.CONFIDENTIAL) x.patientName=U.CONFIDENTIAL; });
+  }
   /* v6.9.5 — monthly ceilings on consumables. The bench plans in months ("no more
      than five blood-culture bottles a month"), so a ceiling can be set per line.
      The blood-culture ceiling is the district's own figure; the other lines start
