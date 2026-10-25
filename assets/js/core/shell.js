@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.20';
+const APP_VERSION='6.9.21';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -558,11 +558,18 @@ SH.logout=async function(){
 /* ——— Status bar ————————————————————— */
 function updateNet(){
   const online=navigator.onLine;
-  U.$$('[data-net]').forEach(e=>{ e.innerHTML=online? U.ic('wifi',12)+' <b>Synced</b>' : U.ic('wifi-off',12)+' <b style="color:var(--warn)">Offline — queued</b>'; });
+  /* When a shared register is configured the pill reports sync, not just the cable. */
+  const live=(window.LS&&LS.sync&&LS.sync.configured&&LS.sync.configured())?LS.sync.liveLabel():null;
+  U.$$('[data-net]').forEach(e=>{
+    e.innerHTML = !online ? U.ic('wifi-off',12)+' <b style="color:var(--warn)">Offline — queued</b>'
+      : live ? U.ic('wifi',12)+' <b>'+U.esc(live.text)+'</b>'
+      : U.ic('wifi',12)+' <b>Synced</b>';
+  });
   const dot=document.getElementById('sysDot'); if(dot) dot.style.color=online?'var(--pos)':'var(--warn)';
   const txt=document.getElementById('sysText'); if(txt) txt.textContent=online?'All systems operational':'Offline · local-first';
   U.$$('[data-offline-banner]').forEach(e=>e.hidden=online);
 }
+if(window.LS&&LS.sync&&LS.sync.onChange) LS.sync.onChange(()=>{ try{ updateNet(); }catch(e){} });
 window.addEventListener('online',()=>{ updateNet(); UI.toast('Connection restored — syncing local changes',{type:'ok'}); });
 window.addEventListener('offline',()=>{ updateNet(); UI.toast('Offline. Every action still saves locally and queues for sync.',{type:'warn',duration:6000}); });
 

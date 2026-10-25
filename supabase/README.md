@@ -44,10 +44,18 @@ account per person if you want the audit trail to name them.
 
 - **Offline first.** Every edit still lands in `localStorage` immediately. Sync is
   a background copy, never a prerequisite for saving.
-- **Push after edits.** A save schedules a push 1.5 s later; failures retry when
-  the device comes back online.
-- **Pull on open and on demand.** Opening the console pulls the shared copy if it
-  is newer than what this device last saw.
+- **Live by default.** A save pushes 0.7 s later; a background tick asks for the
+  revision number every 2.5 s and pulls the document the moment it moves. The header
+  pill shows *Live · Synced just now*. Both intervals are in `settings.cloud`
+  (`pushMs`, `pollMs`) and the loop can be switched off with `settings.cloud.live`.
+- **Nothing is redrawn under your fingers.** An incoming change is applied to the
+  register at once, but a screen holding a focused field is redrawn only when that
+  field is released, and an open dialog is never fought with.
+- **Pulls do not echo.** Adopting a remote register clears the pending-edit counter, so
+  the import cannot schedule a push straight back at the cloud.
+- **Conflicts during a live tick** never open a dialog: the device with the visible edit
+  publishes, the replaced copy is kept as a restore point, and the card records what
+  happened. Pressing **Sync now** still asks which copy to keep.
 - **Conflicts are visible, never silent.** If the other device wrote while this one
   had unsaved changes, the console asks which copy to keep and takes a local
   snapshot first, so the losing version can always be restored from

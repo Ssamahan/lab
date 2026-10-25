@@ -5,9 +5,39 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.20** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.21** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.21
+
+**Every change is on the other device in about a second — nothing pressed.**
+
+Two rhythms now keep a room full of devices on one register:
+
+- **push** — a local commit schedules a push after `pushMs` (700 ms);
+- **poll** — a background tick asks *only for the revision number* every `pollMs`
+  (2.5 s), and pulls the document the moment it differs from the one this device last
+  saw. A dozen bytes per check, not the whole register.
+
+Both are silent. No toast per sync, no dialog, and no redrawing under a focused field:
+an incoming change lands in the register immediately but the screen is redrawn when the
+field is released (and never while a dialog is open). After a pull the pending-edit
+counter is cleared, which is what stops two devices echoing the same document back and
+forth.
+
+**Conflicts during a live tick never ask.** The device with the visible edit publishes,
+the copy it replaced stays in restore points, and the card records *"This device
+published over a newer cloud copy"*. Pressing **Sync now** still asks.
+
+The header pill now reports the truth — *Live · Synced just now*, *Syncing…*, *Offline —
+queued*, *Sync error* — and the Cloud sync card gained a **Live sync** switch, the loop's
+state, the last push/pull and any conflict note. Two tabs of the same browser now also
+adopt each other's writes through the `storage` event.
+
+`hasLocalChanges()` was rebuilt on the pending-edit counter; the old *"never pushed"*
+fallback made a freshly-joined device believe it always had unsaved work, so it
+overwrote the cloud instead of pulling.
 
 ## What changed in 6.9.20
 

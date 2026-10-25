@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   samplePrefix:'RDH', manifestPrefix:'BLC',
   coverWeekdayDay:3, coverWeekdayNight:1, coverWeekendDay:2, coverWeekendNight:1,
   tat: { 'Blood Culture':4, 'TB Culture':21, 'HIV Recency Viral Load':5, 'Hepatitis (HEP)':7, default:3 },
-  cloud:{ enabled:false, endpoint:'', anonKey:'', email:'', password:'', anonAuth:false, mode:'push-pull', lastSync:null },
+  cloud:{ enabled:false, endpoint:'', anonKey:'', email:'', password:'', anonAuth:false, live:true, pollMs:2500, pushMs:700, mode:'push-pull', lastSync:null },
   onboarding:{ importStaff:true, configureTests:false, inviteUsers:false, baselineQC:false, dismissed:false },
   features:{ qc:true, pbf:true, equipment:true, cloud:true },
   provenance:'Register data carried forward from v5.3.1. Throughput, QC and TAT telemetry are generated locally for the console.'
@@ -732,6 +732,18 @@ S._persist=function(){
     try{ window.dispatchEvent(new CustomEvent('ls:saved',{detail:{bytes:json.length}})); }catch(e){}
     try{ const ch=new BroadcastChannel('lab-systems'); ch.postMessage({type:'saved',at:Date.now()}); ch.close(); }catch(e){}
   }catch(e){ console.warn('save failed',e.message); try{ window.dispatchEvent(new CustomEvent('ls:saveerror',{detail:e})); }catch(_){} }
+};
+/* The storage key, and a way to adopt what another tab wrote. Without this two windows
+   of the same browser quietly diverge until one is closed. */
+S.STORAGE_KEY=DB_KEY;
+S.reloadFromStorage=function(){
+  try{
+    const raw=localStorage.getItem(DB_KEY); if(!raw) return false;
+    const next=JSON.parse(raw);
+    DB=normalize(next); dirty=false;
+    S.emit('tab');
+    return true;
+  }catch(e){ return false; }
 };
 S.save=function(immediate){
   clearTimeout(saveTimer);
