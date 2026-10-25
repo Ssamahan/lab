@@ -380,6 +380,17 @@ SY.diagnose=async function(){
     }
     const anon=!!(settings.external&&settings.external.anonymous_users);
     row('Anonymous sign-ins',anon,anon?'Allowed — the "Anonymous session" route will work.':'Off. Turn it on at '+(SY.authProvidersUrl()||'Authentication → Sign In / Providers → Allow anonymous sign-ins')+', or use a project user.');
+    /* Anonymous sessions are real sessions: row-level security cannot tell them apart from
+       a person. With the door open, anyone holding the publishable key could read or replace
+       this register. Say so in the same breath as "it works", while there is still time. */
+    if(anon){
+      let patients=0;
+      try{ patients=(S.db().samples||[]).filter(x=>x&&x.patientName).length; }catch(e){}
+      row('Register privacy',patients===0,
+        patients===0
+          ? 'Anonymous sessions are on. This register holds no patient names yet — fine for now, but close this door before it does: create a user in Authentication → Users, switch every device to it, then turn Allow anonymous sign-ins off.'
+          : 'Anonymous sessions are on and this register already holds '+patients+' patient name'+(patients===1?'':'s')+'. The publishable key is public by design, so anyone holding it could open a session and read or replace the register. Create a user in Authentication → Users, switch every device to it, then turn Allow anonymous sign-ins off.');
+    }
     if(settings.disable_signup && !anon) row('Sign-ups',false,'Sign-ups are disabled and there is no anonymous route, so only a user you create in Authentication → Users can sign in.');
   }
 

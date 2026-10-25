@@ -278,6 +278,38 @@ create policy &quot;lab register update&quot; on public.lab_registers
   </div>
 
   <div class="card">
+    <div class="kicker">Part 8 — the important one</div>
+    <h2>Close the anonymous door before real patients</h2>
+    <p>If you used <b>Way B</b>, syncing works — and that is worth enjoying. But understand exactly
+      what is standing open:</p>
+    <ul>
+      <li>An anonymous session is a <b>real signed-in session</b> to Supabase. The database cannot tell
+        it apart from a person.</li>
+      <li>The <b>publishable key is public by design</b> — it says so on the Supabase page.</li>
+      <li>So while anonymous sign-ins are on, <b>anyone who has your project address and that key could
+        open a session and read, or overwrite, the whole register</b> — patient names included.</li>
+    </ul>
+    <div class="warn box">The app will keep telling you this: <b>Check setup</b> adds a red row called
+      <b>Register privacy</b> the moment the register holds patient names while anonymous sessions are on.</div>
+    <h3 style="font-size:16px;margin:16px 0 4px">The ten-minute upgrade to a proper door</h3>
+    <ol>
+      <li><b>Authentication → Users → Add user</b>. Email <code>lab@rulidh.rw</code>, a long password,
+        <b>Auto Confirm User</b> if it appears. Create.</li>
+      <li>On <b>each device</b>: untick <b>Anonymous session</b>, type that email and password, press
+        <b>Test connection</b>, then <b>Save</b>. The register stays exactly as it is — only the door changes.</li>
+      <li><b>Authentication → Sign In / Providers → Allow anonymous sign-ins → off.</b></li>
+      <li>Press <b>Check setup</b> on each device: everything should be green, and <b>Register privacy</b>
+        should be gone.</li>
+      <li>Optional, the strongest lock: in the <b>SQL Editor</b>, run the commented block at the bottom of
+        <code>supabase/schema.sql</code> (marked <i>hardening</i>). It makes the database itself refuse
+        anonymous sessions, even if the toggle is switched back on by mistake.</li>
+    </ol>
+    <div class="tip box">Do this before the first real patient record, not after. Nothing on the devices is
+      lost by switching: the register lives on the device and in the cloud, and the route only decides who
+      may open the door.</div>
+  </div>
+
+  <div class="card">
     <div class="kicker">If something goes wrong</div>
     <h2>The honest little table</h2>
     <table>
