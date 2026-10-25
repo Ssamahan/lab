@@ -5,9 +5,34 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.17** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.18** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.18
+
+**A setup check that names the mistake, and the answer to "where is Auto Confirm?"**
+
+The Cloud sync card gained **Check setup**. One press asks the project four questions and
+lists the answers with a tick or a cross:
+
+1. is the project address right (and was anything like `/rest/v1` repaired?);
+2. does the project answer, and does it accept the key — `GET /auth/v1/settings` is public,
+   so it also reports two things nobody can see from the app: whether **email confirmations
+   are on** (`mailer_autoconfirm`) and whether **anonymous sign-ins are allowed**;
+3. can a session actually be created — a real password sign-in, or an anonymous one;
+4. does `lab_registers` answer, or is the table missing.
+
+The email-confirmation row is the one that ends the guessing: when confirmations are off the
+check says *"every new user is confirmed automatically — that is why there is no Auto Confirm
+user switch to look for"*; when they are on it says to tick the switch or confirm the user
+afterwards.
+
+An unconfirmed user also gets its own message now (*"Supabase found that user but it was never
+confirmed…"*), and the table probe runs with whatever credential is available, so a failed
+sign-in no longer hides a missing table behind it.
+
+The guide gained the same explanation in Part 4 and three new rows in its error table.
 
 ## What changed in 6.9.17
 

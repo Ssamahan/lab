@@ -203,6 +203,14 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <li>Turn on <b>Allow anonymous sign-ins</b>.</li>
       <li>In the app, tick <b>Anonymous session</b> and leave the email and password empty.</li>
     </ol>
+    <div class="tip box" style="margin-top:14px"><b>“I can't see Auto Confirm User.”</b> That switch only appears while email
+      confirmations are <b>on</b>. If your project already has them off, every user is confirmed the moment you create
+      them — nothing to tick, nothing to do.<br><br>
+      To check or change it: <b>Authentication → Sign In / Providers → Email</b>. If <b>Confirm email</b> is off, you are
+      done. If it is on and you still see no switch, create the user anyway: the row appears in the list, and you can
+      press <b>⋯ → Confirm email</b> on that user afterwards. The app's new <b>Check setup</b> button tells you which
+      case you are in.</div>
+
     <div class="warn box">Way B is quicker, but anyone who finds your project address and publishable key could also open a session.
       The register holds patient names. Use Way B to get running today, then move to Way A before the lab depends on it.</div>
   </div>
@@ -259,6 +267,8 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <tr><td>Test connection spins forever</td><td>The URL is wrong or the internet is down.</td><td>Check the address starts with <code>https://</code> and ends in <code>.supabase.co</code>.</td></tr>
       <tr><td>“The table is missing”</td><td>Part 3 was never run.</td><td>SQL Editor → paste the code again → Run.</td></tr>
       <tr><td>“Supabase said no (401 / 403)”</td><td>The login is wrong, the user is not confirmed, or the login fields are empty.</td><td>Authentication → Users → set a new password. Make sure the email and password fields are filled too.</td></tr>
+      <tr><td>“found that user but it was never confirmed”</td><td>The user exists, the password is right, but the email confirmation never happened.</td><td>Authentication → Users → open the user → Confirm. Or untick <b>Confirm email</b> in Sign In / Providers → Email, then create the user again.</td></tr>
+      <tr><td>No “Auto Confirm User” switch in the Add-user dialog</td><td>Confirmations are already off, so there is nothing to confirm.</td><td>Nothing — just create the user and sign in.</td></tr>
       <tr><td>“does not recognise that email and password”</td><td>You typed your supabase.com login (GitHub/Google) or no user exists yet.</td><td>Authentication → Users → Add user (Part 4, Way A), or tick <b>Anonymous session</b>.</td></tr>
       <tr><td>“refused an anonymous session”</td><td>The toggle is still off.</td><td>Authentication → Sign In / Providers → Allow anonymous sign-ins.</td></tr>
       <tr><td>“Sign-in failed (404) — PGRST125, Invalid path”</td><td>The project URL has a path on the end, usually <code>/rest/v1</code>.</td><td>Use only <code>https://&lt;project&gt;.supabase.co</code>. The app now trims the path for you — press <b>Save</b> again.</td></tr>
