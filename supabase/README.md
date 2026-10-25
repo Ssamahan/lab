@@ -36,7 +36,9 @@ a single shared passphrase instead of Auth users, enable **Allow anonymous
 sign-ins** and swap `authenticated` for `anon` in the three policies — but then
 anyone holding the anon key can read the register.
 
-The login is kept in the browser's `localStorage` on each device. That is the same
+Every device should take the same route: if one runs on an anonymous session and another on a
+project user, give the second device a user of its own — or let the app switch it to anonymous
+where the project allows that. The login is kept in the browser's `localStorage` on each device. That is the same
 trust boundary as the register itself; do not email it around, and create one
 account per person if you want the audit trail to name them.
 

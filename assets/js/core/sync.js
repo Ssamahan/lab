@@ -135,7 +135,12 @@ async function authError(r, body, c, mode){
     return authErr('This project has sign-ups disabled, so no session can be created from the app. Either turn on “Allow anonymous sign-ins” in Authentication → Sign In / Providers, or create a user in Authentication → Users and type its email and password.');
   }
   if(r.status===400&&/invalid login credentials/i.test(msg)){
-    return authErr('Supabase does not recognise that email and password. This is the app user from Authentication → Users, not the login you use on supabase.com. Create one there (Add user → Auto confirm) or switch to an anonymous session.');
+    let anonymousAllowed=null;
+    try{ const st=await SY.authSettings(false); if(st&&st.external) anonymousAllowed=!!st.external.anonymous_users; }catch(e){}
+    const e=authErr('Supabase does not recognise that email and password. This is the app user from Authentication → Users, not the login you use on supabase.com. Create one there (Add user → Auto confirm), or use the same route as the other device — if that one runs on an anonymous session, this one needs the same.');
+    e.badCredentials=true;
+    e.anonymousAllowed=anonymousAllowed;
+    return e;
   }
   if(r.status===422&&/email/i.test(msg)){
     return authErr('Supabase rejected the sign-in: '+msg+'. Use a real-looking address such as lab@rulidh.rw.');
@@ -219,7 +224,9 @@ async function signIn(force){
   const r=await fetch(c.url+'/auth/v1/token?grant_type=password',{
     method:'POST',
     headers:{'apikey':c.key,'Content-Type':'application/json'},
-    body:JSON.stringify({email:c.email, password:c.password})
+    /* A password pasted from a note can carry a trailing space or newline; Supabase
+       compares it exactly, so trim the invisible ends and keep everything else. */
+    body:JSON.stringify({email:c.email, password:String(c.password).replace(/^[\s"']+|[\s"']+$/g,'')})
   });
   const body=await r.text();
   if(!r.ok) throw await authError(r, body, c, 'password');
@@ -288,7 +295,7 @@ SY.ping=async function(){
     const rows=await r.json();
     return {ok:true, remote:rows[0]||null};
   }catch(e){
-    if(e&&e.auth) return {ok:false, reason:e.message};
+    if(e&&e.auth) return {ok:false, reason:e.message, badCredentials:!!e.badCredentials, anonymousAllowed:e.anonymousAllowed===undefined?null:e.anonymousAllowed};
     if(/^Supabase (sign-in failed|refused|does not recognise|rejected|created no session)/.test(e.message||'')) return {ok:false, reason:e.message};
     return {ok:false, reason:'Could not reach Supabase — is this device online? ('+e.message+')'};
   }
@@ -567,7 +574,7 @@ SY.sync=async function(opts){
     const msg=(e&&e.message)||'Sync did not finish';
     const schemaIssue=/42703|column .* does not exist/i.test(msg);
     setState({running:false, lastError:msg, schemaNote:schemaIssue?'The table does not match schema.sql — re-run it.':state().schemaNote});
-    return {ok:false, reason:msg, schemaIssue:schemaIssue};
+    return {ok:false, reason:msg, schemaIssue:schemaIssue, badCredentials:!!(e&&e.badCredentials), anonymousAllowed:(e&&e.anonymousAllowed)===undefined?null:e.anonymousAllowed};
   }finally{
     busy=false; setState({running:false});
   }
