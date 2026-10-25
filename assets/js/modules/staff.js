@@ -77,7 +77,7 @@ function kpis(){
    +'<div class="c3">'+UI.stat({label:'Active staff',value:a.length,icon:'users',formatted:'0',note:staff().length-a.length+' archived · '+S.db().staff.filter(s=>s.weekendOnly).length+' weekend-only',spark:C.spark([7,7,8,8,9,9,9,a.length],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'On authorised leave',value:leave.length,icon:'plane-takeoff',formatted:'0',note:leave.length?leave.map(s=>s.name.split(' ')[0]).join(', '):'Everyone on the plan today',spark:C.spark([0,1,0,1,1,0,1,leave.length],{color:'var(--info)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Contract mix',value:a.filter(x=>S.contractOf(x)==='statute').length,icon:'file-signature',formatted:'0',note:a.filter(x=>S.contractOf(x)==='statute').length+' under statute · '+a.filter(x=>S.contractOf(x)==='contractual').length+' contractual',spark:C.spark(a.map(x=>S.contractOf(x)==='statute'?1:0),{color:'var(--pos)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'2FA not enrolled',value:exp,icon:'shield-alert',formatted:'0',note:exp?A.users.filter(u=>!u.twoFactor).map(u=>u.name.split(' ')[0]).join(', '):'Every account enrolled',spark:C.spark([4,4,3,3,2,2,1,exp],{color:'var(--amber)'})})+'</div></div>';
+   +(A.can('staff')?'<div class="c3">'+UI.stat({label:'2FA not enrolled',value:exp,icon:'shield-alert',formatted:'0',note:exp?A.users.filter(u=>!u.twoFactor).map(u=>u.name.split(' ')[0]).join(', '):'Every account enrolled',spark:C.spark([4,4,3,3,2,2,1,exp],{color:'var(--amber)'})})+'</div>':'')+'</div>';
 }
 function people(){
   return '<div class="grid-12 stagger">'+staff().map(s=>{
@@ -106,12 +106,12 @@ function personDrawer(id){
   const user=A.users.find(u=>u.staffId===s.id);
   UI.drawer({title:s.name,eyebrow:'Staff record',sub:s.role+' · since '+U.fmtDate(s.joinDate||'2019-01-01'),wide:true,body:
     '<div class="row gap-lg" style="align-items:center;margin-bottom:16px"><div style="position:relative;flex:0 0 auto">'+U.avatar(s.name,'xl')
-    +'<button class="icon-btn" data-photo-upload title="Upload a profile photo" style="position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#241A06;border:2px solid var(--surface)">'+UI.ic('camera',12)+'</button></div>'
+    +(A.can('edit')?'<button class="icon-btn" data-photo-upload title="Upload a profile photo" style="position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#241A06;border:2px solid var(--surface)">'+UI.ic('camera',12)+'</button>':'')+'</div>'
     +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')+'</div>'
     +(shift.note?'<div class="xs faint" style="margin-top:5px">'+U.esc(shift.note)+'</div>':'')
     +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(s.phone||'')+'</div>'
-    +'<div class="row gap-xs" style="margin-top:6px"><button class="btn xs" data-photo-upload>'+UI.ic('camera',11)+(s.photo?'Replace photo':'Add a photo')+'</button>'
-    +(s.photo?'<button class="btn xs" data-photo-clear>'+UI.ic('x',11)+'Remove</button>':'')+'</div></div></div>'
+    +(A.can('edit')?'<div class="row gap-xs" style="margin-top:6px"><button class="btn xs" data-photo-upload>'+UI.ic('camera',11)+(s.photo?'Replace photo':'Add a photo')+'</button>'
+    +(s.photo?'<button class="btn xs" data-photo-clear>'+UI.ic('x',11)+'Remove</button>':'')+'</div>':'')+'</div></div>'
     +'<div class="split-4">'+[['Joined',U.fmtDateShort(s.joinDate)],['Pattern',s.pattern||'—'],['Max nights',(s.maxNights||0)+'/mo'],['Contract',S.leaveEntitlement(s).label]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
     +'<div class="split-3" style="margin-top:12px">'+[['Sponsor',S.leaveEntitlement(s).sponsor],['Leave entitlement',S.leaveEntitlement(s).days+(S.contractOf(s)==='contractual'?' weekdays':' days')],['Leave taken',S.leaveUsed(s).days+' days']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
     +'<div class="section-head"><h2>This month</h2><span class="more">'+(row?row.codes.filter(c=>c==='D'||c==='N'||c==='DN').length:0)+' shifts</span></div>'
@@ -121,7 +121,7 @@ function personDrawer(id){
     +'<div class="section-head"><h2>Leave history</h2></div>'
     +leaves.slice(-5).reverse().map(l=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(S.leaveTypeLabel(l.type))+' · '+U.daysBetween(l.from,l.to)+1+' days</div><div class="lr-sub">'+U.fmtDate(l.from)+' → '+U.fmtDate(l.to)+'</div></div><span class="pill '+(l.status==='Approved'?'teal':l.status==='Pending'?'amber':'slate')+'">'+U.esc(l.status||'—')+'</span></div>').join('')
     ||'<p class="xs faint">No leave recorded.</p>',
-    foot:'<button class="btn" data-close>Close</button><button class="btn" data-edit-person>'+UI.ic('pencil',15)+'Edit</button>',
+    foot:'<button class="btn" data-close>Close</button>'+(A.can('edit')?'<button class="btn" data-edit-person>'+UI.ic('pencil',15)+'Edit</button>':''),
     onMount:(panel,close)=>{
       const b=panel.querySelector('[data-edit-person]'); if(b) b.onclick=()=>{ close(); editStaff(s.id); };
       U.$$('[data-photo-upload]',panel).forEach(x=>x.onclick=()=>uploadPhoto(s.id));
@@ -137,6 +137,7 @@ function personDrawer(id){
 /* Photo upload: the chosen image is cropped square, scaled to 256 px and stored as
    a JPEG on the staff record, so it survives offline and never bloats the register. */
 function uploadPhoto(staffId){
+  if(!A.can('edit')) return;
   if(!A.guard('staff')) return;
   const input=document.createElement('input');
   input.type='file'; input.accept='image/*';
@@ -167,6 +168,7 @@ function uploadPhoto(staffId){
   input.click();
 }
 function editStaff(id){
+  if(!A.can('edit')){ UI.toast('This is a read-only view — sign in to edit staff records',{type:'warn'}); return; }
   if(!A.guard('staff')) return;
   const s=id?staff().find(x=>x.id===id):{};
   UI.modal({title:id?'Edit staff record':'Add staff member',sub:'Records feed the roster, leave inbox and audit trail.',width:'min(660px,100%)',
@@ -381,6 +383,7 @@ function showSyncFailure(res){
 }
 function paint(){
   const host=rootEl.querySelector('#stBody'); if(!host) return;
+  if((tab==='settings'||tab==='data') && !A.can('staff')) tab='people';
   host.innerHTML=tab==='settings'?settingsView():tab==='data'?dataView():people();
   U.$$('[data-st-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.stTab===tab));
   wire();
@@ -523,10 +526,15 @@ function wire(){
 }
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'people';
+  /* The People tab is the staff register and is readable by every role. Settings
+     and Data & sync belong to the administrator: a visitor never receives them,
+     they are not hidden with CSS after the fact. */
+  const tabs=[['people','People']].concat(A.can('staff')?[['settings','Settings'],['data','Data &amp; sync']]:[]);
   root.innerHTML='<div class="page-head"><div><h1>Staff &amp; settings</h1><div class="sub">The people behind the register, the roles that protect it, and the configuration that keeps every document on-brand.</div></div>'
-   +'<div class="actions"><a class="btn" href="#/security">'+UI.ic('shield-check',15)+' Security Center</a><button class="btn primary" data-add>'+UI.ic('user-plus',15)+' Add staff</button></div></div>'
+   +'<div class="actions">'+(A.can('security')?'<a class="btn" href="#/security">'+UI.ic('shield-check',15)+' Security Center</a>':'')
+   +(A.can('edit')?'<button class="btn primary" data-add>'+UI.ic('user-plus',15)+' Add staff</button>':'')+'</div></div>'
    +kpis()
-   +'<div class="filters" style="margin-bottom:12px">'+[['people','People'],['settings','Settings'],['data','Data &amp; sync']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-st-tab="'+k+'">'+l+'</button>').join('')+'</div>'
+   +'<div class="filters" style="margin-bottom:12px">'+tabs.map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-st-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="stBody"></div>';
   paint();
 };

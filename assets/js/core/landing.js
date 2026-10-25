@@ -66,7 +66,7 @@ L.show=function(){
   const auth=document.getElementById('auth'); if(auth) auth.hidden=true;
   const app=document.getElementById('app'); if(app) app.hidden=true;
   land.hidden=false;
-  const signed=!!(LS.auth&&LS.auth.user);
+  const signed=!!(LS.auth&&LS.auth.user&&!(LS.auth.isVisitor&&LS.auth.isVisitor()));
   const back=document.getElementById('landConsole');
   if(back) back.hidden=!signed;
   fill();
@@ -91,6 +91,14 @@ L.signIn=function(){
   },120);
 };
 
+/* Opening the console as a viewer: no account, no password, no writes. */
+L.enterAsVisitor=function(){
+  if(!LS.auth.isVisitor||!LS.auth.isVisitor()) LS.auth.enterAsVisitor();
+  const land=document.getElementById('landing'); if(land) land.hidden=true;
+  const auth=document.getElementById('auth'); if(auth) auth.hidden=true;
+  LS.shell.afterAuth();
+};
+
 L.backToConsole=function(){
   if(LS.auth&&LS.auth.user){ LS.shell.afterAuth(); return; }
   L.signIn();
@@ -103,6 +111,8 @@ L.init=function(){
 
   const back=document.getElementById('landConsole');
   if(back) back.onclick=()=>L.backToConsole();
+  const enter=document.getElementById('landEnter');
+  if(enter) enter.onclick=()=>L.enterAsVisitor();
   const authBack=document.getElementById('authBack');
   if(authBack) authBack.onclick=()=>L.show();
 

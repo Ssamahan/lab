@@ -65,6 +65,19 @@ const USERS=[
   {id:'u5', name:'Gakenke Review Panel', role:'Reviewer', username:'reviewer', passHash:'c60d771b500d1b4f8a1c8438b0e0f8d89ee8bac756a768efd4057b7011a367d5', email:'review@gakenke.gov.rw', staffId:null, title:'District review panel', twoFactor:false}
 ];
 A.users=USERS;
+/* A VISITOR is a real Viewer, not an account: the register opens read-only with
+   export and download, and three surfaces are never mounted — Training Revenue,
+   the Settings tab and the Data & sync tab. No password, no write, no cloud. */
+A.VISITOR={id:'u0', name:'Visitor', role:'Viewer', username:'visitor', email:'', staffId:null,
+  title:'Public visitor · read only', twoFactor:false, visitor:true};
+A.isVisitor=function(){ return !!(A.user && A.user.visitor); };
+A.enterAsVisitor=function(){
+  A.user=A.VISITOR;
+  A.session={userId:'u0', visitor:true, started:Date.now(), last:Date.now(),
+    expires:Date.now()+1000*60*60*8, persist:false, method:'visitor'};
+  try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(A.session)); }catch(e){}
+  return A.user;
+};
 A.ROLES=['Admin','Manager','Technologist','Reviewer','Viewer'];
 A.user=null;
 A.session=null;
@@ -116,7 +129,7 @@ A.init=function(){
   try{ s=JSON.parse(localStorage.getItem(SESSION_KEY)||sessionStorage.getItem(SESSION_KEY)||'null'); }catch(e){}
   if(s && s.expires && s.expires>Date.now()){
     A.session=s;
-    A.user=USERS.find(u=>u.id===s.userId)||null;
+    A.user=s.visitor?A.VISITOR:(USERS.find(u=>u.id===s.userId)||null);
     if(A.user) A.touch();
   } else { A.session=null; A.user=null; }
   return A.user;

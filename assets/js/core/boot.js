@@ -19,7 +19,10 @@ function init(){
     LS.store.init();
     LS.i18n.init();
     try{ if(window.LS.sync) LS.sync.start(); }catch(e){ console.warn('sync start',e); }
-    const user=LS.auth.init();
+    LS.auth.init();
+    /* Read the session at the moment the splash ends, not when it starts: a
+       sign-in that completes during the animation must not be overruled. */
+    const sessionUser=()=>LS.auth.user;
     /* Where the address bar points decides the first screen.
        - no session and a console route in the hash → the sign-in screen
        - #/signin or #/welcome                             → those screens
@@ -33,20 +36,26 @@ function init(){
       const wait=Math.max(0,SPLASH_MIN-(performance.now()-t0));
       setTimeout(()=>{
         finish();
-        if(user){
+        if(sessionUser()){
           if(wantsOverview){ if(LS.landing) LS.landing.show(); else LS.shell.afterAuth(); }
           else LS.shell.afterAuth();
         }
-        else if(consoleRoute||wantsSignIn){
+        else if(wantsSignIn){
           if(LS.landing) LS.landing.signIn();
           else { document.getElementById('auth').hidden=false; LS.auth.mount(()=>LS.shell.afterAuth()); }
+        }
+        /* A console link with no session opens the same page as a visitor:
+           read-only, with the strip offering Sign in. Nobody meets a wall. */
+        else if(consoleRoute){
+          if(LS.landing) LS.landing.enterAsVisitor();
+          else { LS.auth.enterAsVisitor(); LS.shell.afterAuth(); }
         }
         else {
           if(LS.landing) LS.landing.show();
           else { document.getElementById('auth').hidden=false; LS.auth.mount(()=>LS.shell.afterAuth()); }
         }
         // deep-link / saved view restore
-        if(user && consoleRoute) setTimeout(()=>LS.shell.route(),60);
+        if(sessionUser() && consoleRoute) setTimeout(()=>LS.shell.route(),60);
       }, wait);
     };
     jump();
