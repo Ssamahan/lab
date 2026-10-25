@@ -307,11 +307,11 @@ function dataView(){
      +'<div class="thread" style="margin:14px 0"></div>'
      +'<div class="row gap-sm wrap"><button class="btn sm" data-export-json>'+UI.ic('download',14)+'Export register</button><button class="btn sm" data-import-json>'+UI.ic('upload',14)+'Import</button><button class="btn sm" data-snapshot>'+UI.ic('database',14)+'Snapshot</button><button class="btn sm danger" data-reset>'+UI.ic('rotate-ccw',14)+'Reset to seed</button></div>'
      +'<div class="hint" style="margin-top:12px">Exports are plain JSON for portability; wrap them with your own encryption when moving between devices. Imports create a restore point first.</div>'})+'</div>'
-   +'<div class="c5">'+UI.card({title:'Cloud sync',sub:'Supabase · shared register across devices',icon:'cloud',
+   +'<div class="c5">'+UI.card({title:'Cloud sync',sub:'Supabase · shared register across devices · publishable key',icon:'cloud',
      tools:'<span class="pill '+(SY.configured()?'teal':'slate')+'">'+U.esc(SY.statusText())+'</span>',
      body:
      '<div class="field" style="margin-top:2px"><label>Supabase project URL</label><input class="input mono" id="cloudUrl" placeholder="https://xxxxxxxx.supabase.co" value="'+U.esc(cl.endpoint||'')+'" spellcheck="false" autocomplete="off"></div>'
-     +'<div class="field" style="margin-top:10px"><label>Anon public key</label><input class="input mono" id="cloudKey" type="password" placeholder="eyJhbGciOi…" value="'+U.esc(cl.anonKey||'')+'" spellcheck="false" autocomplete="off"></div>'
+     +'<div class="field" style="margin-top:10px"><label>API key · publishable</label><input class="input mono" id="cloudKey" type="text" placeholder="sb_publishable_…" value="'+U.esc(cl.anonKey||'')+'" spellcheck="false" autocomplete="off"><div class="xs faint" style="margin-top:4px">Settings → API Keys → <b>Publishable key</b>. The legacy anon key (<span class="mono">eyJ…</span>) still works. Never the secret key.</div></div>'
      +'<div class="field" style="margin-top:10px"><label>Supabase login · email</label><input class="input mono" id="cloudEmail" type="email" placeholder="lab@rulidh.rw" value="'+U.esc(cl.email||'')+'" spellcheck="false" autocomplete="username"></div>'
      +'<div class="field" style="margin-top:10px"><label>Supabase login · password</label><input class="input mono" id="cloudPass" type="password" placeholder="the account you created in Supabase → Authentication" value="'+U.esc(cl.password||'')+'" autocomplete="current-password"></div>'
      +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
@@ -393,6 +393,7 @@ function wire(){
   r.querySelectorAll('[data-cloud-test]').forEach(b=>b.onclick=async()=>{
     const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
     const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass');
+    if(k && LS.sync.keyKind(k.value.trim())==='secret'){ UI.toast('That is the secret key — it bypasses every access rule and must never be in a browser. Copy the publishable key instead.',{type:'err',duration:9000}); return; }
     if(u) S.settings().cloud.endpoint=u.value.trim();
     if(k) S.settings().cloud.anonKey=k.value.trim();
     if(m) S.settings().cloud.mode=m.value;
@@ -405,6 +406,7 @@ function wire(){
   });
   r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
     const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass');
+    if(k && LS.sync.keyKind(k.value.trim())==='secret'){ UI.toast('Not saved: that is the secret key. Use the publishable key (sb_publishable_…) — the secret one bypasses row-level security.',{type:'err',duration:9000}); return; }
     S.commit(d=>{ d.settings.cloud.endpoint=(u?u.value:'').trim(); d.settings.cloud.anonKey=(k?k.value:'').trim();
       d.settings.cloud.email=(em?em.value:'').trim(); d.settings.cloud.password=(pw?pw.value:'');
       d.settings.cloud.mode=m?m.value:'push-pull'; d.settings.cloud.enabled=!!(u&&u.value&&k&&k.value); },

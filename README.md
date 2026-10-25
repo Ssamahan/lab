@@ -5,9 +5,31 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.14** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.15** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.15
+
+**The new Supabase keys work — `sb_publishable_…` is sent on `apikey` only.**
+
+Supabase now issues opaque keys (`sb_publishable_…`, `sb_secret_…`) instead of the old
+`anon` JWT. Those strings are **not JWTs**, so the gateway rejects them when they arrive
+as `Authorization: Bearer …` — which is exactly what the client did, meaning a freshly
+created project answered *Invalid JWT* on every call.
+
+`assets/js/core/sync.js` now classifies the key and sends it correctly:
+
+| key | `apikey` | `Authorization` |
+|---|---|---|
+| `sb_publishable_…` | the key | the signed-in user's JWT, or nothing |
+| `eyJ…` (legacy anon) | the key | the session JWT, or the key itself |
+| `sb_secret_…` | refused | — |
+
+The secret key never leaves Supabase: the connection test and the **Save** button both
+refuse it with an explanation, because it bypasses row-level security. The Cloud sync
+card now asks for the **publishable key** and links to the guide, which has been updated
+to match the current dashboard (Settings → API Keys → *Publishable key*).
 
 ## What changed in 6.9.14
 
