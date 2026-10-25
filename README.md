@@ -5,9 +5,27 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.22** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.23** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.23
+
+**A second device that refuses the password is offered the route that works.**
+
+The phone was set to the project-user route with a password the project does not know, while
+the PC runs on an anonymous session. Both are legitimate; they just were not the same.
+
+- an *Invalid login credentials* failure now carries `badCredentials` and whether the project
+  **allows anonymous sessions** (read from `/auth/v1/settings`);
+- when it does, the failure card shows a one-press **Use an anonymous session** button: it
+  switches this device, clears the unused password, creates the session, publishes or pulls,
+  and starts the live loop — no retyping, no guessing;
+- the wording now says *"use the same route as the other device"* instead of hinting at a
+  menu;
+- a password pasted from a note (trailing space, newline, stray quotes) is trimmed before it is
+  sent — Supabase compares it exactly, and that is a silent, infuriating failure;
+- the guide's Part 4 states plainly that every device should take the same route.
 
 ## What changed in 6.9.22
 

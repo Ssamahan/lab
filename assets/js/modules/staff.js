@@ -354,11 +354,29 @@ function showSyncFailure(res){
   const reason=String(res&&(res.reason||res.message)||'Sync did not finish');
   const link=(reason.match(/https:\/\/[^\s)]+/)||[])[0]||null;
   const schema=res&&res.schemaIssue;
+  /* The other device may already be on an anonymous session: the same project, the same
+     key, and no password to get wrong. Offer that as one press rather than an explanation. */
+  const offerAnon=!!(res&&res.badCredentials)&&res.anonymousAllowed!==false&&!S.settings().cloud.anonAuth;
   UI.modal({title:'Cloud sync needs one thing', sub:res&&res.tableMissing?'the table is missing':'not connected yet',
     body:'<p class="small" style="line-height:1.65">'+linkify(reason)+'</p>'
-      +(schema?'<div class="hint" style="margin-top:10px">Re-run the schema: it now heals a table built by an older version. <b>Copy the table SQL</b> in the Cloud sync card, paste it in the SQL Editor and press Run.</div>':''),
+      +(schema?'<div class="hint" style="margin-top:10px">Re-run the schema: it now heals a table built by an older version. <b>Copy the table SQL</b> in the Cloud sync card, paste it in the SQL Editor and press Run.</div>':'')
+      +(offerAnon?'<div class="hint" style="margin-top:10px">This project allows anonymous sessions. If the other device is set up that way, use the same route here — no password, nothing to mistype.</div>':''),
     foot:'<button class="btn" data-close>Close</button>'
-      +(link?'<a class="btn primary" href="'+U.esc(link)+'" target="_blank" rel="noopener">'+UI.ic('arrow-up-right',14)+'Open the page that fixes it</a>':'')});
+      +(offerAnon?'<button class="btn primary" data-use-anon>'+UI.ic('key-round',14)+'Use an anonymous session</button>':'')
+      +(link?'<a class="btn" href="'+U.esc(link)+'" target="_blank" rel="noopener">'+UI.ic('arrow-up-right',14)+'Open the page that fixes it</a>':'')});
+  const anonBtn=document.querySelector('[data-use-anon]');
+  if(anonBtn) anonBtn.onclick=async()=>{
+    anonBtn.disabled=true;
+    S.commit(d=>{ d.settings.cloud.anonAuth=true; d.settings.cloud.password=''; d.settings.cloud.email=''; },
+      {action:'settings.cloud.anonymous',entity:'settings',detail:'Switched this device to an anonymous session'});
+    LS.sync.forgetSession();
+    const r2=await LS.sync.sync({force:true});
+    LS.sync.startLive();
+    UI.closeAll&&UI.closeAll();
+    if(r2.ok){ UI.toast('Connected — this device now shares the register',{type:'ok'}); }
+    else showSyncFailure(r2);
+    paint();
+  };
 }
 function paint(){
   const host=rootEl.querySelector('#stBody'); if(!host) return;
