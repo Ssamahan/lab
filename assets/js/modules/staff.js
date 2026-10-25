@@ -320,7 +320,7 @@ function dataView(){
        +'<div class="xs faint" style="margin-top:5px">Needs one toggle in Supabase: <b>Authentication → Sign In / Providers → Allow anonymous sign-ins</b>. Anyone holding the publishable key could then create such a session, so use it only while you are setting up, or with the patient fields kept empty.</div></div>'
      +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
        +[['push-pull','Two-way · pull then push'],['push','Push only — this device is the source'],['pull','Pull only — read the shared copy']].map(([v,l])=>'<option value="'+v+'"'+(cl.mode===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
-     +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-check>'+UI.ic('shield-question',13)+'Check setup</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
+     +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-check>'+UI.ic('shield-question',13)+'Check setup</button><button class="btn sm" data-cloud-sql>'+UI.ic('file-text',13)+'Copy the table SQL</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
      +'<div class="row between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><span class="xs faint">Pending local changes</span><span class="mono xs">'+(S.pendingChanges?S.pendingChanges():0)+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last push</span><span class="mono xs">'+(SY.state().lastPushAt?U.relTime(SY.state().lastPushAt):'never')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last pull</span><span class="mono xs">'+(SY.state().lastPullAt?U.relTime(SY.state().lastPullAt):'never')+'</span></div>'
@@ -421,6 +421,20 @@ function wire(){
     const on=SY.configured();
     UI.toast(on?'Sync configured — press Sync now to publish this register':'Cloud sync disabled · staying local',{type:'ok'});
     if(on){ SY.sync().then(res=>{ UI.toast(res.ok?'Cloud sync: '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000}); paint(); }); }
+  });
+  r.querySelectorAll('[data-cloud-sql]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;
+    const sql=await SY.schemaSQL();
+    b.disabled=false;
+    if(!sql){ UI.toast('The schema file could not be read. Open supabase/schema.sql in the repository, or Settings → the setup guide.',{type:'err',duration:8000}); return; }
+    const copied=await UI.copy?UI.copy(sql):false;
+    UI.modal({title:'The table SQL', sub:'Paste this into Supabase → SQL Editor → New query, then press Run',
+      body:'<div class="hint" style="margin-bottom:10px">'+UI.ic('info',13)+' It creates one table, <span class="mono">lab_registers</span>, and locks it so only signed-in users of your project can touch it. Run it once. “Success. No rows returned.” is the correct answer.</div>'
+        +'<pre class="mono" style="max-height:280px;overflow:auto;font-size:11px;line-height:1.5;background:var(--surface-inset);padding:10px;border-radius:8px;white-space:pre-wrap">'+U.esc(sql)+'</pre>'
+        +'<div class="row gap-sm wrap" style="margin-top:10px"><button class="btn sm primary" data-copy-sql>'+UI.ic('file-text',13)+(copied?'Copied':'Copy to clipboard')+'</button></div>',
+      foot:'<button class="btn" data-close>Close</button>'});
+    const btn=r.ownerDocument.querySelector('[data-copy-sql]');
+    if(btn) btn.onclick=async()=>{ const ok=await UI.copy?UI.copy(sql):false; btn.textContent=ok?'Copied':'Select the text above and copy it'; if(ok) UI.toast('SQL copied — paste it in the SQL Editor',{type:'ok'}); };
   });
   r.querySelectorAll('[data-cloud-check]').forEach(b=>b.onclick=async()=>{
     b.disabled=true; const old=b.innerHTML; b.textContent='Checking…';

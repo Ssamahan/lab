@@ -265,6 +265,7 @@ create policy &quot;lab register update&quot; on public.lab_registers
     <table>
       <tr><th>What you see</th><th>What it means</th><th>What to do</th></tr>
       <tr><td>Test connection spins forever</td><td>The URL is wrong or the internet is down.</td><td>Check the address starts with <code>https://</code> and ends in <code>.supabase.co</code>.</td></tr>
+      <tr><td>“404 … lab_registers does not exist” / PGRST205</td><td>The project and the key are fine; only the shelf is missing.</td><td>Part 3: SQL Editor → New query → paste the schema → Run. Or press <b>Copy the table SQL</b> in the app.</td></tr>
       <tr><td>“The table is missing”</td><td>Part 3 was never run.</td><td>SQL Editor → paste the code again → Run.</td></tr>
       <tr><td>“Supabase said no (401 / 403)”</td><td>The login is wrong, the user is not confirmed, or the login fields are empty.</td><td>Authentication → Users → set a new password. Make sure the email and password fields are filled too.</td></tr>
       <tr><td>“found that user but it was never confirmed”</td><td>The user exists, the password is right, but the email confirmation never happened.</td><td>Authentication → Users → open the user → Confirm. Or untick <b>Confirm email</b> in Sign In / Providers → Email, then create the user again.</td></tr>

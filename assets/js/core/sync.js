@@ -100,7 +100,7 @@ async function authError(r, body, c, mode){
   let msg=body.slice(0,180), code='';
   try{ const j=JSON.parse(body); msg=j.error_description||j.msg||j.error||j.message||msg; code=j.code||j.code_error||''; }catch(e){}
   if(r.status===404||code==='PGRST125'){
-    return authErr('Supabase sign-in failed (404) — the project URL has a path in it. Use only the project address, https://<project>.supabase.co, with no /rest/v1 on the end. (It was sent to '+c.url+'/auth/v1/token)');
+    return authErr('Supabase sign-in failed (404) — there is no auth service at '+c.url+'/auth/v1/token. Either the project address is wrong, or it has a path on the end (use only https://<project>.supabase.co).');
   }
   if(/email_not_confirmed/i.test(code)||/email not confirmed/i.test(msg)){
     return authErr('Supabase found that user but it was never confirmed, so it refuses the sign-in. In Authentication → Users open the user and press Confirm, or untick "Confirm email" in Authentication → Sign In / Providers → Email. Supabase only shows the "Auto Confirm User" switch while email confirmations are ON.');
@@ -222,7 +222,15 @@ SY.ping=async function(){
     if(c.email&&c.password){ forgetSession(); await signIn(true); }
     else if(c.anonAuth) await signIn(false);
     const r=await request(TABLE+'?select=id,revision,updated_at&limit=1');
-    if(r.status===404) return {ok:false, reason:'Supabase answered 404 at '+c.url+' — the project URL is probably wrong, or the table is missing. The address must be only https://<project>.supabase.co.'};
+    if(r.status===404){
+      /* PostgREST answers 404 both for "no such table" (PGRST205) and for a path that
+         does not exist. The body tells us which: a missing table is a five-second fix,
+         a wrong address is not, and they must not read the same. */
+      const body=(await r.text())||'';
+      const missing=/PGRST20[0-9]|Could not find the table|relation .* does not exist/i.test(body);
+      if(missing) return {ok:false, tableMissing:true, reason:'Your project answered and accepted the key — but the table lab_registers does not exist yet. Open Supabase → SQL Editor → New query, paste the schema, press Run, then test again. The SQL is in the app: press "Copy the table SQL" below.'};
+      return {ok:false, reason:'Supabase answered 404 at '+c.url+' — the address must be only https://<project>.supabase.co, with no path. ('+body.slice(0,120)+')'};
+    }
     if(r.status===401||r.status===403) return {ok:false, reason:'Supabase said no ('+r.status+'). '+(cfg().email?'Check the login email and password from Authentication → Users, and that schema.sql was run.':'The table only allows signed-in users, so fill the login email and password as well — or the publishable key runs as anonymous.')};
     if(!r.ok) return {ok:false, reason:'Supabase answered '+r.status+'. '+((await r.text())||'').slice(0,140)};
     const rows=await r.json();
@@ -261,6 +269,19 @@ SY.push=async function(opts){
   return row;
 };
 
+/* The schema lives in the repository and is served next to the app, so the setup screen
+   can hand the operator the exact SQL without them opening GitHub. */
+SY.schemaSQL=async function(){
+  const paths=['supabase/schema.sql','./supabase/schema.sql','/lab/supabase/schema.sql'];
+  for(const p of paths){
+    try{
+      const r=await fetch(p,{cache:'no-cache'});
+      if(r.ok){ const t=await r.text(); if(/create table/i.test(t)) return t; }
+    }catch(e){}
+  }
+  return null;
+};
+SY.diagnose=SY.diagnose; /* keep name */
 /* ——— Setup diagnosis ————————————————————————————————
    "Test connection" answers one question. This answers all of them at once, in the
    order they fail, so a setup mistake is named instead of guessed at. `/auth/v1/settings`
@@ -307,7 +328,11 @@ SY.diagnose=async function(){
     if(session.token) h.Authorization='Bearer '+session.token;
     else if(keyKind(c.key)==='jwt') h.Authorization='Bearer '+c.key;
     const r=await fetch(endpoint(TABLE+'?select=id&limit=1'),{headers:h});
-    if(r.status===404) row('Table lab_registers',false,'Missing — open the SQL Editor and run supabase/schema.sql.');
+    if(r.status===404){
+      const body=(await r.text().catch(()=>''))||'';
+      if(/PGRST20[0-9]|Could not find the table|does not exist/i.test(body)) row('Table lab_registers',false,'The table does not exist yet. SQL Editor → New query → paste the schema → Run.');
+      else row('Table lab_registers',false,'Answered 404 for a path that is not a table — check the project address has no path on the end ('+c.url+').');
+    }
     else if(r.status===401||r.status===403) row('Table lab_registers',false,'The table answered '+r.status+': it exists, but this request was not signed in.');
     else if(r.ok){ const rows=await r.json(); row('Table lab_registers',true,rows.length?'The shared register exists and is readable.':'Empty and ready for the first push.'); }
     else row('Table lab_registers',false,'Answered '+r.status+'.');

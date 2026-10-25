@@ -5,9 +5,27 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.18** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.19** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.19
+
+**A missing table no longer looks like a wrong address — and the SQL is one press away.**
+
+`https://<project>.supabase.co` is answered by PostgREST, so a project whose schema has not
+been run replies `404 PGRST205 Could not find the table`. That arrived looking like *"the
+project URL is probably wrong"*, which sent the reader to fix the one thing that was right.
+
+`SY.ping()` now reads the body of a 404: `PGRST20x` / *Could not find the table* / *relation …
+does not exist* means **the project answered and accepted the key — only the table is missing**,
+and the message says so, with the two clicks that fix it. Any other 404 is still blamed on the
+address. `SY.diagnose()` makes the same distinction in its table row.
+
+The Cloud sync card also gained **Copy the table SQL**: it reads
+`supabase/schema.sql` from the app's own files (no GitHub needed), shows it, and copies it for
+the SQL Editor. `UI.copy()` was added with a `execCommand` fallback for browsers that refuse
+the async clipboard.
 
 ## What changed in 6.9.18
 
