@@ -22,7 +22,9 @@ const DEVICE_KEY='labSystems.deviceId.v1';
 const STATE_KEY='labSystems.syncState.v1';
 let busy=false, timer=null, listeners=[];
 
-function cfg(){ const c=S.settings().cloud||{}; return {url:(c.endpoint||'').replace(/\/+$/,''),key:c.anonKey||'',mode:c.mode||'push-pull',enabled:!!(c.url||c.endpoint)&&!!c.anonKey}; }
+function cfg(){ const c=S.settings().cloud||{};
+  return {url:(c.endpoint||'').replace(/\/+$/,''), key:c.anonKey||'', email:(c.email||'').trim(),
+    password:c.password||'', mode:c.mode||'push-pull', enabled:!!(c.url||c.endpoint)&&!!c.anonKey}; }
 SY.config=cfg;
 SY.configured=()=>{ const c=cfg(); return !!(c.url&&c.key); };
 
@@ -35,13 +37,54 @@ function state(){ try{ return JSON.parse(localStorage.getItem(STATE_KEY)||'{}')|
 function setState(patch){ const next=Object.assign(state(),patch); try{ localStorage.setItem(STATE_KEY,JSON.stringify(next)); }catch(e){} SY.emit(); return next; }
 SY.state=state;
 
-function headers(extra){
+/* Supabase row-level policies grant the table to the `authenticated` role, so the
+   anon key alone is not enough: the console signs in once with the laboratory's
+   account and sends that access token. Without credentials it falls back to the
+   anon key, which only works if the project's policies were opened to `anon`. */
+let session={token:null, exp:0, who:null};
+async function signIn(force){
   const c=cfg();
+  if(!c.email||!c.password) return null;
+  if(!force && session.token && Date.now()<session.exp) return session.token;
+  const r=await fetch(c.url+'/auth/v1/token?grant_type=password',{
+    method:'POST',
+    headers:{'apikey':c.key,'Content-Type':'application/json'},
+    body:JSON.stringify({email:c.email, password:c.password})
+  });
+  const body=await r.text();
+  if(!r.ok){
+    let msg=body.slice(0,160);
+    try{ const j=JSON.parse(body); msg=j.error_description||j.msg||j.error||msg; }catch(e){}
+    throw new Error('Supabase sign-in failed ('+r.status+') — '+msg);
+  }
+  let j={}; try{ j=JSON.parse(body); }catch(e){}
+  session.token=j.access_token||null;
+  session.who=(j.user&&j.user.email)||c.email;
+  session.exp=Date.now()+Math.max(60,(j.expires_in||3600)-90)*1000;
+  SY.emit();
+  return session.token;
+}
+SY.signIn=signIn;
+SY.session=()=>session;
+async function headers(extra){
+  const c=cfg();
+  let token=c.key;
+  if(c.email&&c.password) token=await signIn(false);   /* a real sign-in error must be seen */
   return Object.assign({
     'apikey':c.key,
-    'Authorization':'Bearer '+c.key,
+    'Authorization':'Bearer '+token,
     'Content-Type':'application/json'
   }, extra||{});
+}
+/* One retry with a fresh token: access tokens expire after an hour. */
+async function request(path, opts){
+  opts=opts||{};
+  const send=async()=>fetch(endpoint(path), Object.assign({},opts,{headers:await headers(opts.extra)}));
+  let r=await send();
+  if((r.status===401||r.status===403) && cfg().email && cfg().password){
+    try{ await signIn(true); r=await send(); }catch(e){}
+  }
+  return r;
 }
 function endpoint(path){ return cfg().url+'/rest/v1/'+path; }
 
@@ -50,20 +93,23 @@ SY.ping=async function(){
   const c=cfg();
   if(!c.url||!c.key) return {ok:false, reason:'Add the project URL and the anon key first.'};
   try{
-    const r=await fetch(endpoint(TABLE+'?select=id,revision,updated_at&limit=1'),{headers:headers()});
+    /* Test connection must prove the password, not reuse the token from an hour ago. */
+    if(c.email&&c.password) await signIn(true);
+    const r=await request(TABLE+'?select=id,revision,updated_at&limit=1');
     if(r.status===404) return {ok:false, reason:'The table is missing — run supabase/schema.sql in the project.'};
-    if(r.status===401||r.status===403) return {ok:false, reason:'The key was rejected. Check the anon key and its row-level policies.'};
+    if(r.status===401||r.status===403) return {ok:false, reason:'Supabase said no ('+r.status+'). Check the email and password, the anon key, and that schema.sql was run.'};
     if(!r.ok) return {ok:false, reason:'Supabase answered '+r.status+'. '+((await r.text())||'').slice(0,140)};
     const rows=await r.json();
     return {ok:true, remote:rows[0]||null};
   }catch(e){
+    if(/^Supabase sign-in failed/.test(e.message||'')) return {ok:false, reason:e.message};
     return {ok:false, reason:'Could not reach Supabase — is this device online? ('+e.message+')'};
   }
 };
 
 SY.pull=async function(){
   const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
-  const r=await fetch(endpoint(TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select=id,data,revision,updated_at,device_id,updated_by'),{headers:headers()});
+  const r=await request(TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select=id,data,revision,updated_at,device_id,updated_by');
   if(r.status===404) throw new Error('The lab_registers table does not exist yet');
   if(!r.ok) throw new Error('Pull failed ('+r.status+') '+((await r.text())||'').slice(0,120));
   const rows=await r.json();
@@ -74,9 +120,9 @@ SY.push=async function(opts){
   const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
   const db=S.db();
   const payload=[{id:ROW_ID, data:db, client_id:deviceId(), updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}];
-  const r=await fetch(endpoint(TABLE+'?on_conflict=id'),{
+  const r=await request(TABLE+'?on_conflict=id',{
     method:'POST',
-    headers:headers({'Prefer':'resolution=merge-duplicates,return=representation'}),
+    extra:{'Prefer':'resolution=merge-duplicates,return=representation'},
     body:JSON.stringify(payload)
   });
   if(!r.ok) throw new Error('Push failed ('+r.status+') '+((await r.text())||'').slice(0,160));

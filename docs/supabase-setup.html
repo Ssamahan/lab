@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supabase setup, explained simply · Lab Systems</title>
+<style>
+  :root{--ink:#1B1F27;--muted:#5A6472;--faint:#8A93A5;--line:#E3DFD3;--bg:#FAF8F2;--card:#fff;--gold:#9A7B22;--teal:#177E63;--rose:#A3212E}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px 16px 80px}
+  .wrap{max-width:820px;margin:0 auto}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px;letter-spacing:-.02em}
+  .lede{color:var(--muted);font-size:17px;margin:0 0 22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:0 0 18px}
+  h2{font-size:20px;margin:0 0 4px}
+  .kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:6px}
+  ol,ul{margin:10px 0 0 20px;padding:0}
+  li{margin:8px 0}
+  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;background:#F2EFE6;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  pre{background:#1B1F27;color:#EDE9DE;border-radius:10px;padding:14px;overflow:auto;font-size:12.5px;line-height:1.55;max-height:340px}
+  pre code{background:none;border:0;color:inherit;padding:0;font-size:12.5px}
+  .box{border-left:4px solid var(--teal);background:#F1F8F5;padding:12px 14px;border-radius:0 10px 10px 0;margin:12px 0;font-size:15px}
+  .warn{border-left-color:var(--rose);background:#FBF2F3}
+  .tip{border-left-color:var(--gold);background:#FBF7EA}
+  .copy{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer;margin:8px 0 0}
+  .copy:hover{background:#F7F4EC}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+  th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .step{font-family:ui-monospace,monospace;font-size:12px;color:var(--faint)}
+  a{color:#1F3F7A}
+  .foot{font-size:13px;color:var(--faint);margin-top:26px;text-align:center}
+  label.check{display:flex;gap:10px;align-items:flex-start;margin:8px 0;font-size:15px}
+  input[type=checkbox]{width:18px;height:18px;margin-top:2px;flex:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Put the lab register in the sky ☁️</h1>
+  <p class="lede">A very slow, very clear guide to Supabase. No computer words you don't already know.
+  About 15 minutes, once, and then every phone and PC in the lab sees the same register.</p>
+
+  <div class="card">
+    <div class="kicker">First, the three words</div>
+    <h2>What we are actually doing</h2>
+    <ul>
+      <li><b>The app</b> is already on your PC. It keeps everything in the browser — that is why it works with no internet.</li>
+      <li><b>Supabase</b> is a computer in the sky that never sleeps. We will keep one copy of the register there.</li>
+      <li>When a phone and a PC both look at that copy, they see the same work. That is all "sync" means.</li>
+    </ul>
+    <div class="box">Nothing about the app changes. It still works with no internet. The sky copy is only a <i>second</i> copy.</div>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Before you start</div>
+    <h2>You need four things</h2>
+    <label class="check"><input type="checkbox"><span>This page open, on the same computer as the app.</span></label>
+    <label class="check"><input type="checkbox"><span>Internet, and an email address you can open right now.</span></label>
+    <label class="check"><input type="checkbox"><span>Lab Systems open, signed in as the manager.</span></label>
+    <label class="check"><input type="checkbox"><span>15 quiet minutes. You only do this once.</span></label>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Part 1</div>
+    <h2>Make your own Supabase project</h2>
+    <ol>
+      <li>Go to <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a> and press <b>Start your project</b>.</li>
+      <li>Sign in with your email (or GitHub if you have it). It is free — you do <b>not</b> need a card.</li>
+      <li>Press <b>New project</b>.</li>
+      <li>Fill the form like this:
+        <ul>
+          <li><b>Name</b>: <code>ruli-lab</code></li>
+          <li><b>Database password</b>: type something long, then <b>write it down somewhere safe</b>. Supabase will never show it again.</li>
+          <li><b>Region</b>: choose the closest to Rwanda — <code>Europe (Frankfurt)</code> or <code>South Africa</code> if you see it.</li>
+        </ul>
+      </li>
+      <li>Press <b>Create new project</b> and wait about 2 minutes. A green <b>Active</b> word means it is ready.</li>
+    </ol>
+    <div class="tip box">Think of a project as one empty cupboard in the sky. We are about to put one shelf and one box inside it.</div>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Part 2</div>
+    <h2>Copy the two magic keys</h2>
+    <ol>
+      <li>In the left menu (the little icons) go to <b>Project Settings</b> ⚙️.</li>
+      <li>Open <b>API</b> (or <b>API Keys</b>).</li>
+      <li>Copy <b>Project URL</b> — it looks like <code>https://abcdefgh.supabase.co</code>.</li>
+      <li>Copy the key called <b>anon</b> / <b>public</b> — a very long line starting with <code>eyJ</code>.</li>
+    </ol>
+    <div class="box">Paste both into a note on your computer for a minute. Part 5 asks for them.</div>
+    <div class="warn box"><b>Never</b> copy the key called <b>service_role</b> or <b>secret</b> into the app. That one is like the master key to the whole cupboard. Only the <b>anon public</b> key belongs in a browser.</div>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Part 3</div>
+    <h2>Build the shelf (one copy‑paste)</h2>
+    <ol>
+      <li>In the left menu open <b>SQL Editor</b>.</li>
+      <li>Press <b>New query</b>.</li>
+      <li>Delete anything in the box, then paste <b>all</b> of the code below.</li>
+      <li>Press <b>Run</b> (or Ctrl/⌘ + Enter).</li>
+      <li>You should see <b>“Success. No rows returned.”</b> That is a good thing — it means the shelf was built.</li>
+    </ol>
+    <div class="box" style="max-height:340px;padding:0;border:0;background:none">
+      <pre id="sql"><code>-- ============================================================================
+-- LAB SYSTEMS · RULI DISTRICT HOSPITAL — Supabase schema
+-- Run this once in the Supabase SQL editor (Dashboard → SQL → New query).
+-- ----------------------------------------------------------------------------
+-- One row holds one laboratory register. The console is offline-first: the whole
+-- register lives in the browser and this table is the shared copy that lets a
+-- phone and a PC see the same work.
+--
+-- Security model
+--   * Row level security is on, with NO anonymous policies.
+--   * Every signed-in account of the laboratory project may read and write the
+--     single &#x27;ruli-dh&#x27; register. That is deliberate: the app has its own role
+--     model, and Supabase is only the transport. If you later need per-user
+--     isolation, replace the two policies below with a `lab_members` join table.
+--   * Use the ANON key in the app. Never put the service_role key in a browser.
+-- ============================================================================
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.lab_registers (
+  id          text primary key,
+  data        jsonb        not null,
+  revision    bigint       not null default 1,
+  client_id   text,
+  updated_at  timestamptz  not null default now(),
+  updated_by  text
+);
+
+comment on table public.lab_registers is &#x27;Whole-register documents for Lab Systems (one row per laboratory).&#x27;;
+comment on column public.lab_registers.revision is &#x27;Incremented by the server on every write; the client uses it to detect a conflict.&#x27;;
+
+create index if not exists lab_registers_updated_at_idx on public.lab_registers (updated_at desc);
+
+-- Keep updated_at honest even if a client forgets to send it.
+create or replace function public.touch_lab_register()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
+
+drop trigger if exists lab_registers_touch on public.lab_registers;
+create trigger lab_registers_touch before insert or update on public.lab_registers
+for each row execute function public.touch_lab_register();
+
+-- ---------------------------------------------------------------- RLS --------
+alter table public.lab_registers enable row level security;
+
+drop policy if exists &quot;lab register read&quot;  on public.lab_registers;
+drop policy if exists &quot;lab register write&quot; on public.lab_registers;
+
+create policy &quot;lab register read&quot; on public.lab_registers
+  for select to authenticated using (true);
+
+create policy &quot;lab register write&quot; on public.lab_registers
+  for insert to authenticated with check (true);
+
+create policy &quot;lab register update&quot; on public.lab_registers
+  for update to authenticated using (true) with check (true);
+
+-- If the laboratory would rather use a single shared passphrase than Supabase
+-- Auth accounts, enable &quot;Allow anonymous sign-ins&quot; and swap `authenticated` for
+-- `anon` in the three policies above — but understand that anyone with the anon
+-- key then has the register. The default (authenticated) is the safer one.
+
+-- ---------------------------------------------------------------- seed -------
+-- Nothing is inserted here: the first device to press &quot;Push to cloud&quot; creates
+-- the row. To pre-seed from a device export, paste the JSON:
+-- insert into public.lab_registers (id, data, client_id, updated_by)
+-- values (&#x27;ruli-dh&#x27;, &#x27;&lt;paste export here&gt;&#x27;::jsonb, &#x27;setup&#x27;, &#x27;kelvin&#x27;);
+</code></pre>
+      <button class="copy" data-copy="sql">⧉ Copy this code</button>
+    </div>
+    <div class="tip box">What did that do? It made one table called <code>lab_registers</code> — one row will hold the whole laboratory register — and locked it so only signed‑in people on <i>your</i> project can touch it.</div>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Part 4</div>
+    <h2>Make your login</h2>
+    <p>The keys above open the door of the building. This login opens the room.</p>
+    <ol>
+      <li>Left menu → <b>Authentication</b>.</li>
+      <li>Open <b>Users</b>, then press <b>Add user</b> → <b>Create new user</b>.</li>
+      <li>Email: something real you own, for example <code>lab@rulidh.rw</code>. Password: long, written down.</li>
+      <li>Tick <b>Auto confirm user</b> (otherwise the account waits for an email).</li>
+      <li>Press <b>Create user</b>.</li>
+    </ol>
+    <div class="box">This is the account the app will use. You can make one per person later — everyone sees the same register.</div>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Part 5</div>
+    <h2>Tell the app about it</h2>
+    <ol>
+      <li>In Lab Systems go to <b>Staff &amp; settings</b> → <b>Data</b> tab.</li>
+      <li>Find the <b>Cloud sync</b> card on the right.</li>
+      <li>Paste, in order:
+        <ul>
+          <li><b>Supabase project URL</b> → the address from Part 2</li>
+          <li><b>Anon public key</b> → the <code>eyJ…</code> key from Part 2</li>
+          <li><b>Supabase login · email</b> → the email from Part 4</li>
+          <li><b>Supabase login · password</b> → the password from Part 4</li>
+        </ul>
+      </li>
+      <li>Leave <b>Mode</b> on <b>Two‑way · pull then push</b>.</li>
+      <li>Press <b>Test connection</b>. You want the green message <b>“Connected to Supabase — ready for the first push”</b>.</li>
+      <li>Press <b>Save</b>. The app publishes the register by itself. The pill at the top of the card turns to <b>Synced just now</b>.</li>
+    </ol>
+    <div class="tip box">If it says <b>“the table is missing”</b>, Part 3 did not finish — run that code again. If it says <b>“Supabase said no (401)”</b>, the email/password from Part 4 is wrong, or that user was never confirmed.</div>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Part 6</div>
+    <h2>Do the same on your phone</h2>
+    <ol>
+      <li>Open the same app address on the phone and sign in as yourself.</li>
+      <li>Go to the same <b>Cloud sync</b> card and paste the <b>same four things</b>.</li>
+      <li>Press <b>Test connection</b>, then <b>Save</b>.</li>
+      <li>The phone says <b>“Register updated from the shared cloud”</b>. That is the moment your two devices become one.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Part 7</div>
+    <h2>The magic test 🎩</h2>
+    <ol>
+      <li>On the PC, change one shift in the working plan.</li>
+      <li>Wait about two seconds, then look at the phone.</li>
+      <li>The same change should be there.</li>
+    </ol>
+    <div class="box">The app saves on the device <b>first</b>, always. The sky copy follows along when the internet allows it. Nothing you type is ever waiting for the internet to work.</div>
+  </div>
+
+  <div class="card">
+    <div class="kicker">If something goes wrong</div>
+    <h2>The honest little table</h2>
+    <table>
+      <tr><th>What you see</th><th>What it means</th><th>What to do</th></tr>
+      <tr><td>Test connection spins forever</td><td>The URL is wrong or the internet is down.</td><td>Check the address starts with <code>https://</code> and ends in <code>.supabase.co</code>.</td></tr>
+      <tr><td>“The table is missing”</td><td>Part 3 was never run.</td><td>SQL Editor → paste the code again → Run.</td></tr>
+      <tr><td>“Supabase said no (401 / 403)”</td><td>The login is wrong, or the user is not confirmed, or the anon key is not the anon key.</td><td>Authentication → Users → set a new password. Copy the <b>anon</b> key again.</td></tr>
+      <tr><td>“Two devices changed the register”</td><td>Both changed something at the same minute.</td><td>Choose which copy to keep. The app saves a snapshot first, so nothing is lost forever.</td></tr>
+      <tr><td>Status says “Local only”</td><td>Sync is off on this device.</td><td>Paste the four values and press Save.</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="kicker">Good habits</div>
+    <h2>Three rules that keep the lab safe</h2>
+    <ul>
+      <li>The <b>service_role / secret</b> key never leaves the Supabase website. Ever.</li>
+      <li>The <b>login</b> lives on the device where you typed it. Do not email it around.</li>
+      <li>Once a month, open <b>Settings → Data &amp; backup</b> and press <b>Export register</b>. A copy in your own hand is worth more than any cloud.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Lab Systems · Ruli District Hospital · the code behind Part 3 is also kept in <code>supabase/schema.sql</code></p>
+</div>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(b){
+  b.onclick=function(){
+    var t=document.getElementById(b.dataset.copy).innerText;
+    function done(){ b.textContent='✓ Copied'; setTimeout(function(){ b.textContent='⧉ Copy this code'; },1600); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done,fallback); } else { fallback(); }
+    function fallback(){ var a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); try{document.execCommand('copy');}catch(e){} a.remove(); done(); }
+  };
+});
+</script>
+</body>
+</html>
