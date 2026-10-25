@@ -354,6 +354,78 @@ SY.schemaSQL=async function(){
   return null;
 };
 SY.diagnose=SY.diagnose; /* keep name */
+/* ——— What is actually in each copy ———————————————————————————
+   "My PBF marks are gone on the other browser" is always one question: what does the
+   shared copy hold? These counts answer it without moving a record. A browser that has
+   never been given the project URL and key can only show the built-in seed, so the
+   counts differ for a reason the card can state. */
+SY.tally=function(db){
+  db=db||{};
+  const n=a=>(a&&a.length)||0;
+  const marks=((db.pbfVisits)||[]).reduce((t,v)=>{
+    const a=(v&&v.answers)||{};
+    Object.keys(a).forEach(k=>{ if(a[k]!=null&&a[k]!=='') t++; });
+    return t;
+  },0);
+  return {samples:n(db.samples), staff:n(db.staff), leaves:n(db.leaves), referrals:n(db.referrals),
+    equipment:n(db.equipment), trainings:n(db.trainings), pbfVisits:n(db.pbfVisits),
+    pbfMarks:marks, pbfQuestions:n(db.pbfQuestions), audit:n(db.audit)};
+};
+SY.localTally=function(){ return SY.tally(S.db()); };
+
+/* The shared copy, read in full once, for the comparison table. */
+SY.remoteTally=async function(){
+  const c=cfg(); if(!c.url||!c.key) return {ok:false, reason:'Cloud sync is off — add the project URL and the API key.', counts:null};
+  try{
+    const row=await SY.pull();
+    if(!row||!row.data) return {ok:true, empty:true, counts:SY.tally(null), revision:null, updated_at:null};
+    return {ok:true, counts:SY.tally(row.data), revision:row.revision||null,
+      updated_at:row.updated_at||null, updated_by:row.updated_by||null,
+      bytes:JSON.stringify(row.data).length};
+  }catch(e){
+    return {ok:false, reason:(e&&e.message)||'Could not read the shared copy', counts:null};
+  }
+};
+
+/* Publish the WHOLE register on demand — every sample, every roster, every PBF mark.
+   The automatic loop already pushes the whole document; this exists because "is it
+   really all up there?" deserves a button that answers with the revision it wrote. */
+SY.publishAll=async function(){
+  return SY.push();
+};
+
+/* The other direction, named for what it does: replace this browser with the cloud. */
+SY.replaceFromCloud=async function(){
+  const row=await SY.pull();
+  if(!row||!row.data) return {ok:false, reason:'The shared copy is empty — nothing to download.'};
+  const before=SY.tally(S.db());
+  applyRemote(row);
+  return {ok:true, before:before, after:SY.tally(S.db()), revision:row.revision||null,
+    updated_at:row.updated_at||null, updated_by:row.updated_by||null};
+};
+
+/* ——— Setup code —————————————————————————————————————
+   Moving to another browser — a new phone, an incognito window, a second PC — needs the
+   four values again. A code carries the non-secret ones (address, publishable key, mode,
+   anonymous flag) as text the operator can carry himself. No password is ever in it. */
+SY.setupCode=function(){
+  const c=cfg(); if(!c.url||!c.key) return null;
+  const pack={v:1,u:c.url,k:c.key,m:c.mode||'push-pull',a:!!c.anonAuth};
+  try{ return btoa(unescape(encodeURIComponent(JSON.stringify(pack)))); }catch(e){ return null; }
+};
+SY.applySetupCode=function(code){
+  let txt=String(code||'').trim();
+  if(!txt) return {ok:false, reason:'Paste the code first.'};
+  let pack=null;
+  try{ pack=JSON.parse(decodeURIComponent(escape(atob(txt)))); }catch(e){ pack=null; }
+  if(!pack){ try{ pack=JSON.parse(txt); }catch(e){} }   /* tolerate a raw JSON block */
+  if(!pack||!pack.u||!pack.k) return {ok:false, reason:'That does not look like a setup code.'};
+  const url=baseUrl(pack.u);
+  if(!/^https?:\/\//i.test(String(url||''))) return {ok:false, reason:'The code has no usable project address.'};
+  if(keyKind(pack.k)==='secret') return {ok:false, reason:'That code carries the secret key — never put it in a browser.'};
+  return {ok:true, url:url, key:String(pack.k).trim(), mode:pack.m||'push-pull', anonAuth:!!pack.a};
+};
+
 /* ——— Setup diagnosis ————————————————————————————————
    "Test connection" answers one question. This answers all of them at once, in the
    order they fail, so a setup mistake is named instead of guessed at. `/auth/v1/settings`
@@ -560,6 +632,14 @@ SY.sync=async function(opts){
       if(hasLocalChanges() && !opts.force){
         /* A background tick must never stop and ask: an edit typed here is the one the
            person can see, so it is published, and the other copy stays in restore points. */
+        if(opts.auto && !state().lastPullAt){
+          /* This browser has never held the shared register — it is showing the built-in
+             seed. Publishing that over a real cloud copy is the one mistake that cannot
+             be undone from here, so the background loop refuses and says why. */
+          setState({running:false, conflictAt:U.nowISO(),
+            conflictNote:'This browser has never received the shared register, so its own copy was NOT published over it. Open Data & sync and choose which one to keep.'});
+          return {ok:false, reason:'This browser has never received the shared register'};
+        }
         if(opts.auto){
           setState({conflictAt:U.nowISO(), conflictNote:'This device published over a newer cloud copy ('+(remote.updated_by||'another device')+').'});
           await SY.push();

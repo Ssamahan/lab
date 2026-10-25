@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.27** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.28** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -60,6 +60,16 @@ values in **Staff & settings → Data → Cloud sync**:
 **No keys belong in this repository.** The project URL, the API key and the login live in
 each device's `localStorage`; the app refuses the `sb_secret_…` key outright, because it
 bypasses row-level security.
+
+### A second browser
+
+A private window or a new PC starts from the built-in sample register: it has its own
+`localStorage` and no knowledge of your project. **Settings → Data & sync → Two browsers, one
+register** compares both copies (samples, staff, PBF visits, PBF marks), **Push everything now**
+publishes the whole register, **Download the shared copy** brings the cloud version down behind a
+restore point, and **Copy / Paste setup code** carries the address and publishable key to the other
+browser as text — never a password. A browser that has never received the shared register cannot
+publish its seed over it: the background loop refuses and says so.
 
 ## Security, stated plainly
 
