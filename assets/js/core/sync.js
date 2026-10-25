@@ -66,15 +66,29 @@ async function signIn(force){
 }
 SY.signIn=signIn;
 SY.session=()=>session;
+/* Supabase now issues two key shapes. The legacy anon key is a JWT and may travel in
+   both headers; the new `sb_publishable_…` / `sb_secret_…` keys are opaque strings
+   that belong in `apikey` ONLY — send one as a Bearer token and the gateway rejects
+   the request as an invalid JWT. `sb_secret_…` bypasses row-level security and must
+   never be pasted into a browser at all. */
+function keyKind(k){
+  k=k||'';
+  if(/^sb_publishable_/.test(k)) return 'publishable';
+  if(/^sb_secret_/.test(k)) return 'secret';
+  if(/^eyJ/.test(k)) return 'jwt';
+  return k?'other':'none';
+}
+SY.keyKind=keyKind;
 async function headers(extra){
   const c=cfg();
-  let token=c.key;
-  if(c.email&&c.password) token=await signIn(false);   /* a real sign-in error must be seen */
-  return Object.assign({
-    'apikey':c.key,
-    'Authorization':'Bearer '+token,
-    'Content-Type':'application/json'
-  }, extra||{});
+  const h={'apikey':c.key, 'Content-Type':'application/json'};
+  let sessionJWT=null;
+  if(c.email&&c.password) sessionJWT=await signIn(false);   /* a real sign-in error must be seen */
+  /* Authorization carries the signed-in user's JWT and nothing else. With no session
+     only a legacy anon JWT may double as the bearer; a publishable key may not. */
+  if(sessionJWT) h.Authorization='Bearer '+sessionJWT;
+  else if(keyKind(c.key)==='jwt') h.Authorization='Bearer '+c.key;
+  return Object.assign(h, extra||{});
 }
 /* One retry with a fresh token: access tokens expire after an hour. */
 async function request(path, opts){
@@ -91,13 +105,14 @@ function endpoint(path){ return cfg().url+'/rest/v1/'+path; }
 /* ——— Low level ————————————————————————————————————— */
 SY.ping=async function(){
   const c=cfg();
-  if(!c.url||!c.key) return {ok:false, reason:'Add the project URL and the anon key first.'};
+  if(!c.url||!c.key) return {ok:false, reason:'Add the project URL and the API key first.'};
+  if(keyKind(c.key)==='secret') return {ok:false, reason:'That is the secret key (sb_secret_…). It bypasses every access rule, so it must never be in a browser. Copy the publishable key instead.'};
   try{
     /* Test connection must prove the password, not reuse the token from an hour ago. */
     if(c.email&&c.password) await signIn(true);
     const r=await request(TABLE+'?select=id,revision,updated_at&limit=1');
     if(r.status===404) return {ok:false, reason:'The table is missing — run supabase/schema.sql in the project.'};
-    if(r.status===401||r.status===403) return {ok:false, reason:'Supabase said no ('+r.status+'). Check the email and password, the anon key, and that schema.sql was run.'};
+    if(r.status===401||r.status===403) return {ok:false, reason:'Supabase said no ('+r.status+'). '+(cfg().email?'Check the login email and password from Authentication → Users, and that schema.sql was run.':'The table only allows signed-in users, so fill the login email and password as well — or the publishable key runs as anonymous.')};
     if(!r.ok) return {ok:false, reason:'Supabase answered '+r.status+'. '+((await r.text())||'').slice(0,140)};
     const rows=await r.json();
     return {ok:true, remote:rows[0]||null};

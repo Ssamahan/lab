@@ -87,10 +87,11 @@
       <li>In the left menu (the little icons) go to <b>Project Settings</b> ⚙️.</li>
       <li>Open <b>API</b> (or <b>API Keys</b>).</li>
       <li>Copy <b>Project URL</b> — it looks like <code>https://abcdefgh.supabase.co</code>.</li>
-      <li>Copy the key called <b>anon</b> / <b>public</b> — a very long line starting with <code>eyJ</code>.</li>
+      <li>On the same page open <b>API Keys</b>. Find the box called <b>Publishable key</b> and copy the key inside it — it starts with <code>sb_publishable_</code>.
+        <br><span style="color:#5A6472">(An older project may show a key called <b>anon</b> instead, starting with <code>eyJ</code>. That one still works — copy it.)</span></li>
     </ol>
     <div class="box">Paste both into a note on your computer for a minute. Part 5 asks for them.</div>
-    <div class="warn box"><b>Never</b> copy the key called <b>service_role</b> or <b>secret</b> into the app. That one is like the master key to the whole cupboard. Only the <b>anon public</b> key belongs in a browser.</div>
+    <div class="warn box"><b>Never</b> copy the <b>Secret keys</b> (<code>sb_secret_…</code>) or the old <code>service_role</code> key. That is the master key to the whole cupboard: it skips every lock. Only the <b>Publishable key</b> belongs in a browser — the app will refuse the secret one if you paste it by mistake.</div>
   </div>
 
   <div class="card">
@@ -203,7 +204,7 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <li>Paste, in order:
         <ul>
           <li><b>Supabase project URL</b> → the address from Part 2</li>
-          <li><b>Anon public key</b> → the <code>eyJ…</code> key from Part 2</li>
+          <li><b>API key · publishable</b> → the <code>sb_publishable_…</code> key from Part 2</li>
           <li><b>Supabase login · email</b> → the email from Part 4</li>
           <li><b>Supabase login · password</b> → the password from Part 4</li>
         </ul>
@@ -212,7 +213,7 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <li>Press <b>Test connection</b>. You want the green message <b>“Connected to Supabase — ready for the first push”</b>.</li>
       <li>Press <b>Save</b>. The app publishes the register by itself. The pill at the top of the card turns to <b>Synced just now</b>.</li>
     </ol>
-    <div class="tip box">If it says <b>“the table is missing”</b>, Part 3 did not finish — run that code again. If it says <b>“Supabase said no (401)”</b>, the email/password from Part 4 is wrong, or that user was never confirmed.</div>
+    <div class="tip box">If it says <b>“the table is missing”</b>, Part 3 did not finish — run that code again. If it says <b>“Supabase said no (401)”</b>, the email/password from Part 4 is wrong, that user was never confirmed, or the login is empty — the publishable key on its own is only a stranger at the door.</div>
   </div>
 
   <div class="card">
@@ -244,7 +245,8 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <tr><th>What you see</th><th>What it means</th><th>What to do</th></tr>
       <tr><td>Test connection spins forever</td><td>The URL is wrong or the internet is down.</td><td>Check the address starts with <code>https://</code> and ends in <code>.supabase.co</code>.</td></tr>
       <tr><td>“The table is missing”</td><td>Part 3 was never run.</td><td>SQL Editor → paste the code again → Run.</td></tr>
-      <tr><td>“Supabase said no (401 / 403)”</td><td>The login is wrong, or the user is not confirmed, or the anon key is not the anon key.</td><td>Authentication → Users → set a new password. Copy the <b>anon</b> key again.</td></tr>
+      <tr><td>“Supabase said no (401 / 403)”</td><td>The login is wrong, the user is not confirmed, or the login fields are empty.</td><td>Authentication → Users → set a new password. Make sure the email and password fields are filled too.</td></tr>
+      <tr><td>“That is the secret key”</td><td>You pasted <code>sb_secret_…</code> — the master key.</td><td>Go back to API Keys and copy the <b>Publishable key</b> instead.</td></tr>
       <tr><td>“Two devices changed the register”</td><td>Both changed something at the same minute.</td><td>Choose which copy to keep. The app saves a snapshot first, so nothing is lost forever.</td></tr>
       <tr><td>Status says “Local only”</td><td>Sync is off on this device.</td><td>Paste the four values and press Save.</td></tr>
     </table>
@@ -254,7 +256,7 @@ create policy &quot;lab register update&quot; on public.lab_registers
     <div class="kicker">Good habits</div>
     <h2>Three rules that keep the lab safe</h2>
     <ul>
-      <li>The <b>service_role / secret</b> key never leaves the Supabase website. Ever.</li>
+      <li>The <b>Secret keys</b> (<code>sb_secret_…</code>) and the old <code>service_role</code> key never leave the Supabase website. Ever.</li>
       <li>The <b>login</b> lives on the device where you typed it. Do not email it around.</li>
       <li>Once a month, open <b>Settings → Data &amp; backup</b> and press <b>Export register</b>. A copy in your own hand is worth more than any cloud.</li>
     </ul>

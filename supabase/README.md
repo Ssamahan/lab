@@ -17,14 +17,21 @@ side that lets a phone and a PC share it.
    will sign in with (email + password, **Auto confirm** on). Turn off public
    sign-ups in **Authentication → Providers → Email** if you want an invite-only
    console.
-4. Copy **Project URL** and the **anon public** key from **Settings → API**.
+4. Copy **Project URL** and the **Publishable key** (`sb_publishable_…`, or the legacy
+   `anon` JWT if your project still shows one) from **Settings → API Keys**.
 5. In Lab Systems open **Staff & settings → Data → Cloud sync** and paste four
    values: project URL, anon key, the login email and the login password. Press
    **Test connection**, then **Save**. The first device that syncs creates the row.
 
-The policies in `schema.sql` grant the table to the `authenticated` role, so the
-anon key on its own is not enough: the console signs in with the account from step 3
-and sends that access token, refreshing it when it expires. If you would rather use
+The policies in `schema.sql` grant the table to the `authenticated` role, so the API
+key on its own is not enough: the console signs in with the account from step 3 and
+sends that access token, refreshing it when it expires.
+
+Key shapes matter. A publishable key (`sb_publishable_…`) is **not a JWT** and must go
+in the `apikey` header only — Supabase rejects it as a Bearer token with *Invalid JWT*.
+The client therefore sends `Authorization` only when it holds a real signed-in session
+JWT (or a legacy `eyJ…` anon key). `sb_secret_…` keys bypass row-level security: they
+are refused by the app's settings form and by the connection test. If you would rather use
 a single shared passphrase instead of Auth users, enable **Allow anonymous
 sign-ins** and swap `authenticated` for `anon` in the three policies — but then
 anyone holding the anon key can read the register.
