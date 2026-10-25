@@ -5,9 +5,31 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.19** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.20** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.20
+
+**When the fix lives in Supabase, the app hands over the link to that exact page.**
+
+A refused anonymous session used to end in a toast naming a menu. Now:
+
+- `SY.authSettings()` reads the project's public `/auth/v1/settings` (cached for a minute,
+  bypassed on an explicit **Test connection**), so a switch that is off is known **before** a
+  request that is certain to fail. The error names the switch and carries the exact URL;
+- `SY.dashboardUrl()` derives the project reference from the pasted address, giving
+  `…/project/<ref>/auth/providers`, `…/auth/users` and `…/sql/new`;
+- the Cloud sync card shows **Open Auth providers · Open Auth users · Open SQL editor** as
+  buttons, so the switches are one click from the app;
+- **a failed Test connection opens a card, not a toast**: the reason, with any URL made
+  clickable, and a primary button *Open the page that fixes it*;
+- sign-ups being disabled outright has its own message instead of looking like a password
+  problem.
+
+The guide's Part 4 says where the *Allow anonymous sign-ins* switch actually sits (its own
+switch in the provider list, not inside Email) and warns that the check must be re-run after
+flipping it.
 
 ## What changed in 6.9.19
 

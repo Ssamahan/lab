@@ -45,6 +45,26 @@ function baseUrl(raw){
 }
 SY.baseUrl=baseUrl;
 
+/* Deep links into the Supabase dashboard. The project reference is the first label of
+   a *.supabase.co host, so the app can point straight at the switch that is missing
+   instead of describing where it lives. Custom domains get no link. */
+function projectRef(){
+  const u=cfg().url; if(!u) return null;
+  try{
+    const h=new URL(u).hostname;
+    const m=/\.supabase\.(co|in)$/i.test(h)?h.split('.')[0]:null;
+    return m&&/^[a-z0-9]{10,}$/i.test(m)?m:null;
+  }catch(e){ return null; }
+}
+SY.projectRef=projectRef;
+SY.dashboardUrl=function(path){
+  const ref=projectRef();
+  return ref?'https://supabase.com/dashboard/project/'+ref+'/'+(path||''):null;
+};
+SY.authProvidersUrl=()=>SY.dashboardUrl('auth/providers');
+SY.authUsersUrl=()=>SY.dashboardUrl('auth/users');
+SY.sqlEditorUrl=()=>SY.dashboardUrl('sql/new');
+
 function cfg(){ const c=S.settings().cloud||{};
   return {url:baseUrl(c.endpoint), raw:(c.endpoint||''), key:(c.anonKey||'').trim(),
     email:(c.email||'').trim(), password:c.password||'', anonAuth:!!c.anonAuth,
@@ -106,7 +126,12 @@ async function authError(r, body, c, mode){
     return authErr('Supabase found that user but it was never confirmed, so it refuses the sign-in. In Authentication → Users open the user and press Confirm, or untick "Confirm email" in Authentication → Sign In / Providers → Email. Supabase only shows the "Auto Confirm User" switch while email confirmations are ON.');
   }
   if(r.status===422&&/anonymous/i.test(msg)){
-    return authErr('Supabase refused an anonymous session — turn it on: dashboard → Authentication → Sign In / Providers → Allow anonymous sign-ins. Or tick the email-and-password route instead.');
+    return authErr('This project has anonymous sign-ins switched off, so Supabase refuses to create a session. Turn it on here: '
+      +(SY.authProvidersUrl()||'Supabase dashboard → Authentication → Sign In / Providers')
+      +' — the switch is called “Allow anonymous sign-ins”. Or fill in a project user email and password instead.');
+  }
+  if(r.status===422&&/signups? (are )?(not allowed|disabled)|signup is disabled/i.test(msg)){
+    return authErr('This project has sign-ups disabled, so no session can be created from the app. Either turn on “Allow anonymous sign-ins” in Authentication → Sign In / Providers, or create a user in Authentication → Users and type its email and password.');
   }
   if(r.status===400&&/invalid login credentials/i.test(msg)){
     return authErr('Supabase does not recognise that email and password. This is the app user from Authentication → Users, not the login you use on supabase.com. Create one there (Add user → Auto confirm) or switch to an anonymous session.');
@@ -123,9 +148,34 @@ async function authError(r, body, c, mode){
 }
 function authErr(msg){ const e=new Error(msg); e.auth=true; return e; }
 
-/* 1 — anonymous session. POST /auth/v1/signup with an empty body. */
-async function anonymousSignIn(){
+/* `/auth/v1/settings` is public and reports the project's Auth switches. Asking it
+   first turns "Anonymous sign-ins are disabled" from a surprise into a sentence with a
+   link, and it costs one request that is cached for a minute. */
+let settingsCache={at:0, val:null};
+SY.authSettings=async function(force){
   const c=cfg();
+  if(!c.url||!c.key) return null;
+  if(!force && settingsCache.val && Date.now()-settingsCache.at<60000) return settingsCache.val;
+  try{
+    const r=await fetch(c.url+'/auth/v1/settings',{headers:{'apikey':c.key}});
+    if(!r.ok) return settingsCache.val;
+    const j=await r.json();
+    settingsCache={at:Date.now(), val:j};
+    return j;
+  }catch(e){ return settingsCache.val; }
+};
+
+/* 1 — anonymous session. POST /auth/v1/signup with an empty body. */
+async function anonymousSignIn(force){
+  const c=cfg();
+  /* An explicit test must not be answered from a minute-old cache: the operator may
+     have flipped the toggle ten seconds ago. */
+  const st=await SY.authSettings(!!force);
+  if(st&&st.external&&st.external.anonymous_users===false){
+    throw authErr('This project has anonymous sign-ins switched off, so Supabase refuses to create a session. Turn it on here: '
+      +(SY.authProvidersUrl()||'Supabase dashboard → Authentication → Sign In / Providers')
+      +' (the switch is called “Allow anonymous sign-ins”; it takes effect immediately). Or use the other route: create a user in Authentication → Users and type its email and password above.');
+  }
   const r=await fetch(c.url+'/auth/v1/signup',{
     method:'POST',
     headers:{'apikey':c.key,'Content-Type':'application/json'},
@@ -134,7 +184,8 @@ async function anonymousSignIn(){
   const body=await r.text();
   if(!r.ok) throw await authError(r, body, c, 'anonymous');
   let j={}; try{ j=JSON.parse(body); }catch(e){}
-  if(!j.access_token) throw authErr('Supabase created no session for the anonymous sign-in. Turn on Allow anonymous sign-ins in Authentication → Sign In / Providers.');
+  if(!j.access_token) throw authErr('Supabase answered but created no session. Check that “Allow anonymous sign-ins” is on in '
+    +(SY.authProvidersUrl()||'Authentication → Sign In / Providers')+'.');
   return adopt(j);
 }
 
@@ -162,7 +213,7 @@ async function signIn(force){
     const t=await refreshSession();
     if(t) return t;
   }
-  if(c.anonAuth) return anonymousSignIn();
+  if(c.anonAuth) return anonymousSignIn(force);
   if(!c.email||!c.password) return null;
   const r=await fetch(c.url+'/auth/v1/token?grant_type=password',{
     method:'POST',
@@ -220,7 +271,7 @@ SY.ping=async function(){
   try{
     /* Test connection must prove the login, not reuse a token from an hour ago. */
     if(c.email&&c.password){ forgetSession(); await signIn(true); }
-    else if(c.anonAuth) await signIn(false);
+    else if(c.anonAuth) await signIn(true);
     const r=await request(TABLE+'?select=id,revision,updated_at&limit=1');
     if(r.status===404){
       /* PostgREST answers 404 both for "no such table" (PGRST205) and for a path that
@@ -228,7 +279,7 @@ SY.ping=async function(){
          a wrong address is not, and they must not read the same. */
       const body=(await r.text())||'';
       const missing=/PGRST20[0-9]|Could not find the table|relation .* does not exist/i.test(body);
-      if(missing) return {ok:false, tableMissing:true, reason:'Your project answered and accepted the key — but the table lab_registers does not exist yet. Open Supabase → SQL Editor → New query, paste the schema, press Run, then test again. The SQL is in the app: press "Copy the table SQL" below.'};
+      if(missing) return {ok:false, tableMissing:true, reason:'Your project answered and accepted the key — but the table lab_registers does not exist yet. Open '+(SY.sqlEditorUrl()||'Supabase → SQL Editor')+' → New query, paste the schema, press Run, then test again. The app can copy the SQL: press "Copy the table SQL" below.'};
       return {ok:false, reason:'Supabase answered 404 at '+c.url+' — the address must be only https://<project>.supabase.co, with no path. ('+body.slice(0,120)+')'};
     }
     if(r.status===401||r.status===403) return {ok:false, reason:'Supabase said no ('+r.status+'). '+(cfg().email?'Check the login email and password from Authentication → Users, and that schema.sql was run.':'The table only allows signed-in users, so fill the login email and password as well — or the publishable key runs as anonymous.')};
@@ -307,7 +358,7 @@ SY.diagnose=async function(){
       row('Email confirmation',false,'Confirmations are ON, so a new user waits for a confirmation that never comes. Tick "Auto Confirm User" in the Add-user dialog, or open the user and press Confirm.');
     }
     const anon=!!(settings.external&&settings.external.anonymous_users);
-    row('Anonymous sign-ins',anon,anon?'Allowed — the "Anonymous session" route will work.':'Off. Turn on Authentication → Sign In / Providers → Allow anonymous sign-ins, or use a project user.');
+    row('Anonymous sign-ins',anon,anon?'Allowed — the "Anonymous session" route will work.':'Off. Turn it on at '+(SY.authProvidersUrl()||'Authentication → Sign In / Providers → Allow anonymous sign-ins')+', or use a project user.');
     if(settings.disable_signup && !anon) row('Sign-ups',false,'Sign-ups are disabled and there is no anonymous route, so only a user you create in Authentication → Users can sign in.');
   }
 
