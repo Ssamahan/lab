@@ -61,6 +61,9 @@
 }
 .land-hero h1 em{font-style:italic;color:var(--gold-bright)}
 .land-hero p{color:var(--text-muted);font-size:clamp(.92rem,1.2vw,1.02rem);line-height:1.75;max-width:62ch;margin:18px 0 0}
+.land-cta{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:26px 0 0}
+.land-cta .btn{height:40px}
+.land-cta-note{font-size:.76rem;color:var(--text-faint);max-width:44ch;line-height:1.6}
 .land-rule{height:1px;background:var(--gold-thread);margin:32px 0 0;max-width:420px;opacity:.75}
 .land-facts{display:flex;flex-wrap:wrap;gap:clamp(20px,4vw,54px);margin:30px 0 0}
 .land-facts div b{

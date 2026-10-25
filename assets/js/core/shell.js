@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.26';
+const APP_VERSION='6.9.27';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -24,7 +24,7 @@ const ROUTES={
   pbf:{title:'PBF Evaluation',sub:'Health-centre performance-based financing scores',group:'Quality',icon:ICON.pbf,file:'pbf'},
   quality:{title:'Quality & Compliance',sub:'ISO 15189 readiness · SOPs · incidents · QC',group:'Quality',icon:ICON.quality,file:'quality'},
   equipment:{title:'Equipment',sub:'Uptime · preventive & curative maintenance · supplier response',group:'Quality',icon:ICON.equipment,file:'equipment'},
-  staff:{title:'Staff & Settings',sub:'Registry · roles · branding · data',group:'Admin',icon:ICON.staff,file:'staff',permission:'staff'},
+  staff:{title:'Staff & Settings',sub:'Registry · roles · branding · data',group:'Admin',icon:ICON.staff,file:'staff'},
   security:{title:'Security Center',sub:'Sessions · 2FA · audit trail · residency',group:'Admin',icon:ICON.security,file:'security',permission:'security'},
   design:{title:'Design System',sub:'Tokens · components · motion specification',group:'Admin',icon:ICON.design,file:'design',permission:'settings'},
   roadmap:{title:'Premium Roadmap',sub:'The 100 upgrades behind Lab Systems v6',group:'Admin',icon:ICON.roadmap,file:'roadmap',permission:'settings'}
@@ -102,6 +102,7 @@ SH.build=function(){
       +'<button class="bnav-item" data-more="1" title="More">'+U.ic('menu',20)+'<span class="lbl">More</span></button>';
   }
   LS.auth.renderUserChip();
+  paintVisitorBar();
   startClock();
   updateBadges();
   applyTheme();
@@ -110,6 +111,22 @@ SH.build=function(){
   wireGlobal();
   updateNet();
 };
+
+/* ——— Visitor view —————————————————————————
+   A visitor reads the whole register except Training Revenue, Settings and the
+   Data & sync tab. The strip says so once, and offers the two ways out. */
+function paintVisitorBar(){
+  const bar=document.getElementById('visitorBar'); if(!bar) return;
+  const on=!!(LS.auth.isVisitor&&LS.auth.isVisitor());
+  bar.hidden=!on;
+  if(!on) return;
+  const si=document.getElementById('vbSignIn');
+  if(si) si.onclick=()=>{ if(LS.landing) LS.landing.signIn(); };
+  const ov=document.getElementById('vbOverview');
+  if(ov) ov.onclick=()=>{ if(LS.landing) LS.landing.show(); };
+  const who=document.getElementById('vbWho');
+  if(who) who.textContent='Visitor · read only';
+}
 
 /* Reviewers and viewers get the record, not the essay. Long explanatory copy
    under a page title is for the people who administer the console. */
@@ -207,8 +224,15 @@ SH.route=async function(opts){
   if(!page) return;
   // permission gate
   if(r.permission && !LS.auth.can(r.permission)){
-    page.innerHTML='<div class="page"><div class="card pad" style="max-width:560px;margin:6vh auto">'+UI.empty({art:'lock',title:'Restricted module',body:'Your role ('+LS.auth.user.role+') does not have access to '+r.title+'. The Lab Manager can grant access in Security Center.',action:'<button class="btn" data-go="dash">'+U.ic('arrow-left',15)+' Back to Command Center</button>'})+'</div></div>';
-    page.querySelector('[data-go]').onclick=()=>SH.go('dash'); return;
+    const visitor=!!(LS.auth.isVisitor&&LS.auth.isVisitor());
+    page.innerHTML='<div class="page"><div class="card pad" style="max-width:560px;margin:6vh auto">'+UI.empty({art:'lock',title:'Restricted module',
+      body:visitor?'A visitor may read the whole register except Training Revenue, Settings and Data & sync. Sign in to open '+r.title+'.'
+        :'Your role ('+LS.auth.user.role+') does not have access to '+r.title+'. The Lab Manager can grant access in Security Center.',
+      action:visitor?'<button class="btn" data-go="dash">'+U.ic('arrow-left',15)+' Back to Command Center</button><button class="btn primary" data-visitor-signin>'+U.ic('key-round',15)+' Sign in</button>'
+        :'<button class="btn" data-go="dash">'+U.ic('arrow-left',15)+' Back to Command Center</button>'})+'</div></div>';
+    const g=page.querySelector('[data-go]'); if(g) g.onclick=()=>SH.go('dash');
+    const vs=page.querySelector('[data-visitor-signin]'); if(vs) vs.onclick=()=>{ if(LS.landing) LS.landing.signIn(); };
+    return;
   }
   // A navigation always closes any open drawer or modal. Leaving a layer open
   // used to keep the body scroll-locked, which is what made scrolling feel broken.
@@ -420,7 +444,7 @@ function commandItems(){
     items.push({group:'Actions',label:'What changed in v'+APP_VERSION,meta:'',icon:'sparkles',run:()=>{ UI.closeAll(); SH.releaseNotes(); }});
     items.push({group:'Actions',label:'Install Lab Systems on this device',meta:'',icon:'download',run:()=>SH.install()});
   }
-  items.push({group:'Actions',label:'Sign out',meta:'',icon:'log-out',run:()=>SH.logout()});
+  items.push({group:'Actions',label:LS.auth.isVisitor()?'Leave visitor view':'Sign out',meta:'',icon:'log-out',run:()=>SH.logout()});
   // staff
   S.db().staff.filter(s=>s.status==='active').forEach(s=>items.push({group:'People',label:s.name,meta:s.role,icon:'user',run:()=>{ SH.go('roster'); setTimeout(()=>UI.drawer({title:s.name,eyebrow:'Staff record',body:LS.modules.roster&&LS.modules.roster.staffDrawer?LS.modules.roster.staffDrawer(s):'<p class="small muted">'+U.esc(s.role)+'</p>',foot:'<button class="btn" data-close>Close</button>'}),350); }}));
   // samples (recent)
@@ -506,10 +530,15 @@ function openNotifs(){
 /* ——— User menu ——————————————— */
 function openUserMenu(){
   const u=LS.auth.user;
+  const adminLinks=[['security','Security Center','Sessions, 2FA & audit','security'],
+                    ['staff','Staff & Settings','Branding, data & backups','staff'],
+                    ['design','Design System','Tokens & motion spec','settings'],
+                    ['roadmap','Premium Roadmap','The 100 upgrades','settings']]
+    .filter(([r,t,sb,p])=>LS.auth.can(p));
   const body='<div class="row" style="gap:12px;padding-bottom:14px;border-bottom:1px solid var(--border)">'+U.avatar(u.name,'lg')
     +'<div class="grow"><div class="strong" style="font-size:14px">'+U.esc(u.name)+'</div><div class="xs faint">'+U.esc(u.title)+'</div><div style="margin-top:4px">'+UI.roleBadge(u.role)+'</div></div></div>'
     +'<div class="stack" style="margin-top:10px">'
-    +[['security','Security Center','Sessions, 2FA & audit'],['staff','Staff & Settings','Branding, data & backups'],['design','Design System','Tokens & motion spec'],['roadmap','Premium Roadmap','The 100 upgrades']].map(([r,t,s])=>'<button class="choice" data-go="'+r+'" style="justify-content:space-between"><span><span class="ct">'+t+'</span><span class="cs" style="display:block">'+s+'</span></span>'+U.ic('chevron-right',14)+'</button>').join('')
+    +adminLinks.map(([r,t,s])=>'<button class="choice" data-go="'+r+'" style="justify-content:space-between"><span><span class="ct">'+t+'</span><span class="cs" style="display:block">'+s+'</span></span>'+U.ic('chevron-right',14)+'</button>').join('')
     +'</div>'
     +'<div class="row between" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)"><span class="xs faint">Appearance</span>'
     +'<div class="seg"><button data-theme-toggle class="on" style="display:flex;align-items:center;gap:5px"><span data-theme-icon>'+U.ic(S.settings().theme==='ink'?'moon':'sun',13)+'</span><span data-theme-label>'+(S.settings().theme==='ink'?'Ink':'Porcelain')+'</span></button></div></div>'
@@ -520,7 +549,7 @@ function openUserMenu(){
     +'<button class="btn xs wide" style="margin-top:10px" data-overview>'+U.ic('globe',13)+' Public overview page</button>'
     +'<button class="btn xs wide" style="margin-top:10px" data-force-refresh>'+UI.ic('refresh-cw',13)+' Force update — clear cache & reload</button>'
     +'<div class="hint" style="margin-top:6px">Use this if a fix does not appear: it clears the offline cache for the app shell, keeps every record on this device, and reloads the newest build.</div>';
-  const d=UI.drawer({title:'Account',eyebrow:'Signed in',body:body,foot:'<button class="btn danger" data-logout>'+U.ic('log-out',15)+' Sign out</button><button class="btn" data-close>Close</button>'});
+  const d=UI.drawer({title:'Account',eyebrow:'Signed in',body:body,foot:'<button class="btn danger" data-logout>'+U.ic('log-out',15)+(LS.auth.isVisitor()?' Leave visitor view':' Sign out')+'</button><button class="btn" data-close>Close</button>'});
   d.panel.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ UI.closeAll(); SH.go(b.dataset.go); });
   d.panel.querySelector('[data-theme-toggle]').onclick=e=>{ SH.toggleTheme(); const b=e.currentTarget; b.querySelector('[data-theme-icon]').innerHTML=U.ic(S.settings().theme==='ink'?'moon':'sun',13); b.querySelector('[data-theme-label]').textContent=S.settings().theme==='ink'?'Ink':'Porcelain'; };
   d.panel.querySelector('[data-density-toggle]').onclick=e=>{ SH.toggleDensity(); e.currentTarget.querySelector('[data-density-label]').textContent=S.settings().density==='compact'?'Compact':'Comfortable'; };
@@ -550,6 +579,12 @@ SH.forceRefresh=async function(){
   },700);
 };
 SH.logout=async function(){
+  if(LS.auth.isVisitor&&LS.auth.isVisitor()){
+    LS.auth.logout();
+    document.getElementById('app').hidden=true;
+    if(LS.landing) LS.landing.show();
+    return;
+  }
   const ok=await UI.confirm({title:'Sign out of Lab Systems?',body:'Your local register stays on this device. Unsaved screen state is cleared.',confirm:'Sign out',danger:true});
   if(!ok) return;
   LS.auth.logout();

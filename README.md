@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.26** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.27** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -21,7 +21,8 @@ is already present so `assets/` is served as-is. Deployment and Android packagin
 
 ## Sign in
 
-The app opens on a **public overview** — no password needed to read what the department does.
+The app opens on a **public overview** — no password needed to read what the department does, and
+one button opens the register itself as a read-only visitor.
 The console's sign-in screen is not linked from it: **five clicks on the crest** or **three
 clicks on the profile button** opens it, as does `#/signin` in the address bar. Signing out
 returns to the overview, and a bookmarked console link still asks for the password.
@@ -37,6 +38,12 @@ page source, or in the documentation.
 | Technologist | register, results, stock |
 | Reviewer | read the register, sign off assessments |
 | Viewer | read-only, PBF and district review |
+
+**A visitor needs no account.** The overview's *Open the register as a visitor* button enters
+the console as a Viewer: every operational module plus the staff register, with export and
+download, and three surfaces closed — **Training Revenue**, **Settings** and **Data & sync**.
+Writes are refused in the store itself, not only in the interface, and the session ends with
+the tab.
 
 Passwords are stored as **SHA-256 hashes**; the sign-in form starts empty. If every
 manager account is lost, clear this site's browser data (`Settings → Data → reset to seed`)

@@ -760,6 +760,12 @@ function setPending(n){ pending=Math.max(0,n|0); try{ localStorage.setItem('labS
 S.pendingChanges=()=>pending;
 S.clearPending=()=>setPending(0);
 S.commit=function(mutator, audit){
+  /* Behind the hidden buttons and disabled inputs: a read-only role — the visitor
+     view, or any Viewer account — cannot write to the register at all. */
+  if(LS.auth && LS.auth.user && !LS.auth.can('edit')){
+    try{ LS.ui.toast('This is a read-only view — sign in to make changes',{type:'warn'}); }catch(e){}
+    return false;
+  }
   const db=S.db(); mutator(db);
   if(audit){ S.audit(audit); }
   delete db.meta.syncedAt;

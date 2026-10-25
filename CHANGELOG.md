@@ -4,6 +4,39 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.27
+
+**A visitor is now a real Viewer: the register opens without a password, read-only.**
+
+The overview page was still only a description. A visitor could not see the register at all.
+Now the overview carries one button — *Open the register as a visitor — read only* — and a
+visitor walks straight into the console with no account:
+
+- **visible**: Command Center, Referred Samples, Stock, Training Roster, Working Plan, Leave,
+  EQA, PBF, Quality, Equipment, and **Staff → People** (the whole staff register, with the
+  workforce profile);
+- **closed**: **Training Revenue**, **Settings**, and the **Data & sync** tab. Security Center,
+  Design System and Premium Roadmap stay administrator-only. Closed means the tab or module is
+  never built for that role — a URL with `?tab=data` falls back to People, and `#/revenue`
+  answers with the reason and a Sign in button;
+- **export and download stay open** for a visitor: register JSON, chart downloads, printable
+  sheets — the `Viewer` role already had `export`, and it is the reason the role exists;
+- **editing does not**. Every control that writes is gone from the visitor's screens, and
+  `store.commit()` now refuses outright for a role without `edit`, so a stray button or a
+  console call cannot write to the register or queue a change for the shared copy;
+- the visitor session is kept in **sessionStorage**, so it ends with the tab and never becomes
+  a stored login; `localStorage` holds no session for a visitor;
+- a **strip above the topbar** states the view — *Visitor · read only* — what is closed, and
+  offers **Sign in** and **Overview**. Signing in from it replaces the visitor with the real
+  account and restores every module; leaving the visitor view needs no confirmation;
+- an unauthenticated console link (`#/roster`, a bookmark) now opens that page **as a visitor**
+  rather than a password wall; `#/signin` remains the staff door, and the five-taps-on-the-crest
+  and three-taps-on-the-profile gestures still work.
+
+Also fixed: the splash used the session captured when it began, so a sign-in that completed
+during the animation could be overruled by the visitor path. It now reads the session when the
+splash ends.
+
 ## What changed in 6.9.26
 
 **The first screen is a public overview. The console's sign-in is a door, not a wall.**
