@@ -348,6 +348,18 @@ function dataView(){
      '<p class="small" style="line-height:1.7;color:var(--text-muted)">'+U.esc(S.settings().provenance||'')+'</p>'
      +'<div class="split-3" style="margin-top:12px">'+[['Register data','Carried forward from v5.3.1 (staff, referrals, leave, trainings, revenue, equipment)'],['Working records','Only what the department actually recorded — referred samples, issues, leave, EQA rounds. Nothing is generated to fill a screen.'],['Configuration','Stored in localStorage under labSystems.v1 · schema v'+db.meta.schema]].map(([k,v])=>'<div class="hstat" style="align-items:flex-start"><span class="lb">'+k+'</span><span class="xs muted" style="line-height:1.55;margin-top:4px">'+U.esc(v)+'</span></div>').join('')+'</div>'})+'</div></div>';
 }
+/* A failure is never a toast that vanishes: it is a card with the reason and, where the
+   fix lives in the Supabase dashboard, a button straight to that page. */
+function showSyncFailure(res){
+  const reason=String(res&&(res.reason||res.message)||'Sync did not finish');
+  const link=(reason.match(/https:\/\/[^\s)]+/)||[])[0]||null;
+  const schema=res&&res.schemaIssue;
+  UI.modal({title:'Cloud sync needs one thing', sub:res&&res.tableMissing?'the table is missing':'not connected yet',
+    body:'<p class="small" style="line-height:1.65">'+linkify(reason)+'</p>'
+      +(schema?'<div class="hint" style="margin-top:10px">Re-run the schema: it now heals a table built by an older version. <b>Copy the table SQL</b> in the Cloud sync card, paste it in the SQL Editor and press Run.</div>':''),
+    foot:'<button class="btn" data-close>Close</button>'
+      +(link?'<a class="btn primary" href="'+U.esc(link)+'" target="_blank" rel="noopener">'+UI.ic('arrow-up-right',14)+'Open the page that fixes it</a>':'')});
+}
 function paint(){
   const host=rootEl.querySelector('#stBody'); if(!host) return;
   host.innerHTML=tab==='settings'?settingsView():tab==='data'?dataView():people();
@@ -430,13 +442,7 @@ function wire(){
       UI.toast('Connected to Supabase — '+(res.remote?'shared register found':'ready for the first push'),{type:'ok',duration:4000});
       paint(); return;
     }
-    /* A failure is never a toast that vanishes: it is a card with the reason and, where
-       the fix lives in the Supabase dashboard, a button straight to that page. */
-    const link=(String(res.reason).match(/https:\/\/[^\s)]+/)||[])[0]||null;
-    UI.modal({title:'Cloud sync needs one thing', sub:res.tableMissing?'the table is missing':'not connected yet',
-      body:'<p class="small" style="line-height:1.65">'+linkify(res.reason)+'</p>',
-      foot:'<button class="btn" data-close>Close</button>'
-        +(link?'<a class="btn primary" href="'+U.esc(link)+'" target="_blank" rel="noopener">'+UI.ic('arrow-up-right',14)+'Open the page that fixes it</a>':'')});
+    showSyncFailure(res);
     paint();
   });
   r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
@@ -450,7 +456,12 @@ function wire(){
       {action:'settings.cloud',entity:'settings',detail:'Cloud sync settings saved'});
     const on=SY.configured();
     UI.toast(on?'Sync configured — press Sync now to publish this register':'Cloud sync disabled · staying local',{type:'ok'});
-    if(on){ SY.sync().then(res=>{ UI.toast(res.ok?'Cloud sync: '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000}); SY.startLive(); paint(); }); }
+    if(on){ SY.sync().then(res=>{
+      SY.startLive();
+      if(res.ok){ UI.toast('Cloud sync: '+(res.action==='noop'?'already up to date':res.action),{type:'ok',duration:4000}); }
+      else showSyncFailure(res);
+      paint();
+    }); }
     else SY.stopLive();
   });
   r.querySelectorAll('[data-cloud-sql]').forEach(b=>b.onclick=async()=>{

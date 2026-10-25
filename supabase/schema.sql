@@ -43,6 +43,14 @@ drop trigger if exists lab_registers_touch on public.lab_registers;
 create trigger lab_registers_touch before insert or update on public.lab_registers
 for each row execute function public.touch_lab_register();
 
+-- ---------------------------------------------------------------- repair ------
+-- Re-running this file must also heal a table created by an older version of it.
+-- (An early build selected a `device_id` column that never existed; the client now
+-- uses `client_id`, and these lines make any older table match the current one.)
+alter table public.lab_registers add column if not exists client_id  text;
+alter table public.lab_registers add column if not exists updated_by text;
+alter table public.lab_registers add column if not exists revision   bigint not null default 1;
+
 -- ---------------------------------------------------------------- RLS --------
 alter table public.lab_registers enable row level security;
 

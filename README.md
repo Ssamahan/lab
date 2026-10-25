@@ -5,9 +5,29 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.21** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.22** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.22
+
+**Pull no longer asks for a column that does not exist.**
+
+`supabase/schema.sql` stores the writing device in `client_id`, but `SY.pull()` and
+`SY.remoteVersion()` selected `device_id`. PostgREST answered
+`400 42703 column lab_registers.device_id does not exist` and every pull failed — including
+the 2.5 s live check — so Save looked broken while the key and the table were both fine.
+
+- one column list in one place: `client_id` is requested, and a row is normalised so
+  `device_id` and `client_id` both read correctly for anything that looks at them;
+- if a project still answers 42703 (a table built by an older schema, or one that has
+  neither column), the pull retries with a lean list, so syncing keeps working and the card
+  records what to fix instead of failing;
+- a column error now marks the failure as a **schema issue**, and the failure card says to
+  re-run the SQL;
+- `schema.sql` gained an idempotent **repair** block (`add column if not exists` for
+  `client_id`, `updated_by`, `revision`), so re-running it heals an older table;
+- **Save** failures open the same card as a failed test instead of a toast that disappears.
 
 ## What changed in 6.9.21
 
