@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   samplePrefix:'RDH', manifestPrefix:'BLC',
   coverWeekdayDay:3, coverWeekdayNight:1, coverWeekendDay:2, coverWeekendNight:1,
   tat: { 'Blood Culture':4, 'TB Culture':21, 'HIV Recency Viral Load':5, 'Hepatitis (HEP)':7, default:3 },
-  cloud:{ enabled:false, endpoint:'', anonKey:'', email:'', password:'', mode:'push-pull', lastSync:null },
+  cloud:{ enabled:false, endpoint:'', anonKey:'', email:'', password:'', anonAuth:false, mode:'push-pull', lastSync:null },
   onboarding:{ importStaff:true, configureTests:false, inviteUsers:false, baselineQC:false, dismissed:false },
   features:{ qc:true, pbf:true, equipment:true, cloud:true },
   provenance:'Register data carried forward from v5.3.1. Throughput, QC and TAT telemetry are generated locally for the console.'

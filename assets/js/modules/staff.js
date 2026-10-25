@@ -312,8 +312,12 @@ function dataView(){
      body:
      '<div class="field" style="margin-top:2px"><label>Supabase project URL</label><input class="input mono" id="cloudUrl" type="url" placeholder="https://xxxxxxxx.supabase.co" value="'+U.esc(cl.endpoint||'')+'" spellcheck="false" autocomplete="off"><div class="xs faint" style="margin-top:4px">Only <span class="mono">https://&lt;project&gt;.supabase.co</span> — no <span class="mono">/rest/v1</span> on the end. A path there makes Supabase answer <span class="mono">404 PGRST125</span>.</div></div>'
      +'<div class="field" style="margin-top:10px"><label>API key · publishable</label><input class="input mono" id="cloudKey" type="text" placeholder="sb_publishable_…" value="'+U.esc(cl.anonKey||'')+'" spellcheck="false" autocomplete="off"><div class="xs faint" style="margin-top:4px">Settings → API Keys → <b>Publishable key</b>. The legacy anon key (<span class="mono">eyJ…</span>) still works. Never the secret key.</div></div>'
-     +'<div class="field" style="margin-top:10px"><label>Supabase login · email</label><input class="input mono" id="cloudEmail" type="email" placeholder="lab@rulidh.rw" value="'+U.esc(cl.email||'')+'" spellcheck="false" autocomplete="username"></div>'
-     +'<div class="field" style="margin-top:10px"><label>Supabase login · password</label><input class="input mono" id="cloudPass" type="password" placeholder="the account you created in Supabase → Authentication" value="'+U.esc(cl.password||'')+'" autocomplete="current-password"></div>'
+     +'<div class="hint" style="margin:10px 0 0;padding:9px 11px;border-radius:8px;background:var(--surface-inset)"><b>This is not your supabase.com login.</b> How you signed into the dashboard — GitHub, Google, email — does not matter here. The console needs a <i>user of the project</i>: dashboard → <b>Authentication → Users → Add user</b>, email + password, tick <b>Auto confirm</b>. Or skip it with the anonymous option below.</div>'
+     +'<div class="field" style="margin-top:10px"><label>Project user · email</label><input class="input mono" id="cloudEmail" type="email" placeholder="lab@rulidh.rw" value="'+U.esc(cl.email||'')+'" spellcheck="false" autocomplete="username"></div>'
+     +'<div class="field" style="margin-top:10px"><label>Project user · password</label><input class="input mono" id="cloudPass" type="password" placeholder="the user from Authentication → Users" value="'+U.esc(cl.password||'')+'" autocomplete="current-password"></div>'
+     +'<div class="field" style="margin-top:10px"><label>No password instead?</label>'
+       +'<label class="choice '+(cl.anonAuth?'on':'')+'" style="width:auto"><input type="checkbox" id="cloudAnon" '+(cl.anonAuth?'checked':'')+' style="margin-right:8px"><span class="ct">Anonymous session</span></label>'
+       +'<div class="xs faint" style="margin-top:5px">Needs one toggle in Supabase: <b>Authentication → Sign In / Providers → Allow anonymous sign-ins</b>. Anyone holding the publishable key could then create such a session, so use it only while you are setting up, or with the patient fields kept empty.</div></div>'
      +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
        +[['push-pull','Two-way · pull then push'],['push','Push only — this device is the source'],['pull','Pull only — read the shared copy']].map(([v,l])=>'<option value="'+v+'"'+(cl.mode===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
      +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
@@ -397,18 +401,21 @@ function wire(){
     if(u) S.settings().cloud.endpoint=LS.sync.baseUrl(u.value);
     if(k) S.settings().cloud.anonKey=k.value.trim();
     if(m) S.settings().cloud.mode=m.value;
+    const an=r.querySelector('#cloudAnon');
     if(em) S.settings().cloud.email=em.value.trim();
     if(pw) S.settings().cloud.password=pw.value;
+    if(an) S.settings().cloud.anonAuth=!!an.checked;
     UI.toast('Testing the Supabase project…',{type:'info'});
     const res=await SY.ping();
     UI.toast(res.ok?'Connected to Supabase — '+(res.remote?'shared register found':'ready for the first push'):res.reason,{type:res.ok?'ok':'err',duration:res.ok?4000:8000});
     if(res.ok) paint();
   });
   r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
-    const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass');
+    const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass'), an=r.querySelector('#cloudAnon');
     if(k && LS.sync.keyKind(k.value.trim())==='secret'){ UI.toast('Not saved: that is the secret key. Use the publishable key (sb_publishable_…) — the secret one bypasses row-level security.',{type:'err',duration:9000}); return; }
     S.commit(d=>{ d.settings.cloud.endpoint=u?LS.sync.baseUrl(u.value):''; d.settings.cloud.anonKey=(k?k.value:'').trim();
       d.settings.cloud.email=(em?em.value:'').trim(); d.settings.cloud.password=(pw?pw.value:'');
+      d.settings.cloud.anonAuth=!!(an&&an.checked);
       d.settings.cloud.mode=m?m.value:'push-pull'; d.settings.cloud.enabled=!!(u&&u.value&&k&&k.value); },
       {action:'settings.cloud',entity:'settings',detail:'Cloud sync settings saved'});
     const on=SY.configured();

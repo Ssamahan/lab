@@ -184,15 +184,27 @@ create policy &quot;lab register update&quot; on public.lab_registers
   <div class="card">
     <div class="kicker">Part 4</div>
     <h2>Make your login</h2>
-    <p>The keys above open the door of the building. This login opens the room.</p>
+    <div class="warn box" style="margin-top:0"><b>Important:</b> the way you signed into supabase.com — GitHub, Google, email —
+      has nothing to do with this. That login only opens the dashboard. The app needs a <b>user of your project</b>,
+      and you make it yourself in two clicks. Yes, even if you used GitHub.</div>
+    <p>Pick <b>one</b> of these two ways:</p>
+    <h3 style="font-size:16px;margin:16px 0 4px">Way A — a project user (recommended)</h3>
     <ol>
       <li>Left menu → <b>Authentication</b>.</li>
       <li>Open <b>Users</b>, then press <b>Add user</b> → <b>Create new user</b>.</li>
-      <li>Email: something real you own, for example <code>lab@rulidh.rw</code>. Password: long, written down.</li>
-      <li>Tick <b>Auto confirm user</b> (otherwise the account waits for an email).</li>
-      <li>Press <b>Create user</b>.</li>
+      <li>Email: something that looks real, for example <code>lab@rulidh.rw</code>. (It does not have to be able to receive mail.)</li>
+      <li>Password: long, written down.</li>
+      <li>Tick <b>Auto confirm user</b> — otherwise the account waits for an email nobody will send.</li>
+      <li>Press <b>Create user</b>. Done: the app will sign in with this, not with your GitHub account.</li>
     </ol>
-    <div class="box">This is the account the app will use. You can make one per person later — everyone sees the same register.</div>
+    <h3 style="font-size:16px;margin:18px 0 4px">Way B — no password at all (anonymous session)</h3>
+    <ol>
+      <li>Left menu → <b>Authentication → Sign In / Providers</b>.</li>
+      <li>Turn on <b>Allow anonymous sign-ins</b>.</li>
+      <li>In the app, tick <b>Anonymous session</b> and leave the email and password empty.</li>
+    </ol>
+    <div class="warn box">Way B is quicker, but anyone who finds your project address and publishable key could also open a session.
+      The register holds patient names. Use Way B to get running today, then move to Way A before the lab depends on it.</div>
   </div>
 
   <div class="card">
@@ -205,8 +217,9 @@ create policy &quot;lab register update&quot; on public.lab_registers
         <ul>
           <li><b>Supabase project URL</b> → the address from Part 2</li>
           <li><b>API key · publishable</b> → the <code>sb_publishable_…</code> key from Part 2</li>
-          <li><b>Supabase login · email</b> → the email from Part 4</li>
-          <li><b>Supabase login · password</b> → the password from Part 4</li>
+          <li><b>Project user · email</b> → the email from Part 4, Way A</li>
+          <li><b>Project user · password</b> → the password from Part 4, Way A<br>
+            <span style="color:#5A6472">— or tick <b>Anonymous session</b> and leave both empty (Way B)</span></li>
         </ul>
       </li>
       <li>Leave <b>Mode</b> on <b>Two‑way · pull then push</b>.</li>
@@ -246,6 +259,8 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <tr><td>Test connection spins forever</td><td>The URL is wrong or the internet is down.</td><td>Check the address starts with <code>https://</code> and ends in <code>.supabase.co</code>.</td></tr>
       <tr><td>“The table is missing”</td><td>Part 3 was never run.</td><td>SQL Editor → paste the code again → Run.</td></tr>
       <tr><td>“Supabase said no (401 / 403)”</td><td>The login is wrong, the user is not confirmed, or the login fields are empty.</td><td>Authentication → Users → set a new password. Make sure the email and password fields are filled too.</td></tr>
+      <tr><td>“does not recognise that email and password”</td><td>You typed your supabase.com login (GitHub/Google) or no user exists yet.</td><td>Authentication → Users → Add user (Part 4, Way A), or tick <b>Anonymous session</b>.</td></tr>
+      <tr><td>“refused an anonymous session”</td><td>The toggle is still off.</td><td>Authentication → Sign In / Providers → Allow anonymous sign-ins.</td></tr>
       <tr><td>“Sign-in failed (404) — PGRST125, Invalid path”</td><td>The project URL has a path on the end, usually <code>/rest/v1</code>.</td><td>Use only <code>https://&lt;project&gt;.supabase.co</code>. The app now trims the path for you — press <b>Save</b> again.</td></tr>
       <tr><td>“That is the secret key”</td><td>You pasted <code>sb_secret_…</code> — the master key.</td><td>Go back to API Keys and copy the <b>Publishable key</b> instead.</td></tr>
       <tr><td>“Two devices changed the register”</td><td>Both changed something at the same minute.</td><td>Choose which copy to keep. The app saves a snapshot first, so nothing is lost forever.</td></tr>
