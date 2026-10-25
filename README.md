@@ -5,9 +5,29 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.15** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.16** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.16
+
+**A pasted path in the project URL no longer breaks the sign-in.**
+
+Supabase answered `404 — PGRST125 Invalid path specified in request URL` because the
+project URL carried a path (usually `/rest/v1`), which turned the sign-in call into
+`…/rest/v1/auth/v1/token`. PostgREST owns that prefix, so it rejected the path before
+Auth ever saw the password.
+
+`LS.sync.baseUrl()` now reduces whatever is pasted to the project address: it adds
+`https://` when the scheme is missing, trims whitespace and trailing slashes, and strips
+`/rest/v1`, `/auth/v1`, `/storage/v1`, `/realtime/v1`, `/graphql/v1` or `/functions/v1`
+(and anything after them). A custom domain keeps its own path prefix. The address is
+normalised both when it is saved and every time it is read, so a value already stored
+on a device is repaired without anyone retyping it.
+
+The error message now says what to do — *"the project URL has a path in it. Use only the
+project address, `https://<project>.supabase.co`, with no `/rest/v1` on the end"* — and a
+404 on the connection test points at the URL instead of the password.
 
 ## What changed in 6.9.15
 
