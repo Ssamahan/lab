@@ -296,11 +296,24 @@ SY.ping=async function(){
 
 SY.pull=async function(){
   const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
-  const r=await request(TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select=id,data,revision,updated_at,device_id,updated_by');
+  const q=s=>TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select='+s;
+  let r=await request(q(COLS_FULL));
+  let body='';
+  if(!r.ok){
+    body=(await r.text())||'';
+    if(missingColumn(r,body)){
+      r=await request(q(COLS_LEAN));
+      if(!r.ok) throw new Error('Pull failed ('+r.status+') '+((await r.text())||'').slice(0,140));
+      const rows=await r.json();
+      setState({schemaNote:'The table is missing the client_id column — run supabase/schema.sql again to add it.'});
+      return noteRow(rows[0]||null);
+    }
+    body=body.slice(0,140);
+  }
   if(r.status===404) throw new Error('The lab_registers table does not exist yet');
-  if(!r.ok) throw new Error('Pull failed ('+r.status+') '+((await r.text())||'').slice(0,120));
+  if(!r.ok) throw new Error('Pull failed ('+r.status+') '+body);
   const rows=await r.json();
-  return rows[0]||null;
+  return noteRow(rows[0]||null);
 };
 
 SY.push=async function(opts){
@@ -453,15 +466,39 @@ function hasLocalChanges(){
   return !state().lastPushAt;
 }
 
+/* The table keeps the writing device in `client_id` (see supabase/schema.sql). Asking
+   for a column that does not exist makes PostgREST answer 42703 and the whole pull fails,
+   which is exactly what "column lab_registers.device_id does not exist" was. One list, in
+   one place, and a fallback that still works on a table built from an older schema. */
+const COLS_FULL='id,data,revision,updated_at,client_id,updated_by';
+const COLS_LEAN='id,data,revision,updated_at,updated_by';
+const COLS_VERSION='revision,updated_at,client_id,updated_by';
+const COLS_VERSION_LEAN='revision,updated_at,updated_by';
+function noteRow(row){
+  if(!row) return row;
+  /* accept either spelling so an old or a hand-made table keeps working */
+  if(row.client_id==null && row.device_id!=null) row.client_id=row.device_id;
+  if(row.device_id==null && row.client_id!=null) row.device_id=row.client_id;
+  return row;
+}
+function missingColumn(r, body){
+  return r.status===400 && /42703|does not exist/i.test(body||'');
+}
+
 /* The poll asks only for the revision: a few dozen bytes instead of the whole register.
    The full document is fetched only when the number moved. */
 SY.remoteVersion=async function(){
   const c=cfg(); if(!c.url||!c.key) return null;
-  const r=await request(TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select=revision,updated_at,device_id,updated_by');
+  const q=s=>TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select='+s;
+  let r=await request(q(COLS_VERSION));
+  if(!r.ok){
+    const body=(await r.text())||'';
+    if(missingColumn(r,body)) r=await request(q(COLS_VERSION_LEAN));
+  }
   if(r.status===404) return null;
   if(!r.ok) throw new Error('Version check failed ('+r.status+')');
   const rows=await r.json();
-  return rows[0]||null;
+  return noteRow(rows[0]||null);
 };
 
 /* Replacing the register must not look like a local edit: without this flag the import
@@ -527,8 +564,10 @@ SY.sync=async function(opts){
     setState({lastCheckAt:U.nowISO(), running:false});
     return {ok:true, action:'noop'};
   }catch(e){
-    setState({running:false, lastError:e.message});
-    return {ok:false, reason:e.message};
+    const msg=(e&&e.message)||'Sync did not finish';
+    const schemaIssue=/42703|column .* does not exist/i.test(msg);
+    setState({running:false, lastError:msg, schemaNote:schemaIssue?'The table does not match schema.sql — re-run it.':state().schemaNote});
+    return {ok:false, reason:msg, schemaIssue:schemaIssue};
   }finally{
     busy=false; setState({running:false});
   }
