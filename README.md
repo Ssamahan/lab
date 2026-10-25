@@ -5,9 +5,33 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.23** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.24** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.24
+
+**Sync works — and the anonymous door is now measured out loud.**
+
+An anonymous session is an ordinary `authenticated` session, so the policies in `schema.sql`
+let it straight in, and the publishable key is public by design. That means while *Allow
+anonymous sign-ins* is on, anyone holding the project address and the key could open a session
+and read or replace the whole register — patient names included.
+
+The app says so in the three places a person actually looks:
+
+- **Check setup** gained a **Register privacy** row. With anonymous sessions on it quotes how
+  many patient names are in the register right now and what to do; with a project user it does
+  not appear at all.
+- the **Cloud sync card** shows a warning strip in anonymous mode, naming the next step.
+- the guide gained **Part 8 — close the anonymous door before real patients**: the ten-minute
+  upgrade to a project user on every device, then the toggle off, then `Check setup` green.
+- `supabase/schema.sql` gained a commented **hardening** block that makes the database itself
+  refuse anonymous sessions (`(auth.jwt() ->> 'is_anonymous')::boolean is not true`), for when
+  every device has a real user.
+
+Nothing is lost by switching: the register lives on the device and in the cloud; the route only
+decides who may open the door.
 
 ## What changed in 6.9.23
 

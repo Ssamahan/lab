@@ -71,6 +71,27 @@ create policy "lab register update" on public.lab_registers
 -- `anon` in the three policies above — but understand that anyone with the anon
 -- key then has the register. The default (authenticated) is the safer one.
 
+"-- ---------------------------------------------------------- hardening -------
+-- Anonymous sessions are ordinary `authenticated` sessions, so the policies above already
+-- let them in. If a device was set up with "Allow anonymous sign-ins" turned on, close that
+-- door once every device has a real project user: replace the three policies so only a
+-- session that is NOT anonymous may touch the register, then switch the toggle off.
+--
+--   drop policy if exists "lab register read"   on public.lab_registers;
+--   drop policy if exists "lab register write"  on public.lab_registers;
+--   drop policy if exists "lab register update" on public.lab_registers;
+--
+--   create policy "lab register read" on public.lab_registers
+--     for select to authenticated
+--     using ((auth.jwt() ->> 'is_anonymous')::boolean is not true);
+--   create policy "lab register write" on public.lab_registers
+--     for insert to authenticated
+--     with check ((auth.jwt() ->> 'is_anonymous')::boolean is not true);
+--   create policy "lab register update" on public.lab_registers
+--     for update to authenticated
+--     using ((auth.jwt() ->> 'is_anonymous')::boolean is not true)
+--     with check ((auth.jwt() ->> 'is_anonymous')::boolean is not true);
+
 -- ---------------------------------------------------------------- seed -------
 -- Nothing is inserted here: the first device to press "Push to cloud" creates
 -- the row. To pre-seed from a device export, paste the JSON:
