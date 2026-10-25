@@ -84,7 +84,7 @@
         one workspace that keeps working when the network does not.</p>
       <div class="land-cta">
         <button class="btn primary" type="button" id="landEnter">Open the register as a visitor — read only</button>
-        <span class="land-cta-note">No sign-in. Everything except Training Revenue, Settings and Data&nbsp;&amp;&nbsp;sync; export and download stay open.</span>
+        <span class="land-cta-note">No sign-in. Reads the live shared register. Everything except Training Revenue, Settings and Data&nbsp;&amp;&nbsp;sync; export and download stay open.</span>
       </div>
       <div class="land-rule"></div>
       <div class="land-facts">
@@ -164,7 +164,7 @@
     <span>© 2026 Ruli District Hospital · Laboratory Department · Data residency: Rwanda</span>
     <span class="row" style="gap:12px">
       <button class="land-back" type="button" id="landConsole" hidden>Back to the console</button>
-      <span class="mono">Lab Systems v6.9.28</span>
+      <span class="mono">Lab Systems v6.9.29</span>
     </span>
   </footer>
 </section>
@@ -263,7 +263,7 @@
       </div>
       <div class="auth-foot">
         Accounts are issued by the laboratory manager in Security Center.<br>
-        Lab Systems v6.9.28 · © 2026 Ruli District Hospital · Laboratory Department
+        Lab Systems v6.9.29 · © 2026 Ruli District Hospital · Laboratory Department
       </div>
     </div>
   </div>
@@ -312,6 +312,8 @@
       <span class="vb-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
       <span class="vb-txt"><b id="vbWho">Visitor · read only</b> — you can read and export everything except Training Revenue, Settings and Data&nbsp;&amp;&nbsp;sync.</span>
       <span class="vb-actions">
+        <span class="vb-status" id="vbStatus"></span>
+        <button class="btn xs" type="button" id="vbRefresh" title="Read the shared register again">Refresh</button>
         <button class="btn xs" type="button" id="vbSignIn">Sign in</button>
         <button class="btn xs" type="button" id="vbOverview">Overview</button>
       </span>
@@ -373,6 +375,7 @@
 <script src="assets/js/core/auth.js"></script>
 <script src="assets/js/core/landing.js"></script>
 <script src="assets/js/core/shell.js"></script>
+<script src="assets/js/core/shared.js"></script>
 <script src="assets/js/core/sync.js"></script>
 <script src="assets/js/core/boot.js"></script>
 </body>

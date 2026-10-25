@@ -22,14 +22,8 @@ function gesture(el,need,fn){
     if(n<need) return;
     n=0; fn();
   });
-  el.addEventListener('keydown',e=>{
-    if(e.key!=='Enter'&&e.key!==' ') return;
-    const now=Date.now();
-    if(now-last>GAP) n=0;
-    last=now; n++;
-    if(n<need) return;
-    n=0; fn();
-  });
+  /* A <button> already turns Enter and Space into a click, so keyboard users count
+     the same way — no second handler, which would count every press twice. */
 }
 
 /* ——— Real numbers, never invented ————————————— */
@@ -66,9 +60,12 @@ L.show=function(){
   const auth=document.getElementById('auth'); if(auth) auth.hidden=true;
   const app=document.getElementById('app'); if(app) app.hidden=true;
   land.hidden=false;
-  const signed=!!(LS.auth&&LS.auth.user&&!(LS.auth.isVisitor&&LS.auth.isVisitor()));
+  const signed=!!(LS.auth&&LS.auth.user);
   const back=document.getElementById('landConsole');
-  if(back) back.hidden=!signed;
+  if(back){
+    back.hidden=!signed;
+    back.textContent=(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor())?'Back to the visitor view':'Back to the console';
+  }
   fill();
   try{ window.scrollTo({top:0,behavior:'instant'}); }catch(e){ try{window.scrollTo(0,0);}catch(_){} }
 };
@@ -91,12 +88,28 @@ L.signIn=function(){
   },120);
 };
 
-/* Opening the console as a viewer: no account, no password, no writes. */
-L.enterAsVisitor=function(){
+/* Opening the console as a viewer: no account, no password, no writes — and the real
+   shared register, read from the public coordinates in shared.js, so a fresh or
+   incognito window shows the same samples, rosters and PBF marks as the PC. */
+L.enterAsVisitor=async function(){
   if(!LS.auth.isVisitor||!LS.auth.isVisitor()) LS.auth.enterAsVisitor();
   const land=document.getElementById('landing'); if(land) land.hidden=true;
   const auth=document.getElementById('auth'); if(auth) auth.hidden=true;
   LS.shell.afterAuth();
+  if(!LS.sync||!LS.sync.visitorReady||!LS.sync.visitorReady()){
+    LS.shell.visitorStatus&&LS.shell.visitorStatus('Sample copy on this browser','');
+    return {ok:false, reason:'no shared register'};
+  }
+  LS.shell.visitorStatus&&LS.shell.visitorStatus('Reading the shared register…','');
+  let res={ok:false, reason:'Sync unavailable'};
+  try{ res=await LS.sync.visitorRead(); }catch(e){ res={ok:false, reason:(e&&e.message)||'Could not read'}; }
+  if(res.ok){
+    LS.shell.visitorStatus&&LS.shell.visitorStatus('Shared register · '+(res.after?res.after.pbfMarks:0)+' PBF marks · read '+U.relTime(res.updated_at||U.nowISO()),'live');
+    try{ LS.shell.route({keepScroll:true}); }catch(e){}
+  } else {
+    LS.shell.visitorStatus&&LS.shell.visitorStatus('Sample copy on this browser — shared register not read: '+res.reason,'bad');
+  }
+  return res;
 };
 
 L.backToConsole=function(){
@@ -107,7 +120,22 @@ L.backToConsole=function(){
 /* ——— Wiring ————————————————————————————————— */
 L.init=function(){
   gesture(document.getElementById('landBrand'),CLICKS_CREST,()=>L.signIn());
-  gesture(document.getElementById('landProfile'),CLICKS_PROFILE,()=>L.signIn());
+  /* The profile is two doors in one button: a single tap opens the register as a
+     visitor, three quick taps open the staff sign-in screen. A tap waits briefly to
+     see whether a second one is coming, so neither gesture can fire by accident. */
+  (function profileTaps(el){
+    if(!el) return;
+    let n=0,last=0,timer=null;
+    const reset=()=>{ n=0; };
+    el.addEventListener('click',()=>{
+      const now=Date.now();
+      if(now-last>800) n=0;
+      last=now; n++;
+      clearTimeout(timer);
+      if(n>=CLICKS_PROFILE){ reset(); L.signIn(); return; }
+      timer=setTimeout(()=>{ if(n===1){ reset(); L.enterAsVisitor(); } },420);
+    });
+  })(document.getElementById('landProfile'));
 
   const back=document.getElementById('landConsole');
   if(back) back.onclick=()=>L.backToConsole();

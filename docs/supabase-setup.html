@@ -325,6 +325,13 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <li>Press <b>Download the shared copy</b>. Every sample, roster, leave record and PBF mark arrives;
         what was in the new browser is kept as a restore point.</li>
     </ol>
+    <div class="tip box"><b>A visitor does not need this.</b> The public page reads the shared
+      register directly, using the project address and publishable key kept in
+      <code>assets/js/core/shared.js</code>. That is why a visitor sees your real samples, rosters and
+      PBF marks from any browser, incognito included — read-only, and it never writes back. The price
+      is that the same key lets anyone who has it read that register, patient names included, for as
+      long as <b>Allow anonymous sign-ins</b> is on. Close that door (Part 8) and visitors fall back
+      to the sample copy on their own device.</div>
     <div class="tip box"><b>Compare</b> in that card shows the two copies side by side — samples, staff,
       PBF visits and PBF marks — so you can see whether the cloud really has what you typed. If that
       browser has never received the shared register, the app now <b>refuses to publish its empty seed

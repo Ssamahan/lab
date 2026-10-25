@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.28** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.29** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -39,11 +39,18 @@ page source, or in the documentation.
 | Reviewer | read the register, sign off assessments |
 | Viewer | read-only, PBF and district review |
 
-**A visitor needs no account.** The overview's *Open the register as a visitor* button enters
+**A visitor needs no account.** The overview's *Open the register as a visitor* button — or a
+single tap on the profile, while three taps open the staff sign-in — enters
 the console as a Viewer: every operational module plus the staff register, with export and
 download, and three surfaces closed — **Training Revenue**, **Settings** and **Data & sync**.
 Writes are refused in the store itself, not only in the interface, and the session ends with
 the tab.
+
+A visitor reads the **shared register** through the public coordinates in
+`assets/js/core/shared.js` (address + publishable key, pull-only, never a write) — so a private
+window shows the real samples, rosters and PBF marks rather than the sample copy. Empty
+`endpoint` there to switch that off. While Supabase anonymous sign-ins are on, that key also lets
+anyone holding it read the register directly; see *Security, stated plainly*.
 
 Passwords are stored as **SHA-256 hashes**; the sign-in form starts empty. If every
 manager account is lost, clear this site's browser data (`Settings → Data → reset to seed`)

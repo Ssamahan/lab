@@ -628,3 +628,9 @@ tr.row-click:hover td{background:var(--surface-inset)}
   .visitor-bar .vb-txt{font-size:.72rem}
   .visitor-bar .vb-actions{width:100%}
 }
+
+.visitor-bar .vb-status{
+  font-size:.7rem;color:var(--text-faint);white-space:nowrap;max-width:38ch;overflow:hidden;text-overflow:ellipsis;
+}
+.visitor-bar .vb-status.live{color:var(--pos)}
+.visitor-bar .vb-status.bad{color:var(--crit)}
