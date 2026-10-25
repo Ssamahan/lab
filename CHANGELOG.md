@@ -4,6 +4,34 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.29
+
+**A visitor now reads the real register — and one tap on the profile is the way in.**
+
+Incognito still showed no PBF data, because a visitor had no way to be given the project
+address and key: the Data & sync card is one of the three surfaces closed to them. The public
+coordinates therefore moved into the app itself:
+
+- `assets/js/core/shared.js` holds the project address and the **publishable** key. A publishable
+  key is public by design; the secret key is the one that must never appear there;
+- a visitor session reads the shared register through those coordinates, in **pull-only** mode.
+  Three separate things would have to fail before a visitor could write: the role has no `edit`,
+  `store.commit()` refuses, and `sync.push()` now throws for a visitor as well;
+- the strip says which copy is on screen — *Shared register · N PBF marks · read just now* — or
+  names the reason it fell back to the sample copy, and gained a **Refresh** button;
+- leave `endpoint` empty in `shared.js` to switch the read off entirely.
+
+**The profile button is now two doors.** One tap opens the console as a visitor; three quick taps
+open the staff sign-in screen; five taps on the crest still do the same. A single tap waits 420 ms
+to see whether a second is coming, so neither gesture fires by accident. The old five-tap gesture on
+the crest is unchanged, and the console's own crest still returns to the public page.
+
+**What this costs, stated once:** while *Allow anonymous sign-ins* is on, the publishable key in
+`shared.js` lets anyone who reads the page fetch the register — patient names included — without
+opening the app. That is the same exposure the visitor view already had inside the browser, now
+reachable from outside it. Close it as Part 8 describes; visitors then see the sample copy until a
+read-only route is designed for them.
+
 ## What changed in 6.9.28
 
 **"My PBF marks are gone in incognito" — answered with counts, not reassurance.**

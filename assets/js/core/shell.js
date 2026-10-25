@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.28';
+const APP_VERSION='6.9.29';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -126,6 +126,36 @@ function paintVisitorBar(){
   if(ov) ov.onclick=()=>{ if(LS.landing) LS.landing.show(); };
   const who=document.getElementById('vbWho');
   if(who) who.textContent='Visitor · read only';
+  const rf=document.getElementById('vbRefresh');
+  if(rf) rf.onclick=async()=>{
+    if(rf.disabled) return;
+    rf.disabled=true; SH.visitorStatus('Reading the shared register…','');
+    try{
+      const res=await LS.sync.visitorRead();
+      SH.visitorStatus(res.ok?('Shared register · '+(res.after?res.after.pbfMarks:0)+' PBF marks · read '+U.relTime(res.updated_at||U.nowISO())):'Could not read: '+res.reason, res.ok?'live':'bad');
+      if(res.ok) SH.route({keepScroll:true});
+    }finally{ rf.disabled=false; }
+  };
+  SH.visitorStatus();
+}
+
+/* One line in the strip, so a visitor knows whether what they are reading is the
+   register or just the sample copy saved in this browser. */
+SH.visitorStatus=function(text,tone){
+  const el=document.getElementById('vbStatus');
+  if(!el) return;
+  if(text!==undefined){
+    el.textContent=text;
+    el.className='vb-status '+(tone||'');
+    el.dataset.msg=text;
+    return;
+  }
+  if(el.dataset.msg) return;               /* already explained by the last read */
+  if(!LS.sync||!LS.sync.visitorReady||!LS.sync.visitorReady()){
+    el.textContent='Sample copy on this browser'; el.className='vb-status';
+    return;
+  }
+  el.textContent='Reading the shared register…'; el.className='vb-status';
 }
 
 /* Reviewers and viewers get the record, not the essay. Long explanatory copy

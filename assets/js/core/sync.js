@@ -65,7 +65,22 @@ SY.authProvidersUrl=()=>SY.dashboardUrl('auth/providers');
 SY.authUsersUrl=()=>SY.dashboardUrl('auth/users');
 SY.sqlEditorUrl=()=>SY.dashboardUrl('sql/new');
 
-function cfg(){ const c=S.settings().cloud||{};
+/* A visitor reads the shared register with the public coordinates in shared.js —
+   no account of their own, no settings saved on their device, and a mode that can
+   only pull. That is why a fresh or incognito window shows the real PBF marks
+   instead of the built-in sample register. */
+function sharedForVisitor(){
+  const v=window.LS_SHARED;
+  if(!v||!v.endpoint||!v.key) return null;
+  if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor())) return null;
+  return v;
+}
+function cfg(){
+  const vis=sharedForVisitor();
+  if(vis) return {url:baseUrl(vis.endpoint), raw:vis.endpoint, key:String(vis.key).trim(),
+    email:'', password:'', anonAuth:true, live:false, pollMs:15000, pushMs:700,
+    mode:'pull', enabled:true, visitor:true};
+  const c=S.settings().cloud||{};
   return {url:baseUrl(c.endpoint), raw:(c.endpoint||''), key:(c.anonKey||'').trim(),
     email:(c.email||'').trim(), password:c.password||'', anonAuth:!!c.anonAuth,
     live:c.live!==false, pollMs:Math.max(800,Number(c.pollMs)||2500), pushMs:Math.max(150,Number(c.pushMs)||700),
@@ -324,6 +339,7 @@ SY.pull=async function(){
 };
 
 SY.push=async function(opts){
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) throw new Error('This is a read-only visitor view — nothing is published from here.');
   const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
   const db=S.db();
   const payload=[{id:ROW_ID, data:db, client_id:deviceId(), updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}];
@@ -354,6 +370,31 @@ SY.schemaSQL=async function(){
   return null;
 };
 SY.diagnose=SY.diagnose; /* keep name */
+/* ——— The visitor's read —————————————————————————————
+   One pull, silent, and it reports what arrived so the strip can say it out loud.
+   Nothing is written back: the role has no `edit`, push refuses, and the mode is
+   `pull`, so three separate things would have to break before a visitor could
+   overwrite the register. */
+SY.visitorRead=async function(){
+  if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor())) return {ok:false, reason:'not a visitor'};
+  const v=sharedForVisitor();
+  if(!v) return {ok:false, reason:'No shared register is configured for visitors.'};
+  try{
+    const row=await SY.pull();
+    if(!row||!row.data) return {ok:true, empty:true, counts:SY.tally(null)};
+    const before=SY.tally(S.db());
+    applyRemote(row);
+    const after=SY.tally(S.db());
+    setState({lastPullAt:U.nowISO(), lastRevision:row.revision||null, lastError:null});
+    return {ok:true, before:before, after:after, revision:row.revision||null,
+      updated_at:row.updated_at||null, updated_by:row.updated_by||null};
+  }catch(e){
+    return {ok:false, reason:(e&&e.message)||'Could not read the shared register',
+      anonymousAllowed:(e&&e.anonymousAllowed)===undefined?null:e.anonymousAllowed};
+  }
+};
+SY.visitorReady=function(){ return !!sharedForVisitor(); };
+
 /* ——— What is actually in each copy ———————————————————————————
    "My PBF marks are gone on the other browser" is always one question: what does the
    shared copy hold? These counts answer it without moving a record. A browser that has
@@ -695,6 +736,7 @@ function conflictChoice(remote){
    Both are silent: no toasts, no dialogs, no redrawing under a focused field. Anything
    the person needs to know is shown once, at the moment it happens. */
 SY.pushSoon=function(delay){
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return;
   const c=cfg();
   clearTimeout(timer);
   timer=setTimeout(()=>{
