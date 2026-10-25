@@ -320,7 +320,7 @@ function dataView(){
        +'<div class="xs faint" style="margin-top:5px">Needs one toggle in Supabase: <b>Authentication → Sign In / Providers → Allow anonymous sign-ins</b>. Anyone holding the publishable key could then create such a session, so use it only while you are setting up, or with the patient fields kept empty.</div></div>'
      +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
        +[['push-pull','Two-way · pull then push'],['push','Push only — this device is the source'],['pull','Pull only — read the shared copy']].map(([v,l])=>'<option value="'+v+'"'+(cl.mode===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
-     +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
+     +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-check>'+UI.ic('shield-question',13)+'Check setup</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
      +'<div class="row between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><span class="xs faint">Pending local changes</span><span class="mono xs">'+(S.pendingChanges?S.pendingChanges():0)+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last push</span><span class="mono xs">'+(SY.state().lastPushAt?U.relTime(SY.state().lastPushAt):'never')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last pull</span><span class="mono xs">'+(SY.state().lastPullAt?U.relTime(SY.state().lastPullAt):'never')+'</span></div>'
@@ -421,6 +421,22 @@ function wire(){
     const on=SY.configured();
     UI.toast(on?'Sync configured — press Sync now to publish this register':'Cloud sync disabled · staying local',{type:'ok'});
     if(on){ SY.sync().then(res=>{ UI.toast(res.ok?'Cloud sync: '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000}); paint(); }); }
+  });
+  r.querySelectorAll('[data-cloud-check]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true; const old=b.innerHTML; b.textContent='Checking…';
+    let rows=[];
+    try{ rows=await SY.diagnose(); }catch(e){ rows=[{label:'The check could not run',ok:false,detail:e.message}]; }
+    b.disabled=false; b.innerHTML=old;
+    const bad=rows.filter(x=>!x.ok).length;
+    UI.modal({title:'Cloud sync setup check', sub:bad?bad+' thing'+(bad>1?'s':'')+' to fix':'Everything checks out',
+      body:'<div class="stack" style="gap:9px">'+rows.map(x=>
+        '<div class="row" style="gap:10px;align-items:flex-start;padding:9px 11px;border-radius:9px;background:var(--surface-inset)">'
+        +'<span style="color:'+(x.ok?'var(--ok)':'var(--crit)')+';flex:none;margin-top:1px">'+UI.ic(x.ok?'circle-check':'circle-x',15)+'</span>'
+        +'<div><div class="small strong">'+U.esc(x.label)+'</div>'
+        +(x.detail?'<div class="xs muted" style="margin-top:2px;line-height:1.55">'+U.esc(x.detail)+'</div>':'')
+        +'</div></div>').join('')+'</div>'
+        +'<div class="hint" style="margin-top:12px">This asked your project four things: is the address right, does the key work, can a session be created, and does the table answer. No patient data was read.</div>',
+      foot:'<button class="btn primary" data-close>Close</button>'});
   });
   r.querySelectorAll('[data-cloud-sync]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;

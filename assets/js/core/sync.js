@@ -102,6 +102,9 @@ async function authError(r, body, c, mode){
   if(r.status===404||code==='PGRST125'){
     return authErr('Supabase sign-in failed (404) — the project URL has a path in it. Use only the project address, https://<project>.supabase.co, with no /rest/v1 on the end. (It was sent to '+c.url+'/auth/v1/token)');
   }
+  if(/email_not_confirmed/i.test(code)||/email not confirmed/i.test(msg)){
+    return authErr('Supabase found that user but it was never confirmed, so it refuses the sign-in. In Authentication → Users open the user and press Confirm, or untick "Confirm email" in Authentication → Sign In / Providers → Email. Supabase only shows the "Auto Confirm User" switch while email confirmations are ON.');
+  }
   if(r.status===422&&/anonymous/i.test(msg)){
     return authErr('Supabase refused an anonymous session — turn it on: dashboard → Authentication → Sign In / Providers → Allow anonymous sign-ins. Or tick the email-and-password route instead.');
   }
@@ -256,6 +259,63 @@ SY.push=async function(opts){
   if(S.clearPending) S.clearPending();
   const st=S.settings(); st.cloud.lastSync=U.nowISO(); S.save(true);
   return row;
+};
+
+/* ——— Setup diagnosis ————————————————————————————————
+   "Test connection" answers one question. This answers all of them at once, in the
+   order they fail, so a setup mistake is named instead of guessed at. `/auth/v1/settings`
+   is a public endpoint: it reports whether email confirmations are on and whether
+   anonymous sign-ins are allowed, without revealing anything about the data. */
+SY.diagnose=async function(){
+  const c=cfg(), out=[];
+  const row=(label,ok,detail)=>out.push({label:label, ok:!!ok, detail:detail||''});
+  if(!c.url||!c.key){ row('Project address and key',false,'Fill in the project URL and the publishable key first.'); return out; }
+  row('Project address',true,c.url+(baseUrl(c.raw)!==String(c.raw||'').trim()?'  (repaired from "'+String(c.raw).trim()+'")':''));
+
+  let settings=null;
+  try{
+    const r=await fetch(c.url+'/auth/v1/settings',{headers:{'apikey':c.key}});
+    if(r.ok){ settings=await r.json(); row('Auth service reachable',true,''); }
+    else row('Auth service reachable',false,'GET '+c.url+'/auth/v1/settings answered '+r.status+'. Check the project address and the publishable key.');
+  }catch(e){ row('Auth service reachable',false,'Network: '+e.message); }
+
+  if(settings){
+    if(settings.mailer_autoconfirm){
+      row('Email confirmation',true,'Confirmations are OFF in this project, so every new user is confirmed automatically — that is why there is no "Auto Confirm user" switch to look for.');
+    } else {
+      row('Email confirmation',false,'Confirmations are ON, so a new user waits for a confirmation that never comes. Tick "Auto Confirm User" in the Add-user dialog, or open the user and press Confirm.');
+    }
+    const anon=!!(settings.external&&settings.external.anonymous_users);
+    row('Anonymous sign-ins',anon,anon?'Allowed — the "Anonymous session" route will work.':'Off. Turn on Authentication → Sign In / Providers → Allow anonymous sign-ins, or use a project user.');
+    if(settings.disable_signup && !anon) row('Sign-ups',false,'Sign-ups are disabled and there is no anonymous route, so only a user you create in Authentication → Users can sign in.');
+  }
+
+  if(c.email&&c.password){
+    try{ forgetSession(); await signIn(true); row('Project user sign-in',true,(session.who||c.email)+' — accepted'); }
+    catch(e){ row('Project user sign-in',false,e.message); }
+  } else if(c.anonAuth){
+    try{ await signIn(false); row('Anonymous session',true,'Session created'); }
+    catch(e){ row('Anonymous session',false,e.message); }
+  } else {
+    row('Session',false,'Neither a project user nor an anonymous session is configured. Fill the email and password, or tick "Anonymous session".');
+  }
+
+  /* Probe the table with whatever credential we hold, so a failed sign-in still shows
+     whether the table itself exists — those are two different mistakes. */
+  try{
+    const h={'apikey':c.key};
+    if(session.token) h.Authorization='Bearer '+session.token;
+    else if(keyKind(c.key)==='jwt') h.Authorization='Bearer '+c.key;
+    const r=await fetch(endpoint(TABLE+'?select=id&limit=1'),{headers:h});
+    if(r.status===404) row('Table lab_registers',false,'Missing — open the SQL Editor and run supabase/schema.sql.');
+    else if(r.status===401||r.status===403) row('Table lab_registers',false,'The table answered '+r.status+': it exists, but this request was not signed in.');
+    else if(r.ok){ const rows=await r.json(); row('Table lab_registers',true,rows.length?'The shared register exists and is readable.':'Empty and ready for the first push.'); }
+    else row('Table lab_registers',false,'Answered '+r.status+'.');
+  }catch(e){ row('Table lab_registers',false,e.auth?e.message:'Network: '+e.message); }
+
+  const bad=out.filter(x=>!x.ok).length;
+  setState({diagnosedAt:U.nowISO()});
+  return out;
 };
 
 /* ——— Applying a remote register —————————————————————— */
