@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.25** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.26** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -20,6 +20,11 @@ is already present so `assets/` is served as-is. Deployment and Android packagin
 [DEPLOY_GUIDE.md](DEPLOY_GUIDE.md) and [APK_GUIDE.md](APK_GUIDE.md).
 
 ## Sign in
+
+The app opens on a **public overview** — no password needed to read what the department does.
+The console's sign-in screen is not linked from it: **five clicks on the crest** or **three
+clicks on the profile button** opens it, as does `#/signin` in the address bar. Signing out
+returns to the overview, and a bookmarked console link still asks for the password.
 
 Accounts are issued and reset by the administrator in **Security Center**. Nothing about
 an account — username, password, one-time code — is written in this repository, in the
@@ -79,10 +84,10 @@ in the app itself and in the sections below.
 ## Layout
 
 ```
-index.html                 shell markup only
-assets/css/                tokens · app · modules
+index.html                 shell markup only: boot, public overview, sign-in, console
+assets/css/                tokens · app · modules · landing
 assets/js/core/            icons, seed, utils (LSU), store, ui, charts, sheets, i18n,
-                           auth, shell, sync, boot
+                           auth, landing (public overview), shell, sync, boot
 assets/js/modules/*.js     15 lazily loaded modules, one per route
 sw.js, manifest.json       offline shell and installable PWA
 supabase/                  schema.sql + server notes

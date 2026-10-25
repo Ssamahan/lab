@@ -1,0 +1,123 @@
+/* ============================================================================
+   LAB SYSTEMS · PUBLIC OVERVIEW — the page anyone may read, no sign-in
+   Loaded before the console styles so the console keeps every existing rule.
+   ========================================================================== */
+
+.landing{
+  position:relative;min-height:100vh;display:flex;flex-direction:column;
+  background:
+    radial-gradient(900px 520px at 78% -12%,rgba(201,168,76,.16),transparent 62%),
+    radial-gradient(700px 460px at 8% 8%,rgba(31,191,159,.09),transparent 60%),
+    var(--bg);
+  color:var(--text);font-family:var(--font-ui);
+}
+.landing::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:var(--grain);opacity:.16;mix-blend-mode:overlay;
+}
+
+/* ——— Header ————————————————————————————— */
+.land-top{
+  position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:18px;
+  padding:14px clamp(18px,4vw,54px);
+  background:var(--surface-glass);backdrop-filter:blur(14px) saturate(1.1);
+  border-bottom:1px solid var(--border);
+}
+.land-brand{
+  display:flex;align-items:center;gap:11px;background:none;border:0;padding:4px 6px 4px 0;
+  color:var(--text);cursor:pointer;border-radius:var(--r-sm);text-align:left;
+}
+.land-brand:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.land-brand svg{width:32px;height:32px;flex:none}
+.land-brand b{font-family:var(--font-display);font-weight:500;font-size:1.02rem;letter-spacing:var(--tracking-tight);display:block;line-height:1.1}
+.land-brand b i{font-style:normal;color:var(--gold-bright)}
+.land-brand small{display:block;font-size:.66rem;letter-spacing:.06em;color:var(--text-faint);text-transform:uppercase;margin-top:2px}
+.land-nav{display:flex;gap:4px;margin-left:auto}
+.land-nav button{
+  background:none;border:0;color:var(--text-muted);font-size:.8rem;padding:8px 12px;border-radius:var(--r-pill);
+  cursor:pointer;transition:color var(--dur-2) var(--ease),background var(--dur-2) var(--ease);
+}
+.land-nav button:hover{color:var(--text-strong);background:var(--surface-hover)}
+.land-profile{
+  display:grid;place-items:center;width:34px;height:34px;border-radius:50%;
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-muted);
+  cursor:pointer;transition:all var(--dur-2) var(--ease);flex:none;
+}
+.land-profile:hover{color:var(--gold-bright);border-color:var(--border-gold)}
+.land-profile:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* ——— Hero ——————————————————————————————— */
+.land-main{position:relative;z-index:1;flex:1}
+.land-hero{padding:clamp(46px,7vw,92px) clamp(18px,4vw,54px) clamp(30px,4vw,52px);max-width:1180px;margin:0 auto}
+.land-eyebrow{
+  display:inline-flex;align-items:center;gap:8px;font-size:.66rem;letter-spacing:var(--tracking-eyebrow);
+  text-transform:uppercase;color:var(--gold);border:1px solid var(--border-gold);border-radius:var(--r-pill);
+  padding:6px 12px;background:rgba(201,168,76,.06);
+}
+.land-hero h1{
+  font-family:var(--font-display);font-weight:400;letter-spacing:var(--tracking-display);
+  font-size:clamp(2.1rem,5vw,3.7rem);line-height:1.06;color:var(--text-strong);
+  margin:20px 0 0;max-width:19ch;
+}
+.land-hero h1 em{font-style:italic;color:var(--gold-bright)}
+.land-hero p{color:var(--text-muted);font-size:clamp(.92rem,1.2vw,1.02rem);line-height:1.75;max-width:62ch;margin:18px 0 0}
+.land-rule{height:1px;background:var(--gold-thread);margin:32px 0 0;max-width:420px;opacity:.75}
+.land-facts{display:flex;flex-wrap:wrap;gap:clamp(20px,4vw,54px);margin:30px 0 0}
+.land-facts div b{
+  display:block;font-family:var(--font-display);font-size:clamp(1.5rem,2.6vw,2rem);font-weight:400;
+  color:var(--text-strong);letter-spacing:var(--tracking-tight);line-height:1;
+}
+.land-facts div small{display:block;margin-top:6px;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)}
+
+/* ——— Sections ——————————————————————————— */
+.land-section{padding:clamp(30px,4vw,54px) clamp(18px,4vw,54px);max-width:1180px;margin:0 auto}
+.land-section > h2{
+  font-family:var(--font-display);font-weight:400;font-size:clamp(1.3rem,2.2vw,1.7rem);
+  color:var(--text-strong);letter-spacing:var(--tracking-tight);margin:0 0 6px;
+}
+.land-section > .sub{color:var(--text-faint);font-size:.84rem;margin:0 0 24px;max-width:70ch;line-height:1.7}
+.land-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.land-card{
+  border:1px solid var(--border);border-radius:var(--r-lg);padding:18px;
+  background:linear-gradient(180deg,var(--surface-inset),rgba(255,255,255,0));
+  transition:border-color var(--dur-3) var(--ease),transform var(--dur-3) var(--ease);
+}
+.land-card:hover{border-color:var(--border-gold);transform:translateY(-2px)}
+.land-card .ic{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:rgba(201,168,76,.1);color:var(--gold-bright);margin-bottom:12px}
+.land-card h3{font-size:.9rem;font-weight:600;color:var(--text-strong);margin:0 0 6px;letter-spacing:var(--tracking-tight)}
+.land-card p{margin:0;font-size:.8rem;line-height:1.65;color:var(--text-muted)}
+.land-card ul{margin:10px 0 0;padding-left:16px;font-size:.78rem;line-height:1.7;color:var(--text-muted)}
+.land-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.land-chip{border:1px solid var(--border);border-radius:var(--r-pill);padding:6px 12px;font-size:.76rem;color:var(--text-muted);background:var(--surface-2)}
+.land-chip.gold{border-color:var(--border-gold);color:var(--gold-bright);background:rgba(201,168,76,.07)}
+
+/* ——— Contact + footer ——————————————————— */
+.land-contact{
+  border:1px solid var(--border-gold);border-radius:var(--r-xl);padding:clamp(20px,3vw,32px);
+  background:radial-gradient(600px 240px at 88% 0%,rgba(201,168,76,.13),transparent 70%),var(--surface);
+  display:flex;flex-wrap:wrap;gap:26px;align-items:center;justify-content:space-between;
+}
+.land-contact h2{font-family:var(--font-display);font-weight:400;font-size:1.35rem;color:var(--text-strong);margin:0 0 6px}
+.land-contact p{margin:0;color:var(--text-muted);font-size:.83rem;line-height:1.7;max-width:48ch}
+.land-contact .lines{display:grid;gap:6px;font-size:.83rem;color:var(--text)}
+.land-contact .lines span{color:var(--text-faint);font-size:.72rem;display:block;letter-spacing:.06em;text-transform:uppercase}
+.land-foot{
+  position:relative;z-index:1;border-top:1px solid var(--border);padding:18px clamp(18px,4vw,54px);
+  display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between;
+  color:var(--text-faint);font-size:.72rem;
+}
+.land-foot .mono{font-family:var(--font-mono)}
+.land-back{
+  background:none;border:1px solid var(--border);border-radius:var(--r-pill);color:var(--text-muted);
+  font-size:.72rem;padding:5px 11px;cursor:pointer;
+}
+.land-back:hover{color:var(--text);border-color:var(--border-strong)}
+
+@media (max-width:720px){
+  .land-nav{display:none}
+  .land-hero{padding-top:40px}
+  .land-facts{gap:22px}
+}
+@media (prefers-reduced-motion:reduce){
+  .land-card,.land-card:hover{transform:none}
+}

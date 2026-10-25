@@ -17,6 +17,7 @@
 <link rel="preload" href="assets/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/css/tokens.css">
 <link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/landing.css">
 <link rel="stylesheet" href="assets/css/modules.css">
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </head>
@@ -48,6 +49,122 @@
   <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.25</span></div>
 </div>
 
+
+<!-- ══════════════ PUBLIC OVERVIEW — readable without signing in ══════════════ -->
+<section class="landing" id="landing" hidden>
+  <header class="land-top">
+    <button class="land-brand" id="landBrand" type="button" aria-label="Ruli District Hospital — Laboratory">
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><defs><linearGradient id="landGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8C6E29"/><stop offset="45%" stop-color="#E9D9A7"/><stop offset="100%" stop-color="#C9A84C"/></linearGradient></defs>
+        <path d="M24 3.4 41.2 13v21.8L24 44.6 6.8 34.8V13z" stroke="url(#landGold)" stroke-width="1.3"/>
+        <path d="M24 9.4 35.7 16v14.9L24 37.6 12.3 30.9V16z" stroke="url(#landGold)" stroke-width=".8" stroke-opacity=".5"/>
+        <path d="M24 16.4v7.2M24 23.6l-6.4 3.9M24 23.6l6.4 3.9" stroke="url(#landGold)" stroke-width="1.1" stroke-linecap="round"/>
+        <circle cx="24" cy="15.6" r="2.4" stroke="url(#landGold)" stroke-width="1.1"/>
+        <circle cx="16.6" cy="28.4" r="2.1" stroke="url(#landGold)" stroke-width="1.1"/>
+        <circle cx="31.4" cy="28.4" r="2.1" stroke="url(#landGold)" stroke-width="1.1"/>
+        <circle cx="24" cy="23.6" r="1.5" fill="url(#landGold)"/></svg>
+      <span><b>Lab <i>Systems</i></b><small>Ruli District Hospital · Laboratory</small></span>
+    </button>
+    <nav class="land-nav" aria-label="Page sections">
+      <button type="button" data-land-go="landCover">What it runs</button>
+      <button type="button" data-land-go="landNetwork">Referral network</button>
+      <button type="button" data-land-go="landQuality">Quality</button>
+      <button type="button" data-land-go="landContact">Contact</button>
+    </nav>
+    <button class="land-profile" id="landProfile" type="button" aria-label="Profile">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c.8-4 3.9-6 7.5-6s6.7 2 7.5 6"/></svg>
+    </button>
+  </header>
+
+  <main class="land-main">
+    <section class="land-hero">
+      <span class="land-eyebrow">FY 2026 / 2027 · Gakenke District · Rwanda</span>
+      <h1>The laboratory register of a <em>hospital that never closes.</em></h1>
+      <p>Referred samples and chain of custody, commodity security, the working plan and night
+        cover, EQA and ISO 15189 quality, equipment, training revenue and district PBF scoring —
+        one workspace that keeps working when the network does not.</p>
+      <div class="land-rule"></div>
+      <div class="land-facts">
+        <div><b data-land-staff>—</b><small>Technical staff</small></div>
+        <div><b data-land-centres>—</b><small>Health centres</small></div>
+        <div><b data-land-tests>—</b><small>Referral tests</small></div>
+        <div><b>100%</b><small>Offline capable</small></div>
+      </div>
+    </section>
+
+    <section class="land-section" id="landCover">
+      <h2>What the console runs</h2>
+      <p class="sub">Five working groups, fifteen screens. Everything below is the register the
+        department already keeps on paper — carried forward, not re-typed.</p>
+      <div class="land-grid">
+        <article class="land-card"><div class="ic" data-land-icon="flask-conical"></div>
+          <h3>Operations</h3>
+          <p>Command center, referred samples with barcode custody, stock, lots, expiry and cold chain.</p></article>
+        <article class="land-card"><div class="ic" data-land-icon="calendar-days"></div>
+          <h3>Scheduling</h3>
+          <p>Monthly working plan, weekly roster with posts by head-count, leave, nights and a printable sheet.</p></article>
+        <article class="land-card"><div class="ic" data-land-icon="target"></div>
+          <h3>Quality</h3>
+          <p>EQA / PT scores and z-scores, ISO 15189 readiness, SOP control, non-conformances, equipment up to the last service.</p></article>
+        <article class="land-card"><div class="ic" data-land-icon="graduation-cap"></div>
+          <h3>People</h3>
+          <p>Training roster and FIFO competency queue, certificates, and training revenue against reimbursements.</p></article>
+        <article class="land-card"><div class="ic" data-land-icon="award"></div>
+          <h3>District PBF</h3>
+          <p>Question-level marks, quarterly visits per health centre, six weighted domains, an index out of 100%.</p></article>
+      </div>
+    </section>
+
+    <section class="land-section" id="landNetwork">
+      <h2>Referral network</h2>
+      <p class="sub">Samples leave these health centres for Ruli DH and are referred on to the
+        national reference laboratories. Every movement is timestamped at the counter.</p>
+      <div class="land-chips" id="landCentres"><span class="land-chip">Loading the register…</span></div>
+      <div class="land-chips" style="margin-top:12px">
+        <span class="land-chip gold">NRL · National Reference Laboratory</span>
+        <span class="land-chip gold">CHUK</span>
+        <span class="land-chip gold">Kibagabaga</span>
+      </div>
+    </section>
+
+    <section class="land-section" id="landQuality">
+      <h2>Quality and continuity</h2>
+      <div class="land-grid">
+        <article class="land-card"><h3>ISO 15189 aligned</h3>
+          <p>Document control, competencies, corrective actions and equipment maintenance recorded against the standard, not beside it.</p></article>
+        <article class="land-card"><h3>Offline by design</h3>
+          <p>The register lives on the device. Install it as an app, keep working through a power or network cut, sync when it returns.</p></article>
+        <article class="land-card"><h3>No invented numbers</h3>
+          <p>History, EQA scores and PBF indices derive only from recorded records. A month with no plan stays visibly empty.</p></article>
+        <article class="land-card"><h3>Audit trail</h3>
+          <p>Every change is written to an append-only trail with who, when and what — including every automatic roster decision.</p></article>
+      </div>
+    </section>
+
+    <section class="land-section" id="landContact">
+      <div class="land-contact">
+        <div>
+          <h2>Ruli District Hospital · Laboratory Department</h2>
+          <p>Gakenke District, Northern Province, Rwanda. Open every day; night cover by the
+            duty roster. Referral enquiries and result follow-up go through the numbers here.</p>
+        </div>
+        <div class="lines">
+          <div><span>Telephone</span><b data-land-phone>—</b></div>
+          <div><span>Email</span><b data-land-email>—</b></div>
+          <div><span>Reference laboratories</span><b>NRL · CHUK · Kibagabaga</b></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="land-foot">
+    <span>© 2026 Ruli District Hospital · Laboratory Department · Data residency: Rwanda</span>
+    <span class="row" style="gap:12px">
+      <button class="land-back" type="button" id="landConsole" hidden>Back to the console</button>
+      <span class="mono">Lab Systems v6.9.26</span>
+    </span>
+  </footer>
+</section>
+
 <!-- ══════════════ AUTH — CINEMATIC SPLIT SCREEN ══════════════ -->
 <section class="auth" id="auth" hidden>
   <div class="auth-brand">
@@ -72,7 +189,7 @@
       <h1>The operating console for a <em>laboratory that never closes.</em></h1>
       <p>Referred samples, chain of custody, commodity security, rosters and ISO 15189 quality — engineered into a single instrument, calibrated for the bench and the boardroom.</p>
       <div class="auth-stats">
-        <div class="st"><b>6</b><small>Technical staff</small></div>
+        <div class="st"><b data-land-staff>6</b><small>Technical staff</small></div>
         <div class="st"><b>8</b><small>Health centres</small></div>
         <div class="st"><b>20</b><small>Test menu</small></div>
         <div class="st"><b>100%</b><small>Offline capable</small></div>
@@ -88,6 +205,7 @@
 
   <div class="auth-panel">
     <div class="auth-card">
+      <button class="land-back" type="button" id="authBack" style="float:right;margin-top:2px">Overview</button>
       <div class="eyebrow" style="margin-bottom:8px">Secure sign-in</div>
       <h2>Welcome back.</h2>
       <p class="lead">Sign in to the Ruli DH laboratory register. Access is role-scoped and every action is written to a tamper-evident audit trail.</p>
@@ -141,7 +259,7 @@
       </div>
       <div class="auth-foot">
         Accounts are issued by the laboratory manager in Security Center.<br>
-        Lab Systems v6.9.25 · © 2026 Ruli District Hospital · Laboratory Department
+        Lab Systems v6.9.26 · © 2026 Ruli District Hospital · Laboratory Department
       </div>
     </div>
   </div>
@@ -241,6 +359,7 @@
 <script src="assets/js/core/sheets.js"></script>
 <script src="assets/js/core/i18n.js"></script>
 <script src="assets/js/core/auth.js"></script>
+<script src="assets/js/core/landing.js"></script>
 <script src="assets/js/core/shell.js"></script>
 <script src="assets/js/core/sync.js"></script>
 <script src="assets/js/core/boot.js"></script>

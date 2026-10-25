@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.25';
+const APP_VERSION='6.9.26';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -517,6 +517,7 @@ function openUserMenu(){
     +'<div class="row between" style="margin-top:8px"><span class="xs faint">Language</span><select class="select" id="langSel" style="width:auto;height:30px;font-size:11.5px">'+LS.i18n.languages.map(l=>'<option value="'+l.code+'" '+(LS.i18n.lang===l.code?'selected':'')+'>'+l.native+'</option>').join('')+'</select></div>'
     +'<div class="row between" style="margin-top:8px"><span class="xs faint">Install app</span><button class="btn xs" data-install>'+U.ic('smartphone',13)+' Install</button></div>'
     +'<div class="row between" style="margin-top:8px"><span class="xs faint">Console build</span><span class="mono xs">v'+APP_VERSION+'</span></div>'
+    +'<button class="btn xs wide" style="margin-top:10px" data-overview>'+U.ic('globe',13)+' Public overview page</button>'
     +'<button class="btn xs wide" style="margin-top:10px" data-force-refresh>'+UI.ic('refresh-cw',13)+' Force update — clear cache & reload</button>'
     +'<div class="hint" style="margin-top:6px">Use this if a fix does not appear: it clears the offline cache for the app shell, keeps every record on this device, and reloads the newest build.</div>';
   const d=UI.drawer({title:'Account',eyebrow:'Signed in',body:body,foot:'<button class="btn danger" data-logout>'+U.ic('log-out',15)+' Sign out</button><button class="btn" data-close>Close</button>'});
@@ -524,6 +525,8 @@ function openUserMenu(){
   d.panel.querySelector('[data-theme-toggle]').onclick=e=>{ SH.toggleTheme(); const b=e.currentTarget; b.querySelector('[data-theme-icon]').innerHTML=U.ic(S.settings().theme==='ink'?'moon':'sun',13); b.querySelector('[data-theme-label]').textContent=S.settings().theme==='ink'?'Ink':'Porcelain'; };
   d.panel.querySelector('[data-density-toggle]').onclick=e=>{ SH.toggleDensity(); e.currentTarget.querySelector('[data-density-label]').textContent=S.settings().density==='compact'?'Compact':'Comfortable'; };
   d.panel.querySelector('#langSel').onchange=e=>{ LS.i18n.set(e.target.value); U.$$('#navItems .nav-item').forEach(b=>{ const k=b.dataset.tab; const lbl=b.querySelector('.lbl'); if(lbl) lbl.textContent=LS.i18n.t('nav.'+k,ROUTES[k].title); }); U.$$('.nav-group-label').forEach(el=>{ const g=el.dataset.i18n; if(g) el.textContent=LS.i18n.t(g); }); UI.toast('Language set to '+e.target.selectedOptions[0].text,{type:'ok'}); };
+  const ov=d.panel.querySelector('[data-overview]');
+  if(ov) ov.onclick=()=>{ UI.closeAll(); if(LS.landing) LS.landing.show(); };
   d.panel.querySelector('[data-install]').onclick=()=>SH.install();
   const fr=d.panel.querySelector('[data-force-refresh]');
   if(fr) fr.onclick=()=>SH.forceRefresh();
@@ -551,8 +554,10 @@ SH.logout=async function(){
   if(!ok) return;
   LS.auth.logout();
   document.getElementById('app').hidden=true;
-  document.getElementById('auth').hidden=false;
-  LS.auth.mount(afterAuth);
+  /* Signed out, the device returns to the public overview — not to a login wall.
+     The sign-in screen opens from the crest (5 taps) or the profile (3 taps). */
+  if(LS.landing) LS.landing.show();
+  else { document.getElementById('auth').hidden=false; LS.auth.mount(afterAuth); }
 };
 
 /* ——— Status bar ————————————————————— */
