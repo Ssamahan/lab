@@ -5,9 +5,28 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.13** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.14** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.14
+
+**Cloud sync can actually sign in, and there is a guide written for a ten-year-old.**
+
+The row-level policies in `supabase/schema.sql` give the table to the `authenticated`
+role, but the console only ever sent the anon key — so a correctly-built Supabase
+project would still answer 401. The Cloud sync card now takes the laboratory's
+Supabase **email and password** as well: the client signs in through
+`/auth/v1/token?grant_type=password`, sends that access token on every read and
+write, caches it for an hour and refreshes it once if the project answers 401.
+**Test connection** proves the password instead of reusing an old token, and a wrong
+password is reported as *"Supabase sign-in failed (400) — Invalid login credentials"*
+rather than a vague network error.
+
+New: [`docs/supabase-setup.html`](docs/supabase-setup.html) — the whole setup in
+seven parts, in plain language, with the SQL ready to copy, checkboxes, and an
+honest table of what each error message means. It is linked from the Cloud sync
+card itself.
 
 ## What changed in 6.9.13
 

@@ -312,6 +312,8 @@ function dataView(){
      body:
      '<div class="field" style="margin-top:2px"><label>Supabase project URL</label><input class="input mono" id="cloudUrl" placeholder="https://xxxxxxxx.supabase.co" value="'+U.esc(cl.endpoint||'')+'" spellcheck="false" autocomplete="off"></div>'
      +'<div class="field" style="margin-top:10px"><label>Anon public key</label><input class="input mono" id="cloudKey" type="password" placeholder="eyJhbGciOi…" value="'+U.esc(cl.anonKey||'')+'" spellcheck="false" autocomplete="off"></div>'
+     +'<div class="field" style="margin-top:10px"><label>Supabase login · email</label><input class="input mono" id="cloudEmail" type="email" placeholder="lab@rulidh.rw" value="'+U.esc(cl.email||'')+'" spellcheck="false" autocomplete="username"></div>'
+     +'<div class="field" style="margin-top:10px"><label>Supabase login · password</label><input class="input mono" id="cloudPass" type="password" placeholder="the account you created in Supabase → Authentication" value="'+U.esc(cl.password||'')+'" autocomplete="current-password"></div>'
      +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
        +[['push-pull','Two-way · pull then push'],['push','Push only — this device is the source'],['pull','Pull only — read the shared copy']].map(([v,l])=>'<option value="'+v+'"'+(cl.mode===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
      +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
@@ -319,7 +321,7 @@ function dataView(){
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last push</span><span class="mono xs">'+(SY.state().lastPushAt?U.relTime(SY.state().lastPushAt):'never')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last pull</span><span class="mono xs">'+(SY.state().lastPullAt?U.relTime(SY.state().lastPullAt):'never')+'</span></div>'
      +(SY.state().lastError?'<div class="hint" style="margin-top:8px;color:var(--crit)">'+U.esc(SY.state().lastError)+'</div>':'')
-     +'<div class="hint" style="margin-top:12px">Every edit is still saved on this device first. The shared copy is what lets your phone see what you typed on the PC. Setup steps are in <span class="mono">supabase/README.md</span>; the table SQL is <span class="mono">supabase/schema.sql</span>. No patient data leaves the device until both fields are filled.</div>'})+'</div>'
+     +'<div class="hint" style="margin-top:12px">Every edit is still saved on this device first. The shared copy is what lets your phone see what you typed on the PC. Setup steps are in the <a href="docs/supabase-setup.html" target="_blank" rel="noopener">step-by-step guide</a>; the table SQL is <span class="mono">supabase/schema.sql</span>. No patient data leaves the device until the fields are filled. The login is stored on this device only.</div>'})+'</div>'
    +'<div class="c12">'+UI.card({title:'Data provenance',sub:'What is real and what is modelled in this console',icon:'info',body:
      '<p class="small" style="line-height:1.7;color:var(--text-muted)">'+U.esc(S.settings().provenance||'')+'</p>'
      +'<div class="split-3" style="margin-top:12px">'+[['Register data','Carried forward from v5.3.1 (staff, referrals, leave, trainings, revenue, equipment)'],['Working records','Only what the department actually recorded — referred samples, issues, leave, EQA rounds. Nothing is generated to fill a screen.'],['Configuration','Stored in localStorage under labSystems.v1 · schema v'+db.meta.schema]].map(([k,v])=>'<div class="hstat" style="align-items:flex-start"><span class="lb">'+k+'</span><span class="xs muted" style="line-height:1.55;margin-top:4px">'+U.esc(v)+'</span></div>').join('')+'</div>'})+'</div></div>';
@@ -390,16 +392,21 @@ function wire(){
   const rs=r.querySelector('[data-reset]'); if(rs) rs.onclick=async()=>{ const ok=await UI.confirm({title:'Reset to factory seed?',body:'All local changes on this device will be replaced by the seed register. Export first if you need the current data.',confirm:'Reset register',danger:true}); if(!ok) return; S.reset(); LS.shell.build(); paint(); UI.toast('Register reset to seed',{type:'warn'}); };
   r.querySelectorAll('[data-cloud-test]').forEach(b=>b.onclick=async()=>{
     const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
+    const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass');
     if(u) S.settings().cloud.endpoint=u.value.trim();
     if(k) S.settings().cloud.anonKey=k.value.trim();
     if(m) S.settings().cloud.mode=m.value;
+    if(em) S.settings().cloud.email=em.value.trim();
+    if(pw) S.settings().cloud.password=pw.value;
     UI.toast('Testing the Supabase project…',{type:'info'});
     const res=await SY.ping();
     UI.toast(res.ok?'Connected to Supabase — '+(res.remote?'shared register found':'ready for the first push'):res.reason,{type:res.ok?'ok':'err',duration:res.ok?4000:8000});
     if(res.ok) paint();
   });
   r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
+    const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass');
     S.commit(d=>{ d.settings.cloud.endpoint=(u?u.value:'').trim(); d.settings.cloud.anonKey=(k?k.value:'').trim();
+      d.settings.cloud.email=(em?em.value:'').trim(); d.settings.cloud.password=(pw?pw.value:'');
       d.settings.cloud.mode=m?m.value:'push-pull'; d.settings.cloud.enabled=!!(u&&u.value&&k&&k.value); },
       {action:'settings.cloud',entity:'settings',detail:'Cloud sync settings saved'});
     const on=SY.configured();
