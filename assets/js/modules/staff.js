@@ -310,7 +310,7 @@ function dataView(){
    +'<div class="c5">'+UI.card({title:'Cloud sync',sub:'Supabase · shared register across devices · publishable key',icon:'cloud',
      tools:'<span class="pill '+(SY.configured()?'teal':'slate')+'">'+U.esc(SY.statusText())+'</span>',
      body:
-     '<div class="field" style="margin-top:2px"><label>Supabase project URL</label><input class="input mono" id="cloudUrl" placeholder="https://xxxxxxxx.supabase.co" value="'+U.esc(cl.endpoint||'')+'" spellcheck="false" autocomplete="off"></div>'
+     '<div class="field" style="margin-top:2px"><label>Supabase project URL</label><input class="input mono" id="cloudUrl" type="url" placeholder="https://xxxxxxxx.supabase.co" value="'+U.esc(cl.endpoint||'')+'" spellcheck="false" autocomplete="off"><div class="xs faint" style="margin-top:4px">Only <span class="mono">https://&lt;project&gt;.supabase.co</span> — no <span class="mono">/rest/v1</span> on the end. A path there makes Supabase answer <span class="mono">404 PGRST125</span>.</div></div>'
      +'<div class="field" style="margin-top:10px"><label>API key · publishable</label><input class="input mono" id="cloudKey" type="text" placeholder="sb_publishable_…" value="'+U.esc(cl.anonKey||'')+'" spellcheck="false" autocomplete="off"><div class="xs faint" style="margin-top:4px">Settings → API Keys → <b>Publishable key</b>. The legacy anon key (<span class="mono">eyJ…</span>) still works. Never the secret key.</div></div>'
      +'<div class="field" style="margin-top:10px"><label>Supabase login · email</label><input class="input mono" id="cloudEmail" type="email" placeholder="lab@rulidh.rw" value="'+U.esc(cl.email||'')+'" spellcheck="false" autocomplete="username"></div>'
      +'<div class="field" style="margin-top:10px"><label>Supabase login · password</label><input class="input mono" id="cloudPass" type="password" placeholder="the account you created in Supabase → Authentication" value="'+U.esc(cl.password||'')+'" autocomplete="current-password"></div>'
@@ -394,7 +394,7 @@ function wire(){
     const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
     const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass');
     if(k && LS.sync.keyKind(k.value.trim())==='secret'){ UI.toast('That is the secret key — it bypasses every access rule and must never be in a browser. Copy the publishable key instead.',{type:'err',duration:9000}); return; }
-    if(u) S.settings().cloud.endpoint=u.value.trim();
+    if(u) S.settings().cloud.endpoint=LS.sync.baseUrl(u.value);
     if(k) S.settings().cloud.anonKey=k.value.trim();
     if(m) S.settings().cloud.mode=m.value;
     if(em) S.settings().cloud.email=em.value.trim();
@@ -407,7 +407,7 @@ function wire(){
   r.querySelectorAll('[data-cloud-save]').forEach(b=>b.onclick=()=>{ const u=r.querySelector('#cloudUrl'), k=r.querySelector('#cloudKey'), m=r.querySelector('#cloudMode');
     const em=r.querySelector('#cloudEmail'), pw=r.querySelector('#cloudPass');
     if(k && LS.sync.keyKind(k.value.trim())==='secret'){ UI.toast('Not saved: that is the secret key. Use the publishable key (sb_publishable_…) — the secret one bypasses row-level security.',{type:'err',duration:9000}); return; }
-    S.commit(d=>{ d.settings.cloud.endpoint=(u?u.value:'').trim(); d.settings.cloud.anonKey=(k?k.value:'').trim();
+    S.commit(d=>{ d.settings.cloud.endpoint=u?LS.sync.baseUrl(u.value):''; d.settings.cloud.anonKey=(k?k.value:'').trim();
       d.settings.cloud.email=(em?em.value:'').trim(); d.settings.cloud.password=(pw?pw.value:'');
       d.settings.cloud.mode=m?m.value:'push-pull'; d.settings.cloud.enabled=!!(u&&u.value&&k&&k.value); },
       {action:'settings.cloud',entity:'settings',detail:'Cloud sync settings saved'});

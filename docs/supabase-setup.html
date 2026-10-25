@@ -86,7 +86,7 @@
     <ol>
       <li>In the left menu (the little icons) go to <b>Project Settings</b> ⚙️.</li>
       <li>Open <b>API</b> (or <b>API Keys</b>).</li>
-      <li>Copy <b>Project URL</b> — it looks like <code>https://abcdefgh.supabase.co</code>.</li>
+      <li>Copy <b>Project URL</b> — it looks like <code>https://abcdefgh.supabase.co</code>. Copy only that, with nothing after <code>.supabase.co</code> — no <code>/rest/v1</code>.</li>
       <li>On the same page open <b>API Keys</b>. Find the box called <b>Publishable key</b> and copy the key inside it — it starts with <code>sb_publishable_</code>.
         <br><span style="color:#5A6472">(An older project may show a key called <b>anon</b> instead, starting with <code>eyJ</code>. That one still works — copy it.)</span></li>
     </ol>
@@ -246,6 +246,7 @@ create policy &quot;lab register update&quot; on public.lab_registers
       <tr><td>Test connection spins forever</td><td>The URL is wrong or the internet is down.</td><td>Check the address starts with <code>https://</code> and ends in <code>.supabase.co</code>.</td></tr>
       <tr><td>“The table is missing”</td><td>Part 3 was never run.</td><td>SQL Editor → paste the code again → Run.</td></tr>
       <tr><td>“Supabase said no (401 / 403)”</td><td>The login is wrong, the user is not confirmed, or the login fields are empty.</td><td>Authentication → Users → set a new password. Make sure the email and password fields are filled too.</td></tr>
+      <tr><td>“Sign-in failed (404) — PGRST125, Invalid path”</td><td>The project URL has a path on the end, usually <code>/rest/v1</code>.</td><td>Use only <code>https://&lt;project&gt;.supabase.co</code>. The app now trims the path for you — press <b>Save</b> again.</td></tr>
       <tr><td>“That is the secret key”</td><td>You pasted <code>sb_secret_…</code> — the master key.</td><td>Go back to API Keys and copy the <b>Publishable key</b> instead.</td></tr>
       <tr><td>“Two devices changed the register”</td><td>Both changed something at the same minute.</td><td>Choose which copy to keep. The app saves a snapshot first, so nothing is lost forever.</td></tr>
       <tr><td>Status says “Local only”</td><td>Sync is off on this device.</td><td>Paste the four values and press Save.</td></tr>

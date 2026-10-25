@@ -22,9 +22,33 @@ const DEVICE_KEY='labSystems.deviceId.v1';
 const STATE_KEY='labSystems.syncState.v1';
 let busy=false, timer=null, listeners=[];
 
+/* The only thing the console needs is the PROJECT address:
+     https://abcdefgh.supabase.co
+   People paste all sorts of things — the REST endpoint shown under "API", a link to
+   the dashboard, an address with no scheme. Sent unchanged, `…/rest/v1` ends up in
+   front of `/auth/v1/token`, PostgREST answers that path with
+   `404 PGRST125 Invalid path specified in request URL`, and it looks like a password
+   problem when it is only a pasted path. So the address is reduced to its origin. */
+function baseUrl(raw){
+  let u=String(raw||'').trim().replace(/\s+/g,'');
+  if(!u) return '';
+  if(!/^https?:\/\//i.test(u)) u='https://'+u;
+  let parsed;
+  try{ parsed=new URL(u); }catch(e){ return u.replace(/\/+$/,''); }
+  /* a project on a custom domain keeps its path prefix; a supabase.co host does not */
+  let path=parsed.pathname.replace(/\/+$/,'');
+  if(/\/(rest|auth|storage|realtime|graphql|functions)\/v[0-9]+/i.test(path)){
+    path=path.replace(/\/(rest|auth|storage|realtime|graphql|functions)\/v[0-9]+.*$/i,'');
+  }
+  if(/supabase\.(co|in)$/i.test(parsed.hostname)) path='';
+  return parsed.origin+path;
+}
+SY.baseUrl=baseUrl;
+
 function cfg(){ const c=S.settings().cloud||{};
-  return {url:(c.endpoint||'').replace(/\/+$/,''), key:c.anonKey||'', email:(c.email||'').trim(),
-    password:c.password||'', mode:c.mode||'push-pull', enabled:!!(c.url||c.endpoint)&&!!c.anonKey}; }
+  return {url:baseUrl(c.endpoint), raw:(c.endpoint||''), key:(c.anonKey||'').trim(),
+    email:(c.email||'').trim(), password:c.password||'', mode:c.mode||'push-pull',
+    enabled:!!c.endpoint&&!!c.anonKey}; }
 SY.config=cfg;
 SY.configured=()=>{ const c=cfg(); return !!(c.url&&c.key); };
 
@@ -53,8 +77,14 @@ async function signIn(force){
   });
   const body=await r.text();
   if(!r.ok){
-    let msg=body.slice(0,160);
-    try{ const j=JSON.parse(body); msg=j.error_description||j.msg||j.error||msg; }catch(e){}
+    let msg=body.slice(0,160), code='';
+    try{ const j=JSON.parse(body); msg=j.error_description||j.msg||j.error||j.message||msg; code=j.code||''; }catch(e){}
+    if(r.status===404||code==='PGRST125'){
+      throw new Error('Supabase sign-in failed (404) — the project URL has a path in it. Use only the project address, https://<project>.supabase.co, with no /rest/v1 on the end. (It was sent to '+c.url+'/auth/v1/token)');
+    }
+    if(r.status===401&&/api key/i.test(msg)){
+      throw new Error('Supabase sign-in failed (401) — the API key was not accepted. Copy the publishable key again; it must not carry a trailing space or quote.');
+    }
     throw new Error('Supabase sign-in failed ('+r.status+') — '+msg);
   }
   let j={}; try{ j=JSON.parse(body); }catch(e){}
@@ -111,7 +141,7 @@ SY.ping=async function(){
     /* Test connection must prove the password, not reuse the token from an hour ago. */
     if(c.email&&c.password) await signIn(true);
     const r=await request(TABLE+'?select=id,revision,updated_at&limit=1');
-    if(r.status===404) return {ok:false, reason:'The table is missing — run supabase/schema.sql in the project.'};
+    if(r.status===404) return {ok:false, reason:'Supabase answered 404 at '+c.url+' — the project URL is probably wrong, or the table is missing. The address must be only https://<project>.supabase.co.'};
     if(r.status===401||r.status===403) return {ok:false, reason:'Supabase said no ('+r.status+'). '+(cfg().email?'Check the login email and password from Authentication → Users, and that schema.sql was run.':'The table only allows signed-in users, so fill the login email and password as well — or the publishable key runs as anonymous.')};
     if(!r.ok) return {ok:false, reason:'Supabase answered '+r.status+'. '+((await r.text())||'').slice(0,140)};
     const rows=await r.json();
