@@ -5,9 +5,19 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation and training
 revenue — in one offline-first workspace.
 
-**Version 6.9.12** · FY 2026/2027 · works with no network, installs as a PWA.
+**Version 6.9.13** · FY 2026/2027 · works with no network, installs as a PWA.
 
 ---
+
+## What changed in 6.9.13
+
+**The working-plan header follows the month.**
+
+Choosing **Next** or **Previous** in the working plan moved the plan but left the month
+label, the plan pill and the filter tabs on the month the page was opened on, because
+only the body was redrawn. The header is now redrawn with the body, so the label, the
+`Official · October 2026` pill and the stored-plan buttons always describe the plan
+that is actually on screen. **Today** returns to the live month as before.
 
 ## What changed in 6.9.12
 

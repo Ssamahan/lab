@@ -859,6 +859,11 @@ function printWeek(){
 }
 function paint(){ sheetSVG=null;
 
+  /* the header carries the month label and the plan pill, so it has to be redrawn
+     every time the month changes — otherwise Next / Previous moved the plan but the
+     label kept the month the page was opened on */
+  const head=rootEl.querySelector('#roHead');
+  if(head) head.innerHTML=header();
   const host=rootEl.querySelector('#roBody'); if(!host) return;
   host.innerHTML=view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView();
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
@@ -1149,7 +1154,7 @@ function wireBody(){
 }
 M.render=function(root,params){
   rootEl=root; view=params.tab||'grid'; mk=params.month||U.monthKey();
-  root.innerHTML=header()+'<div id="roBody"></div>';
+  root.innerHTML='<div id="roHead">'+header()+'</div><div id="roBody"></div>';
   paint();
 };
 M.staffDrawer=function(s){
