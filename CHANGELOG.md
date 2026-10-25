@@ -4,6 +4,28 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.26
+
+**The first screen is a public overview. The console's sign-in is a door, not a wall.**
+
+Opening the app used to put a password form in front of everything, so a visitor — a health
+centre, a district officer, a new member of staff — met a login box before they met the
+department. Now:
+
+- a bare address, `#/welcome`, `#/overview` or `#/home` shows the **public overview**: what the
+  laboratory does, the five working groups, the eight health centres, the reference
+  laboratories, and the telephone and email from the settings. It reads the register only for
+  **counts** — no patient name is on that page;
+- the sign-in screen is **not linked** from it. It opens after **five clicks on the crest**,
+  **three clicks on the profile button**, or at `#/signin`;
+- a deep link to a console route (`#/staff`, `#/roster`, …) still asks for the password, so
+  bookmarks keep working;
+- **signing out** now lands on the overview instead of a login wall;
+- inside the console, five clicks on the rail crest reopens the overview, and the account menu
+  has a *Public overview page* button;
+- both gestures count keyboard activation too (Enter or Space on the crest or the profile), so
+  the door is not mouse-only.
+
 ## What changed in 6.9.25
 
 **No credential of any kind is published any more, and the README fits on one screen.**

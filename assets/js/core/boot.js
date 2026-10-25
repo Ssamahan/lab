@@ -20,18 +20,33 @@ function init(){
     LS.i18n.init();
     try{ if(window.LS.sync) LS.sync.start(); }catch(e){ console.warn('sync start',e); }
     const user=LS.auth.init();
+    /* Where the address bar points decides the first screen.
+       - no session and a console route in the hash → the sign-in screen
+       - #/signin or #/welcome                             → those screens
+       - anything else, including a bare address           → the public overview
+       A visitor therefore never meets a login wall to read about the department. */
+    const hash=(location.hash||'').replace(/^#\/?/,'').split('?')[0];
+    const wantsSignIn=/^(signin|login)$/i.test(hash);
+    const wantsOverview=/^(welcome|overview|home)$/i.test(hash);
+    const consoleRoute=!!(LS.shell&&LS.shell.ROUTES&&LS.shell.ROUTES[hash]);
     const jump=()=>{
       const wait=Math.max(0,SPLASH_MIN-(performance.now()-t0));
       setTimeout(()=>{
         finish();
-        if(user){ LS.shell.afterAuth(); }
+        if(user){
+          if(wantsOverview){ if(LS.landing) LS.landing.show(); else LS.shell.afterAuth(); }
+          else LS.shell.afterAuth();
+        }
+        else if(consoleRoute||wantsSignIn){
+          if(LS.landing) LS.landing.signIn();
+          else { document.getElementById('auth').hidden=false; LS.auth.mount(()=>LS.shell.afterAuth()); }
+        }
         else {
-          document.getElementById('auth').hidden=false;
-          LS.auth.mount(()=>LS.shell.afterAuth());
+          if(LS.landing) LS.landing.show();
+          else { document.getElementById('auth').hidden=false; LS.auth.mount(()=>LS.shell.afterAuth()); }
         }
         // deep-link / saved view restore
-        if(location.hash && location.hash.length>2) setTimeout(()=>LS.shell.route(),60);
-        if(!user) document.getElementById('authUser')?.focus({preventScroll:true});
+        if(user && consoleRoute) setTimeout(()=>LS.shell.route(),60);
       }, wait);
     };
     jump();
