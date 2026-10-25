@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.29';
+const APP_VERSION='6.9.30';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -478,7 +478,7 @@ function commandItems(){
   // staff
   S.db().staff.filter(s=>s.status==='active').forEach(s=>items.push({group:'People',label:s.name,meta:s.role,icon:'user',run:()=>{ SH.go('roster'); setTimeout(()=>UI.drawer({title:s.name,eyebrow:'Staff record',body:LS.modules.roster&&LS.modules.roster.staffDrawer?LS.modules.roster.staffDrawer(s):'<p class="small muted">'+U.esc(s.role)+'</p>',foot:'<button class="btn" data-close>Close</button>'}),350); }}));
   // samples (recent)
-  S.db().samples.slice(-20).reverse().forEach(s=>items.push({group:'Samples',label:s.sampleId+' · '+s.patientName,meta:s.test+' · '+s.priority,icon:'flask-conical',run:()=>{ SH.go('samples',{id:s.id}); }}));
+  S.db().samples.slice(-20).reverse().forEach(s=>items.push({group:'Samples',label:s.sampleId+' · '+U.ptName(),meta:s.test+' · '+s.priority,icon:'flask-conical',run:()=>{ SH.go('samples',{id:s.id}); }}));
   // stock
   S.consumables().forEach(c=>items.push({group:'Inventory',label:c.name,meta:'on hand '+S.onHand(c.id)+' '+c.unit,icon:'package',run:()=>SH.go('stock',{item:c.id})}));
   return items;

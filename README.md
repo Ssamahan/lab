@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.29** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.30** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -77,6 +77,14 @@ publishes the whole register, **Download the shared copy** brings the cloud vers
 restore point, and **Copy / Paste setup code** carries the address and publishable key to the other
 browser as text — never a password. A browser that has never received the shared register cannot
 publish its seed over it: the background loop refuses and says so.
+
+## Patient identity
+
+A sample is identified by its **sample ID** and the patient / insurance ID, never by a name.
+`U.ptName()` answers `Confidential` for every patient, on every screen, drawer, manifest, printed
+sheet and export, and a one-time migration replaces any name already stored in the register — so no
+name exists in `localStorage`, in a backup or in the shared copy. The registration wizard does not
+ask for one.
 
 ## Security, stated plainly
 

@@ -4,6 +4,31 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.30
+
+**A patient is never named. The word is `Confidential`, everywhere, for everyone.**
+
+This is a standing rule that had slipped: the register identified a sample by a person's name,
+and the name travelled into the worklist, the record drawer, the command palette, the CSV, the
+manifest, the print sheet — and the bundle served to the public.
+
+- `U.ptName()` is the only thing that decides what a patient is called, and it answers with
+  `Confidential`. Every screen, drawer, table, manifest, printed sheet and CSV uses it.
+- **The register itself is cleaned.** A one-time migration in `normalize()` replaces any stored
+  `patientName` with `Confidential` on load, so the value does not exist in `localStorage`,
+  in the JSON backup or in the shared copy either. The seeded register was scrubbed too — the six
+  carried-forward samples no longer contain a name in `seed.js`.
+- **The wizard no longer asks.** Step 1 shows `Confidential` with the reason and takes the
+  patient / insurance ID instead; that ID is what the bench and the manifest use. Editing a record
+  shows the same read-only mask.
+- Searching no longer matches a name; the command palette shows `sample ID · Confidential`.
+- When the migration fires, the cleaned register is **published to the shared copy once**, without
+  being asked, so the cloud does not keep the old names.
+- Generated telemetry no longer invents names either.
+
+What this does not change: patient / insurance IDs, sex, age and dates stay as recorded, because
+they are what the referral actually needs.
+
 ## What changed in 6.9.29
 
 **A visitor now reads the real register — and one tap on the profile is the way in.**

@@ -719,6 +719,14 @@ U.exportChartPNG = (host,opts)=>{
     img.src=url;
   });
 };
+/* ——— Patient identity ————————————————————————————
+   This register identifies a sample by its ID, never by a person's name. The name
+   field exists in the record shape, and it is always the single word below: nothing
+   is displayed, exported, printed or pushed with a patient name in it. `U.ptName`
+   takes the stored value so callers need no branch — it answers with the mask. */
+U.CONFIDENTIAL='Confidential';
+U.ptName=function(){ return U.CONFIDENTIAL; };
+
 U.copy = async (text)=>{
   try{ await navigator.clipboard.writeText(text); return true; }
   catch(e){ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); return true; }catch(e2){ return false; } }
