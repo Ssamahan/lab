@@ -333,10 +333,15 @@ function dataView(){
        +cloudLinks()+'</div>'
      +'<div class="field" style="margin-top:10px"><label>Mode</label><select class="select" id="cloudMode">'
        +[['push-pull','Two-way · pull then push'],['push','Push only — this device is the source'],['pull','Pull only — read the shared copy']].map(([v,l])=>'<option value="'+v+'"'+(cl.mode===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
+     +'<div class="field" style="margin-top:10px"><label>Live sync</label>'
+       +'<label class="choice '+(cl.live!==false?'on':'')+'" style="width:auto"><input type="checkbox" id="cloudLive" '+(cl.live!==false?'checked':'')+' style="margin-right:8px"><span class="ct">Push every change, pull the other device\'s changes</span></label>'
+       +'<div class="xs faint" style="margin-top:5px">A change leaves this device in about a second and the other device picks it up within about three. Off means sync only when you press Sync now.</div></div>'
      +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-check>'+UI.ic('shield-question',13)+'Check setup</button><button class="btn sm" data-cloud-sql>'+UI.ic('file-text',13)+'Copy the table SQL</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
      +'<div class="row between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><span class="xs faint">Pending local changes</span><span class="mono xs">'+(S.pendingChanges?S.pendingChanges():0)+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last push</span><span class="mono xs">'+(SY.state().lastPushAt?U.relTime(SY.state().lastPushAt):'never')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last pull</span><span class="mono xs">'+(SY.state().lastPullAt?U.relTime(SY.state().lastPullAt):'never')+'</span></div>'
+     +'<div class="row between" style="padding:4px 0"><span class="xs faint">Live loop</span><span class="mono xs">'+(SY.liveState().on?'running · checks every '+(Math.round((cl.pollMs||2500)/100)/10)+' s':'off')+'</span></div>'
+     +(SY.state().conflictNote?'<div class="hint" style="margin-top:8px">'+UI.ic('alert-triangle',12)+' '+U.esc(SY.state().conflictNote)+' A snapshot of the replaced copy is in Settings → Data &amp; backup → restore points.</div>':'')
      +(SY.state().lastError?'<div class="hint" style="margin-top:8px;color:var(--crit)">'+U.esc(SY.state().lastError)+'</div>':'')
      +'<div class="hint" style="margin-top:12px">Every edit is still saved on this device first. The shared copy is what lets your phone see what you typed on the PC. Setup steps are in the <a href="docs/supabase-setup.html" target="_blank" rel="noopener">step-by-step guide</a>; the table SQL is <span class="mono">supabase/schema.sql</span>. No patient data leaves the device until the fields are filled. The login is stored on this device only.</div>'})+'</div>'
    +'<div class="c12">'+UI.card({title:'Data provenance',sub:'What is real and what is modelled in this console',icon:'info',body:
@@ -418,6 +423,7 @@ function wire(){
     if(em) S.settings().cloud.email=em.value.trim();
     if(pw) S.settings().cloud.password=pw.value;
     if(an) S.settings().cloud.anonAuth=!!an.checked;
+    const lv=r.querySelector('#cloudLive'); if(lv) S.settings().cloud.live=!!lv.checked;
     UI.toast('Testing the Supabase project…',{type:'info'});
     const res=await SY.ping();
     if(res.ok){
@@ -439,11 +445,13 @@ function wire(){
     S.commit(d=>{ d.settings.cloud.endpoint=u?LS.sync.baseUrl(u.value):''; d.settings.cloud.anonKey=(k?k.value:'').trim();
       d.settings.cloud.email=(em?em.value:'').trim(); d.settings.cloud.password=(pw?pw.value:'');
       d.settings.cloud.anonAuth=!!(an&&an.checked);
+      d.settings.cloud.live=!!(r.querySelector('#cloudLive')&&r.querySelector('#cloudLive').checked);
       d.settings.cloud.mode=m?m.value:'push-pull'; d.settings.cloud.enabled=!!(u&&u.value&&k&&k.value); },
       {action:'settings.cloud',entity:'settings',detail:'Cloud sync settings saved'});
     const on=SY.configured();
     UI.toast(on?'Sync configured — press Sync now to publish this register':'Cloud sync disabled · staying local',{type:'ok'});
-    if(on){ SY.sync().then(res=>{ UI.toast(res.ok?'Cloud sync: '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000}); paint(); }); }
+    if(on){ SY.sync().then(res=>{ UI.toast(res.ok?'Cloud sync: '+res.action:(res.reason||'Sync did not finish'),{type:res.ok?'ok':'warn',duration:6000}); SY.startLive(); paint(); }); }
+    else SY.stopLive();
   });
   r.querySelectorAll('[data-cloud-sql]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;

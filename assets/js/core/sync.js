@@ -68,6 +68,7 @@ SY.sqlEditorUrl=()=>SY.dashboardUrl('sql/new');
 function cfg(){ const c=S.settings().cloud||{};
   return {url:baseUrl(c.endpoint), raw:(c.endpoint||''), key:(c.anonKey||'').trim(),
     email:(c.email||'').trim(), password:c.password||'', anonAuth:!!c.anonAuth,
+    live:c.live!==false, pollMs:Math.max(800,Number(c.pollMs)||2500), pushMs:Math.max(150,Number(c.pushMs)||700),
     mode:c.mode||'push-pull', enabled:!!c.endpoint&&!!c.anonKey}; }
 SY.config=cfg;
 SY.configured=()=>{ const c=cfg(); return !!(c.url&&c.key); };
@@ -397,11 +398,40 @@ SY.diagnose=async function(){
 /* ——— Applying a remote register —————————————————————— */
 function applyRemote(remote){
   if(!remote||!remote.data) return false;
-  S.restorePoint();                 // the local copy is never lost
-  S.importJSON(remote.data);
-  setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null, lastError:null});
+  applyingRemote=true;
+  try{
+    S.restorePoint();               // the local copy is never lost
+    S.importJSON(remote.data);
+    if(S.clearPending) S.clearPending();   // this device now matches the cloud exactly
+    setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null, lastError:null});
+  }finally{ applyingRemote=false; }
   SY.emit('pulled');
+  refreshScreen();
   return true;
+}
+/* A pulled change should be on screen at once — but never under the user's fingers.
+   If a field has focus, the redraw waits for the field to lose it. */
+let pendingRender=false;
+function editable(el){
+  if(!el) return false;
+  const t=(el.tagName||'').toLowerCase();
+  return t==='input'||t==='textarea'||t==='select'||el.isContentEditable;
+}
+function refreshScreen(){
+  if(typeof document==='undefined') return;
+  try{
+    const active=document.activeElement;
+    if(editable(active)){ pendingRender=true; return; }
+    if(document.body.classList.contains('modal-open')) return;   // do not fight a dialog
+    if(window.LS&&LS.shell&&LS.shell.route) LS.shell.route({keepScroll:true});
+  }catch(e){}
+}
+if(typeof document!=='undefined'){
+  document.addEventListener('focusout',()=>{
+    if(!pendingRender) return;
+    pendingRender=false;
+    setTimeout(()=>{ if(!editable(document.activeElement)) refreshScreen(); },60);
+  },true);
 }
 SY.applyRemote=applyRemote;
 
@@ -415,25 +445,56 @@ function newer(remote){
 /* Does this device hold edits the cloud has not seen? The store tracks a dirty
    counter on every commit; we compare it with the last successful push. */
 function hasLocalChanges(){
-  const pending=S.pendingChanges?S.pendingChanges():0;
-  if(pending>0) return true;
-  const st=state();
-  return !st.lastPushAt;
+  /* The store counts commits that have not reached the cloud. That counter is the
+     truth; "never pushed" is only a fallback for a register that has never synced and
+     must not be treated as a pending edit once a pull has brought us up to date. */
+  const pending=S.pendingChanges?S.pendingChanges():null;
+  if(pending!==null) return pending>0;
+  return !state().lastPushAt;
 }
 
+/* The poll asks only for the revision: a few dozen bytes instead of the whole register.
+   The full document is fetched only when the number moved. */
+SY.remoteVersion=async function(){
+  const c=cfg(); if(!c.url||!c.key) return null;
+  const r=await request(TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select=revision,updated_at,device_id,updated_by');
+  if(r.status===404) return null;
+  if(!r.ok) throw new Error('Version check failed ('+r.status+')');
+  const rows=await r.json();
+  return rows[0]||null;
+};
+
+/* Replacing the register must not look like a local edit: without this flag the import
+   would schedule a push straight back at the cloud (an echo loop between two devices). */
+let applyingRemote=false;
 /* ——— The sync cycle ————————————————————————————————— */
 SY.sync=async function(opts){
   opts=opts||{};
   if(busy) return {ok:false, reason:'A sync is already running'};
-  if(!SY.configured()) return {ok:false, reason:'Cloud sync is off — add the project URL and anon key.'};
+  if(!SY.configured()) return {ok:false, reason:'Cloud sync is off — add the project URL and the API key.'};
+  if(opts.auto && typeof navigator!=='undefined' && navigator.onLine===false) return {ok:false, reason:'Offline'};
   busy=true; setState({running:true});
+  const quiet=!!opts.quiet;
   try{
     const c=cfg();
+    /* In a background poll, ask for the revision first and stop if nothing moved. */
+    if(c.mode!=='push' && opts.auto){
+      const v=await SY.remoteVersion();
+      if(!v){                                   // nothing in the cloud yet
+        if(hasLocalChanges()) { await SY.push(); return {ok:true, action:'created'}; }
+        return {ok:true, action:'noop'};
+      }
+      const seen=Number(state().lastRevision||0);
+      if(Number(v.revision||0)<=seen && !hasLocalChanges()){
+        setState({lastCheckAt:U.nowISO(), running:false});
+        return {ok:true, action:'noop'};
+      }
+    }
     const remote=await SY.pull();
     if(!remote){
       // nothing in the cloud yet — this device publishes the register
       await SY.push();
-      UI.toast('Register published to the shared cloud',{type:'ok'});
+      if(!quiet) UI.toast('Register published to the shared cloud',{type:'ok'});
       return {ok:true, action:'created'};
     }
     if(newer(remote)){
@@ -442,13 +503,21 @@ SY.sync=async function(opts){
         return {ok:false, reason:'Cloud copy is newer but this device is set to push only.'};
       }
       if(hasLocalChanges() && !opts.force){
+        /* A background tick must never stop and ask: an edit typed here is the one the
+           person can see, so it is published, and the other copy stays in restore points. */
+        if(opts.auto){
+          setState({conflictAt:U.nowISO(), conflictNote:'This device published over a newer cloud copy ('+(remote.updated_by||'another device')+').'});
+          await SY.push();
+          if(!quiet) UI.toast('Published this device — the other copy is in restore points',{type:'warn',duration:6000});
+          return {ok:true, action:'pushed', conflict:true};
+        }
         const choice=await conflictChoice(remote);
         if(choice==='remote'){ applyRemote(remote); UI.toast('Register updated from the other device',{type:'ok'}); return {ok:true, action:'pulled'}; }
         if(choice==='local'){ await SY.push(); UI.toast('This device published its register',{type:'ok'}); return {ok:true, action:'pushed'}; }
         return {ok:false, reason:'Kept this device unchanged'};
       }
       applyRemote(remote);
-      UI.toast('Register updated from the shared cloud',{type:'ok'});
+      if(!quiet) UI.toast('Register updated from the shared cloud',{type:'ok'});
       return {ok:true, action:'pulled'};
     }
     if(hasLocalChanges() || opts.force){
@@ -479,15 +548,62 @@ function conflictChoice(remote){
 }
 
 /* ——— Wiring ————————————————————————————————————— */
-SY.schedule=function(delay){
+/* Two rhythms keep a room of devices on one register:
+
+   • push — a local commit schedules a push after `pushMs` (0.7 s by default), so the
+     change leaves the device almost as soon as the finger lifts;
+   • poll — a background tick asks only for the revision number every `pollMs` (2.5 s),
+     and pulls the document the moment it differs from the one this device last saw.
+
+   Both are silent: no toasts, no dialogs, no redrawing under a focused field. Anything
+   the person needs to know is shown once, at the moment it happens. */
+SY.pushSoon=function(delay){
+  const c=cfg();
   clearTimeout(timer);
-  timer=setTimeout(()=>{ SY.sync({auto:true}).catch(()=>{}); }, delay||1500);
+  timer=setTimeout(()=>{
+    if(applyingRemote) return;
+    SY.sync({auto:true, quiet:true}).catch(()=>{});
+  }, delay==null?c.pushMs:delay);
 };
+SY.schedule=function(delay){ SY.pushSoon(delay); };
+
+let liveTimer=null;
+SY.liveState=function(){ return {on:!!liveTimer, busy:busy, last:state().lastCheckAt||null}; };
+SY.startLive=function(){
+  clearInterval(liveTimer);
+  const c=cfg();
+  if(!c.live||!SY.configured()){ liveTimer=null; SY.emit('live'); return; }
+  liveTimer=setInterval(()=>{
+    if(busy) return;
+    if(typeof navigator!=='undefined' && navigator.onLine===false) return;
+    if(typeof document!=='undefined' && document.visibilityState==='hidden') return;
+    SY.sync({auto:true, quiet:true}).catch(()=>{});
+  }, c.pollMs);
+  SY.emit('live');
+};
+SY.stopLive=function(){ clearInterval(liveTimer); liveTimer=null; SY.emit('live'); };
+
 SY.start=function(){
   if(SY._started) return; SY._started=true;
-  window.addEventListener('online',()=>{ if(SY.configured()) SY.schedule(800); });
-  if(S.subscribe) S.subscribe(reason=>{ if(SY.configured() && reason!=='sync.pull') SY.schedule(1800); });
-  if(SY.configured()) setTimeout(()=>{ SY.sync({auto:true}).catch(()=>{}); },1200);
+  window.addEventListener('online',()=>{ if(SY.configured()){ SY.startLive(); SY.schedule(600); } });
+  window.addEventListener('offline',()=>{});
+  /* a tab that becomes visible again catches up immediately */
+  if(typeof document!=='undefined'&&document.addEventListener){
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='visible'&&SY.configured()) SY.sync({auto:true, quiet:true}).catch(()=>{});
+    });
+  }
+  /* another tab of the same browser wrote to localStorage: take its copy */
+  window.addEventListener('storage',ev=>{
+    if(!ev||ev.key!==(S.STORAGE_KEY||'labSystems.v1')) return;
+    try{ S.reloadFromStorage&&S.reloadFromStorage(); SY.emit('tab'); refreshScreen(); }catch(e){}
+  });
+  if(S.subscribe) S.subscribe(reason=>{
+    if(applyingRemote) return;
+    if(reason==='import'||reason==='reset') return;          /* those came from elsewhere */
+    if(SY.configured()) SY.pushSoon();
+  });
+  if(SY.configured()) setTimeout(()=>{ SY.startLive(); SY.sync({auto:true, quiet:true}).catch(()=>{}); },1200);
 };
 SY.emit=function(kind){ listeners.forEach(fn=>{ try{ fn(kind,state()); }catch(e){} }); };
 SY.onChange=function(fn){ listeners.push(fn); return ()=>{ listeners=listeners.filter(x=>x!==fn); }; };
@@ -499,5 +615,15 @@ SY.statusText=function(){
   if(st.lastPushAt) return 'Synced '+U.relTime(st.lastPushAt);
   if(st.lastPullAt) return 'Pulled '+U.relTime(st.lastPullAt);
   return 'Connected · not yet synced';
+};
+/* One line for the header: what is true right now, not what happened last. */
+SY.liveLabel=function(){
+  if(!SY.configured()) return null;
+  const st=state();
+  if(typeof navigator!=='undefined'&&navigator.onLine===false) return {tone:'warn', text:'Offline — queued'};
+  if(st.running) return {tone:'teal', text:'Syncing…'};
+  if(st.lastError) return {tone:'rose', text:'Sync error'};
+  if(liveTimer) return {tone:'teal', text:'Live · '+SY.statusText()};
+  return {tone:'slate', text:SY.statusText()};
 };
 })();

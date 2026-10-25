@@ -258,9 +258,17 @@ create policy &quot;lab register update&quot; on public.lab_registers
     <h2>The magic test 🎩</h2>
     <ol>
       <li>On the PC, change one shift in the working plan.</li>
-      <li>Wait about two seconds, then look at the phone.</li>
+      <li>Wait about one second, then look at the phone.</li>
       <li>The same change should be there.</li>
     </ol>
+    <div class="tip box"><b>How fast is it?</b> A change leaves the device about <b>0.7 seconds</b> after you make it,
+      and the other device checks for news every <b>2.5 seconds</b> — so in practice the phone shows the PC's change
+      in about <b>one to three seconds</b>, with nothing pressed. The header pill says <b>Live</b> when this loop is
+      running. It is in the Cloud sync card as <b>Live sync</b> if you ever want it off.</div>
+    <div class="warn box"><b>One honest limit.</b> The register is one document, not a pile of rows. If two people
+      change two different things at the very same second, the second device to save publishes its whole copy and the
+      other copy is kept as a restore point — the app tells you on the card, and never silently throws it away. Keep
+      one person editing the roster at a time; reading on as many devices as you like.</div>
     <div class="box">The app saves on the device <b>first</b>, always. The sky copy follows along when the internet allows it. Nothing you type is ever waiting for the internet to work.</div>
   </div>
 
