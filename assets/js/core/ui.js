@@ -226,5 +226,20 @@ UI.barcode=(code)=>{
   }
   return '<div><div class="barcode">'+bars+'</div><div class="barcode-lbl">'+U.esc(code)+'</div></div>';
 };
+/* Clipboard with a fallback for browsers that refuse the async API (or run it from a
+   context that is not user-initiated). Returns true only when the text really landed. */
+UI.copy=async function(text){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; }
+  }catch(e){ /* fall through to the textarea trick */ }
+  try{
+    const a=document.createElement('textarea');
+    a.value=text; a.setAttribute('readonly',''); a.style.position='fixed'; a.style.opacity='0';
+    document.body.appendChild(a); a.select();
+    const ok=document.execCommand&&document.execCommand('copy');
+    a.remove();
+    return !!ok;
+  }catch(e){ return false; }
+};
 UI.spinner=(size)=>'<span style="display:inline-block;width:'+(size||14)+'px;height:'+(size||14)+'px;border:1.5px solid var(--border-strong);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite"></span>';
 })();
