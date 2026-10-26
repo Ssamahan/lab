@@ -216,7 +216,7 @@ function worklistCard(){
     const tone=t.breached?'rose':t.ratio>.8?'amber':'teal';
     return '<tr class="prio-'+(s.priority==='STAT'?'stat':s.priority==='Follow-up'?'follow':'routine')+'">'
      +'<td><span class="priority-flag '+(s.priority==='STAT'?'stat':s.priority==='Follow-up'?'follow':'routine')+'">'+(s.priority==='STAT'?'STAT':s.priority==='Follow-up'?'FLW':'RTN')+'</span></td>'
-     +'<td><div class="primary-cell"><b class="mono" style="font-size:11.5px">'+U.esc(s.sampleId)+'</b><small>'+U.esc(U.ptName())+'</small></div></td>'
+     +'<td><div class="primary-cell"><b class="mono" style="font-size:11.5px">'+U.esc(s.sampleId)+'</b><small>'+U.esc(U.ptName(s))+'</small></div></td>'
      +'<td class="truncate" style="max-width:150px"><span class="small">'+U.esc(s.test)+'</span></td>'
      +'<td><div style="width:78px"><div class="meter '+tone+'"><i style="width:'+pct+'%"></i></div><div class="xs faint" style="margin-top:3px">'+(t.breached?'<span style="color:var(--crit)">breached</span>':Math.round(t.remainingH)+'h left')+'</div></div></td>'
      +'<td><span class="pill '+U.statusTone(s.status)+'">'+U.esc(s.status)+'</span></td>'

@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.30** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.31** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -78,13 +78,25 @@ restore point, and **Copy / Paste setup code** carries the address and publishab
 browser as text — never a password. A browser that has never received the shared register cannot
 publish its seed over it: the background loop refuses and says so.
 
+## Identifiers
+
+```
+sample     R + <test code> + MMYY + 4 digits      RBC10260001
+manifest   <test code> + YYMMDD + 4 characters    BC2610270001
+```
+
+The code comes from the chosen test, the date from the day, the number from a per-code, per-month
+counter. `S.testCode`, `S.sampleId`/`S.takeSampleId` and `S.manifestId`/`S.takeManifestId` are the
+only places that build an ID, and a number is taken inside the commit that stores the record.
+
 ## Patient identity
 
-A sample is identified by its **sample ID** and the patient / insurance ID, never by a name.
-`U.ptName()` answers `Confidential` for every patient, on every screen, drawer, manifest, printed
-sheet and export, and a one-time migration replaces any name already stored in the register — so no
-name exists in `localStorage`, in a backup or in the shared copy. The registration wizard does not
-ask for one.
+`U.ptName(record)` answers `Confidential` — except for the **Admin**, who may record and read a name.
+No other role sees one, and every export, manifest and printed sheet calls `U.ptName()` without a
+record, so a file never contains a name whoever is signed in. A one-time migration replaced the
+names carried forward from v5 — no name from that register exists in `localStorage`, a backup or the
+shared copy. **Age is calculated** from a date of birth (`LSU.ageFromDob`), never typed while a
+date is present.
 
 ## Security, stated plainly
 

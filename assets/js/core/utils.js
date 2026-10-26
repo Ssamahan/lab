@@ -725,7 +725,26 @@ U.exportChartPNG = (host,opts)=>{
    is displayed, exported, printed or pushed with a patient name in it. `U.ptName`
    takes the stored value so callers need no branch — it answers with the mask. */
 U.CONFIDENTIAL='Confidential';
-U.ptName=function(){ return U.CONFIDENTIAL; };
+/* Only an Admin may read a recorded name. Everyone else — manager, technologist,
+   reviewer, viewer, visitor — is answered with the mask, and so is every export,
+   manifest and printed sheet, which call U.ptName() without a record. */
+U.canSeeNames=function(){ try{ return !!(window.LS&&LS.auth&&LS.auth.user&&LS.auth.user.role==='Admin'); }catch(e){ return false; } };
+U.ptName=function(rec){
+  if(rec && U.canSeeNames() && rec.patientName && rec.patientName!==U.CONFIDENTIAL) return rec.patientName;
+  return U.CONFIDENTIAL;
+};
+/* Whole years between a date of birth and a reference date. */
+U.ageFromDob=function(dob,at){
+  if(!dob) return '';
+  const b=String(dob).slice(0,10); if(b.length<10) return '';
+  const ref=String(at||U.todayISO()).slice(0,10);
+  const y=new Date(b+'T12:00:00'), t=new Date(ref+'T12:00:00');
+  if(isNaN(y)||isNaN(t)||t<y) return '';
+  let a=t.getFullYear()-y.getFullYear();
+  const m=t.getMonth()-y.getMonth();
+  if(m<0||(m===0&&t.getDate()<y.getDate())) a--;
+  return a;
+};
 
 U.copy = async (text)=>{
   try{ await navigator.clipboard.writeText(text); return true; }
