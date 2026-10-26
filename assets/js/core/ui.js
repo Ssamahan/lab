@@ -217,14 +217,17 @@ UI.confetti=function(opts){
 };
 
 /* ——— Print manifest / roster helpers ————————— */
-UI.barcode=(code)=>{
+UI.barcode=(code,opts)=>{
+  opts=opts||{};
   const hash=U.hash(code); let bars='';
   for(let i=0;i<46;i++){
     const bit=(hash>>(i%30))&1; const w=(i%7===0)?1:(i%3===0?3:2);
     bars+='<i style="width:'+w+'px;height:'+(bit?100:70)+'%" class="'+(w===1?'thin':'')+'"></i>';
     if(i%9===0) bars+='<i class="gap"></i>';
   }
-  return '<div><div class="barcode">'+bars+'</div><div class="barcode-lbl">'+U.esc(code)+'</div></div>';
+  /* The label is optional: on a manifest the ID already sits in its own column, so the
+     barcode is printed as bars only. */
+  return '<div><div class="barcode">'+bars+'</div>'+(opts.label===false?'':'<div class="barcode-lbl">'+U.esc(code)+'</div>')+'</div>';
 };
 /* Clipboard with a fallback for browsers that refuse the async API (or run it from a
    context that is not user-initiated). Returns true only when the text really landed. */

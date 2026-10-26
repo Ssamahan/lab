@@ -94,7 +94,8 @@ only places that build an ID, and a number is taken inside the commit that store
 **Referred samples → Manifests** lists every manifest ever generated on this device and in the
 shared copy, newest first: the ID, the receiving laboratory, how many samples are on it, the tests
 and the day it was made. Each card opens **View** (the printed sheet, both coats over a gold rule,
-the ID above its barcode, one row per sample, three signature lines), **Print / PDF**, or **Delete**
+the ID above its barcode, one row per sample, three signature lines with the courier read back from
+the order), **Print / PDF**, or **Delete**
 — deleting a manifest leaves its samples in the register. The tab carries its own address,
 `#/samples?tab=manifests`, and `#/samples?manifest=1` opens the generator.
 
@@ -105,8 +106,9 @@ it from that manifest, writes an audit entry, and the toast offers **Undo**.
 ## Patient identity
 
 `U.ptName(record)` answers `Confidential` — except for the **Admin**, who may record and read a name.
-No other role sees one, and every export, manifest and printed sheet calls `U.ptName()` without a
-record, so a file never contains a name whoever is signed in. A one-time migration replaced the
+No other role sees one. Register exports call `U.ptName()` without a record, so a register
+file never contains a name. The **manifest sheet** and the table copied from it follow the record —
+the name for the Admin, `Confidential` for every other role. A one-time migration replaced the
 names carried forward from v5 — no name from that register exists in `localStorage`, a backup or the
 shared copy. **Age is calculated** from a date of birth (`LSU.ageFromDob`), never typed while a
 date is present.
