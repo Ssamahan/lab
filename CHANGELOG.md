@@ -4,6 +4,32 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.36
+
+**Names for the whole laboratory, Gram Stain and Cytology with every blood culture, and the bar code
+back to its old shape.**
+
+### Who sees a name
+`U.canSeeNames()` now answers **yes for anyone signed in** and **no for the public visitor**. The
+name typed on the order is read in the register, the record drawer, the manifest and the exports;
+the visitor's read-only session still sees `Confidential` everywhere. Records whose name was erased
+by the 6.9.30 mask read `Confidential` until the name is typed again — the old value was overwritten
+on the device and cannot be read back by the app.
+
+### Gram Stain and Cytology travel with a blood culture
+- a blood culture is never ordered alone: choosing it ticks **Cytology** and **Gram Stain** (dashed
+  border, marked as routine), and un-ticking it removes the pair;
+- the test menu gains both entries (`CYT`, `GS`), added by migration on an existing device;
+- the record keeps them in the order the manifest prints — `Cytology · Gram Stain · Blood Culture` —
+  and the manifest's Test column lists them one per line in that order;
+- the manifest card, the drawer and the CSV exports show the full list; the sample ID still comes
+  from the culture (`RBC…`).
+
+### The bar code, back to the way it was
+The SVG code (which is what makes it print) is redrawn to the console's own proportions: a 34px
+strip, 1px and 2px bars, 1.5px of air, a little extra gap every ninth bar, and the short bars at
+seven tenths of the full height, all on one baseline — the code from before, in ink.
+
 ## What changed in 6.9.35
 
 **The signature line is one line, the footer reads the way it always did, and the bar code keeps

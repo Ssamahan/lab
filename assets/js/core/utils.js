@@ -725,10 +725,16 @@ U.exportChartPNG = (host,opts)=>{
    is displayed, exported, printed or pushed with a patient name in it. `U.ptName`
    takes the stored value so callers need no branch — it answers with the mask. */
 U.CONFIDENTIAL='Confidential';
-/* Only an Admin may read a recorded name. Everyone else — manager, technologist,
-   reviewer, viewer, visitor — is answered with the mask, and so is every export,
-   manifest and printed sheet, which call U.ptName() without a record. */
-U.canSeeNames=function(){ try{ return !!(window.LS&&LS.auth&&LS.auth.user&&LS.auth.user.role==='Admin'); }catch(e){ return false; } };
+/* Anyone signed in reads a recorded name — the whole laboratory staff. The mask is
+   for the public visitor only: the read-only session opened from the landing, which has
+   no account behind it. */
+U.canSeeNames=function(){
+  try{
+    if(!(window.LS&&LS.auth&&LS.auth.user)) return false;
+    if(LS.auth.isVisitor&&LS.auth.isVisitor()) return false;
+    return !LS.auth.user.visitor;
+  }catch(e){ return false; }
+};
 U.ptName=function(rec){
   if(rec && U.canSeeNames() && rec.patientName && rec.patientName!==U.CONFIDENTIAL) return rec.patientName;
   return U.CONFIDENTIAL;

@@ -276,6 +276,8 @@
 .choice.on .cmark{border-color:var(--gold); background:var(--gold); color:#241A06}
 .choice .ct{font-size:12px; font-weight:500; color:var(--text)}
 .choice .cs{font-size:10px; color:var(--text-faint); margin-top:1px}
+/* A test the order adds by itself — Cytology and Gram Stain with every blood culture. */
+.choice.routine{border-style:dashed}
 
 /* ══════════════════════════════════════════════════════════════
    11. CUSTODY TIMELINE (samples · incidents · audits)

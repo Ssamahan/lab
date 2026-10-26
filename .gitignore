@@ -1,3 +1,6 @@
 
 # local test harness (jsdom) — never shipped
 .arena/
+harness/
+node_modules/
+package-lock.json
