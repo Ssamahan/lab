@@ -4,6 +4,25 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.37
+
+**What prints is what you see.**
+
+- **Print / PDF now prints the node on screen.** With the preview open, the button hands the very
+  `#manDoc` from the modal to the printer instead of rebuilding the sheet; with the preview closed
+  it builds the same markup as before. The two cannot drift apart again.
+- **The page prints as the sheet too.** While a manifest preview is open the console marks itself
+  (`body.manifest-open`); the print stylesheet then hides the rail, the modal heading and the
+  buttons, releases the scroll box, and puts the footer on the paper margin. This is the case that
+  was failing on a phone, where `iframe.contentWindow.print()` prints the *page* rather than the
+  frame — the page used to come out as the console, not as the sheet.
+- **`U.print` prefers a window of its own** (which desktop and Android print correctly) and falls
+  back to the hidden frame when a popup is blocked.
+- **Module URLs are version-stamped** (`assets/js/modules/samples.js?v=6.9.37`). The service worker
+  is stale-while-revalidate for modules, so after a deploy the first load could run the previous
+  `samples.js` — the most likely reason a print could still show the older sheet. A version in the
+  URL means a stale module is never served in place of the one that matches the shell.
+
 ## What changed in 6.9.36
 
 **Names for the whole laboratory, Gram Stain and Cytology with every blood culture, and the bar code

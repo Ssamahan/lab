@@ -757,11 +757,23 @@ U.copy = async (text)=>{
   catch(e){ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); return true; }catch(e2){ return false; } }
 };
 U.print = (html)=>{
+  /* A window of its own is what every desktop and Android browser prints correctly. A blocked
+     popup (or a browser that refuses it) falls back to the hidden frame. */
+  let win=null;
+  try{ win=window.open('','_blank'); }catch(e){ win=null; }
+  if(win && win.document){
+    try{
+      win.document.open(); win.document.write(html); win.document.close();
+      setTimeout(()=>{ try{ win.focus(); win.print(); }catch(e){} },300);
+      return true;
+    }catch(e){ try{ win.close(); }catch(_){} }
+  }
   const f=document.createElement('iframe');
   f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
   document.body.appendChild(f);
   const w=f.contentWindow; w.document.open(); w.document.write(html); w.document.close();
   setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} setTimeout(()=>f.remove(),1200); },260);
+  return true;
 };
 U.letterhead = (opts)=>{
   const s=LS.store.settings();

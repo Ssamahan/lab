@@ -575,8 +575,9 @@ function manifestDocHTML(man,opts){
     +'Specimen Manifest Generated On: '+U.fmtDate(man.createdAt||U.todayISO())+' &nbsp;|&nbsp; Samples: '+samples.length+' &nbsp;|&nbsp; Page 1/1</div>';
   return '<div class="manifest-doc" id="manDoc" style="background:#fff;color:#111;padding:18px;border-radius:8px">'+head+band+table+sig+foot+'</div>';
 }
-/* Print: the same document, on A4 landscape, without the console's own letterhead. */
-function printManifest(man){
+/* Print: the very node on screen when the preview is open (so what is printed cannot drift
+   from what is seen), otherwise a freshly built sheet. A4 landscape, own stylesheet. */
+function printManifest(man,node){
   const css='@page{size:A4 landscape;margin:12mm 12mm 18mm}'
     +'html,body{background:#fff}'
     +'body{font-family:"Trebuchet MS",Segoe UI,Inter,sans-serif;color:#111;margin:0;font-size:10px;line-height:1.45;'
@@ -587,20 +588,28 @@ function printManifest(man){
     +'.manifest-foot{position:fixed;left:0;right:0;bottom:0;margin:0!important;padding:4px 0 0;'
       +'text-align:center;border-top:1px solid #d8dde7;background:#fff;font-size:8px;color:#8a93a6}'
     +'.manifest-sig{page-break-inside:avoid;break-inside:avoid;max-width:none!important}';
+  const sheet=node&&node.outerHTML?node.outerHTML:manifestDocHTML(man);
   U.print('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sample Referral Manifest — '+U.esc(man.manifestId)+'</title>'
-    +'<style>'+css+'</style></head><body>'+manifestDocHTML(man)+'</body></html>');
+    +'<style>'+css+'</style></head><body>'+sheet+'</body></html>');
 }
 function manifestPreviewModal(man){
   const samples=manifestSamples(man);
   UI.modal({title:'Manifest '+man.manifestId,
     sub:U.fmtDate(man.createdAt)+' · '+samples.length+' sample'+(samples.length===1?'':'s')+' · '+U.esc(man.testingHospital||''),
     width:'min(1080px,100%)',
-    body:'<div style="max-height:70vh;overflow:auto;border:1px solid var(--border);border-radius:10px">'+manifestDocHTML(man)+'</div>',
+    body:'<div class="manifest-preview-body" style="max-height:70vh;overflow:auto;border:1px solid var(--border);border-radius:10px">'+manifestDocHTML(man)+'</div>',
     foot:'<button class="btn" data-close>Close</button>'
       +'<button class="btn" data-copy-man>'+UI.ic('copy',15)+'Copy data</button>'
       +'<button class="btn primary" data-print-man>'+UI.ic('printer',15)+'Print / PDF</button>',
     onMount:(el)=>{
-      el.querySelector('[data-print-man]').onclick=()=>printManifest(man);
+      /* While this sheet is open the *page* is printable too: the print stylesheet hides the
+         console and leaves the sheet alone, so Ctrl+P, Share → Print and the button all agree. */
+      document.body.classList.add('manifest-open');
+      try{
+        const watch=new MutationObserver(()=>{ if(!document.querySelector('#manDoc')){ document.body.classList.remove('manifest-open'); watch.disconnect(); } });
+        watch.observe(document.getElementById('layer')||document.body,{childList:true,subtree:true});
+      }catch(e){}
+      el.querySelector('[data-print-man]').onclick=()=>printManifest(man,el.querySelector('#manDoc'));
       el.querySelector('[data-copy-man]').onclick=async()=>{
         const ok=await U.copy(U.toCSV([['No','Sample ID','Health facility','Patient','Patient ID','DOB','Sex','Test','Collection date']]
           .concat(samples.map((x,i)=>[i+1,x.sampleId,[x.healthFacility||'',x.district||''].filter(Boolean).join(', '),U.ptName(x),x.patientId||'',x.dob||'',x.sex||'',x.test,x.collectionDate||'']))));

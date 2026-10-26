@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.36';
+const APP_VERSION='6.9.37';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -51,7 +51,9 @@ function loadModule(id){
   if(loaded[id]) return Promise.resolve();
   return new Promise((resolve,reject)=>{
     const sc=document.createElement('script');
-    sc.src='assets/js/modules/'+r.file+'.js';
+    /* The version is part of the URL: after a deploy a cached module can never be served
+       in place of the one that goes with this shell. */
+    sc.src='assets/js/modules/'+r.file+'.js?v='+encodeURIComponent(APP_VERSION);
     sc.async=true;
     sc.onload=()=>{ loaded[id]=true; resolve(); };
     sc.onerror=()=>reject(new Error('Could not load module: '+id));
