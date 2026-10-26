@@ -82,11 +82,12 @@ publish its seed over it: the background loop refuses and says so.
 
 ```
 sample     R + <test code> + MMYY + 4 digits      RBC10260001
-manifest   <test code> + YYMMDD + 4 characters    BC2610270001
+manifest   <test code> + YYMMDD + 4 alphanumerics BC261027A001
 ```
 
 The code comes from the chosen test, the date from the day, the number from a per-code, per-month
-counter. `S.testCode`, `S.sampleId`/`S.takeSampleId` and `S.manifestId`/`S.takeManifestId` are the
+counter. The manifest tail is alphanumeric (`A001`, `A00A`, `A011`) and counts up with
+`meta.manifestSerial`. **Ruli DH** is the sending laboratory and the default origin on an order. `S.testCode`, `S.sampleId`/`S.takeSampleId` and `S.manifestId`/`S.takeManifestId` are the
 only places that build an ID, and a number is taken inside the commit that stores the record.
 
 ## Blood culture
