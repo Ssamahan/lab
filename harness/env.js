@@ -11,13 +11,15 @@ class Loader extends ResourceLoader{
     return Promise.resolve(fs.existsSync(f)?fs.readFileSync(f):Buffer.from(''));
   }
 }
-async function boot(hash){
+async function boot(hash, opts){
+  opts=opts||{};
   const errors=[]; const vc=new VirtualConsole();
   vc.on('jsdomError',e=>{ if(!/Not implemented: (navigation|window.scrollTo|window.scroll|window.open)/.test(e.message)) errors.push('jsdom: '+e.message); });
   vc.on('error',(...a)=>errors.push('console.error: '+a.join(' ')));
   const dom=new JSDOM(fs.readFileSync(path.join(ROOT,'index.html'),'utf8'),{
     url:'http://localhost/'+(hash||''), runScripts:'dangerously', resources:new Loader(),
-    pretendToBeVisual:true, virtualConsole:vc });
+    pretendToBeVisual:true, virtualConsole:vc,
+    beforeParse(window){ if(opts.seed) opts.seed(window); } });
   const w=dom.window;
   w.matchMedia=w.matchMedia||(()=>({matches:false,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){}}));
   w.ResizeObserver=w.ResizeObserver||class{observe(){} unobserve(){} disconnect(){}};

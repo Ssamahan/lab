@@ -418,7 +418,7 @@ function editSample(id){
   if(!LS.auth.guard('edit')) return;
   const opts=(list,cur)=>list.map(v=>'<option value="'+U.esc(v)+'"'+(v===cur?' selected':'')+'>'+U.esc(v)+'</option>').join('');
   const tests=U.uniq(S.tests().map(t=>t.name).concat([s.test]));
-  const facilities=U.uniq(S.db().catalog.healthCenters.map(h=>h.name).concat([s.healthFacility||'Ruli DH']));
+  const facilities=U.uniq(['Ruli DH'].concat(S.db().catalog.healthCenters.map(h=>h.name)).concat([s.healthFacility||'Ruli DH']));
   const labs=U.uniq(S.db().catalog.hospitals.map(h=>h.name).concat(['Ruli DH - GeneXpert',s.hospital||''])).filter(Boolean);
   const statuses=['Registered','Received','Pending','Resulting','Resulted','Done','Positive','Negative','Rejected'];
   UI.modal({title:'Edit sample record',sub:s.sampleId+' · corrections are written to the audit trail with your name.',width:'min(720px,100%)',
@@ -475,7 +475,7 @@ function addToManifest(ids){
   if(!LS.auth.guard('edit')) return;
   const db=S.db();
   const candidates=db.samples.filter(s=>!s.manifestId && !s.resultedAt).slice(0,40);
-  UI.modal({title:'Add to manifest',sub:'Select samples travelling to the same receiving laboratory. The manifest ID is built from the test code and today\'s date: code + YYMMDD + a four-character tail.',
+  UI.modal({title:'Add to manifest',sub:'Select samples travelling to the same receiving laboratory. The manifest ID is built from the test code and today\'s date: code + YYMMDD + four alphanumeric characters (BC261027A001).',
     width:'min(680px,100%)',
     body:'<div class="field" style="margin-bottom:12px"><label>Receiving laboratory</label><select class="select" id="manHosp">'+U.uniq(candidates.map(s=>s.hospital||'Ruli DH')).map(h=>'<option>'+U.esc(h)+'</option>').join('')+'</select></div>'
       +'<div style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:9px">'+(candidates.length?candidates.map(s=>'<label class="row" style="padding:8px 11px;border-bottom:1px solid var(--border);gap:9px;cursor:pointer"><input type="checkbox" data-man-pick value="'+s.id+'" '+(ids.includes(s.id)?'checked':'')+' style="accent-color:#C9A84C"><span class="grow"><span class="small mono">'+U.esc(s.sampleId)+'</span> <span class="xs faint">'+U.esc(U.ptName(s))+' · '+U.esc(s.test)+'</span></span><span class="pill slate">'+U.esc(s.healthFacility||'—')+'</span></label>').join(''):'<div class="empty" style="padding:24px"><p class="xs muted">No unmanifested active samples.</p></div>')+'</div>',
@@ -732,9 +732,11 @@ function newWizard(){
   if(!LS.auth.guard('edit')) return;
   const db=S.db();
   const tests=S.tests();
-  const hcs=db.catalog.healthCenters.map(h=>h.name);
+  /* The laboratory that sends these specimens is the hospital's own: Ruli DH comes first
+     and is the default. Health centres stay on the list for specimens collected there. */
+  const hcs=U.uniq(['Ruli DH'].concat(db.catalog.healthCenters.map(h=>h.name)));
   const hospitals=db.catalog.hospitals.map(h=>h.name).concat(['Ruli DH - GeneXpert']);
-  const state={step:1,patient:{name:'',pid:'',sex:'Female',dob:'',age:''},tests:[],priority:'Routine',origin:hcs[0],hospital:hospitals[0],transporter:'',notes:'',sampleId:''};
+  const state={step:1,patient:{name:'',pid:'',sex:'Female',dob:'',age:''},tests:[],priority:'Routine',origin:'Ruli DH',hospital:hospitals[0],transporter:'',notes:'',sampleId:''};
   /* The preview must read like the real thing: test code, month, next number. */
   const firstTestName=()=>{ const t=tests.find(x=>x.id===state.tests[0]); return t?t.name:''; };
   const previewId=()=>S.sampleId(firstTestName()||(tests[0]&&tests[0].name),U.todayISO());

@@ -4,6 +4,30 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.38
+
+**Ruli DH is the sending laboratory, and a manifest code always ends in four alphanumeric
+characters.**
+
+### Health facility on the manifest
+The wizard's origin list started at the first health centre, so every order registered in the
+console was filed under **Ruli HC** — and the manifest printed it. Now:
+- **Ruli DH** is first on the list and the one selected by default; the health centres stay
+  available for specimens collected there;
+- a one-time correction moves console-registered orders filed as *Ruli HC* to **Ruli DH**, so
+  existing manifests read `Ruli DH, Gakenke`;
+- the appearance/edit lists offer Ruli DH as well.
+
+### The manifest code's last four characters
+`<code><YYMMDD><tail>` — the tail was the serial written in base 36, which for a young register is
+`0001`, `0002`: a run of digits, with nothing alphanumeric after the date. The tail is now offset
+into the letter range, so the first manifest of the day is **A001**, the tenth **A00A**, the
+thirty-seventh **A011** — still ordered and still unique, always alphanumeric.
+
+A one-time repair rewrites any stored manifest code that does not fit `<code><YYMMDD><4
+alphanumeric>` — an old seed code, or one of those digit-only tails — from the manifest's own
+creation date, the test on its samples, and a fresh serial. Nothing else about the manifest changes.
+
 ## What changed in 6.9.37
 
 **What prints is what you see.**

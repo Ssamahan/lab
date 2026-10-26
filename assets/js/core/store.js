@@ -402,8 +402,8 @@ let DB=null, listeners=[], saveTimer=null, dirty=false;
      sample    R + <test code> + MMYY + 4 digits    RBC10260001
                remote · blood culture · October 2026 · first sample of that month
 
-     manifest  <test code> + YYMMDD + 4 characters  BC2610277K2A
-               blood culture manifest · created 27 October 2026 · alphanumeric tail
+     manifest  <test code> + YYMMDD + 4 alphanumerics  BC261027A001
+               blood culture manifest · created 27 October 2026 · tail A001, A002 … A00A
 
    Counters live in `meta.sampleCounters` and `meta.manifestSerial`, so a number is
    never reused on this device even after the month rolls over. */
@@ -439,17 +439,26 @@ S.takeSampleId=function(testName,when,db){
   db.meta.sampleCounters[key]=next;
   return 'R'+code+tag+String(next).padStart(4,'0');
 };
+/* The tail is four characters and it is alphanumeric, not a plain number: the serial is
+   written in base 36 with the first character filled from the letter range (36³ = A000),
+   so the first manifest of a day reads A001, the tenth A00A, the thirty-seventh A010 —
+   still ordered, still unique, and never a run of digits only. */
+const TAIL_OFFSET=10*36*36*36;   /* A000 in base 36 */
+function manifestTail(serial){
+  const n=Math.max(1,Number(serial)||1);
+  return (n+TAIL_OFFSET).toString(36).toUpperCase().padStart(4,'0');
+}
+S.manifestTail=manifestTail;
 S.manifestId=function(testName,when){
   const d=idDate(when), code=S.testCode(testName);
   const stamp=String(d.getFullYear()).slice(-2)+pad2(d.getMonth()+1)+pad2(d.getDate());
-  const c=Number((S.db().meta.manifestSerial)||0)+1;
-  return code+stamp+String(c.toString(36).toUpperCase()).padStart(4,'0');
+  return code+stamp+manifestTail(Number((S.db().meta.manifestSerial)||0)+1);
 };
 S.takeManifestId=function(testName,when,db){
   const d=idDate(when), code=S.testCode(testName);
   const stamp=String(d.getFullYear()).slice(-2)+pad2(d.getMonth()+1)+pad2(d.getDate());
   db.meta.manifestSerial=(Number(db.meta.manifestSerial)||0)+1;
-  return code+stamp+String(db.meta.manifestSerial.toString(36).toUpperCase()).padStart(4,'0');
+  return code+stamp+manifestTail(db.meta.manifestSerial);
 };
 
 function normalize(db){
@@ -500,6 +509,40 @@ function normalize(db){
   if(!db.meta.patientNamesMasked){
     db.meta.patientNamesMasked=true;
     db.samples.forEach(x=>{ if(x && x.patientName!==U.CONFIDENTIAL) x.patientName=U.CONFIDENTIAL; });
+  }
+  /* v6.9.38 — the laboratory that sends these specimens is the hospital's own, Ruli DH.
+     Orders registered in this console were being filed under the first health centre in
+     the list (Ruli HC); they are corrected to Ruli DH, which is also the new default.
+     A specimen genuinely collected at a health centre keeps whatever was chosen for it. */
+  if(!db.meta.originRuliDhV6938){
+    db.meta.originRuliDhV6938=1;
+    (db.samples||[]).forEach(x=>{ if(x && x.source==='register' && x.healthFacility==='Ruli HC') x.healthFacility='Ruli DH'; });
+    if(db.catalog && db.catalog.healthCenters && !db.catalog.healthCenters.some(h=>h.name==='Ruli DH')){
+      db.catalog.healthCenters.unshift({id:'hc0',name:'Ruli DH'});
+    }
+  }
+  /* v6.9.38 — a manifest code is always <code><YYMMDD><4 alphanumeric>. Anything stored in
+     another shape (an old seed code, or one made before the tail was alphanumeric) is
+     rebuilt from its own creation date, in the order the manifests were made. */
+  if(!db.meta.manifestCodesV6938){
+    db.meta.manifestCodesV6938=1;
+    const shape=/^[A-Z]{2,3}\d{6}[A-Z0-9]{4}$/;
+    const ordered=(db.manifests||[]).slice().sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+    ordered.forEach(m=>{
+      /* A numeric tail is rewritten too: the fourth character onward must be alphanumeric. */
+      const tail=String(m&&m.manifestId||'').slice(-4);
+      if(m && m.manifestId && shape.test(m.manifestId) && /[A-Z]/.test(tail)) return;
+      const first=(m.samples||[]).map(id=>(db.samples||[]).find(s=>s.id===id)).find(Boolean);
+      /* DB is not published yet while normalize runs, so read the catalog from `db` — never
+         through S.db(), which would re-enter this function. */
+      const menu=(db.catalog&&db.catalog.tests)||[];
+      const entry=menu.find(t=>t&&t.name===(first&&first.test));
+      const code=String(entry&&entry.code||'GEN').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
+      const d=idDate(m.createdAt);
+      const stamp=String(d.getFullYear()).slice(-2)+pad2(d.getMonth()+1)+pad2(d.getDate());
+      db.meta.manifestSerial=(Number(db.meta.manifestSerial)||0)+1;
+      m.manifestId=code+stamp+manifestTail(db.meta.manifestSerial);
+    });
   }
   db.meta.sampleCounters=db.meta.sampleCounters||{};
   db.meta.manifestSerial=Number(db.meta.manifestSerial)||0;
