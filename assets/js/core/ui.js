@@ -229,6 +229,21 @@ UI.barcode=(code,opts)=>{
      barcode is printed as bars only. */
   return '<div><div class="barcode">'+bars+'</div>'+(opts.label===false?'':'<div class="barcode-lbl">'+U.esc(code)+'</div>')+'</div>';
 };
+/* Barcodes that survive printing: the console draws them with CSS backgrounds, which a
+   browser drops when "background graphics" is off. SVG rects are ink, so they always print. */
+UI.barcodeSVG=(code,opts)=>{
+  opts=opts||{};
+  const h=opts.height||30;
+  const hash=U.hash(code); let x=0; const parts=[];
+  for(let i=0;i<46;i++){
+    const bit=(hash>>(i%30))&1; const w=(i%7===0)?1:(i%3===0?3:2);
+    if(bit) parts.push('<rect x="'+x+'" y="0" width="'+w+'" height="'+h+'"/>');
+    x+=w+((i%9===0)?2:1);
+  }
+  return '<svg class="barcode-svg" role="img" aria-label="'+U.esc(code)+'" width="'+x+'" height="'+h
+    +'" viewBox="0 0 '+x+' '+h+'" preserveAspectRatio="none" fill="#111" shape-rendering="crispEdges" '
+    +'style="display:block;max-width:100%;height:auto">'+parts.join('')+'</svg>';
+};
 /* Clipboard with a fallback for browsers that refuse the async API (or run it from a
    context that is not user-initiated). Returns true only when the text really landed. */
 UI.copy=async function(text){
