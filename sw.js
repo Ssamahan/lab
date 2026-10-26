@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.31';
+const VERSION = 'v6.9.32';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 

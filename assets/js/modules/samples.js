@@ -91,7 +91,7 @@ function rowHTML(s,sel){
 function tableHTML(){
   const s=base(); const list=filtered(); const shown=list.slice(0,s.limit); const cnt=counts();
   const rows=shown.map(x=>rowHTML(x,s.selected)).join('');
-  const bulk=s.selected.size? '<div class="bulkbar">'+UI.ic('layers',13)+'<b>'+s.selected.size+' selected</b><span class="faint">·</span><button class="btn xs" data-bulk-manifest>Add to manifest</button><button class="btn xs" data-bulk-export>Export selection</button><button class="btn xs ghost" data-bulk-clear>Clear</button><span class="grow"></span><span class="xs faint">Chain of custody preserved</span></div>':'';
+  const bulk=s.selected.size? '<div class="bulkbar">'+UI.ic('layers',13)+'<b>'+s.selected.size+' selected</b><span class="faint">·</span><button class="btn xs" data-bulk-manifest>Add to manifest</button><button class="btn xs" data-bulk-export>Export selection</button>'+(LS.auth.can('delete')?'<button class="btn xs danger" data-bulk-delete>'+UI.ic('trash-2',12)+' Delete selected</button>':'')+'<button class="btn xs ghost" data-bulk-clear>Clear</button><span class="grow"></span><span class="xs faint">Chain of custody preserved</span></div>':'';
   return '<div class="card table-card">'
    +'<div class="toolbar">'
      +'<div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="smpSearch" placeholder="Search sample ID, patient, facility…" value="'+U.esc(s.q)+'"></div>'
@@ -333,7 +333,7 @@ function openSample(id){
    +'<div class="card pad" style="background:var(--surface-inset)"><div class="row between"><div class="xs faint">Created by '+U.esc(s.collector||'Register')+' · '+U.fmtDate(s.collectionDate)+'</div><div class="xs faint mono">'+U.esc(s.source||'register')+' · '+U.esc(s.id)+'</div></div></div>';
   const d=UI.drawer({title:U.ptName(s),eyebrow:'Sample record',sub:s.sampleId+' · '+s.test,wide:true,body:body,
     foot:'<button class="btn" data-close>Close</button><button class="btn" data-edit-rec>'+UI.ic('pencil',15)+'Edit record</button>'
-      +(s.manifestId?'<button class="btn" data-print-manifest>'+UI.ic('printer',15)+'Print manifest</button>':'<button class="btn" data-add-manifest>'+UI.ic('clipboard-list',15)+'Add to manifest</button>')
+      +(s.manifestId?'<button class="btn" data-print-manifest>'+UI.ic('clipboard-list',15)+'View manifest</button>':'<button class="btn" data-add-manifest>'+UI.ic('clipboard-list',15)+'Add to manifest</button>')
       +(s.resultedAt?'':'<button class="btn" data-quick-result>'+UI.ic('check',15)+'Quick result</button>')});
   const panel=d.panel;
   const val=panel.querySelector('#resVal');
@@ -397,7 +397,7 @@ function openSample(id){
   panel.querySelector('[data-quick-result]')?.addEventListener('click',()=>{ panel.querySelector('#resVal')?.focus(); panel.querySelector('#resVal')?.scrollIntoView({block:'center',behavior:'smooth'}); });
   panel.querySelector('[data-edit-rec]')?.addEventListener('click',()=>{ d.close(); editSample(s.id); });
   panel.querySelector('[data-add-manifest]')?.addEventListener('click',()=>{ addToManifest([s.id]); });
-  panel.querySelector('[data-print-manifest]')?.addEventListener('click',()=>{ const man=S.db().manifests.find(m=>m.id===s.manifestId); if(man) printManifest(man); });
+  panel.querySelector('[data-print-manifest]')?.addEventListener('click',()=>{ const man=S.db().manifests.find(m=>m.id===s.manifestId); if(man) manifestPreviewModal(man); });
 }
 
 /* ——— Manual correction of a register record ————————————————— */
@@ -481,32 +481,206 @@ function addToManifest(ids){
         S.commit(d=>{ mid=S.takeManifestId(firstPick?firstPick.test:'',U.todayISO(),d); man.manifestId=mid; d.manifests.unshift(man);
           picks.forEach(id=>{ const s=d.samples.find(x=>x.id===id); if(s){ s.manifestId=man.id; s.status='Received'; if(!s.receivedAt) s.receivedAt=U.nowISO(); } }); },
           {action:'manifest.create',entity:'manifest',entityId:man.id,detail:picks.length+' samples on manifest '+mid+' → '+hosp});
-        close(); UI.toast('Manifest '+mid+' generated · '+picks.length+' samples',{type:'ok',actions:[{label:'Preview',onClick:()=>printManifest(man)}]});
-        LS.shell.refresh();
+        close(); UI.toast('Manifest '+mid+' generated · '+picks.length+' samples',{type:'ok',actions:[{label:'View manifest',onClick:()=>manifestPreviewModal(man)}]});
+        if(st) st.tab='manifests';
+        paintView(); syncURL(); LS.shell.refresh();
       };
     }});
 }
+/* ——— The manifest document ————————————————————————
+   Restored to the layout the department settled on in the first week of October:
+   both coats in the header over a gold rule, the ID above its barcode in a pale band,
+   a full table (No · Sample ID · Health facility · Patient · Patient ID · DOB · Sex ·
+   Test · Collection date · Barcode) and the three signature lines underneath. */
+function manifestSamples(man){
+  const db=S.db();
+  return (man.samples||[]).map(id=>db.samples.find(s=>s.id===id)).filter(Boolean);
+}
+function manifestDocHTML(man,opts){
+  opts=opts||{};
+  const db=S.db(); const st=db.settings||{};
+  const samples=manifestSamples(man);
+  const logoRuli='assets/ruli-hospital-192-centered.png';
+  const logoRw='assets/rwanda-coat-192-centered.png';
+  const rule='#C9A84C', navy='#0B1C3D';
+  const head='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 6px 12px;border-bottom:3px solid '+rule+';margin-bottom:12px">'
+    +'<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:104px">'
+      +'<img src="'+logoRw+'" alt="" style="width:96px;height:96px;object-fit:contain">'
+      +'<span style="font-size:10px;font-weight:700;text-align:center;color:'+navy+'">Republic of Rwanda</span></div>'
+    +'<div style="flex:1;text-align:center">'
+      +'<div style="font-family:Georgia,serif;font-size:20px;font-weight:600;color:'+navy+';letter-spacing:.01em">'+U.esc(man.title||'Sample Referral Manifest')+'</div>'
+      +'<div style="font-size:11px;font-weight:600;color:#444;margin-top:4px">Testing Hospital: '+U.esc(man.testingHospital||'')+'</div>'
+      +'<div style="font-size:9.5px;color:#666;margin-top:3px;letter-spacing:.1em;text-transform:uppercase">'+U.esc(st.hospital||'Ruli District Hospital')+' · '+U.esc(st.dept||'Laboratory Department')+'</div></div>'
+    +'<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:104px">'
+      +'<img src="'+logoRuli+'" alt="" style="width:96px;height:96px;object-fit:contain">'
+      +'<span style="font-size:10px;font-weight:700;text-align:center;color:'+navy+'">'+U.esc(st.hospital||'Ruli District Hospital')+'</span></div>'
+    +'</div>';
+  const band='<div style="display:flex;align-items:center;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#F7F8FC;border:1px solid #e6e9f1;border-radius:8px">'
+    +'<span style="font-weight:800;font-size:13px;letter-spacing:.06em;font-family:ui-monospace,Menlo,monospace;color:#111">'+U.esc(man.manifestId)+'</span>'
+    +'<span style="background:#fff;padding:3px 6px;border-radius:4px">'+UI.barcode(man.manifestId)+'</span>'
+    +'</div>';
+  const th='background:#C4C4C4;color:#111;font-weight:700;font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;padding:5px 5px;border:1px solid #9a9a9a;text-align:left';
+  const td='padding:4px 5px;border:1px solid #c9c9c9;font-size:8.6px;vertical-align:top';
+  const rows=samples.map((x,i)=>'<tr>'
+    +'<td style="'+td+'">'+(i+1)+'</td>'
+    +'<td style="'+td+';font-weight:700;font-family:ui-monospace,Menlo,monospace;white-space:nowrap">'+U.esc(x.sampleId)+'</td>'
+    +'<td style="'+td+'">'+U.esc([x.healthFacility||'',x.district||'Gakenke'].filter(Boolean).join(', '))+'</td>'
+    +'<td style="'+td+'">'+U.esc(U.ptName())+'</td>'
+    +'<td style="'+td+'">'+U.esc(x.patientId||'—')+'</td>'
+    +'<td style="'+td+'">'+U.esc(x.dob?U.fmtDate(x.dob):'—')+'</td>'
+    +'<td style="'+td+'">'+U.esc(x.sex||'—')+'</td>'
+    +'<td style="'+td+'">'+U.esc(x.test)+'</td>'
+    +'<td style="'+td+';white-space:nowrap">'+U.esc(x.collectionDate?U.fmtDate(x.collectionDate):'—')+'</td>'
+    +'<td style="'+td+'">'+UI.barcode(x.sampleId)+'</td></tr>').join('');
+  const table='<table style="width:100%;border-collapse:collapse;table-layout:auto">'
+    +'<thead><tr>'+['No','Sample ID','Health facility','Patient name','Patient ID','DOB','Sex','Test','Collection date','Barcode'].map(h=>'<th style="'+th+'">'+h+'</th>').join('')+'</tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="10" style="'+td+';text-align:center;color:#888">No samples on this manifest.</td></tr>')+'</tbody></table>';
+  const line='font-size:10px;line-height:2.05;color:#222';
+  const foot='<div style="margin-top:14px;'+line+'">'
+    +'<div><b>Generated By:</b> '+U.esc(man.createdBy||(LS.auth.user&&LS.auth.user.name)||'')+' &nbsp;&nbsp; <b>Date:</b> '+U.fmtDate(man.createdAt||U.todayISO())+'</div>'
+    +'<div><b>Transported By:</b> '+(man.transportedBy?U.esc(man.transportedBy):'____________________')+' &nbsp;&nbsp; <b>Date of Transport:</b> ____ / ____ / ________</div>'
+    +'<div><b>Received By (at '+U.esc(man.testingHospital||'')+'):</b> ____________________ &nbsp;&nbsp; <b>Date of Reception:</b> ____ / ____ / ________</div>'
+    +'<div style="margin-top:8px;text-align:center;color:#6b7a99;font-size:9.5px">Specimen Manifest Generated On: '+U.fmtDate(man.createdAt||U.todayISO())+' &nbsp;|&nbsp; Samples: '+samples.length+' &nbsp;|&nbsp; Page 1/1</div>'
+    +'</div>';
+  return '<div class="manifest-doc" id="manDoc" style="background:#fff;color:#111;padding:18px;border-radius:8px">'+head+band+table+foot+'</div>';
+}
+/* Print: the same document, on A4 landscape, without the console's own letterhead. */
 function printManifest(man){
-  const db=S.db(); const samples=man.samples.map(id=>db.samples.find(s=>s.id===id)).filter(Boolean);
-  const body='<table><thead><tr><th>#</th><th>Sample ID</th><th>Patient</th><th>Sex</th><th>Test</th><th>Origin</th><th>Collected</th><th>Priority</th></tr></thead><tbody>'
-    +samples.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.sampleId)+'</td><td>'+U.esc(U.ptName(s))+'</td><td>'+U.esc(s.sex||'')+'</td><td>'+U.esc(s.test)+'</td><td>'+U.esc(s.healthFacility||'')+'</td><td>'+U.fmtDate(s.collectionDate)+'</td><td>'+U.esc(s.priority)+'</td></tr>').join('')
-    +'</tbody></table>'
-    +'<p style="font-size:8.5px;color:#444;margin-top:10px">Total samples: <b>'+samples.length+'</b> · Manifest ID <b>'+U.esc(man.manifestId)+'</b> · Receiving laboratory <b>'+U.esc(man.testingHospital)+'</b> · Dispatcher '+(LS.auth.user?U.esc(LS.auth.user.name):'')+' · Generated '+U.fmtDate(U.todayISO())+'</p>';
-  U.printDoc('Sample Referral Manifest — '+man.manifestId,body,{landscape:true,signatures:true,meta:'<span>Triple packaging UN3373 · cold chain where required</span><span>Page 1 of 1</span>'});
+  const css='@page{size:A4 landscape;margin:10mm}'
+    +'body{font-family:"Trebuchet MS",Segoe UI,Inter,sans-serif;color:#111;margin:0;font-size:10px;line-height:1.45}'
+    +'table{width:100%;border-collapse:collapse}img{display:block}'
+    +'.barcode{display:flex;align-items:flex-end;gap:1px;height:26px}'
+    +'.barcode i{display:block;background:#111}.barcode i.thin{width:1px}.barcode i.gap{width:3px;background:transparent;height:100%}'
+    +'.barcode-lbl{font-family:ui-monospace,Menlo,monospace;font-size:7px;letter-spacing:.08em;margin-top:2px;white-space:nowrap}';
+  U.print('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sample Referral Manifest — '+U.esc(man.manifestId)+'</title>'
+    +'<style>'+css+'</style></head><body>'+manifestDocHTML(man)+'</body></html>');
 }
 function manifestPreviewModal(man){
-  const db=S.db(); const samples=man.samples.map(id=>db.samples.find(s=>s.id===id)).filter(Boolean);
-  const doc='<div class="manifest-doc" id="manDoc"><div class="mhead"><div><h1>'+U.esc(db.settings.hospital)+'</h1><div style="font-size:9px;color:#666;letter-spacing:.08em;text-transform:uppercase">'+U.esc(db.settings.dept)+' · Referral manifest</div></div>'
-    +'<div style="text-align:right"><div style="font-family:monospace;font-size:12px;font-weight:700">'+U.esc(man.manifestId)+'</div><div style="font-size:9px;color:#666">'+U.fmtDate(man.createdAt)+'</div></div></div>'
-    +'<div style="display:flex;justify-content:space-between;font-size:9.5px;margin-bottom:8px"><span><b>To:</b> '+U.esc(man.testingHospital)+'</span><span><b>Samples:</b> '+samples.length+'</span><span><b>Priority:</b> STAT where flagged</span></div>'
-    +'<table><thead><tr><th>#</th><th>Sample ID</th><th>Patient</th><th>Test</th><th>Origin</th><th>Collected</th></tr></thead><tbody>'
-    +samples.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.sampleId)+'</td><td>'+U.esc(U.ptName(s))+'</td><td>'+U.esc(s.test)+'</td><td>'+U.esc(s.healthFacility||'')+'</td><td>'+U.fmtDate(s.collectionDate)+'</td></tr>').join('')
-    +'</tbody></table><div class="sig"><div>Dispatched by</div><div>Received by (laboratory)</div><div>Date / time</div></div></div>';
-  UI.modal({title:'Manifest preview',sub:'Print-ready, letterheaded and signature-blocked.',width:'min(780px,100%)',
-    body:doc,
-    foot:'<button class="btn" data-close>Close</button><button class="btn" data-copy-man>'+UI.ic('copy',15)+'Copy data</button><button class="btn primary" data-print-man>'+UI.ic('printer',15)+'Print manifest</button>',
-    onMount:(el)=>{ el.querySelector('[data-print-man]').onclick=()=>printManifest(man);
-      el.querySelector('[data-copy-man]').onclick=async()=>{ const ok=await U.copy(U.toCSV([['Sample ID','Patient','Test','Origin','Collected']].concat(samples.map(s=>[s.sampleId,U.ptName(),s.test,s.healthFacility,U.fmtDate(s.collectionDate)])))); UI.toast(ok?'Manifest copied as CSV':'Copy failed',{type:ok?'ok':'err'}); }; }});
+  const samples=manifestSamples(man);
+  UI.modal({title:'Manifest '+man.manifestId,
+    sub:U.fmtDate(man.createdAt)+' · '+samples.length+' sample'+(samples.length===1?'':'s')+' · '+U.esc(man.testingHospital||''),
+    width:'min(1080px,100%)',
+    body:'<div style="max-height:70vh;overflow:auto;border:1px solid var(--border);border-radius:10px">'+manifestDocHTML(man)+'</div>',
+    foot:'<button class="btn" data-close>Close</button>'
+      +'<button class="btn" data-copy-man>'+UI.ic('copy',15)+'Copy data</button>'
+      +'<button class="btn primary" data-print-man>'+UI.ic('printer',15)+'Print / PDF</button>',
+    onMount:(el)=>{
+      el.querySelector('[data-print-man]').onclick=()=>printManifest(man);
+      el.querySelector('[data-copy-man]').onclick=async()=>{
+        const ok=await U.copy(U.toCSV([['No','Sample ID','Health facility','Patient','Patient ID','DOB','Sex','Test','Collection date']]
+          .concat(samples.map((x,i)=>[i+1,x.sampleId,[x.healthFacility||'',x.district||''].filter(Boolean).join(', '),U.ptName(),x.patientId||'',x.dob||'',x.sex||'',x.test,x.collectionDate||'']))));
+        UI.toast(ok?'Manifest copied as CSV':'Copy failed',{type:ok?'ok':'err'});
+      };
+    }});
+}
+
+/* ——— The manifests that have been generated —————————————
+   The tab that went missing: every manifest ever generated, newest first, with what
+   is on it and what can be done to it. */
+function manifestCard(man){
+  const samples=manifestSamples(man);
+  const gone=(man.samples||[]).length-samples.length;
+  const canDelete=LS.auth.can('delete');
+  return '<div class="card pad" data-man-card="'+man.id+'" style="break-inside:avoid">'
+    +'<div class="row between" style="align-items:flex-start;gap:10px">'
+      +'<div style="min-width:0"><div class="mono" style="font-size:13.5px;font-weight:700;color:var(--text-strong);letter-spacing:.02em">'+U.esc(man.manifestId)+'</div>'
+      +'<div class="xs faint truncate" style="margin-top:3px">'+U.esc(man.title||'Sample Referral Manifest')+'</div></div>'
+      +'<span class="pill gold">'+samples.length+' sample'+(samples.length===1?'':'s')+'</span>'
+    +'</div>'
+    +'<div class="thread" style="margin:11px 0"></div>'
+    +'<div class="row between"><span class="xs faint">To</span><span class="small truncate" style="max-width:62%">'+U.esc(man.testingHospital||'—')+'</span></div>'
+    +'<div class="row between" style="margin-top:5px"><span class="xs faint">Generated</span><span class="xs">'+U.fmtDate(man.createdAt||'')+(man.createdBy?' · '+U.esc(man.createdBy):'')+'</span></div>'
+    +'<div class="row between" style="margin-top:5px"><span class="xs faint">Tests on it</span><span class="xs truncate" style="max-width:62%">'+U.esc(U.uniq(samples.map(x=>x.test)).join(' · ')||'—')+'</span></div>'
+    +(gone?'<div class="xs" style="margin-top:6px;color:var(--warn)">'+gone+' sample'+(gone===1?'':'s')+' on this manifest were deleted from the register.</div>':'')
+    +'<div class="row gap-xs wrap" style="margin-top:12px">'
+      +'<button class="btn xs primary" data-man-view="'+man.id+'">'+UI.ic('eye',12)+' View</button>'
+      +'<button class="btn xs" data-man-print="'+man.id+'">'+UI.ic('printer',12)+' Print / PDF</button>'
+      +(canDelete?'<span class="grow"></span><button class="btn xs danger" data-man-del="'+man.id+'" title="Delete this manifest">'+UI.ic('trash-2',12)+' Delete</button>':'')
+    +'</div></div>';
+}
+function manifestsHTML(){
+  const list=(S.db().manifests||[]).slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  return '<div class="toolbar">'
+      +'<span class="chip gold"><b>'+list.length+'</b> manifest'+(list.length===1?'':'s')+'</span>'
+      +'<span class="xs faint">Newest first · every generated manifest stays on this device and in the shared copy</span>'
+      +'<span class="grow"></span>'
+      +'<button class="btn sm" data-man-export>'+UI.ic('download',13)+'Export list</button>'
+      +'<button class="btn primary sm" data-man-new>'+UI.ic('clipboard-list',14)+' Generate manifest</button>'
+    +'</div>'
+    +(list.length?'<div class="grid-12 stagger" style="row-gap:12px">'+list.map(m=>'<div class="c6">'+manifestCard(m)+'</div>').join('')+'</div>'
+      :'<div class="card pad">'+UI.empty({art:'clipboard-list',title:'No manifests yet',body:'A manifest is created from registered samples travelling to the same receiving laboratory. Its ID is built from the test code and the day it is made.',action:'<button class="btn primary" data-man-new>'+UI.ic('plus',14)+' Generate manifest</button>'})+'</div>');
+}
+function findManifest(id){ return (S.db().manifests||[]).find(m=>m.id===id); }
+function exportManifestList(){
+  const list=(S.db().manifests||[]).slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  if(!list.length) return UI.toast('No manifests to export yet',{type:'warn'});
+  const rows=[['Manifest ID','Title','Receiving laboratory','Samples','Patient names','Tests','Generated','Generated by']]
+    .concat(list.map(m=>{ const sm=manifestSamples(m);
+      return [m.manifestId,m.title||'Sample Referral Manifest',m.testingHospital||'',sm.length,
+        U.ptName(),U.uniq(sm.map(x=>x.test)).join(' · '),U.fmtDate(m.createdAt||''),m.createdBy||'']; }));
+  U.exportCSV('manifests-'+U.todayISO()+'.csv',rows,{title:'Generated manifests',actor:LS.auth.user.name});
+  UI.toast(list.length+' manifests exported',{type:'ok'});
+}
+function wireManifests(){
+  const r=rootEl; if(!r) return;
+  r.querySelectorAll('[data-man-new]').forEach(b=>b.onclick=()=>addToManifest([]));
+  r.querySelectorAll('[data-man-export]').forEach(b=>b.onclick=exportManifestList);
+  r.querySelectorAll('[data-man-view]').forEach(b=>b.onclick=()=>{ const m=findManifest(b.dataset.manView); if(m) manifestPreviewModal(m); });
+  r.querySelectorAll('[data-man-print]').forEach(b=>b.onclick=()=>{ const m=findManifest(b.dataset.manPrint); if(m) printManifest(m); });
+  r.querySelectorAll('[data-man-del]').forEach(b=>b.onclick=()=>deleteManifest(b.dataset.manDel));
+}
+function deleteManifest(id){
+  const man=(S.db().manifests||[]).find(m=>m.id===id); if(!man) return;
+  if(!LS.auth.guard('delete')) return;
+  UI.confirm({title:'Delete manifest '+man.manifestId+'?',danger:true,confirm:'Delete manifest',
+    body:'The manifest is removed. The '+manifestSamples(man).length+' sample'+(manifestSamples(man).length===1?'':'s')+' on it stay in the register — only the manifest goes.'}).then(ok=>{
+    if(!ok) return;
+    S.commit(d=>{ d.manifests=(d.manifests||[]).filter(m=>m.id!==id);
+      (d.samples||[]).forEach(x=>{ if(x.manifestId===id) x.manifestId=null; }); },
+      {action:'manifest.delete',entity:'manifest',entityId:id,detail:'Deleted manifest '+man.manifestId});
+    UI.toast('Manifest '+man.manifestId+' deleted',{type:'ok'});
+    paintView();
+  });
+}
+
+/* ——— Deleting orders ——————————————————————————————
+   Duplicates are a fact of a register typed at a bench. Selection plus one press, with
+   an Undo in the toast and the sample removed from any manifest it sat on. */
+function deleteSamples(ids){
+  ids=(ids||[]).filter(Boolean);
+  if(!ids.length) return;
+  if(!LS.auth.guard('delete')) return;
+  const db=S.db();
+  const victims=ids.map(id=>db.samples.find(s=>s.id===id)).filter(Boolean);
+  if(!victims.length) return;
+  const onManifest=victims.filter(x=>x.manifestId);
+  const listed=victims.slice(0,8).map(x=>'<span class="mono xs">'+U.esc(x.sampleId)+'</span>').join(' · ')
+    +(victims.length>8?' <span class="xs faint">and '+(victims.length-8)+' more</span>':'');
+  UI.confirm({title:'Delete '+victims.length+' order'+(victims.length===1?'':'s')+'?',danger:true,
+    confirm:'Delete '+victims.length,
+    body:'<p class="small" style="line-height:1.7">'+listed+'</p>'
+      +(onManifest.length?'<p class="small" style="margin-top:8px;line-height:1.7;color:var(--warn)">'+onManifest.length+' of them are on a manifest. They will be taken off it; the manifest itself stays.</p>':'')
+      +'<p class="small" style="margin-top:8px;line-height:1.7">This removes them from the register on this device and from the shared copy at the next sync. The audit trail keeps the fact that they were deleted, and <b>Undo</b> stays in the corner for a moment.</p>'
+  }).then(ok=>{
+    if(!ok) return;
+    const snapshot=victims.map(x=>JSON.parse(JSON.stringify(x)));
+    const links=victims.filter(x=>x.manifestId).map(x=>({id:x.id,manifestId:x.manifestId,status:x.status}));
+    S.commit(d=>{
+      d.samples=d.samples.filter(x=>ids.indexOf(x.id)<0);
+      (d.manifests||[]).forEach(m=>{ m.samples=(m.samples||[]).filter(x=>ids.indexOf(x)<0); });
+    },{action:'samples.delete',entity:'samples',detail:'Deleted '+victims.length+' order'+(victims.length===1?'':'s')+': '+snapshot.map(x=>x.sampleId).join(', ')});
+    st.selected.clear();
+    paintView();
+    UI.toast(victims.length+' order'+(victims.length===1?'':'s')+' deleted',{type:'ok',duration:9000,
+      actions:[{label:'Undo',onClick:()=>{
+        S.commit(d=>{
+          snapshot.forEach(x=>{ if(!d.samples.some(y=>y.id===x.id)) d.samples.push(x); });
+          links.forEach(l=>{ const m=(d.manifests||[]).find(y=>y.id===l.manifestId); if(m&&m.samples.indexOf(l.id)<0) m.samples.push(l.id); });
+        },{action:'samples.delete.undo',entity:'samples',detail:'Restored '+snapshot.length+' order'+(snapshot.length===1?'':'s')});
+        UI.toast('Restored '+snapshot.length+' order'+(snapshot.length===1?'':'s'),{type:'ok'});
+        paintView();
+      }}]});
+  });
 }
 
 /* ——— Register wizard ————————————————— */
@@ -655,6 +829,7 @@ function wire(){
   r.querySelectorAll('[data-row]').forEach(tr=>tr.onclick=e=>{ if(e.target.closest('[data-check]')) return; openSample(tr.dataset.row); });
   r.querySelectorAll('[data-check]').forEach(cb=>cb.onclick=e=>{ e.stopPropagation(); const id=cb.dataset.check; if(st.selected.has(id)) st.selected.delete(id); else st.selected.add(id); paintTable(); });
   r.querySelectorAll('[data-bulk-clear]').forEach(b=>b.onclick=()=>{ st.selected.clear(); paintTable(); });
+  r.querySelectorAll('[data-bulk-delete]').forEach(b=>b.onclick=()=>deleteSamples(Array.from(st.selected)));
   r.querySelectorAll('[data-bulk-manifest]').forEach(b=>b.onclick=()=>addToManifest(Array.from(st.selected)));
   r.querySelectorAll('[data-bulk-export]').forEach(b=>b.onclick=()=>{ const rows=[['Sample ID','Patient','Test','Origin','Hospital','Priority','Status','Collected']].concat(S.db().samples.filter(s=>st.selected.has(s.id)).map(s=>[s.sampleId,U.ptName(),s.test,s.healthFacility,s.hospital,s.priority,s.status,s.collectionDate])); U.exportCSV('samples-selection-'+U.todayISO()+'.csv',rows,{title:'Referred samples — selection',actor:LS.auth.user.name}); UI.toast(rows.length-1+' samples exported',{type:'ok'}); });
   // infinite scroll
@@ -666,7 +841,7 @@ function paintTableKeepFocus(){
   const s=rootEl.querySelector('#smpSearch'); if(s){ s.value=v; s.focus(); s.setSelectionRange(v.length,v.length); }
 }
 function syncURL(){
-  try{ const q=st.filter==='all'?'':'?filter='+st.filter; history.replaceState(null,'','#/samples'+q); }catch(e){}
+  try{ const qs=[]; if(st.filter&&st.filter!=='all') qs.push('filter='+st.filter); if(st.tab==='manifests') qs.push('tab=manifests'); history.replaceState(null,'','#/samples'+(qs.length?'?'+qs.join('&'):'')); }catch(e){}
 }
 function exportCSV(){
   const list=filtered();
@@ -676,30 +851,77 @@ function exportCSV(){
   UI.toast(list.length+' samples exported with letterhead metadata',{type:'ok'});
 }
 
-M.render=function(root,params){
-  rootEl=root; st={q:params.q||'',filter:params.filter||'all',selected:new Set(),limit:90,sort:'collected',dir:'desc'};
+/* ——— Two views over the same register: the orders, and the manifests ————— */
+function viewTabsHTML(){
+  const tab=(st&&st.tab)==='manifests'?'manifests':'samples';
   const cnt=counts();
-  root.innerHTML='<div class="page-head"><div><h1>Referred samples</h1><div class="sub">Chain of custody you can feel — every registration, handoff and result is signed. '+cnt.active+' active samples, '+cnt.overdue+' past target.</div></div>'
-   +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-saved>'+UI.ic('book-marked',15)+' Saved views</button><button class="btn primary magnetic" data-new>'+UI.ic('plus',15)+' Register sample</button></div></div>'
-   +'<div class="grid-12" style="margin-bottom:14px"><div class="c8"><div id="smpTableWrap">'+tableHTML()+'</div></div><div class="c4">'+referralPanel()
-     +'<div style="margin-top:14px">'+UI.card({title:'TAT pressure',sub:'Active samples by % of target consumed',icon:'gauge',body:'<div id="smpPressure"></div>'})+'</div>'
-     +'<div style="margin-top:14px">'+throughputMini()+'</div></div></div>'
-   +'<div style="margin-top:14px">'+tatByLabCard()+'</div>';
-  C.hbars(root.querySelector('#smpPressure'),{items:(function(){
+  const mk=(k,label,n)=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-tab="'+k+'">'+label+'<span class="cnt">'+n+'</span></button>';
+  return '<div class="filters" id="smpTabs" style="margin-bottom:12px">'
+    +mk('samples','Samples',cnt.register)
+    +mk('manifests','Manifests',(S.db().manifests||[]).length)
+    +'</div>';
+}
+function pressureChart(scope){
+  if(!scope) return;
+  const host=scope.querySelector('#smpPressure'); if(!host) return;
+  C.hbars(host,{items:(function(){
     const active=S.db().samples.filter(s=>!s.resultedAt);
     const buckets=[['> 100% (breached)',active.filter(s=>S.tatFor(s).ratio>1).length,'rose'],['80–100% (at risk)',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.8&&r<=1;}).length,'amber'],['40–80%',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.4&&r<=.8;}).length,'gold'],['< 40%',active.filter(s=>S.tatFor(s).ratio<=.4).length,'teal']];
     return buckets.map(([label,value,tone])=>({label,value:Math.max(value,0),display:value+'',tone}));
   })()});
-  root.querySelectorAll('[data-edit-labs]').forEach(b=>b.onclick=labEditor);
-  wire();
+}
+function paintView(){
+  if(!rootEl) return;
+  const host=rootEl.querySelector('#smpView'); if(!host) return;
+  const tab=(st&&st.tab)==='manifests'?'manifests':'samples';
+  const tabs=rootEl.querySelector('#smpTabs'); if(tabs) tabs.outerHTML=viewTabsHTML();
+  const head=rootEl.querySelector('#smpHeadActions');
+  if(head) head.innerHTML = tab==='manifests'
+    ? '<button class="btn" data-man-export>'+UI.ic('download',15)+' Export list</button><button class="btn primary magnetic" data-man-new>'+UI.ic('clipboard-list',15)+' Generate manifest</button>'
+    : '<button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-saved>'+UI.ic('book-marked',15)+' Saved views</button><button class="btn primary magnetic" data-new>'+UI.ic('plus',15)+' Register sample</button>';
+  if(tab==='manifests'){
+    host.innerHTML=manifestsHTML();
+    wireManifests();
+  } else {
+    host.innerHTML='<div class="grid-12" style="margin-bottom:14px"><div class="c8"><div id="smpTableWrap">'+tableHTML()+'</div></div><div class="c4">'+referralPanel()
+       +'<div style="margin-top:14px">'+UI.card({title:'TAT pressure',sub:'Active samples by % of target consumed',icon:'gauge',body:'<div id="smpPressure"></div>'})+'</div>'
+       +'<div style="margin-top:14px">'+throughputMini()+'</div></div></div>'
+     +'<div style="margin-top:14px">'+tatByLabCard()+'</div>';
+    pressureChart(host);
+    host.querySelectorAll('[data-edit-labs]').forEach(b=>b.onclick=labEditor);
+    wire();
+  }
+  rootEl.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{
+    if(st.tab===b.dataset.tab) return;
+    st.tab=b.dataset.tab; st.selected.clear(); syncURL(); paintView();
+  });
+  renderHeadMeta();
+}
+/* The subtitle follows the tab: the count in the header must describe what is on screen. */
+function renderHeadMeta(){
+  if(!rootEl) return;
+  const sub=rootEl.querySelector('.page-head .sub'); if(!sub) return;
+  const cnt=counts();
+  sub.textContent=(st&&st.tab)==='manifests'
+    ? 'Every manifest generated from this register, newest first. Open one to view, print or export the sheet you would hand the driver. '+((S.db().manifests||[]).length)+' on this device.'
+    : 'Chain of custody you can feel — every registration, handoff and result is signed. '+cnt.active+' active samples, '+cnt.overdue+' past target.';
+}
+
+M.render=function(root,params){
+  rootEl=root; st={q:params.q||'',filter:params.filter||'all',selected:new Set(),limit:90,sort:'collected',dir:'desc',tab:params.tab==='manifests'?'manifests':'samples'};
+  root.innerHTML='<div class="page-head"><div><h1>Referred samples</h1><div class="sub"></div></div><div class="actions" id="smpHeadActions"></div></div>'
+   +viewTabsHTML()
+   +'<div id="smpView"></div>';
+  paintView();
   if(M._nsHandler) document.removeEventListener('ls:new-sample',M._nsHandler);
   M._nsHandler=()=>newWizard();
   document.addEventListener('ls:new-sample',M._nsHandler);
   if(params.new) setTimeout(newWizard,120);
   if(params.manifest) setTimeout(()=>addToManifest([]),120);
   if(params.id) setTimeout(()=>openSample(params.id),120);
-  if(params.filter) syncURL();
+  if(params.tab||params.filter) syncURL();
 };
+M.paintView=paintView;
 M.openSample=openSample;
 M.newSample=newWizard;
 })();
