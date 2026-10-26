@@ -229,23 +229,27 @@ UI.barcode=(code,opts)=>{
      barcode is printed as bars only. */
   return '<div><div class="barcode">'+bars+'</div>'+(opts.label===false?'':'<div class="barcode-lbl">'+U.esc(code)+'</div>')+'</div>';
 };
-/* Barcodes that survive printing: the console draws them with CSS backgrounds, which a
-   browser drops when "background graphics" is off. SVG rects are ink, so they always print. */
+/* Barcodes that survive printing, drawn exactly like the console's own: a pale strip,
+   bars two pixels wide (one for every seventh), a little air between them, and the short
+   bars at seven tenths of the full height, all sitting on the same baseline. They are SVG
+   rects — ink, not background — so a browser that drops background graphics still prints
+   the code. */
 UI.barcodeSVG=(code,opts)=>{
   opts=opts||{};
-  const h=opts.height||30;
+  const h=opts.height||34, gap=1.5, ink='#0A0E17';
   const hash=U.hash(code); let x=0; const parts=[];
-  /* The console's own barcode look: every bar is drawn, and the short ones are four fifths
-     of the full height, hanging from the baseline — a bar code, not a ladder. */
   for(let i=0;i<46;i++){
-    const bit=(hash>>(i%30))&1; const w=(i%7===0)?1:(i%3===0?3:2);
-    const bh=bit?h:Math.round(h*0.8);
-    parts.push('<rect x="'+x+'" y="'+(h-bh)+'" width="'+w+'" height="'+bh+'"/>');
-    x+=w+((i%9===0)?2:1);
+    const bit=(hash>>(i%30))&1;
+    const w=(i%7===0)?1:2;
+    const bh=bit?h:Math.round(h*0.7*10)/10;
+    parts.push('<rect x="'+x+'" y="'+(Math.round((h-bh)*10)/10)+'" width="'+w+'" height="'+bh+'" fill="'+ink+'"/>');
+    x+=w+gap;
+    if(i%9===0) x+=2+gap;
   }
-  return '<svg class="barcode-svg" role="img" aria-label="'+U.esc(code)+'" width="'+x+'" height="'+h
-    +'" viewBox="0 0 '+x+' '+h+'" preserveAspectRatio="none" fill="#111" shape-rendering="crispEdges" '
-    +'style="display:block;max-width:100%;height:auto">'+parts.join('')+'</svg>';
+  const W=Math.round(x);
+  return '<span style="display:inline-block;padding:5px 8px;background:#FBFAF6;border-radius:4px;line-height:0">'
+    +'<svg class="barcode-svg" role="img" aria-label="'+U.esc(code)+'" width="'+W+'" height="'+h
+    +'" viewBox="0 0 '+W+' '+h+'" fill="'+ink+'" style="display:block">'+parts.join('')+'</svg></span>';
 };
 /* Clipboard with a fallback for browsers that refuse the async API (or run it from a
    context that is not user-initiated). Returns true only when the text really landed. */

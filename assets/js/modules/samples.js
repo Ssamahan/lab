@@ -26,6 +26,18 @@ const CULTURE_TESTS={
   'TB Culture':{drugs:['Rifampicin','Isoniazid','Pyrazinamide','Ethambutol','Streptomycin'],organism:'Mycobacterium tuberculosis'},
   'Sputum AFB (Ziehl-Neelsen)':{drugs:['Rifampicin','Isoniazid','Pyrazinamide','Ethambutol'],organism:'Mycobacterium tuberculosis'}
 };
+/* A blood culture is not ordered on its own: Gram Stain and Cytology are done as routine
+   with it, on the same specimen, so they join the order and are listed first on the
+   manifest — Cytology · Gram Stain · Blood Culture. */
+const ROUTINE_WITH={'Blood Culture':['Cytology','Gram Stain']};
+const ROUTINE_ORDER=['Cytology','Gram Stain'];
+function routineWith(name){ return (ROUTINE_WITH[name]||[]).slice(); }
+/* Every test on the order, companions first, then whatever else was ticked. */
+function orderedTests(s){
+  const list=((s&&s.tests&&s.tests.length?s.tests.slice():[s&&s.test])||[]).filter(Boolean);
+  const rank=t=>{ const i=ROUTINE_ORDER.indexOf(t); return i<0?ROUTINE_ORDER.length:i; };
+  return list.map((t,i)=>({t,i})).sort((a,b)=>rank(a.t)-rank(b.t)||a.i-b.i).map(x=>x.t);
+}
 function cultureOf(test){ return CULTURE_TESTS[test]||null; }
 function isQualitative(test){ return !!cultureOf(test) || /culture|afb|microscopy/i.test(test||''); }
 const FILTERS=[
@@ -295,7 +307,7 @@ function openSample(id){
      +'<div class="row between" style="margin-bottom:10px"><div><div class="eyebrow">Sample ID</div><div class="mono" style="font-size:15px;color:var(--text-strong);letter-spacing:.02em;margin-top:2px">'+U.esc(s.sampleId)+'</div></div>'+UI.barcode(s.sampleId)+'</div>'
      +'<div class="thread" style="margin:10px 0"></div>'
      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
-       +[['Patient',U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Test',s.test],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')
+       +[['Patient',U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')
      +'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('timer',14,'ic')+'Turnaround</div><div class="card-sub">'+(s.resultedAt?'Completed in '+Math.round(t.elapsedH)+'h of a '+Math.round(t.targetH)+'h target':'Due '+U.fmtDate(U.isoLocal(t.dueAt)))+'</div></div>'
      +'<span class="pill '+(t.breached?'rose':t.ratio>.8?'amber':'teal')+'">'+(t.breached?'Breached':t.ratio>.8?'At risk':'On track')+'</span></div>'
@@ -413,7 +425,7 @@ function editSample(id){
     body:'<div class="form-grid">'
       +'<div class="field"><label>Sample ID</label><input class="input mono" id="edSid" value="'+U.esc(s.sampleId)+'"></div>'
       +(U.canSeeNames()
-        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(U.ptName(s))+'"><div class="xs faint" style="margin-top:4px">Shown to the Admin only; every other role and every export reads '+U.CONFIDENTIAL+'.</div></div>'
+        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(U.ptName(s))+'"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to signed-in staff; the public visitor and every file read '+U.CONFIDENTIAL+'.</div></div>'
         : '<div class="field"><label>Patient</label><input class="input" id="edName" value="'+U.CONFIDENTIAL+'" readonly></div>')
       +'<div class="field"><label>Patient ID</label><input class="input mono" id="edPid" value="'+U.esc(s.patientId||'')+'"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="edSex">'+opts(['Female','Male','Other','Unknown'],s.sex||'Unknown')+'</select></div>'
@@ -520,7 +532,7 @@ function manifestDocHTML(man,opts){
     +'</div>';
   const band='<div style="display:flex;align-items:center;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#F7F8FC;border:1px solid #e6e9f1;border-radius:8px">'
     +'<span style="font-weight:800;font-size:13px;letter-spacing:.06em;font-family:ui-monospace,Menlo,monospace;color:#111">'+U.esc(man.manifestId)+'</span>'
-    +'<span style="background:#fff;padding:5px 8px;border-radius:4px">'+UI.barcodeSVG(man.manifestId)+'</span>'
+    +UI.barcodeSVG(man.manifestId)
     +'</div>';
   const th='background:#C4C4C4;color:#111;font-weight:700;font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;padding:5px 5px;border:1px solid #9a9a9a;text-align:left';
   const td='padding:4px 5px;border:1px solid #c9c9c9;font-size:8.6px;vertical-align:top';
@@ -532,11 +544,11 @@ function manifestDocHTML(man,opts){
     +'<td style="'+td+'">'+U.esc(x.patientId||'—')+'</td>'
     +'<td style="'+td+'">'+U.esc(x.dob?U.fmtDate(x.dob):'—')+'</td>'
     +'<td style="'+td+'">'+U.esc(x.sex||'—')+'</td>'
-    +'<td style="'+td+'">'+U.esc(x.test)+'</td>'
+    +'<td style="'+td+'">'+orderedTests(x).map(t=>'<div style="white-space:nowrap">'+U.esc(t)+'</div>').join('')+'</td>'
     +'<td style="'+td+';white-space:nowrap">'+U.esc(x.collectionDate?U.fmtDate(x.collectionDate):'—')+'</td>'
     +'<td style="'+td+';text-align:center">'+UI.barcodeSVG(x.sampleId,{height:24})+'</td></tr>').join('');
   const table='<table style="width:100%;border-collapse:collapse;table-layout:auto">'
-    +'<thead><tr>'+['No','Sample ID','Health facility','Patient name','Patient ID','DOB','Sex','Test','Collection date','Barcode'].map(h=>'<th style="'+th+'">'+h+'</th>').join('')+'</tr></thead>'
+    +'<thead><tr>'+['No','Sample ID','Health facility','Patient name','Patient ID','DOB','Sex','Tests','Collection date','Barcode'].map(h=>'<th style="'+th+'">'+h+'</th>').join('')+'</tr></thead>'
     +'<tbody>'+(rows||'<tr><td colspan="10" style="'+td+';text-align:center;color:#888">No samples on this manifest.</td></tr>')+'</tbody></table>';
   /* Who carried it is already known: the transporter was chosen when the order was
      registered, so the manifest reads it back instead of leaving a blank.
@@ -574,8 +586,7 @@ function printManifest(man){
     /* the footer sits in the paper margin, on every page, not inside the sheet */
     +'.manifest-foot{position:fixed;left:0;right:0;bottom:0;margin:0!important;padding:4px 0 0;'
       +'text-align:center;border-top:1px solid #d8dde7;background:#fff;font-size:8px;color:#8a93a6}'
-    +'.manifest-sig{page-break-inside:avoid;break-inside:avoid;max-width:none!important}'
-    +'.barcode-svg{height:26px!important}';
+    +'.manifest-sig{page-break-inside:avoid;break-inside:avoid;max-width:none!important}';
   U.print('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sample Referral Manifest — '+U.esc(man.manifestId)+'</title>'
     +'<style>'+css+'</style></head><body>'+manifestDocHTML(man)+'</body></html>');
 }
@@ -614,7 +625,7 @@ function manifestCard(man){
     +'<div class="thread" style="margin:11px 0"></div>'
     +'<div class="row between"><span class="xs faint">To</span><span class="small truncate" style="max-width:62%">'+U.esc(man.testingHospital||'—')+'</span></div>'
     +'<div class="row between" style="margin-top:5px"><span class="xs faint">Generated</span><span class="xs">'+U.fmtDate(man.createdAt||'')+(man.createdBy?' · '+U.esc(man.createdBy):'')+'</span></div>'
-    +'<div class="row between" style="margin-top:5px"><span class="xs faint">Tests on it</span><span class="xs truncate" style="max-width:62%">'+U.esc(U.uniq(samples.map(x=>x.test)).join(' · ')||'—')+'</span></div>'
+    +'<div class="row between" style="margin-top:5px"><span class="xs faint">Tests on it</span><span class="xs truncate" style="max-width:62%">'+U.esc(U.uniq([].concat.apply([],samples.map(orderedTests))).join(' · ')||'—')+'</span></div>'
     +(gone?'<div class="xs" style="margin-top:6px;color:var(--warn)">'+gone+' sample'+(gone===1?'':'s')+' on this manifest were deleted from the register.</div>':'')
     +'<div class="row gap-xs wrap" style="margin-top:12px">'
       +'<button class="btn xs primary" data-man-view="'+man.id+'">'+UI.ic('eye',12)+' View</button>'
@@ -641,7 +652,7 @@ function exportManifestList(){
   const rows=[['Manifest ID','Title','Receiving laboratory','Samples','Patient names','Tests','Generated','Generated by']]
     .concat(list.map(m=>{ const sm=manifestSamples(m);
       return [m.manifestId,m.title||'Sample Referral Manifest',m.testingHospital||'',sm.length,
-        U.ptName(),U.uniq(sm.map(x=>x.test)).join(' · '),U.fmtDate(m.createdAt||''),m.createdBy||'']; }));
+        U.uniq(sm.map(x=>U.ptName(x))).filter(n=>n&&n!==U.CONFIDENTIAL).join(', ')||U.CONFIDENTIAL,U.uniq(sm.map(x=>x.test)).join(' · '),U.fmtDate(m.createdAt||''),m.createdBy||'']; }));
   U.exportCSV('manifests-'+U.todayISO()+'.csv',rows,{title:'Generated manifests',actor:LS.auth.user.name});
   UI.toast(list.length+' manifests exported',{type:'ok'});
 }
@@ -722,8 +733,8 @@ function newWizard(){
     if(state.step===1) return '<div class="wizard-step">'
       +'<div class="form-grid">'
       +(U.canSeeNames()
-        ? '<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Recorded on this device and shown to the Admin only. Every other role, every export and every manifest reads <b>'+U.CONFIDENTIAL+'</b>.</div></div>'
-        : '<div class="field span2"><label>Patient</label><div class="card pad" style="background:var(--surface-inset);padding:9px 11px"><b class="small">'+U.CONFIDENTIAL+'</b><div class="xs faint" style="margin-top:3px">Only the Admin may record a name. The sample ID and the patient/insurance ID identify the specimen.</div></div></div>')
+        ? '<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Recorded on this device and shown to signed-in staff. The public visitor reads <b>'+U.CONFIDENTIAL+'</b>.</div></div>'
+        : '<div class="field span2"><label>Patient</label><div class="card pad" style="background:var(--surface-inset);padding:9px 11px"><b class="small">'+U.CONFIDENTIAL+'</b><div class="xs faint" style="margin-top:3px">Names are recorded by signed-in staff. The sample ID and the patient/insurance ID identify the specimen.</div></div></div>')
       +'<div class="field"><label>Patient / insurance ID</label><input class="input mono" id="wPid" value="'+U.esc(state.patient.pid)+'" placeholder="430129"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="wSex">'+['Female','Male'].map(x=>'<option '+(state.patient.sex===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Date of birth</label><input class="input mono" type="date" id="wDob" value="'+U.esc(state.patient.dob)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">The age below is calculated from it.</div></div>'
@@ -734,7 +745,8 @@ function newWizard(){
       +'<div class="field" style="margin-bottom:10px"><label>Search test menu</label><div class="searchbox">'+UI.ic('search',14)+'<input class="input" id="wTestSearch" placeholder="CBC, malaria, GeneXpert…"></div></div>'
       +'<div id="wTestList" style="max-height:300px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px">'
       +tests.map(t=>'<button class="choice '+(state.tests.includes(t.id)?'on':'')+'" data-test="'+t.id+'" data-name="'+U.esc(t.name.toLowerCase())+'"><span class="cmark">'+UI.ic('check',9)+'</span><span class="grow"><span class="ct">'+U.esc(t.name)+'</span><span class="cs" style="display:block">'+U.esc(t.cat)+' · TAT '+t.tat+'d · '+U.esc(t.code)+'</span></span></button>').join('')
-      +'</div><div class="row between" style="margin-top:10px"><span class="hint" id="wTestCount">'+state.tests.length+' selected</span><span class="hint">Barcode generated on save</span></div></div>';
+      +'</div><div class="row between" style="margin-top:10px"><span class="hint" id="wTestCount">'+state.tests.length+' selected</span><span class="hint">Barcode generated on save</span></div>'
+      +'<div class="hint" id="wRoutine" style="display:none;margin-top:6px">Blood culture carries <b>Cytology</b> and <b>Gram Stain</b> as routine — the manifest lists them first.</div></div>';
     return '<div class="wizard-step">'
       +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:12px"><div class="row between"><div><div class="eyebrow">Auto-generated sample ID</div><div class="mono" style="font-size:14px;color:var(--text-strong);margin-top:3px">'+previewId()+'</div></div>'+UI.barcode(previewId())+'</div></div>'
       +'<div class="form-grid"><div class="field"><label>Originating health facility</label><select class="select" id="wOrigin">'+hcs.map(h=>'<option '+(state.origin===h?'selected':'')+'>'+U.esc(h)+'</option>').join('')+'</select></div>'
@@ -781,7 +793,32 @@ function newWizard(){
           }
         }
         if(state.step===2){
-          body.querySelectorAll('[data-test]').forEach(b=>b.onclick=()=>{ const id=b.dataset.test; if(state.tests.includes(id)) state.tests=state.tests.filter(x=>x!==id); else state.tests.push(id); b.classList.toggle('on'); body.querySelector('#wTestCount').textContent=state.tests.length+' selected'; });
+          const companionIds=name=>routineWith(name).map(n=>{ const c=tests.find(x=>x.name===n); return c&&c.id; }).filter(Boolean);
+          const paintRoutine=()=>{
+            const bc=tests.find(t=>t.name==='Blood Culture');
+            const on=!!bc&&state.tests.includes(bc.id);
+            const note=body.querySelector('#wRoutine');
+            if(note) note.style.display=on?'':'none';
+            body.querySelectorAll('[data-test]').forEach(b=>{
+              b.classList.toggle('on',state.tests.includes(b.dataset.test));
+              const auto=bc&&b.dataset.test!==bc.id&&companionIds('Blood Culture').indexOf(b.dataset.test)>=0&&on;
+              b.classList.toggle('routine',!!auto);
+            });
+            body.querySelector('#wTestCount').textContent=state.tests.length+' selected'+(on?' · Cytology and Gram Stain added as routine':'');
+          };
+          body.querySelectorAll('[data-test]').forEach(b=>b.onclick=()=>{
+            const id=b.dataset.test; const t=tests.find(x=>x.id===id); if(!t) return;
+            if(state.tests.includes(id)){
+              state.tests=state.tests.filter(x=>x!==id);
+              /* dropping the culture drops the routine pair with it */
+              if(t.name==='Blood Culture') state.tests=state.tests.filter(x=>companionIds('Blood Culture').indexOf(x)<0);
+            } else {
+              state.tests.push(id);
+              companionIds(t.name).forEach(cid=>{ if(!state.tests.includes(cid)) state.tests.push(cid); });
+            }
+            paintRoutine();
+          });
+          paintRoutine();
           const search=body.querySelector('#wTestSearch');
           search.addEventListener('input',()=>{ const q=search.value.toLowerCase(); body.querySelectorAll('[data-test]').forEach(b=>{ b.style.display=(b.dataset.name+' '+b.textContent).toLowerCase().indexOf(q)>=0?'':'none'; }); });
         }
@@ -793,7 +830,8 @@ function newWizard(){
         if(state.step<3){ state.step++; paint(); }
         else {
           const testObjs=state.tests.map(id=>tests.find(t=>t.id===id)).filter(Boolean);
-          const first=testObjs[0];
+          const ordered=orderedTests({tests:testObjs.map(t=>t.name)});
+          const first=testObjs.find(t=>t.name==='Blood Culture')||testObjs[0];
           const today=U.todayISO();
           const name=(state.patient.name&&state.patient.name!==U.CONFIDENTIAL)?state.patient.name:U.CONFIDENTIAL;
           const sample={id:U.uid('sm'),sampleId:'',patientName:name,patientId:state.patient.pid,
@@ -802,7 +840,7 @@ function newWizard(){
             test:first.name,testCode:first.code,cat:first.cat,hospital:state.hospital,healthFacility:state.origin,district:'Gakenke',
             collectionDate:today,collectionAt:U.nowISO(),sentDate:today,receivedAt:null,resultedAt:null,status:'Registered',
             priority:state.priority,tatTargetDays:Math.max.apply(null,testObjs.map(t=>t.tat)),notes:state.notes,transporter:state.transporter,
-            collector:LS.auth.user.name,source:'register',manifestId:null,tests:testObjs.map(t=>t.name)};
+            collector:LS.auth.user.name,source:'register',manifestId:null,tests:ordered};
           /* The ID is taken inside the commit, from the test chosen and this month. */
           let sid='';
           S.commit(d=>{ sid=S.takeSampleId(first.name,today,d); sample.sampleId=sid; d.samples.push(sample); },
@@ -855,7 +893,7 @@ function wire(){
   r.querySelectorAll('[data-bulk-clear]').forEach(b=>b.onclick=()=>{ st.selected.clear(); paintTable(); });
   r.querySelectorAll('[data-bulk-delete]').forEach(b=>b.onclick=()=>deleteSamples(Array.from(st.selected)));
   r.querySelectorAll('[data-bulk-manifest]').forEach(b=>b.onclick=()=>addToManifest(Array.from(st.selected)));
-  r.querySelectorAll('[data-bulk-export]').forEach(b=>b.onclick=()=>{ const rows=[['Sample ID','Patient','Test','Origin','Hospital','Priority','Status','Collected']].concat(S.db().samples.filter(s=>st.selected.has(s.id)).map(s=>[s.sampleId,U.ptName(),s.test,s.healthFacility,s.hospital,s.priority,s.status,s.collectionDate])); U.exportCSV('samples-selection-'+U.todayISO()+'.csv',rows,{title:'Referred samples — selection',actor:LS.auth.user.name}); UI.toast(rows.length-1+' samples exported',{type:'ok'}); });
+  r.querySelectorAll('[data-bulk-export]').forEach(b=>b.onclick=()=>{ const rows=[['Sample ID','Patient','Test','Origin','Hospital','Priority','Status','Collected']].concat(S.db().samples.filter(s=>st.selected.has(s.id)).map(s=>[s.sampleId,U.ptName(s),orderedTests(s).join(' · '),s.healthFacility,s.hospital,s.priority,s.status,s.collectionDate])); U.exportCSV('samples-selection-'+U.todayISO()+'.csv',rows,{title:'Referred samples — selection',actor:LS.auth.user.name}); UI.toast(rows.length-1+' samples exported',{type:'ok'}); });
   // infinite scroll
   const scroll=r.querySelector('#smpScroll');
   if(scroll){ onScroll=U.throttle(()=>{ if(scroll.scrollTop+scroll.clientHeight>scroll.scrollHeight-120){ const list=filtered(); if(st.limit<list.length){ st.limit+=80; const keep=scroll.scrollTop; paintTable(); const ns=rootEl.querySelector('#smpScroll'); if(ns) ns.scrollTop=keep; } } },300); scroll.addEventListener('scroll',onScroll); }
@@ -870,7 +908,7 @@ function syncURL(){
 function exportCSV(){
   const list=filtered();
   const rows=[['Sample ID','Patient','Patient ID','Sex','Test','Category','Priority','Status','Origin facility','Receiving lab','Collected','TAT target (d)','Result','Flag','Collector']]
-    .concat(list.map(s=>[s.sampleId,U.ptName(),s.patientId,s.sex,s.test,s.cat,s.priority,s.status,s.healthFacility,s.hospital,s.collectionDate,s.tatTargetDays,s.resultValue||'',s.flag||'',s.collector||'']));
+    .concat(list.map(s=>[s.sampleId,U.ptName(s),s.patientId,s.sex,orderedTests(s).join(' · '),s.cat,s.priority,s.status,s.healthFacility,s.hospital,s.collectionDate,s.tatTargetDays,s.resultValue||'',s.flag||'',s.collector||'']));
   U.exportCSV('referred-samples-'+U.todayISO()+'.csv',rows,{title:'Referred samples register',actor:LS.auth.user.name});
   UI.toast(list.length+' samples exported with letterhead metadata',{type:'ok'});
 }

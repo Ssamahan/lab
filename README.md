@@ -89,6 +89,13 @@ The code comes from the chosen test, the date from the day, the number from a pe
 counter. `S.testCode`, `S.sampleId`/`S.takeSampleId` and `S.manifestId`/`S.takeManifestId` are the
 only places that build an ID, and a number is taken inside the commit that stores the record.
 
+## Blood culture
+
+Choosing **Blood Culture** adds **Cytology** and **Gram Stain** to the order automatically — they are
+performed as routine on the same specimen. Dropping the culture drops the pair. The manifest lists
+them first: `Cytology · Gram Stain · Blood Culture`; the sample ID still comes from the culture
+(`RBC…`).
+
 ## Manifests
 
 **Referred samples → Manifests** lists every manifest ever generated on this device and in the
@@ -106,13 +113,12 @@ it from that manifest, writes an audit entry, and the toast offers **Undo**.
 
 ## Patient identity
 
-`U.ptName(record)` answers `Confidential` — except for the **Admin**, who may record and read a name.
-No other role sees one. Register exports call `U.ptName()` without a record, so a register
-file never contains a name. The **manifest sheet** and the table copied from it follow the record —
-the name for the Admin, `Confidential` for every other role. A one-time migration replaced the
-names carried forward from v5 — no name from that register exists in `localStorage`, a backup or the
-shared copy. **Age is calculated** from a date of birth (`LSU.ageFromDob`), never typed while a
-date is present.
+`U.ptName(record)` answers with the recorded name to **anyone signed in** — every staff role records
+it on the order and reads it in the register, the drawer, the manifest and the exports. The word
+`Confidential` is reserved for the **public visitor**, the read-only session opened from the landing
+without an account. A record whose name was erased by the 6.9.30 mask reads `Confidential` until the
+name is typed again in the order or in **Edit**. **Age is calculated** from a date of birth
+(`LSU.ageFromDob`), never typed while a date is present.
 
 ## Security, stated plainly
 

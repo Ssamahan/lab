@@ -503,6 +503,15 @@ function normalize(db){
   }
   db.meta.sampleCounters=db.meta.sampleCounters||{};
   db.meta.manifestSerial=Number(db.meta.manifestSerial)||0;
+  /* v6.9.36 — a blood culture is never ordered alone. Gram Stain and Cytology are
+     performed as routine with it, so they belong in the test menu and travel on the same
+     order, listed first on the manifest: Cytology · Gram Stain · Blood Culture. */
+  if(!db.meta.companionTestsV6936){
+    db.meta.companionTestsV6936=1;
+    db.catalog.tests=db.catalog.tests||[];
+    [{name:'Cytology',code:'CYT',cat:'General',tat:7},{name:'Gram Stain',code:'GS',cat:'General',tat:4}]
+      .forEach(t=>{ if(!db.catalog.tests.some(x=>x.name===t.name)) db.catalog.tests.push(Object.assign({id:'t-'+t.code.toLowerCase()},t)); });
+  }
   /* v6.9.5 — monthly ceilings on consumables. The bench plans in months ("no more
      than five blood-culture bottles a month"), so a ceiling can be set per line.
      The blood-culture ceiling is the district's own figure; the other lines start
