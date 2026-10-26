@@ -89,6 +89,19 @@ The code comes from the chosen test, the date from the day, the number from a pe
 counter. `S.testCode`, `S.sampleId`/`S.takeSampleId` and `S.manifestId`/`S.takeManifestId` are the
 only places that build an ID, and a number is taken inside the commit that stores the record.
 
+## Manifests
+
+**Referred samples → Manifests** lists every manifest ever generated on this device and in the
+shared copy, newest first: the ID, the receiving laboratory, how many samples are on it, the tests
+and the day it was made. Each card opens **View** (the printed sheet, both coats over a gold rule,
+the ID above its barcode, one row per sample, three signature lines), **Print / PDF**, or **Delete**
+— deleting a manifest leaves its samples in the register. The tab carries its own address,
+`#/samples?tab=manifests`, and `#/samples?manifest=1` opens the generator.
+
+Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
+selection bar (Admin only). The confirmation names the IDs, warns when one is on a manifest, unlinks
+it from that manifest, writes an audit entry, and the toast offers **Undo**.
+
 ## Patient identity
 
 `U.ptName(record)` answers `Confidential` — except for the **Admin**, who may record and read a name.
