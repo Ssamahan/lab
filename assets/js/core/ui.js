@@ -235,9 +235,12 @@ UI.barcodeSVG=(code,opts)=>{
   opts=opts||{};
   const h=opts.height||30;
   const hash=U.hash(code); let x=0; const parts=[];
+  /* The console's own barcode look: every bar is drawn, and the short ones are four fifths
+     of the full height, hanging from the baseline — a bar code, not a ladder. */
   for(let i=0;i<46;i++){
     const bit=(hash>>(i%30))&1; const w=(i%7===0)?1:(i%3===0?3:2);
-    if(bit) parts.push('<rect x="'+x+'" y="0" width="'+w+'" height="'+h+'"/>');
+    const bh=bit?h:Math.round(h*0.8);
+    parts.push('<rect x="'+x+'" y="'+(h-bh)+'" width="'+w+'" height="'+bh+'"/>');
     x+=w+((i%9===0)?2:1);
   }
   return '<svg class="barcode-svg" role="img" aria-label="'+U.esc(code)+'" width="'+x+'" height="'+h

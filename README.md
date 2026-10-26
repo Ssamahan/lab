@@ -94,8 +94,8 @@ only places that build an ID, and a number is taken inside the commit that store
 **Referred samples → Manifests** lists every manifest ever generated on this device and in the
 shared copy, newest first: the ID, the receiving laboratory, how many samples are on it, the tests
 and the day it was made. Each card opens **View** (the printed sheet, both coats over a gold rule,
-the ID above its barcode drawn in SVG so it survives the printer, one row per sample, and a
-signature area for the generator, the courier and the receiver closed by the date of reception),
+the ID above its barcode drawn in SVG so it survives the printer, one row per sample, and the
+generator, courier and receiver on one signature line),
 **Print / PDF**, or **Delete**
 — deleting a manifest leaves its samples in the register. The tab carries its own address,
 `#/samples?tab=manifests`, and `#/samples?manifest=1` opens the generator.
