@@ -495,3 +495,26 @@
 .trend-q{display:flex;flex-direction:column;gap:1px;margin-top:4px;border-top:1px solid var(--border);padding-top:5px}
 .trend-movers{margin-top:auto;border-top:1px solid var(--border);padding-top:6px}
 .trend-side .list-row{border-bottom:0;padding:3px 0!important}
+
+/* ——— Printing the manifest from the console ——————————————————————
+   On a phone the browser may print the page rather than the hidden print frame.
+   While a manifest preview is open, the page prints as that sheet: everything else
+   is hidden, the scroll boxes are released, and the footer goes to the paper margin. */
+@media print{
+  @page{size:A4 landscape;margin:12mm 12mm 18mm}
+  html,body{background:#fff!important}
+  body.manifest-open > *:not(#layer){display:none!important}
+  body.manifest-open #layer{display:block!important;position:static!important}
+  body.manifest-open .modal-scrim{position:static!important;display:block!important;background:#fff!important;padding:0!important}
+  body.manifest-open .modal{width:100%!important;max-width:none!important;max-height:none!important;margin:0!important;
+    padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}
+  body.manifest-open .modal h2,
+  body.manifest-open .modal .modal-sub,
+  body.manifest-open .modal .modal-foot{display:none!important}
+  body.manifest-open .manifest-preview-body{max-height:none!important;overflow:visible!important;
+    border:0!important;border-radius:0!important}
+  body.manifest-open .manifest-doc{padding:0!important;border-radius:0!important}
+  body.manifest-open .manifest-foot{position:fixed;left:0;right:0;bottom:0;margin:0!important;
+    padding:4px 0 0;text-align:center;border-top:1px solid #d8dde7;background:#fff!important}
+  body.manifest-open #manDoc svg{overflow:visible}
+}

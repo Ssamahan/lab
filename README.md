@@ -107,6 +107,12 @@ generator, courier and receiver on one signature line),
 — deleting a manifest leaves its samples in the register. The tab carries its own address,
 `#/samples?tab=manifests`, and `#/samples?manifest=1` opens the generator.
 
+**Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
+built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
+console's print stylesheet hides everything except the open sheet, so the button, the browser menu
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.37`), so a
+cached module can never survive a deploy and print an old layout.
+
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
 selection bar (Admin only). The confirmation names the IDs, warns when one is on a manifest, unlinks
 it from that manifest, writes an audit entry, and the toast offers **Undo**.
