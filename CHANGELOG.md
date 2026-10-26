@@ -4,6 +4,37 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.31
+
+**The sample ID now means something, the name is the Admin's to record, and age comes from a date of birth.**
+
+### Identifiers, read from the test that was chosen
+```
+sample     R + <test code> + MMYY + 4 digits      RBC10260001
+           remote · blood culture · October 2026 · first sample of that month
+manifest   <test code> + YYMMDD + 4 characters    BC2610270001
+           blood culture manifest · created 27 October 2026 · alphanumeric tail
+```
+- the code is taken from the test menu entry (`S.testCode`), never from the hospital initials;
+- the month and day come from the date, so the number reads without a lookup table;
+- counters live in `meta.sampleCounters` (per code and month) and `meta.manifestSerial`, and are
+  taken inside the same commit that stores the record — two samples can never share a number;
+- the wizard's preview uses the real rule, so what you see on step 3 is what gets printed.
+
+### The patient name
+The mask is for everyone except the Admin:
+- an **Admin** may type and read a recorded name; `U.ptName(record)` answers with it;
+- **every other role** — Manager, Technologist, Reviewer, Viewer, visitor — is answered with
+  `Confidential`, and the wizard shows no name field at all, only the reason;
+- **every file** — CSV export, manifest, printed sheet — calls `U.ptName()` without a record and
+  therefore always reads `Confidential`, whoever is signed in.
+
+### Date of birth and age
+- the wizard has a **date of birth** field; the age fills itself the moment a date is picked and the
+  field locks while a date is present. Clear the date and the age can be typed again;
+- the edit form has the same pair, and the record drawer shows both;
+- `LSU.ageFromDob()` is the single calculation, so an age and a date of birth can never disagree.
+
 ## What changed in 6.9.30
 
 **A patient is never named. The word is `Confidential`, everywhere, for everyone.**

@@ -52,7 +52,8 @@ function filtered(){
   else if(s.filter==='register') list=list.filter(x=>x.source!=='telemetry');
   if(s.q){
     const q=s.q.toLowerCase();
-    list=list.filter(x=>[x.sampleId,x.test,x.healthFacility,x.hospital,x.transporter,x.patientId].join(' ').toLowerCase().indexOf(q)>=0);
+    list=list.filter(x=>[x.sampleId,x.test,x.healthFacility,x.hospital,x.transporter,x.patientId,
+      (U.canSeeNames()?x.patientName:'')].join(' ').toLowerCase().indexOf(q)>=0);
   }
   const dir=s.dir==='asc'?1:-1;
   if(s.sort==='collected') list.sort((a,b)=>String(a.collectionAt||a.collectionDate).localeCompare(String(b.collectionAt||b.collectionDate))*dir);
@@ -78,7 +79,7 @@ function rowHTML(s,sel){
   return '<tr class="prio-'+pri+(sel.has(s.id)?' selected':'')+'" data-row="'+s.id+'">'
    +'<td style="width:34px"><span class="checkbox '+(sel.has(s.id)?'on':'')+'" data-check="'+s.id+'">'+UI.ic('check',10)+'</span></td>'
    +'<td style="width:58px"><span class="priority-flag '+pri+'">'+label+'</span></td>'
-   +'<td><div class="primary-cell"><b class="mono" style="font-size:11px;letter-spacing:-.01em">'+U.esc(s.sampleId)+'</b><small>'+U.esc(U.ptName())+' · '+(s.sex||'—')+'</small></div></td>'
+   +'<td><div class="primary-cell"><b class="mono" style="font-size:11px;letter-spacing:-.01em">'+U.esc(s.sampleId)+'</b><small>'+U.esc(U.ptName(s))+' · '+(s.sex||'—')+'</small></div></td>'
    +'<td><span class="small truncate" style="display:block;max-width:150px">'+U.esc(s.test)+'</span><span class="xs faint mono">'+U.esc(s.testCode||'')+'</span></td>'
    +'<td class="hide-sm"><span class="small truncate" style="display:block;max-width:130px">'+U.esc(s.healthFacility||s.healthCenter||'—')+'</span><span class="xs faint truncate" style="display:block;max-width:130px">'+U.esc(s.hospital||'Ruli DH')+'</span></td>'
    +'<td><span class="pill '+U.statusTone(s.status)+'">'+U.esc(s.status)+'</span></td>'
@@ -294,7 +295,7 @@ function openSample(id){
      +'<div class="row between" style="margin-bottom:10px"><div><div class="eyebrow">Sample ID</div><div class="mono" style="font-size:15px;color:var(--text-strong);letter-spacing:.02em;margin-top:2px">'+U.esc(s.sampleId)+'</div></div>'+UI.barcode(s.sampleId)+'</div>'
      +'<div class="thread" style="margin:10px 0"></div>'
      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
-       +[['Patient',U.ptName()],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Origin',s.healthFacility||'—'],['Test',s.test],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')
+       +[['Patient',U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Test',s.test],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')
      +'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('timer',14,'ic')+'Turnaround</div><div class="card-sub">'+(s.resultedAt?'Completed in '+Math.round(t.elapsedH)+'h of a '+Math.round(t.targetH)+'h target':'Due '+U.fmtDate(U.isoLocal(t.dueAt)))+'</div></div>'
      +'<span class="pill '+(t.breached?'rose':t.ratio>.8?'amber':'teal')+'">'+(t.breached?'Breached':t.ratio>.8?'At risk':'On track')+'</span></div>'
@@ -330,7 +331,7 @@ function openSample(id){
        +'<button class="btn primary sm" data-save-result style="margin-top:10px">'+UI.ic('check',14)+' Verify & release result</button>'
      +'</div></div>'
    +'<div class="card pad" style="background:var(--surface-inset)"><div class="row between"><div class="xs faint">Created by '+U.esc(s.collector||'Register')+' · '+U.fmtDate(s.collectionDate)+'</div><div class="xs faint mono">'+U.esc(s.source||'register')+' · '+U.esc(s.id)+'</div></div></div>';
-  const d=UI.drawer({title:U.ptName(),eyebrow:'Sample record',sub:s.sampleId+' · '+s.test,wide:true,body:body,
+  const d=UI.drawer({title:U.ptName(s),eyebrow:'Sample record',sub:s.sampleId+' · '+s.test,wide:true,body:body,
     foot:'<button class="btn" data-close>Close</button><button class="btn" data-edit-rec>'+UI.ic('pencil',15)+'Edit record</button>'
       +(s.manifestId?'<button class="btn" data-print-manifest>'+UI.ic('printer',15)+'Print manifest</button>':'<button class="btn" data-add-manifest>'+UI.ic('clipboard-list',15)+'Add to manifest</button>')
       +(s.resultedAt?'':'<button class="btn" data-quick-result>'+UI.ic('check',15)+'Quick result</button>')});
@@ -411,9 +412,13 @@ function editSample(id){
   UI.modal({title:'Edit sample record',sub:s.sampleId+' · corrections are written to the audit trail with your name.',width:'min(720px,100%)',
     body:'<div class="form-grid">'
       +'<div class="field"><label>Sample ID</label><input class="input mono" id="edSid" value="'+U.esc(s.sampleId)+'"></div>'
-      +'<div class="field"><label>Patient</label><input class="input" id="edName" value="'+U.CONFIDENTIAL+'" readonly></div>'
+      +(U.canSeeNames()
+        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(U.ptName(s))+'"><div class="xs faint" style="margin-top:4px">Shown to the Admin only; every other role and every export reads '+U.CONFIDENTIAL+'.</div></div>'
+        : '<div class="field"><label>Patient</label><input class="input" id="edName" value="'+U.CONFIDENTIAL+'" readonly></div>')
       +'<div class="field"><label>Patient ID</label><input class="input mono" id="edPid" value="'+U.esc(s.patientId||'')+'"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="edSex">'+opts(['Female','Male','Other','Unknown'],s.sex||'Unknown')+'</select></div>'
+      +'<div class="field"><label>Date of birth</label><input class="input mono" type="date" id="edDob" value="'+U.esc(String(s.dob||'').slice(0,10))+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">Age is calculated from it.</div></div>'
+      +'<div class="field"><label>Age · calculated</label><input class="input mono" id="edAge" value="'+U.esc(s.age==null?'':String(s.age))+'" readonly></div>'
       +'<div class="field"><label>Test</label><select class="select" id="edTest">'+opts(tests,s.test)+'</select></div>'
       +'<div class="field"><label>Priority</label><select class="select" id="edPri">'+opts(['Routine','Follow-up','STAT'],s.priority||'Routine')+'</select></div>'
       +'<div class="field"><label>Origin health centre</label><select class="select" id="edFac">'+opts(facilities,s.healthFacility||'')+'</select></div>'
@@ -432,8 +437,10 @@ function editSample(id){
         const g=k=>{ const n=el.querySelector(k); return n?n.value:''; };
         const sampleId=g('#edSid').trim()||s.sampleId;
         if(S.db().samples.some(x=>x.id!==s.id && x.sampleId===sampleId)) return UI.toast('Another sample already uses that ID',{type:'err'});
+        const dobV=g('#edDob');
         const changes={
-          sampleId, patientName:U.CONFIDENTIAL, patientId:g('#edPid').trim(), sex:g('#edSex'),
+          sampleId, patientName:(U.canSeeNames()&&g('#edName').trim())?g('#edName').trim():U.ptName(s), patientId:g('#edPid').trim(), sex:g('#edSex'),
+          dob:dobV, age:(U.ageFromDob(dobV)===''?g('#edAge'):String(U.ageFromDob(dobV))),
           test:g('#edTest'), priority:g('#edPri'), healthFacility:g('#edFac'), hospital:g('#edLab'),
           collectionDate:g('#edColl'), sentDate:g('#edSent')||null, transporter:g('#edTrans').trim(),
           status:g('#edStatus'), resultValue:g('#edVal').trim()||null, notes:g('#edNotes').trim()
@@ -456,21 +463,24 @@ function addToManifest(ids){
   if(!LS.auth.guard('edit')) return;
   const db=S.db();
   const candidates=db.samples.filter(s=>!s.manifestId && !s.resultedAt).slice(0,40);
-  UI.modal({title:'Add to manifest',sub:'Select samples travelling to the same receiving laboratory. Manifest IDs are generated with the Ruli DH prefix.',
+  UI.modal({title:'Add to manifest',sub:'Select samples travelling to the same receiving laboratory. The manifest ID is built from the test code and today\'s date: code + YYMMDD + a four-character tail.',
     width:'min(680px,100%)',
     body:'<div class="field" style="margin-bottom:12px"><label>Receiving laboratory</label><select class="select" id="manHosp">'+U.uniq(candidates.map(s=>s.hospital||'Ruli DH')).map(h=>'<option>'+U.esc(h)+'</option>').join('')+'</select></div>'
-      +'<div style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:9px">'+(candidates.length?candidates.map(s=>'<label class="row" style="padding:8px 11px;border-bottom:1px solid var(--border);gap:9px;cursor:pointer"><input type="checkbox" data-man-pick value="'+s.id+'" '+(ids.includes(s.id)?'checked':'')+' style="accent-color:#C9A84C"><span class="grow"><span class="small mono">'+U.esc(s.sampleId)+'</span> <span class="xs faint">'+U.esc(U.ptName())+' · '+U.esc(s.test)+'</span></span><span class="pill slate">'+U.esc(s.healthFacility||'—')+'</span></label>').join(''):'<div class="empty" style="padding:24px"><p class="xs muted">No unmanifested active samples.</p></div>')+'</div>',
+      +'<div style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:9px">'+(candidates.length?candidates.map(s=>'<label class="row" style="padding:8px 11px;border-bottom:1px solid var(--border);gap:9px;cursor:pointer"><input type="checkbox" data-man-pick value="'+s.id+'" '+(ids.includes(s.id)?'checked':'')+' style="accent-color:#C9A84C"><span class="grow"><span class="small mono">'+U.esc(s.sampleId)+'</span> <span class="xs faint">'+U.esc(U.ptName(s))+' · '+U.esc(s.test)+'</span></span><span class="pill slate">'+U.esc(s.healthFacility||'—')+'</span></label>').join(''):'<div class="empty" style="padding:24px"><p class="xs muted">No unmanifested active samples.</p></div>')+'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-gen>'+UI.ic('clipboard-list',15)+'Generate manifest</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-gen]').onclick=()=>{
         const picks=U.$$('[data-man-pick]:checked',el).map(x=>x.value);
         if(!picks.length) return UI.toast('Select at least one sample',{type:'warn'});
         const hosp=el.querySelector('#manHosp').value;
-        const db2=S.db(); db2.manifestCounter=db2.manifestCounter||{last:26030410,tail:'GEDK'};
-        db2.manifestCounter.last++;
-        const mid=U.fyLabel().slice(0,4)+String(db2.manifestCounter.last).padStart(6,'0')+db2.manifestCounter.tail;
-        const man={id:U.uid('man'),manifestId:mid,type:'Referral',title:'Sample Referral Manifest',testingHospital:hosp,createdAt:U.todayISO(),samples:picks,status:'Generated',createdBy:LS.auth.user.name};
-        S.commit(d=>{ d.manifests.unshift(man); picks.forEach(id=>{ const s=d.samples.find(x=>x.id===id); if(s){ s.manifestId=man.id; s.status='Received'; if(!s.receivedAt) s.receivedAt=U.nowISO(); } }); },{action:'manifest.create',entity:'manifest',entityId:man.id,detail:picks.length+' samples on manifest '+mid+' → '+hosp});
+        /* The manifest carries the code of the samples on it and the day it was made:
+           BC2610270001 → blood culture · 27 Oct 2026 · first manifest of that day. */
+        const firstPick=S.db().samples.find(x=>x.id===picks[0]);
+        const man={id:U.uid('man'),manifestId:'',type:'Referral',title:'Sample Referral Manifest',testingHospital:hosp,createdAt:U.todayISO(),samples:picks,status:'Generated',createdBy:LS.auth.user.name};
+        let mid='';
+        S.commit(d=>{ mid=S.takeManifestId(firstPick?firstPick.test:'',U.todayISO(),d); man.manifestId=mid; d.manifests.unshift(man);
+          picks.forEach(id=>{ const s=d.samples.find(x=>x.id===id); if(s){ s.manifestId=man.id; s.status='Received'; if(!s.receivedAt) s.receivedAt=U.nowISO(); } }); },
+          {action:'manifest.create',entity:'manifest',entityId:man.id,detail:picks.length+' samples on manifest '+mid+' → '+hosp});
         close(); UI.toast('Manifest '+mid+' generated · '+picks.length+' samples',{type:'ok',actions:[{label:'Preview',onClick:()=>printManifest(man)}]});
         LS.shell.refresh();
       };
@@ -479,7 +489,7 @@ function addToManifest(ids){
 function printManifest(man){
   const db=S.db(); const samples=man.samples.map(id=>db.samples.find(s=>s.id===id)).filter(Boolean);
   const body='<table><thead><tr><th>#</th><th>Sample ID</th><th>Patient</th><th>Sex</th><th>Test</th><th>Origin</th><th>Collected</th><th>Priority</th></tr></thead><tbody>'
-    +samples.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.sampleId)+'</td><td>'+U.esc(U.ptName())+'</td><td>'+U.esc(s.sex||'')+'</td><td>'+U.esc(s.test)+'</td><td>'+U.esc(s.healthFacility||'')+'</td><td>'+U.fmtDate(s.collectionDate)+'</td><td>'+U.esc(s.priority)+'</td></tr>').join('')
+    +samples.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.sampleId)+'</td><td>'+U.esc(U.ptName(s))+'</td><td>'+U.esc(s.sex||'')+'</td><td>'+U.esc(s.test)+'</td><td>'+U.esc(s.healthFacility||'')+'</td><td>'+U.fmtDate(s.collectionDate)+'</td><td>'+U.esc(s.priority)+'</td></tr>').join('')
     +'</tbody></table>'
     +'<p style="font-size:8.5px;color:#444;margin-top:10px">Total samples: <b>'+samples.length+'</b> · Manifest ID <b>'+U.esc(man.manifestId)+'</b> · Receiving laboratory <b>'+U.esc(man.testingHospital)+'</b> · Dispatcher '+(LS.auth.user?U.esc(LS.auth.user.name):'')+' · Generated '+U.fmtDate(U.todayISO())+'</p>';
   U.printDoc('Sample Referral Manifest — '+man.manifestId,body,{landscape:true,signatures:true,meta:'<span>Triple packaging UN3373 · cold chain where required</span><span>Page 1 of 1</span>'});
@@ -490,7 +500,7 @@ function manifestPreviewModal(man){
     +'<div style="text-align:right"><div style="font-family:monospace;font-size:12px;font-weight:700">'+U.esc(man.manifestId)+'</div><div style="font-size:9px;color:#666">'+U.fmtDate(man.createdAt)+'</div></div></div>'
     +'<div style="display:flex;justify-content:space-between;font-size:9.5px;margin-bottom:8px"><span><b>To:</b> '+U.esc(man.testingHospital)+'</span><span><b>Samples:</b> '+samples.length+'</span><span><b>Priority:</b> STAT where flagged</span></div>'
     +'<table><thead><tr><th>#</th><th>Sample ID</th><th>Patient</th><th>Test</th><th>Origin</th><th>Collected</th></tr></thead><tbody>'
-    +samples.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.sampleId)+'</td><td>'+U.esc(U.ptName())+'</td><td>'+U.esc(s.test)+'</td><td>'+U.esc(s.healthFacility||'')+'</td><td>'+U.fmtDate(s.collectionDate)+'</td></tr>').join('')
+    +samples.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.sampleId)+'</td><td>'+U.esc(U.ptName(s))+'</td><td>'+U.esc(s.test)+'</td><td>'+U.esc(s.healthFacility||'')+'</td><td>'+U.fmtDate(s.collectionDate)+'</td></tr>').join('')
     +'</tbody></table><div class="sig"><div>Dispatched by</div><div>Received by (laboratory)</div><div>Date / time</div></div></div>';
   UI.modal({title:'Manifest preview',sub:'Print-ready, letterheaded and signature-blocked.',width:'min(780px,100%)',
     body:doc,
@@ -506,19 +516,22 @@ function newWizard(){
   const tests=S.tests();
   const hcs=db.catalog.healthCenters.map(h=>h.name);
   const hospitals=db.catalog.hospitals.map(h=>h.name).concat(['Ruli DH - GeneXpert']);
-  const state={step:1,patient:{name:'',pid:'',sex:'Female',age:''},tests:[],priority:'Routine',origin:hcs[0],hospital:hospitals[0],transporter:'',notes:'',sampleId:''};
-  const previewId=()=>{
-    const seq=(db.meta.sampleSeq||120000)+1;
-    return 'RDH-'+U.fyLabel().slice(-4)+'-'+String(seq).padStart(6,'0');
-  };
+  const state={step:1,patient:{name:'',pid:'',sex:'Female',dob:'',age:''},tests:[],priority:'Routine',origin:hcs[0],hospital:hospitals[0],transporter:'',notes:'',sampleId:''};
+  /* The preview must read like the real thing: test code, month, next number. */
+  const firstTestName=()=>{ const t=tests.find(x=>x.id===state.tests[0]); return t?t.name:''; };
+  const previewId=()=>S.sampleId(firstTestName()||(tests[0]&&tests[0].name),U.todayISO());
   const stepHTML=()=>{
     if(state.step===1) return '<div class="wizard-step">'
-      +'<div class="form-grid"><div class="field span2"><label>Patient</label><div class="card pad" style="background:var(--surface-inset);padding:9px 11px"><b class="small">'+U.CONFIDENTIAL+'</b><div class="xs faint" style="margin-top:3px">Names are never recorded. The sample ID and the patient/insurance ID identify the specimen.</div></div></div>'
+      +'<div class="form-grid">'
+      +(U.canSeeNames()
+        ? '<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Recorded on this device and shown to the Admin only. Every other role, every export and every manifest reads <b>'+U.CONFIDENTIAL+'</b>.</div></div>'
+        : '<div class="field span2"><label>Patient</label><div class="card pad" style="background:var(--surface-inset);padding:9px 11px"><b class="small">'+U.CONFIDENTIAL+'</b><div class="xs faint" style="margin-top:3px">Only the Admin may record a name. The sample ID and the patient/insurance ID identify the specimen.</div></div></div>')
       +'<div class="field"><label>Patient / insurance ID</label><input class="input mono" id="wPid" value="'+U.esc(state.patient.pid)+'" placeholder="430129"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="wSex">'+['Female','Male'].map(x=>'<option '+(state.patient.sex===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
-      +'<div class="field"><label>Age</label><input class="input mono" id="wAge" value="'+U.esc(state.patient.age)+'" placeholder="34" inputmode="numeric"></div>'
+      +'<div class="field"><label>Date of birth</label><input class="input mono" type="date" id="wDob" value="'+U.esc(state.patient.dob)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">The age below is calculated from it.</div></div>'
+      +'<div class="field"><label>Age · calculated</label><input class="input mono" id="wAge" value="'+U.esc(state.patient.age)+'" placeholder="from the date of birth" readonly><div class="xs faint" style="margin-top:4px">Leave the date blank to type an age instead.</div></div>'
       +'<div class="field"><label>Priority</label><select class="select" id="wPri">'+['Routine','STAT','Follow-up'].map(x=>'<option '+(state.priority===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div></div>'
-      +'<div class="hint" style="margin-top:10px">Patient identifiers are stored only in the local register. STAT samples are pinned to the top of the worklist and excluded from batching.</div></div>';
+      +'<div class="hint" style="margin-top:10px">The sample ID is built from the test you choose: <span class="mono">R+code+MMYY+number</span>. STAT samples are pinned to the top of the worklist and excluded from batching.</div></div>';
     if(state.step===2) return '<div class="wizard-step">'
       +'<div class="field" style="margin-bottom:10px"><label>Search test menu</label><div class="searchbox">'+UI.ic('search',14)+'<input class="input" id="wTestSearch" placeholder="CBC, malaria, GeneXpert…"></div></div>'
       +'<div id="wTestList" style="max-height:300px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px">'
@@ -540,11 +553,35 @@ function newWizard(){
       const body=el.querySelector('#wBody'), next=el.querySelector('[data-wnext]'), back=el.querySelector('[data-wback]');
       const syncDots=()=>{ U.$$('.step-dot',el).forEach((d,i)=>d.classList.toggle('on',i<state.step)); el.querySelector('#wStepLbl').textContent='Step '+state.step+' of 3 · '+['Patient','Tests','Routing'][state.step-1]; back.hidden=state.step===1; next.innerHTML=state.step===3?'Create sample '+UI.ic('check',14):'Continue '+UI.ic('arrow-right',14); };
       const capture=()=>{
-        if(state.step===1){ state.patient.name=U.CONFIDENTIAL; state.patient.pid=(el.querySelector('#wPid')||{}).value||''; state.patient.sex=(el.querySelector('#wSex')||{}).value||'Female'; state.patient.age=(el.querySelector('#wAge')||{}).value||''; state.priority=(el.querySelector('#wPri')||{}).value||'Routine'; }
+        if(state.step===1){
+          const nm=el.querySelector('#wName');
+          state.patient.name=(nm&&U.canSeeNames())?(nm.value||'').trim():U.CONFIDENTIAL;
+          state.patient.pid=(el.querySelector('#wPid')||{}).value||'';
+          state.patient.sex=(el.querySelector('#wSex')||{}).value||'Female';
+          state.patient.dob=(el.querySelector('#wDob')||{}).value||'';
+          const calc=U.ageFromDob(state.patient.dob);
+          state.patient.age=(calc===''?((el.querySelector('#wAge')||{}).value||''):String(calc));
+          state.priority=(el.querySelector('#wPri')||{}).value||'Routine';
+        }
         else if(state.step===3){ state.origin=(el.querySelector('#wOrigin')||{}).value||''; state.hospital=(el.querySelector('#wHosp')||{}).value||''; state.transporter=(el.querySelector('#wTrans')||{}).value||''; state.notes=(el.querySelector('#wNote')||{}).value||''; }
       };
       const paint=()=>{ body.innerHTML=stepHTML(); syncDots(); wireStep(); };
       const wireStep=()=>{
+        if(state.step===1){
+          /* Typing or picking a date of birth fills the age at once; clearing it
+             hands the field back so an age can be typed instead. */
+          const dob=body.querySelector('#wDob'), age=body.querySelector('#wAge');
+          if(dob&&age){
+            const sync=()=>{
+              const a=U.ageFromDob(dob.value);
+              if(a===''){ age.readOnly=false; if(!age.value) age.value=state.patient.age||''; }
+              else { age.readOnly=true; age.value=String(a); }
+            };
+            dob.addEventListener('input',sync);
+            dob.addEventListener('change',sync);
+            sync();
+          }
+        }
         if(state.step===2){
           body.querySelectorAll('[data-test]').forEach(b=>b.onclick=()=>{ const id=b.dataset.test; if(state.tests.includes(id)) state.tests=state.tests.filter(x=>x!==id); else state.tests.push(id); b.classList.toggle('on'); body.querySelector('#wTestCount').textContent=state.tests.length+' selected'; });
           const search=body.querySelector('#wTestSearch');
@@ -559,14 +596,19 @@ function newWizard(){
         else {
           const testObjs=state.tests.map(id=>tests.find(t=>t.id===id)).filter(Boolean);
           const first=testObjs[0];
-          const seq=(S.db().meta.sampleSeq||120000)+1;
-          const sid='RDH-'+U.fyLabel().slice(0,4)+'-'+String(seq).padStart(6,'0');
-          const sample={id:U.uid('sm'),sampleId:sid,patientName:U.CONFIDENTIAL,patientId:state.patient.pid,dob:'',sex:state.patient.sex,age:state.patient.age,
+          const today=U.todayISO();
+          const name=(state.patient.name&&state.patient.name!==U.CONFIDENTIAL)?state.patient.name:U.CONFIDENTIAL;
+          const sample={id:U.uid('sm'),sampleId:'',patientName:name,patientId:state.patient.pid,
+            dob:state.patient.dob||'',age:state.patient.age||'',
+            sex:state.patient.sex,
             test:first.name,testCode:first.code,cat:first.cat,hospital:state.hospital,healthFacility:state.origin,district:'Gakenke',
-            collectionDate:U.todayISO(),collectionAt:U.nowISO(),sentDate:U.todayISO(),receivedAt:null,resultedAt:null,status:'Registered',
+            collectionDate:today,collectionAt:U.nowISO(),sentDate:today,receivedAt:null,resultedAt:null,status:'Registered',
             priority:state.priority,tatTargetDays:Math.max.apply(null,testObjs.map(t=>t.tat)),notes:state.notes,transporter:state.transporter,
             collector:LS.auth.user.name,source:'register',manifestId:null,tests:testObjs.map(t=>t.name)};
-          S.commit(d=>{ d.samples.push(sample); d.meta.sampleSeq=seq; },{action:'sample.register',entity:'samples',entityId:sample.id,detail:'Registered '+sid+' · '+first.name+' · '+state.priority+' → '+state.hospital});
+          /* The ID is taken inside the commit, from the test chosen and this month. */
+          let sid='';
+          S.commit(d=>{ sid=S.takeSampleId(first.name,today,d); sample.sampleId=sid; d.samples.push(sample); },
+            {action:'sample.register',entity:'samples',entityId:sample.id,detail:'Registered '+sid+' · '+first.name+' · '+state.priority+' → '+state.hospital});
           close();
           UI.toast('Sample '+sid+' registered · barcode ready',{type:'ok',actions:[{label:'Open record',onClick:()=>openSample(sample.id)}]});
           LS.shell.refresh();
@@ -575,7 +617,7 @@ function newWizard(){
       next.onclick=advance; back.onclick=()=>{ capture(); state.step=Math.max(1,state.step-1); paint(); };
       el.addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.tagName!=='TEXTAREA'){ e.preventDefault(); advance(); } });
       syncDots(); wireStep();
-      setTimeout(()=>el.querySelector('#wName')?.focus(),80);
+      setTimeout(()=>{ const f=el.querySelector('#wName')||el.querySelector('#wPid'); if(f) f.focus(); },80);
     }});
 }
 

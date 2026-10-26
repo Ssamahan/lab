@@ -395,6 +395,63 @@ function generatePlan(monthKey, seedDB){
 
 /* ——— Migration / normalisation ————————————————— */
 let DB=null, listeners=[], saveTimer=null, dirty=false;
+/* ——— Identifiers ————————————————————————————————
+   A reference laboratory does not number samples by the sending hospital. The test
+   and the month carry the meaning, so the ID is readable without a lookup table:
+
+     sample    R + <test code> + MMYY + 4 digits    RBC10260001
+               remote · blood culture · October 2026 · first sample of that month
+
+     manifest  <test code> + YYMMDD + 4 characters  BC2610277K2A
+               blood culture manifest · created 27 October 2026 · alphanumeric tail
+
+   Counters live in `meta.sampleCounters` and `meta.manifestSerial`, so a number is
+   never reused on this device even after the month rolls over. */
+function pad2(n){ return String(n).padStart(2,'0'); }
+function idDate(when){
+  if(!when) return new Date();
+  const d=new Date(String(when).slice(0,10)+'T12:00:00');
+  return isNaN(d)?new Date():d;
+}
+/* The code on the test menu is the code in the ID. Never the hospital, never an initial. */
+S.testCode=function(testName){
+  const list=(S.allTests?S.allTests():(S.db().catalog.tests||[]));
+  const t=list.find(x=>x&&x.name===testName);
+  if(t&&t.code) return String(t.code).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
+  const words=String(testName||'').toUpperCase().replace(/[^A-Z0-9 ]/g,' ').trim().split(/\s+/).filter(Boolean);
+  const guess=words.map(w=>w[0]).join('').slice(0,3);
+  return guess||'GEN';
+};
+S.sampleId=function(testName,when){
+  const d=idDate(when), code=S.testCode(testName);
+  const tag=pad2(d.getMonth()+1)+String(d.getFullYear()).slice(-2);
+  const key='S'+code+tag;
+  const c=((S.db().meta.sampleCounters)||{})[key]||0;
+  return 'R'+code+tag+String(c+1).padStart(4,'0');
+};
+/* Bump the counter. Called inside the commit that stores the sample. */
+S.takeSampleId=function(testName,when,db){
+  const d=idDate(when), code=S.testCode(testName);
+  const tag=pad2(d.getMonth()+1)+String(d.getFullYear()).slice(-2);
+  const key='S'+code+tag;
+  db.meta.sampleCounters=db.meta.sampleCounters||{};
+  const next=(db.meta.sampleCounters[key]||0)+1;
+  db.meta.sampleCounters[key]=next;
+  return 'R'+code+tag+String(next).padStart(4,'0');
+};
+S.manifestId=function(testName,when){
+  const d=idDate(when), code=S.testCode(testName);
+  const stamp=String(d.getFullYear()).slice(-2)+pad2(d.getMonth()+1)+pad2(d.getDate());
+  const c=Number((S.db().meta.manifestSerial)||0)+1;
+  return code+stamp+String(c.toString(36).toUpperCase()).padStart(4,'0');
+};
+S.takeManifestId=function(testName,when,db){
+  const d=idDate(when), code=S.testCode(testName);
+  const stamp=String(d.getFullYear()).slice(-2)+pad2(d.getMonth()+1)+pad2(d.getDate());
+  db.meta.manifestSerial=(Number(db.meta.manifestSerial)||0)+1;
+  return code+stamp+String(db.meta.manifestSerial.toString(36).toUpperCase()).padStart(4,'0');
+};
+
 function normalize(db){
   db.meta=db.meta||{};
   db.settings=augSettings(db.settings);
@@ -444,6 +501,8 @@ function normalize(db){
     db.meta.patientNamesMasked=true;
     db.samples.forEach(x=>{ if(x && x.patientName!==U.CONFIDENTIAL) x.patientName=U.CONFIDENTIAL; });
   }
+  db.meta.sampleCounters=db.meta.sampleCounters||{};
+  db.meta.manifestSerial=Number(db.meta.manifestSerial)||0;
   /* v6.9.5 — monthly ceilings on consumables. The bench plans in months ("no more
      than five blood-culture bottles a month"), so a ceiling can be set per line.
      The blood-culture ceiling is the district's own figure; the other lines start
