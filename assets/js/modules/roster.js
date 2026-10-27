@@ -42,7 +42,10 @@ function coverage(p){
    name on the night; a weekend carries one person on the days and one on the
    nights — the weekend technologist alone on day + night counts as both. */
 function req(){ const s=S.settings(); return {day:s.coverWeekdayDay||3,night:s.coverWeekdayNight||1,wkDay:s.coverWeekendDay||1,wkNight:s.coverWeekendNight||1}; }
-function required(iso){ const r=req(); return U.dow(iso)>=5?{day:r.wkDay,night:r.wkNight}:{day:r.day,night:r.night}; }
+/* A public holiday is rostered as a weekend, so it carries a weekend's
+   requirement: one name on the days, one on the nights. */
+function isRest(iso){ return U.dow(iso)>=5 || !!S.holiday(iso); }
+function required(iso){ const r=req(); return isRest(iso)?{day:r.wkDay,night:r.wkNight}:{day:r.day,night:r.night}; }
 
 function fairness(p){
   const out={};
@@ -90,7 +93,7 @@ function gridView(){
   const cov=coverage(p), rq=req();
   const head='<thead><tr><th class="staff-cell" style="z-index:4">Staff / day</th>'+p.dates.map(iso=>{
     const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
-    return '<th class="'+(dow>=5?'wkend':'')+'" '+(hol?'data-tip="'+U.esc(hol.name)+'"':'')+' style="'+(today?'color:var(--gold)':'')+'">'+U.DOW1[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
+    return '<th class="'+(dow>=5||hol?'wkend':'')+(hol?' holiday':'')+'" '+(hol?'data-tip="'+U.esc(hol.name)+'"':'')+' style="'+(today?'color:var(--gold)':'')+'">'+U.DOW1[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
   }).join('')+'</tr></thead>';
   const body=(p.staff||[]).map((s,si)=>{
     const st=S.staffByName(s.name)||{};
@@ -114,7 +117,7 @@ function gridView(){
      left floating over the grid. Coverage and balance sit underneath it, side by
      side where the screen is wide enough. */
   const covCell=(iso)=>{
-    const c=cov[iso], r=required(iso), dow=U.dow(iso), we=dow>=5;
+    const c=cov[iso], r=required(iso), dow=U.dow(iso), we=isRest(iso);
     const shortD=c.day<r.day, shortN=c.night<r.night;
     return '<div class="cov-cell'+(we?' wkend':'')+(shortD||shortN?' low':'')+'" data-tip="'+U.esc(iso)+' · day '+c.day+' of '+r.day+' · night '+c.night+' of '+r.night+'">'
       +'<span class="cd">'+U.parseISO(iso).getDate()+'<em>'+U.DOW1[dow]+'</em></span>'

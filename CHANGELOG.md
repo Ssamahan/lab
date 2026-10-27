@@ -4,6 +4,48 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.49
+
+**The screens fit, the holiday is rostered, and the leave book reads in turn order.**
+
+- **A public holiday is worked like a weekend.** One name on the days, one on the nights,
+  every other cell blank. The duty alternates — a count of holidays worked, carried over from
+  the month before, with a rota that turns one place each time — so it is shared fairly and
+  not restarted every month. The manager is never put on a holiday unless he has chosen to
+  work them (`worksHolidays`). A holiday night is a single duty: it never runs on into the
+  working week and quietly turns a two-night block into three.
+- **The manager's own leave belongs to FY 2026/27.** His thirty days (19 November – 18
+  December 2026) are his own turn in the year he takes them, the turn after Aurélie — not a
+  carry-over from a year whose leave was never recorded. The stale fifteen-day block that
+  would have double-booked the same thirty days is gone.
+- **A carry-over is only counted when the year it came from was recorded.** The previous
+  fiscal year was being looked up under the wrong label, so every person appeared with thirty
+  days carried in. The lookup is fixed: Patrick's fifteen unused days of 2025/26 still carry,
+  and nothing is carried for the people whose previous year holds no records at all.
+- **Leave & timeline is in turn order, and every block says what happened to it.** The plan
+  book opens with the person away now, then the next to go, then the people already gone.
+  Aurélie reads **On leave**; Patrick reads **Attended a carry-over of 2025/26** and
+  **Attended 1st installment**; Diane reads **Attended**. A carry-over is never numbered as an
+  installment of the year's own entitlement. The timeline rows follow the same order.
+- **Every screen fits, and no card is left holding dead space.** A card fills the row it sits
+  in — its body takes the slack, its foot stays on the floor — and a long table stops at the
+  fold instead of running past the screen. The referred-samples register takes the full width
+  with its three lists in one row under it, instead of eight columns beside a tall column and a
+  narrow box at the foot. The dashboard measures the width of its own column, so collapsing
+  the rail or turning a module off re-packs the cards instead of leaving a column of nothing.
+- **PBF evaluates health centres only.** Ruli DH is the hospital laboratory that does the
+  assessing: it is out of the index, the scorecards, the calendar, the plan and the visit form.
+- **Posts are held by name.** Jean holds the laboratory quality post and Dieudonné the
+  safety post. The training queue now calls out the posts — manager, quality manager, safety
+  officer — above the lobby, labelled *called by role*: training aimed at a post goes to the
+  person who holds it and they never wait in the FIFO queue for it. The schedule form asks who
+  a session is aimed at and ticks the holder.
+- **Two columns where one was wasting the page.** The EQA per-scheme scorecard is a band of
+  half-width scheme tables rather than one full-width stack; the training history is laid out
+  in two columns; the PBF quarterly index shares its row with the quarter-on-quarter trend; and
+  in Quality the continuous-improvement and non-conformance cards join ISO readiness in one
+  row so the KPI trendlines get the full width.
+
 ## What changed in 6.9.48
 
 **The working plan is built the way the department works it, in their own words.**
