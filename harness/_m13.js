@@ -1,0 +1,12 @@
+const {boot}=require('./env');
+(async()=>{const {w}=await boot('#/roster');
+const doc=w.document;
+doc.querySelector('[data-nav="1"]').click(); await new Promise(r=>setTimeout(r,400));
+const mini=doc.querySelector('#fairMini');
+console.log('fairMini html length', mini?mini.innerHTML.length:0);
+console.log(mini?mini.textContent.slice(0,200):'none');
+const pair=doc.querySelector('.plan-pair');
+console.log('pair html len', pair.innerHTML.length);
+console.log('table cols', doc.querySelectorAll('.plan-fit table.cal thead th').length);
+console.log('scroll div class', doc.querySelector('.plan-fit .dt-scroll').className);
+process.exit(0);})();

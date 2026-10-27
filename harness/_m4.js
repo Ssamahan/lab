@@ -1,0 +1,9 @@
+const {boot}=require('./env');
+(async()=>{const {w}=await boot('#/roster');
+const doc=w.document;
+doc.querySelector('[data-nav="1"]').click(); await new Promise(r=>setTimeout(r,250));
+doc.querySelector('[data-view="sheet"]').click(); await new Promise(r=>setTimeout(r,400));
+const app=doc.getElementById('app');
+const txt=app.textContent.replace(/\s+/g,' ');
+console.log(txt.slice(0,1500));
+process.exit(0);})();

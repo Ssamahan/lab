@@ -4,6 +4,37 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.48
+
+**The working plan is built the way the department works it, in their own words.**
+
+- **One name on the night — never two.** Every night of the plan carries exactly one
+  person, and the coverage ledger now proves it day by day.
+- **A night is two or three nights, never one.** The plan hands out blocks of two, or of
+  three for the two contracted for it (Patrick, then Jean Paul). A single night never
+  appears unless it is chosen by hand. A fourth night in a row never happens.
+- **The weekend carries one on the days and one on the nights.** Saturday and Sunday go to
+  the same two people on the same shifts. Every other weekend cell stays blank — nobody is
+  rostered at the weekend to fill the grid.
+- **Only the weekend technologist works day + night**, and only at the weekend. When she is
+  away the weekend is split: one takes both days, another both nights, never a `DN` for
+  anybody else. The day worker is off the Friday before and the Monday after; the night
+  worker is off the Monday after and rests before work on the Tuesday.
+- **Each month takes over the week the month before already wrote**, and runs at least a
+  week past its own end. The first days of a month are therefore already planned while the
+  monthly reports are being written — that week is the buffer — and a night block is never
+  cut in half by the turn of the month.
+- **The manager works the bench.** He is on the day shift, Monday to Friday, like everybody
+  else: no nights, no weekends, no public holidays — and never a month of his own off. The
+  November 2026 draft that showed him off for four weeks is rebuilt.
+
+**The table fits the page.** The month grid is drawn to the width of the screen — every day
+of the run, no sideways scrolling, and no second column of names left floating over the grid
+while it scrolls. Coverage and balance now sit underneath it, side by side where the screen
+is wide enough: coverage as a tile for every day of the run (day staff / night staff against
+what is required), balance as a name-by-name ledger of nights, weekend days and public
+holidays. The Balance card used to be drawn empty; it now carries the numbers.
+
 ## What changed in 6.9.47
 
 **Every month the workbook holds is now read into the console — sheet by sheet, straight from

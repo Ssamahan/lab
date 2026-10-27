@@ -58,7 +58,10 @@ const DEFAULT_SETTINGS = {
   fiscalStart:'july', fyLabel:'2026/2027',
   labName:'Laboratory Department', facilityCode:'RDH',
   samplePrefix:'RDH', manifestPrefix:'BLC',
-  coverWeekdayDay:3, coverWeekdayNight:1, coverWeekendDay:2, coverWeekendNight:1,
+  /* A weekday carries the day bench and one name on the night. A weekend carries
+     one person on the days and one on the nights: the weekend technologist alone on
+     day + night fills both. */
+  coverWeekdayDay:3, coverWeekdayNight:1, coverWeekendDay:1, coverWeekendNight:1,
   tat: { 'Blood Culture':4, 'TB Culture':21, 'HIV Recency Viral Load':5, 'Hepatitis (HEP)':7, default:3 },
   cloud:{ enabled:false, endpoint:'', anonKey:'', email:'', password:'', anonAuth:false, live:true, pollMs:2500, pushMs:700, mode:'push-pull', lastSync:null },
   onboarding:{ importStaff:true, configureTests:false, inviteUsers:false, baselineQC:false, dismissed:false },
@@ -363,153 +366,230 @@ function generateSamples(seedDB,opts){
   return out;
 }
 
-/* ——— Roster generation (current month, draft) ————————————————— */
+/* ——— Roster generation ————————————————————————————————————————————
+   The plan the department works to, in their own words:
+
+     · ONE name on the night — never two;
+     · a night is held in a block of two or three consecutive nights. A single
+       night is never handed out: two is the floor, three the ceiling, and the
+       ceiling is only reached by the two who are contracted for it;
+     · the weekend carries one person on the day and one on the night. Every
+       other weekend cell is left blank — nobody is rostered at the weekend to
+       fill the grid;
+     · only the weekend technologist ever works `DN`, and only at the weekend.
+       When she is away the weekend is split: one takes the days, another the
+       nights — never a `DN` for anybody else;
+     · the roster runs at least a week past the month it is named for, and the
+       new month takes that week over from the month before. The first days of
+       the month are therefore already planned while the monthly reports are
+       being written — that week is the buffer;
+     · the manager works the bench on weekdays like everybody else. No nights,
+       no weekends, no public holidays — and never a month of his own leave.
+*/
 function generatePlan(monthKey, seedDB){
-  const days=U.monthRange(monthKey);
   const staff=seedDB.staff.filter(s=>s.status==='active');
-  // The manager covers the bench only when a weekday would otherwise be down to
-  // two people or fewer — the rule the department actually works to.
-  const reserve=staff.filter(s=>s.pattern==='manager');
-  const leaves=(seedDB.leaves||[]);
-  const eligibleNights=staff.filter(s=>!s.weekendOnly && (s.nightPref!=='no') && s.maxNights>0);
-  const plan={ label:U.monthLabel(monthKey), dates:days, staff:[], meta:{date:U.todayISO(), fy:U.fyLabel(), period:U.monthLabel(monthKey), generated:true, draft:true} };
-  const nightCrew = eligibleNights.length? eligibleNights : staff.filter(s=>s.nightPref!=='no');
-  /* Nights are three-in-a-row for the two people who can take them, two-in-a-row
-     for everybody else, and the weekend technologist carries Saturday and Sunday.
-     The three-night block is earned, not rotated: Patrick carries it most often,
-     Jean Paul takes the weeks he does not. Nobody else is given a third night. */
-  const threePool=nightCrew.filter(s=>(s.maxConsecN||0)>=3 && s.threeNight)
-    .sort((a,b)=>(a.nightRank||9)-(b.nightRank||9));
-  const twoPool=nightCrew.filter(s=>(s.maxConsecN||0)>=2 && threePool.indexOf(s)<0);
-  /* ——— the weekend ————————————————————————————————
-     While the weekend technologist is on duty she takes the whole weekend, day and
-     night, on `DN` — the weekend is never split by halves.
+  const leaves=(seedDB.leaves||[]).filter(l=>!/declin|reject/i.test(l.status||''));
+  const idOf={}; (seedDB.staff||[]).forEach(s=>{ idOf[s.name]=s.id; });
+  const leaveOn=(name,iso)=>{
+    const id=idOf[name]; if(!id) return null;
+    const l=leaves.find(x=>x.staffId===id && iso>=x.from && iso<=x.to);
+    return l?S.leaveCode(l.type):null;
+  };
+  const onLeave=(name,iso)=>!!leaveOn(name,iso);
 
-     When she is away, the weekend is split deliberately: one technician takes the
-     Saturday and Sunday day shifts, a different one takes the Saturday and Sunday
-     nights. Each of them is then rested, and only the night is rested straight after:
-       · the night technician is off on the Monday and rests before work on the Tuesday;
-       · the day technician is off on the Friday before — so the week never runs seven
-         days — and off again on the Monday after, which covers both of the day
-         shifts worked at the weekend.
-     The pair is chosen once per weekend, so Saturday and Sunday are the same two
-     people. Only the people actually rostered carry a code: every other weekend
-     cell stays blank and the grid reads as a roster. */
-  const onLeaveOn=(stId,iso)=>!!leaves.find(l=>l.staffId===stId && !/declin|reject/i.test(l.status||'') && iso>=l.from && iso<=l.to);
-  const weekendOwner={};                 // iso -> {day, night}
-  const weekendStaff=staff.filter(st=>st.weekendOnly);
-  const weekKeys={};
-  days.forEach((iso,idx)=>{ if(U.dow(iso)>=5) weekKeys[idx-U.dow(iso)+5]=true; });
-  Object.keys(weekKeys).map(Number).sort((a,b)=>a-b).forEach(k=>{
-    const sat=days[k], sun=days[k+1];
-    const ref=sat||sun;
-    if(!ref) return;
-    const own=weekendStaff.find(st=>!onLeaveOn(st.id,ref));
-    if(own){
-      [sat,sun].forEach(d=>{ if(d) weekendOwner[d]={day:own.name, night:own.name, split:false}; });
-      return;
-    }
-    const available=staff.filter(st=>!st.weekendOnly && !onLeaveOn(st.id,ref));
-    const byRank=available.slice().sort((a,b)=>(a.nightRank||9)-(b.nightRank||9));
-    const day=available.filter(st=>st.pattern!=='manager')[0]||available[0];
-    const night=byRank.filter(st=>st.nightPref!=='no' && (st.maxNights||0)>0 && (!day||st.name!==day.name))[0]
-      || available.filter(st=>!day||st.name!==day.name)[0];
-    if(!day&&!night) return;
-    [sat,sun].forEach(d=>{ if(d) weekendOwner[d]={day:day?day.name:null, night:night?night.name:null, split:!(day&&night&&day.name===night.name)&&!!(day&&night)}; });
-  });
-  const weekendDayOn=iso=>{ const w=weekendOwner[iso]; return w?w.day:null; };
-  const weekendNightOn=iso=>{ const w=weekendOwner[iso]; return w?w.night:null; };
-  const weekendName=weekendNightOn;                 // the night is what a week's nights must avoid
+  /* ——— the span: the month, and at least a week past it ——— */
+  const monthDays=U.monthRange(monthKey);
+  let end=U.addDays(monthDays[monthDays.length-1],7);
+  while(U.dow(end)!==6) end=U.addDays(end,1);         // run on to the Sunday
+  const dates=[];
+  for(let iso=monthKey+'-01'; iso<=end; iso=U.addDays(iso,1)) dates.push(iso);
 
-  /* Nights are held a week at a time, not a day at a time: one person takes
-     Monday to Wednesday and one person takes Thursday and Friday, so a block is
-     never broken in the middle by a shift of holder. The week's holders are chosen
-     around the weekend on both sides — the person who has Saturday and Sunday is
-     never also given the nights that touch them. */
-  const nightOf={};
-  const weekOf={};                                  // Monday index -> {three, two}
-  days.forEach((iso,idx)=>{ const m=idx-U.dow(iso); if(weekOf[m]===undefined) weekOf[m]=null; });
-  Object.keys(weekOf).map(Number).forEach(m=>{
-    const prevSun=days[m-1], prevSat=days[m-2], nextSat=days[m+5];
-    const banned=[weekendName(prevSun),weekendName(prevSat),weekendName(nextSat)].filter(Boolean);
-    const free=list=>list.filter(s=>banned.indexOf(s.name)<0);
-    const wk=Math.max(0,Math.floor(m/7));
-    let three=null;
-    const threeFree=free(threePool);
-    if(threeFree.length){
-      /* two weeks in three go to the first name on the list, one in three to the second */
-      three=threeFree.length>1?(wk%3===2?threeFree[1]:threeFree[0]):threeFree[0];
-    } else {
-      const twoFree=free(twoPool).length?free(twoPool):free(nightCrew);
-      if(twoFree.length) three=twoFree[wk%twoFree.length];
-    }
-    const base=twoPool.length?twoPool:nightCrew.filter(s=>threePool.indexOf(s)<0);
-    const pool=free(base).filter(s=>!three||s.name!==three.name);
-    const use=pool.length?pool:free(base);
-    const two=use.length?use[wk%use.length]:null;
-    weekOf[m]={three:three?three.name:null, two:two?two.name:null};
-  });
-  days.forEach((iso,idx)=>{
-    const dow=U.dow(iso);
-    if(dow>=5) return;                              // the weekend has its own owner
-    const holder=weekOf[idx-dow]||{};
-    const pick=dow<=2?holder.three:holder.two;
-    if(pick) nightOf[iso]=pick;
-  });
-  staff.forEach(s=>{
-    const codes=[];
-    days.forEach((iso,idx)=>{
-      const dow=U.dow(iso);
-      const isWeekend=dow>=5;
-      const onLeave=leaves.find(l=>l.staffId===s.id && !/declin|reject/i.test(l.status||'') && iso>=l.from && iso<=l.to);
-      if(onLeave){ codes.push(S.leaveCode(onLeave.type)); return; }
-      if(isWeekend){
-        /* only the people rostered at the weekend carry a code here */
-        const w=weekendOwner[iso];
-        if(!w) { codes.push(''); return; }
-        if(w.day===s.name&&w.night===s.name){ codes.push('DN'); return; }
-        if(w.day===s.name){ codes.push('D'); return; }
-        if(w.night===s.name){ codes.push('N'); return; }
-        codes.push('');
-        return;
-      }
-      if(s.weekendOnly){ codes.push('OFF'); return; }
-      /* A night is a whole shift: whoever holds the night that day is not also on
-         the day bench. */
-      if(nightOf[iso]===s.name){ codes.push('N'); return; }
-      /* Rest around the weekend. The night is rested straight after it; the day is
-         rested on the Friday before, so the week never runs seven days, and again on
-         the Monday after — the two offs that cover the weekend day shifts. */
-      const wkEnd=[days[idx-1],days[idx-2]].map(d=>d?weekendNightOn(d):null);
-      const wkEndDay=[days[idx-1],days[idx-2]].map(d=>d?weekendDayOn(d):null);
-      if(dow===0&&(wkEnd.indexOf(s.name)>=0||wkEndDay.indexOf(s.name)>=0)){ codes.push('OFF'); return; }
-      if(dow===1&&wkEnd.indexOf(s.name)>=0){ codes.push('RBW'); return; }
-      const nextSat=days[idx+(5-dow)];
-      if(dow===4&&nextSat&&weekendDayOn(nextSat)===s.name){ codes.push('OFF'); return; }
-      /* Coming off a night block: the day after the last night is rest, and so is
-         the day after that (rest before work). Rest lands on Thursday and Friday
-         for a Mon–Wed block, which keeps Tuesday and Wednesday fully staffed. */
-      const y1=days[idx-1], y2=days[idx-2];
-      if(y1&&(nightOf[y1]===s.name)&&U.dow(iso)<5){ codes.push('OFF'); return; }
-      if(y2&&(nightOf[y2]===s.name)&&U.dow(iso)<5){ codes.push('RBW'); return; }
-      /* the manager covers the bench only when it would otherwise be short */
-      if(s.pattern==='manager'){ codes.push('OFF'); return; }
-      if(s.pattern==='dayonly'){ codes.push('D'); return; }
-      codes.push('D');
-    });
-    plan.staff.push({name:s.name, id:s.id, codes});
-  });
-  // Reserve cover: a manager shift appears only on weekdays where the day-shift
-  // count would otherwise be two or fewer.
-  if(reserve.length){
-    days.forEach((iso,idx)=>{
-      if(U.dow(iso)>=5) return;
-      const dayNow=plan.staff.filter(r=>r.codes[idx]==='D'||r.codes[idx]==='DN').length;
-      if(dayNow>2) return;
-      const pick=reserve.find(s=>plan.staff.find(r=>r.id===s.id));
-      if(pick){ const row=plan.staff.find(r=>r.id===pick.id); if(row && row.codes[idx]==='OFF') row.codes[idx]='D'; }
+  /* ——— taking over from the month before ———
+     The previous plan's own tail is adopted exactly as it stands, so the new
+     month begins where the last one finished and nothing is re-decided twice. */
+  const prevKey=U.monthKey(U.addDays(monthKey+'-01',-1));
+  const prevEntry=seedDB.workingPlans&&seedDB.workingPlans[prevKey];
+  const prev=prevEntry&&prevEntry.primary;
+  const carried={};
+  if(prev&&prev.dates){
+    dates.forEach(iso=>{
+      const pi=prev.dates.indexOf(iso);
+      if(pi<0) return;
+      const day={};
+      (prev.staff||[]).forEach(r=>{ const c=(r.codes||[])[pi]; if(c) day[r.name]=c; });
+      if(Object.keys(day).length) carried[iso]=day;
     });
   }
+  const grid={};                       // name -> one code per date (null = still to decide)
+  staff.forEach(s=>{ grid[s.name]=dates.map(()=>null); });
+  dates.forEach((iso,di)=>{
+    const day=carried[iso]; if(!day) return;
+    staff.forEach(s=>{
+      const c=day[s.name]; if(c===undefined) return;
+      const lv=leaveOn(s.name,iso);
+      /* the leave register is the authority. A week carried over from the month
+         before cannot keep somebody on leave the register has already ended, and
+         it cannot keep anybody at work through leave the register records. */
+      if(lv){ grid[s.name][di]=lv; return; }
+      if(S.isLeaveCode(c)) return;                 // the leave is over: let the plan decide
+      grid[s.name][di]=c;
+    });
+  });
+
+  /* the nights already settled by the take-over, and who holds day + night */
+  const nights={}, dnOwner={};
+  dates.forEach((iso,di)=>staff.forEach(s=>{
+    const c=grid[s.name][di];
+    if(c==='N'||c==='DN') nights[iso]=s.name;
+    if(c==='DN') dnOwner[iso]=s.name;
+  }));
+
+  const crew=staff.filter(s=>!s.weekendOnly && s.pattern!=='manager'
+    && s.nightPref!=='no' && (s.maxNights||0)>0);
+  const weekendTechnologist=staff.filter(s=>s.weekendOnly);
+  /* A night counts against the ceiling of the month it falls in: the plan runs a
+     week into the next month, and that week belongs to that month's count. */
+  const nightCount={}; staff.forEach(s=>{ nightCount[s.name]={}; });
+  const nightOf=(name,m)=>((nightCount[name]||{})[m]||0);
+  dates.forEach(iso=>{ const n=nights[iso]; if(!n) return; const m=iso.slice(0,7);
+    nightCount[n][m]=(nightCount[n][m]||0)+1; });
+
+  const weekendDay={};                 // iso -> name, when the weekend is split
+  const restOff={}, restRbw={};
+  const markRest=(box,name,iso)=>{ (box[name]=box[name]||{})[iso]=true; };
+  const runBefore=(name,iso)=>{ let n=0, d=U.addDays(iso,-1);
+    while(nights[d]===name && n<4){ n++; d=U.addDays(d,-1); } return n; };
+  const canTake=(s,block)=>{
+    if(!block.every(iso=>!onLeave(s.name,iso))) return false;
+    const per={}; block.forEach(iso=>{ const m=iso.slice(0,7); per[m]=(per[m]||0)+1; });
+    return Object.keys(per).every(m=>nightOf(s.name,m)+per[m]<=(s.maxNights||12));
+  };
+  const loadOf=(s,block)=>{
+    const m=(block&&block[0]||'').slice(0,7);
+    return nightOf(s.name,m);
+  };
+
+  /* ——— week by week ——— */
+  const weekStarts=[]; dates.forEach((iso,i)=>{ if(U.dow(iso)===0||i===0) weekStarts.push(i); });
+  weekStarts.forEach(wi=>{
+    const week=[];
+    for(let j=wi;j<dates.length;j++){ if(j>wi && U.dow(dates[j])===0) break; week.push(dates[j]); }
+    const isOpen=iso=>!carried[iso];
+
+    /* ——— the weekend ——— */
+    const sat=week.filter(iso=>U.dow(iso)===5)[0];
+    const sun=week.filter(iso=>U.dow(iso)===6)[0];
+    const wkDays=[sat,sun].filter(iso=>iso&&isOpen(iso));
+    if(wkDays.length){
+      const own=weekendTechnologist.filter(s=>wkDays.every(iso=>!onLeave(s.name,iso)))[0];
+      if(own){
+        /* she takes Saturday and Sunday, day and night, on `DN` — and she is the
+           only person on the roster ever given `DN` */
+        wkDays.forEach(iso=>{ nights[iso]=own.name; dnOwner[iso]=own.name; });
+      } else {
+        /* she is away: one takes the days, another the nights */
+        const fri=week.filter(iso=>U.dow(iso)===4)[0];
+        const friNight=fri?nights[fri]:null;
+        const free=staff.filter(s=>!s.weekendOnly && s.pattern!=='manager'
+          && wkDays.every(iso=>!onLeave(s.name,iso)));
+        const dayPick=free.filter(s=>crew.indexOf(s)<0 && s.name!==friNight)[0]
+          || free.filter(s=>s.name!==friNight)[0] || free[0] || null;
+        const nightPick=crew.filter(s=>s!==dayPick && s.name!==friNight && canTake(s,wkDays))
+          .sort((a,b)=>loadOf(a,wkDays)-loadOf(b,wkDays))[0] || null;
+        if(dayPick){
+          wkDays.forEach(iso=>{ weekendDay[iso]=dayPick.name; });
+          /* the day worker is off the Friday before — the week never runs seven
+             days — and off again on the Monday after */
+          markRest(restOff,dayPick.name,U.addDays(wkDays[0],-1));
+          markRest(restOff,dayPick.name,U.addDays(wkDays[wkDays.length-1],1));
+        }
+        if(nightPick){
+          wkDays.forEach(iso=>{ nights[iso]=nightPick.name;
+            const m=iso.slice(0,7); nightCount[nightPick.name][m]=(nightCount[nightPick.name][m]||0)+1; });
+        }
+      }
+    }
+
+    /* ——— the weekdays ——— */
+    const runs=[]; let cur=[];
+    week.filter(iso=>U.dow(iso)<5).forEach(iso=>{
+      if(isOpen(iso)) cur.push(iso);
+      else if(cur.length){ runs.push(cur); cur=[]; }
+    });
+    if(cur.length) runs.push(cur);
+    const sizesOf=n=>{ if(n<=0) return []; if(n===1) return [1]; if(n===2) return [2];
+      if(n===3) return [3]; if(n===4) return [2,2]; return [3].concat(sizesOf(n-3)); };
+    runs.forEach(run=>{
+      let at=0, lastHolder=null;
+      sizesOf(run.length).forEach(size=>{
+        const block=run.slice(at,at+size); at+=size;
+        let pick=null;
+        /* a block that begins where the one before it ended is continued while it
+           still has room: a block is never cut in half by the edge of the plan */
+        const prevName=nights[U.addDays(block[0],-1)];
+        if(prevName){
+          const p=staff.filter(s=>s.name===prevName)[0];
+          if(p && runBefore(prevName,block[0])+block.length<=3 && canTake(p,block)) pick=p;
+        }
+        if(!pick){
+          /* nobody begins a block the day after a night of their own: that would
+             run their nights on without a break, past the three-night ceiling */
+          const dayBefore=U.addDays(block[0],-1);
+          const pool=crew.filter(s=>s.name!==lastHolder && nights[dayBefore]!==s.name && canTake(s,block));
+          if(size===3){
+            const thirds=pool.filter(s=>(s.maxConsecN||0)>=3 && s.threeNight)
+              .sort((a,b)=>((a.nightRank||9)-(b.nightRank||9)) || (loadOf(a,block)-loadOf(b,block)));
+            pick=thirds[0] || pool.slice().sort((a,b)=>loadOf(a,block)-loadOf(b,block))[0] || null;
+          } else {
+            pick=pool.slice().sort((a,b)=>loadOf(a,block)-loadOf(b,block))[0] || null;
+          }
+        }
+        if(!pick) return;
+        block.forEach(iso=>{ nights[iso]=pick.name;
+          const m=iso.slice(0,7); nightCount[pick.name][m]=(nightCount[pick.name][m]||0)+1; });
+        lastHolder=pick.name;
+      });
+    });
+  });
+
+  /* ——— the daily grid ——— */
+  dates.forEach((iso,di)=>{
+    const weekend=U.dow(iso)>=5;
+    staff.forEach(s=>{
+      if(grid[s.name][di]!==null) return;               // taken over from the month before
+      const lv=leaveOn(s.name,iso);
+      if(lv){ grid[s.name][di]=lv; return; }
+      if(weekend){
+        /* only the people actually rostered carry a code at the weekend; every
+           other weekend cell stays blank */
+        if(nights[iso]===s.name){ grid[s.name][di]=dnOwner[iso]===s.name?'DN':'N'; return; }
+        if(weekendDay[iso]===s.name){ grid[s.name][di]='D'; return; }
+        grid[s.name][di]=''; return;
+      }
+      if(s.weekendOnly){ grid[s.name][di]='OFF'; return; }
+      if(nights[iso]===s.name){ grid[s.name][di]='N'; return; }
+      /* the day after a block is rest; the day after that is rest before work */
+      const y1=dates[di-1], y2=dates[di-2];
+      if(y1&&nights[y1]===s.name){ grid[s.name][di]='OFF'; return; }
+      if(y2&&nights[y2]===s.name){ grid[s.name][di]='RBW'; return; }
+      if((restOff[s.name]||{})[iso]){ grid[s.name][di]='OFF'; return; }
+      if((restRbw[s.name]||{})[iso]){ grid[s.name][di]='RBW'; return; }
+      grid[s.name][di]='D';
+    });
+  });
+
+  const carriedKeys=Object.keys(carried).sort();
+  const carriedFrom=carriedKeys[0]||null;
+  const carriedThrough=carriedKeys[carriedKeys.length-1]||null;
+  const plan={
+    label:U.monthLabel(monthKey), dates,
+    staff:staff.map(s=>({name:s.name, id:s.id, codes:grid[s.name]})),
+    meta:{date:U.todayISO(), fy:U.fyInfo(monthKey+'-01').label, period:U.monthLabel(monthKey),
+      generated:true, draft:true, carriedFrom, carriedThrough,
+      runsThrough:dates[dates.length-1],
+      note:carriedFrom?('Takes over from the '+U.monthLabel(prevKey)+' plan to '+U.addDays(carriedFrom,-1)
+        +'; runs through '+U.fmtDateShort(dates[dates.length-1])):('Runs through '+U.fmtDateShort(dates[dates.length-1]))}
+  };
   return plan;
 }
 
@@ -973,6 +1053,24 @@ function normalize(db){
       db.workingPlans['2026-10']={"primary":{"staff":[{"name":"Kelvin SAMAHANI","codes":["D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D"]},{"name":"Beatrice NGEZEKURE","codes":["D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","D","","","D","D","D","D","OFF","D","D","OFF","D","D","D","D"]},{"name":"Aurelie YANSONEYE","codes":["OFF","OFF","OFF","DN","DN","OFF","OFF","OFF","OFF","OFF","DN","DN","OFF","OFF","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL","AL"]},{"name":"Patrick ISHIMWE","codes":["AL","AL","D","OFF","OFF","D","D","D","N","N","OFF","OFF","N","N","N","OFF","OFF","","","N","N","N","OFF","OFF","D","D","OFF","OFF","OFF","N","N","","","D","D","D","D","OFF"]},{"name":"Jean Paul NSENGIYUMVA","codes":["N","OFF","OFF","","","D","D","D","D","D","","","D","D","D","OFF","D","N","N","OFF","OFF","D","D","D","","","N","N","N","OFF","OFF","","","D","D","D","D","D"]},{"name":"Dieudonne NIYIDUHABYOSE","codes":["D","N","N","","","N","N","N","OFF","OFF","","","OFF","D","D","D","OFF","D","D","OFF","D","D","N","N","","","D","D","OFF","D","D","N","N","OFF","OFF","N","N","N"]},{"name":"Bernadette MUHAWENIMANA","codes":["D","D","D","","","D","D","D","D","D","","","D","D","D","N","N","","","D","D","D","D","OFF","N","N","OFF","OFF","D","D","D","OFF","OFF","N","N","OFF","OFF","D"]}],"dates":["2026-09-30","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-10","2026-10-11","2026-10-12","2026-10-13","2026-10-14","2026-10-15","2026-10-16","2026-10-17","2026-10-18","2026-10-19","2026-10-20","2026-10-21","2026-10-22","2026-10-23","2026-10-24","2026-10-25","2026-10-26","2026-10-27","2026-10-28","2026-10-29","2026-10-30","2026-10-31","2026-11-01","2026-11-02","2026-11-03","2026-11-04","2026-11-05","2026-11-06"],"meta":{"label":"Official October 2026 - transcribed from the signed working-plan image (no fabricated shifts)","date":"2026-09-28","fy":"2026/2027","period":"October 2026","revised":false,"official":true}},"versions":[]};
     }
     db.meta.october2026Seeded=U.todayISO();
+  }
+  /* v6.9.48 — a draft is rebuilt to the roster the department actually works to:
+     one name on the night, nights in blocks of two or three, the weekend blank
+     for everybody except the two on shift, and every month taking its first week
+     over from the month before. An official plan — and a month transcribed from
+     the paper — is never touched. The draft that is replaced is kept as a
+     version, so nothing is lost. */
+  if(!db.meta.rosterRulesV6948){
+    db.meta.rosterRulesV6948=1;
+    Object.keys(db.workingPlans||{}).sort().forEach(k=>{
+      const e=db.workingPlans[k]; const p=e&&e.primary;
+      if(!p||!p.meta||!p.meta.generated||p.meta.official||p.meta.transcribed) return;
+      const built=generatePlan(k,db);
+      built.meta=Object.assign({},built.meta,{label:'Draft for '+U.monthLabel(k)+
+        ' — built from the department\'s rules and the record of previous months; review before publishing'});
+      e.versions=(e.versions||[]).concat([p]);
+      e.primary=built;
+    });
   }
   // v6.2: the benches are renamed to the unit-roster wording printed on the sheets
   // (Reception, Phlebotomy, Hematology, Biochemistry, Serology, Parasitology,
