@@ -10,20 +10,22 @@ const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.leave=M;
 let rootEl=null, tab='plan', fy=null;
 
-const TYPE={AL:{label:'Annual',cls:'al',kind:'annual'},
-  SICK:{label:'Sick',cls:'sick',kind:'authorised'},
-  MAT:{label:'Maternity',cls:'mat',kind:'authorised'},
-  TR:{label:'Training',cls:'tr',kind:'authorised'},
-  STUDY:{label:'Study',cls:'tr',kind:'authorised'},
-  W:{label:'Wedding / rest',cls:'w',kind:'authorised'},
-  COMP:{label:'Compassionate',cls:'al',kind:'authorised'},
-  IL:{label:'Circumstantial',cls:'al',kind:'authorised'},
-  UNPAID:{label:'Unpaid',cls:'w',kind:'authorised'}};
+/* The standard abbreviations the department writes on the plan, in the order the
+   leave register lists them. The code is the label — AL, ML, PL, SL, CL, AA, H, WD. */
+const TYPE={AL:{label:'AL · Annual',cls:'al',kind:'annual'},
+  ML:{label:'ML · Maternal',cls:'mat',kind:'authorised'},
+  PL:{label:'PL · Paternal',cls:'mat',kind:'authorised'},
+  SL:{label:'SL · Sick',cls:'sick',kind:'authorised'},
+  CL:{label:'CL · Circumstantial',cls:'cl',kind:'authorised'},
+  AA:{label:'AA · Authorised',cls:'aa',kind:'authorised'},
+  H:{label:'H · Public holiday',cls:'h',kind:'authorised'},
+  WD:{label:'WD · Work desertion (unauthorised)',cls:'wd',kind:'unauthorised'},
+  TR:{label:'TR · Training',cls:'tr',kind:'authorised'}};
 /* Requests are entered by people. The module never seeds demo requests: an
    empty inbox stays empty and says so. */
 function ensureRequests(){ /* no-op by design — see the empty state instead */ }
 function days(l){ return U.daysBetween(l.from,l.to)+1; }
-function tOf(l){ return TYPE[l.type]||{label:S.leaveTypeLabel(l.type),cls:'al',kind:'annual'}; }
+function tOf(l){ const k=S.leaveCode(l.type); return TYPE[k]||{label:k+' · '+S.leaveTypeLabel(k),cls:'al',kind:S.leaveKind(k)}; }
 /* Always derived from the dates: a label typed into the form can never move a
    record into a fiscal year the person was not actually away in. */
 function fyOfLeave(l){ return U.fyInfo(l.from||l.to||U.todayISO()).label; }

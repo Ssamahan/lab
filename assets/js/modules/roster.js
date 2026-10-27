@@ -6,7 +6,15 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SH=LS.sheets;
 const M={}; LS.modules.roster=M;
 let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
-const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],['OFF','At home (not on shift)'],['RBW','Off duty · rest before work'],['AL','Annual leave'],['AA','Authorised absence'],['TR','Training'],['SICK','Sick leave'],['IL','Circumstantial leave'],['W','Wedding day'],['MS','As printed on the 2025 plans (Ms)'],['MC','Mentorship · outbreaks surveillance and HIV service delivery']];
+/* The letters on the sheet. Leave and absence use the department's standard
+   abbreviations: AL annual · ML maternal · PL paternal · SL sick · CL circumstantial ·
+   AA authorised · H public holiday · WD work desertion / unauthorised absence. */
+const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],
+  ['OFF','At home (not on shift)'],['RBW','Off duty · rest before work'],['TR','Training'],
+  ['AL','AL · Annual leave'],['ML','ML · Maternal leave'],['PL','PL · Paternal leave'],
+  ['SL','SL · Sick leave'],['CL','CL · Circumstantial leave'],['AA','AA · Authorised leave'],
+  ['H','H · Public holiday'],['WD','WD · Work desertion (unauthorised absence)'],
+  ['MS','As printed on the 2025 plans (Ms)'],['MC','Mentorship · outbreaks surveillance and HIV service delivery']];
 
 function plan(){ const e=S.db().workingPlans[mk||U.monthKey()]; return e&&e.primary?e.primary:null; }
 function ensurePlan(){ return plan(); }
@@ -43,7 +51,7 @@ function fairness(p){
       if(dow>=5 && ['D','N','DN'].includes(c)) weekends++;
       if(S.holiday(iso) && ['D','N','DN'].includes(c)) holidays++;
       if(c==='D'||c==='DN') days++;
-      if(c==='AL'||c==='SICK') leave++;
+      if(S.isLeaveCode(c)) leave++;
     });
     out[s.name]={nights,weekends,holidays,days,leave};
   });
@@ -87,7 +95,7 @@ function gridView(){
      +p.dates.map((iso,di)=>{
         const c=s.codes[di]||''; const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
         const lv=S.leaveCodeFor(s.name,iso);
-        const show=lv&&!['AL','SL','CL','ML','W','TR'].includes(c)?lv:c;
+        const show=lv&&!(S.isLeaveCode(c)||c==='TR')?lv:c;
         const cls=['day',dow>=5?'wkend':'',today?'today':'',hol?'holiday':'',c==='OFF'?'off':''].filter(Boolean).join(' ');
         return '<td class="'+cls+'" data-cell="'+si+'-'+di+'" data-si="'+si+'" data-di="'+di+'" '+(c?'draggable="true"':'')+(lv?' data-tip="Approved leave — the stored plan is unchanged"':'')+'><span class="shift-code '+show+'" style="pointer-events:none'+(lv?'':';')+'">'+U.esc(show||'·')+'</span>'
           +(lv?'<i style="position:absolute;inset:2px;border:1px dashed var(--gold);border-radius:4px;pointer-events:none"></i>':'')+'</td>';
@@ -932,7 +940,7 @@ function patternsModal(){
         S.commit(d=>{
           const pl=d.workingPlans[mk].primary; if(!pl) return;
           pl.staff.forEach(s=>{ if(who!=='__all'&&s.name!==who) return;
-            s.codes=s.codes.map((c,i)=>{ if(['AL','SICK','TR'].includes(c)) return c; return codes[i%codes.length]; });
+            s.codes=s.codes.map((c,i)=>{ if(S.isLeaveCode(c)||c==='TR') return c; return codes[i%codes.length]; });
           });
           pl.meta.generated=false; pl.meta.pattern=tpl;
         },{action:'roster.pattern',entity:'workingPlans',entityId:mk,detail:'Applied pattern '+tpl+' to '+(who==='__all'?'entire unit':who)});

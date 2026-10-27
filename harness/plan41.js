@@ -67,7 +67,7 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   w.eval(`LS.store.commit(d=>{ const pl=d.workingPlans['2026-11'].primary; const row=pl.staff.find(r=>/Beatrice/.test(r.name)); row.codes[10]='RBW'; row.codes[11]='AA'; },{action:'test.codes'});`);
   const bea=S().staffByName('Beatrice NGEZEKURE');
   ok(S().shiftState(bea,'2026-11-11').label==='Rest before work','RBW reads as rest before work');
-  ok(S().shiftState(bea,'2026-11-12').label==='Authorised absence','AA reads as authorised absence');
+  ok(S().shiftState(bea,'2026-11-12').label==='Authorised leave','AA reads as authorised leave');
 
   /* ── the month is reachable on the roster screen ───────────────────── */
   await go('#/roster'); await tick(300);

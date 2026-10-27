@@ -4,6 +4,32 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.46
+
+**One set of leave letters, the department's own: `AL · ML · PL · SL · CL · AA · H · WD`.**
+
+- **AL** annual · **ML** maternal · **PL** paternal · **SL** sick · **CL** circumstantial ·
+  **AA** authorised · **H** public holiday · **WD** work desertion / unauthorised absence.
+  The same letters now appear on the plan, in the cell picker, on the leave screen, in the
+  leave register and on anything printed.
+- Only **AL** is drawn from the thirty days. ML, PL, SL, CL, AA and H are given, not taken from
+  the entitlement; **WD** is recorded as what it is and never drawn from the thirty either.
+- Everything stored under an older letter is rewritten once (SICK→SL, MAT→ML, IL→CL,
+  COMP/STUDY/W/UNPAID→AA, ABS→WD). Nothing is dropped and nothing is counted twice — a record
+  can no longer read as an unexplained absence.
+
+**December 2025, read from the department's own sheet.**
+
+- The **New Dec 25** spreadsheet was read cell by cell: eight names, 1 December 2025 → 11
+  January 2026 (42 days, because the sheet runs on into the new year), and it is on file as a
+  **transcribed record** — not a published plan.
+- The manager's sixteen days of annual leave, Patrick's opening three nights, Diane's leave into
+  January, the RBW rest days and every blank are exactly where the sheet puts them.
+- **Public holidays are written `H`** on a transcribed month, the way the paper shades them, so a
+  closed day never reads as an unrostered gap: 25 and 26 December, 1 and 2 January.
+- A month that only existed as a generated draft is replaced by the record (the draft is kept
+  under plan versions); a plan in force is never replaced.
+
 ## What changed in 6.9.45
 
 **`IL` on the 2025 working plans is circumstantial leave — the leave the department gives
