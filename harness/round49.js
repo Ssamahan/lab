@@ -83,6 +83,18 @@ const mod=fs.readFileSync(path.resolve(__dirname,'..','assets/css/modules.css'),
   const patRow=rows.find(tr=>/Patrick/.test(firstName(tr)));
   ok(/Attended 1st installment/.test(patRow.textContent),'Patrick\'s own block reads "Attended 1st installment"');
   ok(/Attended a carry-over of 2025\/26/.test(patRow.textContent),'and his earlier block reads "Attended a carry-over of 2025/26"');
+  /* someone who left during the year keeps their row while leave is charged to it */
+  const dianeRow=rows.find(tr=>/Diane/.test(firstName(tr)));
+  ok(!!dianeRow,'Diane still has a row in the plan book after leaving on 12 August');
+  ok(dianeRow.getAttribute('data-exited')==='s2','and it is marked as an exited record');
+  ok(/left 12 Aug 2026/.test(dianeRow.textContent),'the row says when she left');
+  ok(/Attended/.test(dianeRow.textContent),'and her 2026/27 block reads "Attended"');
+  ok(/13 Jul–11 Aug/.test(dianeRow.textContent),'her thirty days are the block that ended with her leaving');
+  ok(!rows.some(tr=>/Faustin/.test(firstName(tr))),'but a person who left with no leave in this year is not carried in');
+  const tlTab=[...d.querySelectorAll('[data-lv-tab]')].find(b=>b.dataset.lvTab==='timeline'); tlTab.click();
+  await tick(280);
+  ok([...d.querySelectorAll('.gantt-label')].some(e=>/Diane/.test(e.textContent)),'and the timeline carries her too');
+  await go('#/leave'); await tick(300);
   const blockCss=/\.block-chip b\{/.test(mod)&&/\.block-chip\.attended b\{/.test(mod);
   ok(blockCss,'the status is drawn inside the block, not hidden in a tooltip');
 
