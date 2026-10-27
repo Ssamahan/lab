@@ -75,5 +75,21 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(/November 2026/.test(head),'one press of Next shows November',head.slice(0,90).replace(/\s+/g,' '));
   ok(/Draft/i.test(head),'and the header says the plan is a draft');
 
+  /* ── a draft becomes the plan in force only when published ─────────── */
+  ok(!!doc.querySelector('[data-publish]'),'a draft offers Publish plan');
+  click(doc.querySelector('[data-publish]')); await tick(300);
+  const go2=doc.querySelector('[data-ok],[data-confirm],.modal [data-confirm]')||null;
+  const btns=[...doc.querySelectorAll('.modal button, .confirm button')];
+  const yes=btns.find(b=>/Publish plan/i.test(b.textContent));
+  ok(!!yes,'it asks before publishing');
+  click(yes); await tick(500);
+  const pub=db().workingPlans['2026-11'].primary;
+  ok(!!pub.meta.official&&!pub.meta.draft,'the month becomes the official plan');
+  ok(pub.meta.publishedBy==='Kelvin SAMAHANI','with the name of who published it');
+  ok(/^Official/.test(pub.meta.label||''),'and the label says so');
+  ok((db().workingPlans['2026-11'].versions||[]).length===1,'the version it replaced is kept');
+  ok(!/DRAFT/.test(SH.monthlySVG(pub)),'and the sheet stops printing DRAFT');
+  ok(/Prepared by/.test(SH.monthlySVG(pub)),'the signature blocks remain');
+
   done('plan41');
 })().catch(e=>{ console.error(e); process.exit(1); });
