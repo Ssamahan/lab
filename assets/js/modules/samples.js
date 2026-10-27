@@ -1054,10 +1054,18 @@ function paintView(){
     host.innerHTML=manifestsHTML();
     wireManifests();
   } else {
-    host.innerHTML='<div class="grid-12" style="margin-bottom:14px"><div class="c8"><div id="smpTableWrap">'+tableHTML()+'</div></div><div class="c4">'+referralPanel()
-       +'<div style="margin-top:14px">'+UI.card({title:'TAT pressure',sub:'Active samples by % of target consumed',icon:'gauge',body:'<div id="smpPressure"></div>'})+'</div>'
-       +'<div style="margin-top:14px">'+throughputMini()+'</div></div></div>'
-     +'<div style="margin-top:14px" class="fit-card">'+tatByLabCard()+'</div>';
+    /* The register is the screen, so it takes the full width and the fold: a
+       table squeezed into eight of twelve columns pushed the last fields off the
+       edge while a third of the page stayed empty underneath. The three small
+       cards sit under it, side by side, and the TAT table joins them at the foot
+       instead of leaving a lone narrow column of nothing. */
+    host.innerHTML='<div id="smpTableWrap">'+tableHTML()+'</div>'
+     +'<div class="grid-12" style="margin-top:14px">'
+       +'<div class="c4">'+referralPanel()+'</div>'
+       +'<div class="c4">'+UI.card({title:'TAT pressure',sub:'Active samples by % of target consumed',icon:'gauge',body:'<div id="smpPressure"></div>'})+'</div>'
+       +'<div class="c4">'+throughputMini()+'</div>'
+     +'</div>'
+     +'<div style="margin-top:14px">'+tatByLabCard()+'</div>';
     pressureChart(host);
     host.querySelectorAll('[data-edit-labs]').forEach(b=>b.onclick=labEditor);
     wire();

@@ -396,6 +396,10 @@ function generatePlan(monthKey, seedDB){
     return l?S.leaveCode(l.type):null;
   };
   const onLeave=(name,iso)=>!!leaveOn(name,iso);
+  /* A public holiday is a rest day for the department: the bench runs on one
+     name for the days and one for the nights, exactly as a weekend does. */
+  const holDays={}; (seedDB.holidays||[]).forEach(h=>{ if(h.date) holDays[h.date]=h.name||'Public holiday'; });
+  const isHol=iso=>!!holDays[iso];
 
   /* ——— the span: the month, and at least a week past it ——— */
   const monthDays=U.monthRange(monthKey);
@@ -455,7 +459,20 @@ function generatePlan(monthKey, seedDB){
     nightCount[n][m]=(nightCount[n][m]||0)+1; });
 
   const weekendDay={};                 // iso -> name, when the weekend is split
+  const holidayDay={};                 // iso -> name, the public-holiday day shift
+  const holidayNight={};               // iso -> name, the public-holiday night
   const restOff={}, restRbw={};
+  /* the holiday rota: a count per person, carried over from the month before so
+     the duty really does alternate instead of restarting every month. */
+  const holCount={}; staff.forEach(s=>{ holCount[s.name]=0; });
+  let holCursor=0;
+  if(prev&&prev.dates){
+    prev.dates.forEach((iso,pi)=>{
+      if(!isHol(iso)) return;
+      (prev.staff||[]).forEach(r=>{ const c=(r.codes||[])[pi];
+        if(c==='D'||c==='N'||c==='DN') holCount[r.name]=(holCount[r.name]||0)+1; });
+    });
+  }
   const markRest=(box,name,iso)=>{ (box[name]=box[name]||{})[iso]=true; };
   const runBefore=(name,iso)=>{ let n=0, d=U.addDays(iso,-1);
     while(nights[d]===name && n<4){ n++; d=U.addDays(d,-1); } return n; };
@@ -510,9 +527,46 @@ function generatePlan(monthKey, seedDB){
       }
     }
 
+    /* ——— the public holidays ———
+       A holiday is rostered as a weekend: one name on the days, one on the
+       nights, and the duty alternates so it is shared fairly. The rotation
+       starts from what the previous plan already gave people, and the manager
+       is never put on a holiday unless he has chosen to work them. */
+    const holWk=week.filter(iso=>isHol(iso) && isOpen(iso) && U.dow(iso)<5);
+    holWk.forEach(iso=>{
+      if(nights[iso]) return;
+      const free=staff.filter(s=>!s.weekendOnly && (s.pattern!=='manager'||s.worksHolidays)
+        && !onLeave(s.name,iso));
+      if(!free.length) return;
+      /* the rota turns one place each time, and the lightest holiday load wins:
+         two rules that both push the duty onto somebody who has not had it */
+      const turn=holCursor%free.length;
+      const rota=free.slice(turn).concat(free.slice(0,turn));
+      const byRota=list=>list.slice().sort((a,b)=>
+        (holCount[a.name]||0)-(holCount[b.name]||0)
+        || rota.indexOf(a)-rota.indexOf(b));
+      const dayPick=byRota(rota)[0] || null;
+      const nightPick=dayPick? (byRota(rota.filter(s=>s!==dayPick && (s.maxNights||0)>0 && s.nightPref!=='no'))[0]||null) : null;
+      if(dayPick){
+        holidayDay[iso]=dayPick.name;
+        holCount[dayPick.name]=(holCount[dayPick.name]||0)+1;
+        /* the day worker is off the day before and the day after, the same
+           breathing space the weekend day worker gets */
+        markRest(restOff,dayPick.name,U.addDays(iso,-1));
+        markRest(restOff,dayPick.name,U.addDays(iso,1));
+      }
+      if(nightPick){
+        nights[iso]=nightPick.name;
+        holidayNight[iso]=nightPick.name;
+        const m=iso.slice(0,7); nightCount[nightPick.name][m]=(nightCount[nightPick.name][m]||0)+1;
+        holCount[nightPick.name]=(holCount[nightPick.name]||0)+1;
+      }
+      holCursor++;
+    });
+
     /* ——— the weekdays ——— */
     const runs=[]; let cur=[];
-    week.filter(iso=>U.dow(iso)<5).forEach(iso=>{
+    week.filter(iso=>U.dow(iso)<5 && !isHol(iso)).forEach(iso=>{
       if(isOpen(iso)) cur.push(iso);
       else if(cur.length){ runs.push(cur); cur=[]; }
     });
@@ -526,7 +580,10 @@ function generatePlan(monthKey, seedDB){
         let pick=null;
         /* a block that begins where the one before it ended is continued while it
            still has room: a block is never cut in half by the edge of the plan */
-        const prevName=nights[U.addDays(block[0],-1)];
+        let prevName=nights[U.addDays(block[0],-1)];
+        /* a holiday night is a single duty: it does not run on into the working
+           week, where it would quietly turn a two-night block into three */
+        if(prevName && holidayNight[U.addDays(block[0],-1)]===prevName) prevName=null;
         if(prevName){
           const p=staff.filter(s=>s.name===prevName)[0];
           if(p && runBefore(prevName,block[0])+block.length<=3 && canTake(p,block)) pick=p;
@@ -554,7 +611,7 @@ function generatePlan(monthKey, seedDB){
 
   /* ——— the daily grid ——— */
   dates.forEach((iso,di)=>{
-    const weekend=U.dow(iso)>=5;
+    const weekend=U.dow(iso)>=5||isHol(iso);
     staff.forEach(s=>{
       if(grid[s.name][di]!==null) return;               // taken over from the month before
       const lv=leaveOn(s.name,iso);
@@ -563,7 +620,7 @@ function generatePlan(monthKey, seedDB){
         /* only the people actually rostered carry a code at the weekend; every
            other weekend cell stays blank */
         if(nights[iso]===s.name){ grid[s.name][di]=dnOwner[iso]===s.name?'DN':'N'; return; }
-        if(weekendDay[iso]===s.name){ grid[s.name][di]='D'; return; }
+        if(weekendDay[iso]===s.name||holidayDay[iso]===s.name){ grid[s.name][di]='D'; return; }
         grid[s.name][di]=''; return;
       }
       if(s.weekendOnly){ grid[s.name][di]='OFF'; return; }
@@ -1060,6 +1117,28 @@ function normalize(db){
      over from the month before. An official plan — and a month transcribed from
      the paper — is never touched. The draft that is replaced is kept as a
      version, so nothing is lost. */
+  /* v6.9.49 — posts held by name. Jean holds the laboratory quality post and
+     Dieudonné the safety post; training aimed at either post skips the queue for
+     them, exactly as it does for the manager. */
+  if(!db.meta.rolePostsV6949){
+    db.meta.rolePostsV6949=1;
+    const put=(id,duty,post)=>{ const s=(db.staff||[]).find(x=>x.id===id);
+      if(s){ s.duty=duty; s.post=post; } };
+    put('s6','qualityManager','Laboratory Quality Manager');
+    put('s9','safetyOfficer','Laboratory Safety Officer');
+  }
+  /* v6.9.49 — the manager's own annual leave belongs to FY 2026/2027. It is his
+     turn after Aurélie and it is charged to the year he takes it in, not
+     described as a carry-over from a year whose leave was never recorded.
+     The stale fifteen-day block that would double-book the same thirty days is
+     removed; nothing entered by hand is touched. */
+  if(!db.meta.leaveOwnYearV6949){
+    db.meta.leaveOwnYearV6949=1;
+    const k=(db.leaves||[]).find(l=>l.id==='l18'&&l.staffId==='s1');
+    if(k) Object.assign(k,{fy:'2026/2027',
+      note:'FY 2026/27 — the manager\u2019s own 30-day annual leave, the next turn after Aurelie, charged to the year it is taken in.'});
+    db.leaves=(db.leaves||[]).filter(l=>!(l.id==='l3'&&l.staffId==='s1'&&l.from==='2027-03-01'));
+  }
   if(!db.meta.rosterRulesV6948){
     db.meta.rosterRulesV6948=1;
     Object.keys(db.workingPlans||{}).sort().forEach(k=>{
@@ -1398,6 +1477,20 @@ S.restoreConsumable=function(id){
 S.deletedConsumables=()=>S.db().catalog.consumables.filter(c=>c.deleted);
 S.leaves=()=>S.db().leaves||[];
 S.holiday=(iso)=>(S.db().holidays||[]).find(h=>h.date===iso);
+/* ——— Posts that are held by name, not by turns ————————————————
+   The laboratory manager, the laboratory quality manager and the laboratory
+   safety officer hold a post. Training aimed at one of those posts is not a
+   turn in the FIFO queue: the person who holds it goes. */
+S.ROLE_POSTS={manager:'Laboratory Manager',qualityManager:'Laboratory Quality Manager',
+  safetyOfficer:'Laboratory Safety Officer'};
+S.postOf=function(staff){
+  if(!staff) return '';
+  if(staff.post) return staff.post;
+  const key=staff.duty||(staff.pattern==='manager'?'manager':'');
+  return S.ROLE_POSTS[key]||staff.role||'';
+};
+S.dutyKeyOf=function(staff){ return (staff&&(staff.duty||(staff.pattern==='manager'?'manager':'')))||''; };
+S.isRolePost=function(staff){ return !!S.dutyKeyOf(staff); };
 S.tatTarget=test=>sampleTAT(test,S.db().settings);
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
@@ -1551,12 +1644,21 @@ S.leaveRowsFor=function(staff,fy){
 S.leaveCarryOver=function(staff,fy){
   fy=fy||U.fyLabel();
   const prevLabel=(function(){
-    const m=String(fy).match(/^(\d{4})\/(\d{4})$/); if(m) return (+m[1]-1)+'/'+m[2];
+    /* 2026/2027 begins in 2026, so the year before it is 2025/2026 — both
+       halves move back, which is what makes the previous-year lookup find
+       anything at all. */
+    const m=String(fy).match(/^(\d{4})\/(\d{4})$/); if(m) return (+m[1]-1)+'/'+(+m[2]-1);
     const info=U.fyInfo(U.addDays(U.todayISO(),-400)); return info.label;
   })();
   if(prevLabel===fy) return {prevFy:null,days:0,taken:0,entitlement:0};
   const ent=S.leaveEntitlement(staff,prevLabel);
-  const rows=S.leaveRowsFor(staff,prevLabel).filter(l=>S.leaveCountsAgainstEntitlement(l.type));
+  const prevRows=S.leaveRowsFor(staff,prevLabel);
+  /* A carry-over is only real when that year was actually being recorded. If the
+     register holds nothing at all for the person in the previous fiscal year, no
+     leave was being tracked then, and turning that silence into "thirty days
+     unused" would invent a balance — so nothing is carried. */
+  if(!prevRows.length) return {prevFy:prevLabel,days:0,taken:0,entitlement:ent.days,unrecorded:true};
+  const rows=prevRows.filter(l=>S.leaveCountsAgainstEntitlement(l.type));
   const taken=U.sum(rows,l=>leaveDays(staff,l));
   const days=Math.max(0,Math.min(ent.days,ent.days-taken));
   return {prevFy:prevLabel,days,taken,entitlement:ent.days};

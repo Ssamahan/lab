@@ -69,7 +69,7 @@ function kpis(){
    +'<div class="c3">'+UI.stat({label:'FIFO wait (max)',value:Math.min(Math.max.apply(null,waiting),999),unit:'days',icon:'hourglass',formatted:'0',note:'Longest since last training',spark:C.spark(waiting.slice(0,10),{color:'var(--amber)'})})+'</div></div>';
 }
 function fifoView(){
-  const staff=S.activeStaff().map(s=>{ const last=lastNameTraining(s.id); const days=waitingDays(s);
+  const all=S.activeStaff().map(s=>{ const last=lastNameTraining(s.id); const days=waitingDays(s);
     const all=allTrainingOf(s.id);
     /* what stopped the last session from serving a turn — said plainly */
     const lastAny=all[0]||null;
@@ -80,10 +80,21 @@ function fifoView(){
       :null;
     return {s,last,days,all,lastAny,why,count:all.length,counted:all.filter(countsForFifo).length}; })
     .sort((a,b)=>b.days-a.days);
+  /* A post held by name — laboratory manager, laboratory quality manager,
+     laboratory safety officer — is not a turn in the queue. Training aimed at one
+     of those posts goes to the person who holds it, so they are shown above the
+     queue and never wait behind the bench rota for it. */
+  const posts=all.filter(x=>S.isRolePost(x.s));
+  const staff=all.filter(x=>!S.isRolePost(x.s));
   const nextName=staff.length?staff[0].s.name:'';
+  const postRow=x=>'<div class="list-row role-post-row">'+U.avatar(x.s.name,'sm')
+    +'<div class="lr-main"><div class="lr-title">'+U.esc(x.s.name)+'</div>'
+    +'<div class="lr-sub">'+U.esc(S.postOf(x.s))+' · never waits in the queue for training aimed at the post</div></div>'
+    +'<span class="pill gold">called by role</span></div>';
   return '<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Longest wait first · days served waiting, counted from the day they returned',icon:'git-branch',
       tools:'<button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
-      body:'<div style="display:flex;flex-direction:column;gap:2px">'+staff.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
+      body:(posts.length?'<div class="role-posts">'+posts.map(postRow).join('')+'</div><div class="thread" style="margin:10px 0"></div>':'')
+        +'<div style="display:flex;flex-direction:column;gap:2px">'+staff.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
         const isNext=i===0;
         return '<div class="list-row'+(isNext?' fifo-next':'')+'">'
         +'<div style="width:24px;font-family:var(--font-mono);font-size:10px;color:'+(isNext?'var(--gold)':'var(--text-faint)')+'">'+(i+1)+'</div>'
@@ -107,7 +118,7 @@ function registryView(){
   return '<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="trSearch" value="'+U.esc(q)+'" placeholder="Search training, organizer, attendee…"></div><span class="grow"></span><button class="btn sm" data-export>'+UI.ic('download',13)+'Export register</button><button class="btn primary sm" data-schedule>'+UI.ic('plus',13)+'Schedule training</button></div>'
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Training</th><th>Organizer</th><th class="hide-sm">Location</th><th>Dates</th><th>Attendees</th><th>Certificate</th><th></th></tr></thead><tbody>'
    +list.map(t=>{ const names=(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).filter(Boolean);
-      return '<tr data-tr="'+t.id+'"><td><div class="primary-cell"><b>'+U.esc(t.title)+'</b><small>'+U.esc(t.status||'completed')+(t.fromLeave?' · from leave record':'')+'</small></div></td>'
+      return '<tr data-tr="'+t.id+'"><td><div class="primary-cell"><b>'+U.esc(t.title)+'</b><small>'+U.esc(t.status||'completed')+(t.audienceLabel?' · aimed at the '+U.esc(t.audienceLabel.toLowerCase()):'')+(t.fromLeave?' · from leave record':'')+'</small></div></td>'
       +'<td class="small">'+U.esc(t.organizer||'—')+'</td><td class="small hide-sm truncate" style="max-width:130px">'+U.esc(t.location||'—')+'</td>'
       +'<td class="num">'+U.fmtDateShort(t.start)+(t.end&&t.end!==t.start?' – '+U.fmtDateShort(t.end):'')+'</td>'
       +'<td><div class="avatar-stack">'+names.slice(0,3).map(n=>U.avatar(n,'sm')).join('')+(names.length>3?'<span class="avatar sm" style="background:var(--surface-3);color:var(--text-muted)">+'+(names.length-3)+'</span>':'')+'</div></td>'
@@ -124,11 +135,18 @@ function historyView(){
   const list=scope().slice().sort((a,b)=>String(b.start).localeCompare(String(a.start)));
   const byYear=U.groupBy(list,t=>String(t.start).slice(0,4));
   const years=Object.keys(byYear).sort().reverse();
-  return '<div class="grid-12"><div class="c8">'
-    +UI.card({title:'Competency timeline',sub:list.length+' sessions · every year on file, newest first',icon:'history',
+  return '<div class="grid-12">'
+    +'<div class="c6">'+UI.card({title:'Per person',sub:'Sessions attended and turns served',icon:'users',
+      body:S.activeStaff().map(x=>{ const all=allTrainingOf(x.id); const counted=all.filter(countsForFifo);
+        const first=all.length?all[all.length-1]:null;
+        return '<div style="margin-bottom:10px"><div class="row between"><span class="xs truncate">'+U.esc(x.name)+'</span><span class="mono xs faint">'+all.length+' · '+counted.length+'</span></div>'
+          +'<div class="xs faint" style="margin-top:2px">'+(first?'first on file '+U.fmtDate(first.start):'no session on file')+(counted.length?' · last counted '+U.fmtDate(counted[0].end||counted[0].start):' · no counting session yet')+'</div></div>'; }).join('')})+'</div>'
+    +'<div class="c6">'+UI.card({title:'Trainings by year',sub:'Sessions recorded, year by year',icon:'chart-bar',body:'<div id="trYears"></div>'})+'</div>'
+    +'<div class="c12">'
+    +UI.card({title:'Competency timeline',sub:list.length+' sessions · every year on file, newest first, laid out in two columns',icon:'history',
       tools:'<button class="btn xs primary" data-history>'+UI.ic('plus',12)+'Record past training</button>',
       body:list.length
-        ?'<div style="display:flex;flex-direction:column;gap:14px">'+years.map(y=>'<div>'
+        ?'<div class="hist-cols">'+years.map(y=>'<div>'
           +'<div class="row between" style="margin-bottom:6px"><span class="eyebrow">'+y+'</span><span class="xs faint">'+byYear[y].length+' session'+(byYear[y].length===1?'':'s')+'</span></div>'
           +'<div style="position:relative;padding-left:14px;border-left:1px solid var(--border);margin-left:2px">'
           +byYear[y].map(t=>{ const names=(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).filter(Boolean);
@@ -146,15 +164,7 @@ function historyView(){
           +'</div></div>').join('')+'</div>'
         :UI.empty({art:'history',title:'No sessions on file',body:'Record a past training to build the history — the FIFO queue reads from it.'}),
       foot:'<span>History is complete: every year on file is shown · gold dot = the session served a turn in the queue</span><span class="mono">'+years.length+' years</span>'})
-    +'</div>'
-    +'<div class="c4"><div class="col" style="gap:14px">'
-      +UI.card({title:'Per person',sub:'Sessions attended and turns served',icon:'users',
-        body:S.activeStaff().map(x=>{ const all=allTrainingOf(x.id); const counted=all.filter(countsForFifo);
-          const first=all.length?all[all.length-1]:null;
-          return '<div style="margin-bottom:10px"><div class="row between"><span class="xs truncate">'+U.esc(x.name)+'</span><span class="mono xs faint">'+all.length+' · '+counted.length+'</span></div>'
-            +'<div class="xs faint" style="margin-top:2px">'+(first?'first on file '+U.fmtDate(first.start):'no session on file')+(counted.length?' · last counted '+U.fmtDate(counted[0].end||counted[0].start):' · no counting session yet')+'</div></div>'; }).join('')})
-      +UI.card({title:'Trainings by year',sub:'Sessions recorded, year by year',icon:'chart-bar',body:'<div id="trYears"></div>'})
-    +'</div></div></div>';
+    +'</div></div>';
 }
 function trainingDrawer(id){
   const t=S.db().trainings.find(x=>x.id===id); if(!t) return;
@@ -183,6 +193,13 @@ function trainingDrawer(id){
       };
       panel.querySelector('[data-print]').onclick=()=>{ U.printDoc('Training attendance — '+t.title,'<table><thead><tr><th>#</th><th>Name</th><th>Role</th><th>Signature</th></tr></thead><tbody>'+names.map((s,i)=>'<tr><td>'+(i+1)+'</td><td>'+U.esc(s.name)+'</td><td>'+U.esc(s.role)+'</td><td style="width:120px"></td></tr>').join('')+'</tbody></table>',{meta:'<span>'+U.esc(t.organizer||'')+'</span><span>'+U.fmtDate(t.start)+'</span>'}); }; }});
 }
+/* Training that is aimed at a post — the manager, the quality manager, the
+   safety officer — is not a turn in the queue: it goes to the person who holds
+   the post, and their name is ticked for them. */
+const AUDIENCE=[['','Everybody on the establishment'],
+  ['manager','Laboratory Manager'],['qualityManager','Laboratory Quality Manager'],
+  ['safetyOfficer','Laboratory Safety Officer']];
+function holderOf(key){ return key?S.activeStaff().find(x=>S.dutyKeyOf(x)===key):null; }
 function scheduleModal(id, opts){
   if(!LS.auth.guard('edit')) return;
   opts=opts||{};
@@ -210,6 +227,9 @@ function scheduleModal(id, opts){
      +'<div class="field"><label>Start</label><input class="input mono" type="date" id="trStart" value="'+(t?t.start:(history?'':U.addDays(U.todayISO(),7)))+'"></div>'
      +'<div class="field"><label>End</label><input class="input mono" type="date" id="trEnd" value="'+(t?t.end||t.start:(history?'':U.addDays(U.todayISO(),9)))+'"></div>'
      +'<div class="field"><label>Days · calculated</label><input class="input mono" id="trDays" readonly value="'+(t?trainingDays(t):'')+'"><div class="xs faint" style="margin-top:4px">A turn is only served by 3 days or more.</div></div>'
+     +'<div class="field span2"><label>Aimed at</label><select class="select" id="trAudience">'
+       +AUDIENCE.map(([k,l])=>'<option value="'+k+'"'+((t?(t.audience||''):'')===k?' selected':'')+'>'+U.esc(l)+'</option>').join('')+'</select>'
+       +'<div class="xs faint" style="margin-top:4px" id="trAudienceNote">A post-based session goes to the person who holds the post — they skip the FIFO queue, exactly as the manager does.</div></div>'
      +'<div class="field span2"><label>Attendees</label><div style="display:flex;flex-wrap:wrap;gap:6px">'
        +everyone.map(s=>'<label class="row gap-sm" style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;cursor:pointer"><input type="checkbox" data-att value="'+s.id+'" style="accent-color:#C9A84C"'+(att.indexOf(s.id)>=0?' checked':'')+'><span class="xs">'+U.esc(s.name)+(s.status!=='active'?' <span class="faint">· left</span>':'')+'</span></label>').join('')+'</div></div>'
      +'<div class="field span2"><label>Description</label><textarea class="textarea" id="trDesc" placeholder="Objectives, competencies covered, facilitator…">'+U.esc(t?(t.description||t.note||''):'')+'</textarea></div>'
@@ -224,6 +244,19 @@ function scheduleModal(id, opts){
         el.querySelector('#trDays').value=n?String(n):''; };
       ['#trStart','#trEnd'].forEach(k=>{ const f=el.querySelector(k); f.onchange=recap; f.oninput=recap; });
       recap();
+      /* choosing a post ticks the person who holds it, and nobody else is
+         assumed to be attending a session that was not aimed at them */
+      const aud=el.querySelector('#trAudience');
+      if(aud) aud.onchange=()=>{
+        const holder=holderOf(aud.value);
+        el.querySelectorAll('[data-att]').forEach(cb=>{ cb.checked = holder? cb.value===holder.id : cb.checked; });
+        const note=el.querySelector('#trAudienceNote');
+        if(note) note.textContent=holder?('Goes to '+holder.name+' — the post holder is ticked and does not wait in the queue.')
+          :'A post-based session goes to the person who holds the post — they skip the FIFO queue, exactly as the manager does.';
+        const titleEl=el.querySelector('#trTitle');
+        if(holder && titleEl && !titleEl.value.trim())
+          titleEl.value='Role training · '+((AUDIENCE.find(a=>a[0]===aud.value)||[])[1]||'');
+      };
       el.querySelector('[data-save]').onclick=()=>{
         const title=el.querySelector('#trTitle').value.trim();
         if(!title) return UI.toast('Give the training a title',{type:'warn'});
@@ -232,9 +265,12 @@ function scheduleModal(id, opts){
         const cert=el.querySelector('#trCert').checked;
         const organiser=orgSel.value==='__new'?(orgNew.value||'').trim():orgSel.value;
         if(organiser) S.addTrainingOrganizer(organiser);
+        const audKey=el.querySelector('#trAudience')?el.querySelector('#trAudience').value:'';
+        const audLabel=(AUDIENCE.find(a=>a[0]===audKey)||[])[1]||'';
         const rec={title,organizer:organiser,location:el.querySelector('#trLoc').value,
           start:el.querySelector('#trStart').value,end:el.querySelector('#trEnd').value,
           description:el.querySelector('#trDesc').value,attendees,
+          audience:audKey,audienceLabel:audKey?audLabel:'',
           certificate:cert?'Certificate issued':'',certificateGiven:cert,status:'completed',completionDate:el.querySelector('#trEnd').value};
         if(t){
           S.commit(d=>{ const x=d.trainings.find(y=>y.id===t.id); if(x) Object.assign(x,rec); },

@@ -33,6 +33,32 @@ function currentFy(){ return fy||U.fyLabel(); }
 function fyList(){ return S.leaveFys(); }
 function onLeaveToday(){ const t=U.todayISO(); return S.leaves().filter(l=>l.status!=='Declined'&&l.status!=='Rejected'&&t>=l.from&&t<=l.to); }
 function pending(){ return S.leaves().filter(l=>l.status==='Pending'); }
+/* ——— What happened to a block, in words ————————————————
+   A date range alone does not say whether somebody is away now, has been, or is
+   next. Every block carries its own state, derived from today and from that
+   person's own blocks — never typed in by hand. */
+function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
+function prevFyShort(fy){ const m=String(fy||'').match(/^(\d{4})\/(\d{4})$/);
+  return m?((+m[1]-1)+'/'+(+m[2]-1).toString().slice(-2)):''; }
+function blockState(l,personBlocks){
+  const today=U.todayISO();
+  if(l.from>today) return {key:'planned',label:'Next to go',tone:'slate',when:l.from};
+  if(l.to>=today) return {key:'running',label:'On leave',tone:'blue',when:l.from};
+  const blocks=(personBlocks||[]).slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  const isCarry=x=>/carry[- ]?over/i.test(x.note||'')||!!x.carryOver;
+  const carry=isCarry(l);
+  /* A carry-over from last year is not one of this year's installments: the
+     numbering counts only the blocks drawn from the current entitlement. */
+  const counts=blocks.filter(x=>!isCarry(x));
+  const n=Math.max(1,counts.filter(x=>String(x.from)<=String(l.from)).length);
+  const label=carry
+    ? 'Attended a carry-over of '+(prevFyShort(U.fyInfo(l.from).label)||U.fyInfo(l.from).label)
+    : 'Attended'+(counts.length>1?' '+ordinal(n)+' installment':'');
+  return {key:'attended',label,tone:'teal',when:l.to};
+}
+function statePill(st,extra){
+  return '<span class="pill '+st.tone+(st.key==='running'?' live':'')+'">'+U.esc(st.label)+'</span>'+(extra||'');
+}
 
 /* Everyone who is NOT on a shift today, with the honest reason: leave, off
    (a rest day on the working plan), or a blank cell (never rostered). */
@@ -116,7 +142,7 @@ function planBookView(){
     +'<div class="row gap-sm"><span class="xs faint">Fiscal year</span><div class="seg">'+fyList().map(f=>'<button data-fy="'+f+'" class="'+(f===currentFy()?'on':'')+'">FY '+f+'</button>').join('')+'</div></div>'
     +'<div class="row gap-sm">'+(totals.carry?'<span class="pill gold">'+totals.carry+'d carried in</span>':'')+'<span class="pill gold">'+totals.taken+' taken</span><span class="pill blue">'+totals.planned+' booked</span><span class="pill teal">'+totals.bal+' days left</span>'
     +'<button class="btn sm primary" data-newplan>'+UI.ic('plus',13)+'Add leave plan</button></div></div>'
-   +'<div class="card table-card"><div class="toolbar"><div><div class="card-title">'+UI.ic('calendar-check',14,'ic')+'Annual leave plan book · FY '+currentFy()+'</div><div class="card-sub">Entitlement by contract · days already taken · days booked ahead · plan a block for any month</div></div></div>'
+   +'<div class="card table-card"><div class="toolbar"><div><div class="card-title">'+UI.ic('calendar-check',14,'ic')+'Annual leave plan book · FY '+currentFy()+'</div><div class="card-sub">In turn order — who is away now, then who is next, then the blocks already attended · entitlement by contract · days taken · days booked ahead</div></div></div>'
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Staff</th><th>Contract</th><th class="num">Entitlement</th><th class="num" title="Unused days carried in from the previous fiscal year">Carried in</th><th class="num">Taken</th><th class="num">On leave now</th><th class="num">Booked ahead</th><th class="num">Balance</th><th>Planned blocks</th><th></th></tr></thead><tbody>'
    +rows.map(r=>{
       const blocks=r.annual.slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
@@ -128,7 +154,10 @@ function planBookView(){
       +'<td class="num">'+(r.running? '<span class="pill amber">'+r.running+'d</span>':'<span class="faint">—</span>')+'</td>'
       +'<td class="num">'+r.planned+'</td>'
       +'<td class="num"><b style="color:'+(r.balance>0?'var(--pos)':(r.over?'var(--crit)':'var(--text-faint)'))+'">'+r.balance+'</b>'+(r.over?'<div class="xs" style="color:var(--crit)">+'+r.over+' over</div>':'')+'</td>'
-      +'<td style="max-width:250px">'+(blocks.length? blocks.map(l=>'<button class="chip" data-editplan="'+l.id+'" style="margin:0 3px 3px 0;cursor:pointer" title="Edit this block">'+U.fmtDateShort(l.from)+'–'+U.fmtDateShort(l.to)+' <span class="faint">'+S.leaveDays(r.staff,l)+'d</span></button>').join('') : '<span class="xs faint">No block booked</span>')+'</td>'
+      +'<td style="max-width:300px">'+(blocks.length? blocks.map(l=>{ const bs=blockState(l,blocks);
+          return '<button class="chip block-chip '+bs.key+'" data-editplan="'+l.id+'" style="margin:0 3px 4px 0;cursor:pointer" title="'+U.esc(bs.label+' · '+U.fmtDate(l.from)+' – '+U.fmtDate(l.to))+'" data-state="'+bs.key+'">'
+            +U.fmtDateShort(l.from)+'–'+U.fmtDateShort(l.to)+' <span class="faint">'+S.leaveDays(r.staff,l)+'d</span>'
+            +'<b>'+U.esc(bs.label)+'</b></button>'; }).join('') : '<span class="xs faint">No block booked</span>')+'</td>'
       +'<td><button class="icon-btn" style="width:26px;height:26px" data-newplan="'+r.staff.id+'" aria-label="Plan leave for '+U.esc(r.staff.name)+'">'+UI.ic('plus',13)+'</button></td></tr>';
    }).join('')
    +'</tbody></table></div><div class="card-foot"><span>Entitlement follows the contract: under statute 30 calendar days, contractual 21 working days. A block is charged to the fiscal year its dates fall in — never to a label typed on it — and unused days are carried into the next year.</span><span class="mono">'+rows.length+' staff</span></div></div>'
@@ -150,10 +179,13 @@ function leaveOrder(rows){
     const next=blocks.find(l=>l.from>today)||null;
     const past=blocks.filter(l=>l.to<today);
     const lastPast=past.length?past[past.length-1]:null;
-    const anchor=running&&running.from || (next&&next.from) || (lastPast?lastPast.to:'');
+    const anchor=running&&running.from || (next&&next.from) || (lastPast?lastPast.from:'');
     return Object.assign({},r,{_anchor:anchor,_group:running?0:next?1:past.length?2:3,_lastPast:lastPast,_next:next});
   }).sort((a,b)=>{
     if(a._group!==b._group) return a._group-b._group;
+    /* still to go: the dates run forward, so the next turn is first and the last
+       turn is last. Already gone: the most recent return sits on top. */
+    if(a._group===2) return String(b._anchor||'').localeCompare(String(a._anchor||''));
     return String(a._anchor||'9999').localeCompare(String(b._anchor||'9999'));
   });
 }
@@ -301,7 +333,10 @@ function requestsView(){
 
 /* ——— Timeline ————————————————————————— */
 function timelineView(){
-  const staff=S.activeStaff();
+  /* the rows follow the plan book: on leave now, then whoever is next, then the
+     people who have already been */
+  const order=leaveOrder(S.activeStaff().map(s=>S.leaveBook(s,currentFy()))).map(r=>r.staff.id);
+  const staff=S.activeStaff().slice().sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
   const fyStart=U.fyInfo().start, fyEnd=U.fyInfo().end;
   const start=fyStart, end=fyEnd;
   const total=U.daysBetween(start,end)+1;
@@ -330,7 +365,9 @@ function recordsView(){
       +'<td><span class="gantt-bar '+t.cls+'" style="position:static;height:18px;padding:0 7px;font-size:9px;display:inline-flex">'+U.esc(t.label)+'</span></td>'
       +'<td class="num">'+U.fmtDate(l.from)+'</td><td class="num">'+U.fmtDate(l.to)+'</td><td class="num">'+days(l)+'</td>'
       +'<td class="num mono xs">'+U.esc(fyOfLeave(l))+'</td>'
-      +'<td><span class="pill '+(l.status==='Pending'?'amber':/declin|reject/i.test(l.status)?'rose':'teal')+'">'+U.esc(l.status||'Approved')+'</span></td>'
+      +'<td>'+(/declin|reject/i.test(l.status||'')?'<span class="pill rose">'+U.esc(l.status)+'</span>'
+          :statePill(blockState(l,S.leaves().filter(x=>x.staffId===l.staffId&&S.leaveCountsAgainstEntitlement(x.type))),
+             '<div class="xs faint" style="margin-top:2px">'+U.esc(l.status||'Approved')+'</div>'))+'</td>'
       +'<td class="small hide-sm truncate" style="max-width:250px">'+U.esc(l.note||'—')+'</td>'
       +'<td><button class="icon-btn" style="width:26px;height:26px" data-editplan="'+l.id+'" aria-label="Edit">'+UI.ic('pencil',13)+'</button></td></tr>'; }).join('')
    +'</tbody></table></div><div class="card-foot"><span>'+list.length+' leave records · FY '+currentFy()+'</span><span class="mono">Append-only history</span></div></div></div></div>';

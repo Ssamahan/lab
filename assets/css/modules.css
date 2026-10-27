@@ -605,3 +605,33 @@
 @media (max-width:520px){
   .plan-pair .bal-head,.plan-pair .bal-row{grid-template-columns:minmax(0,1fr) 52px 28px 52px 28px 24px;gap:6px}
 }
+
+/* ——— EQA: one card per scheme, two to a row —————————————————————
+   The scorecard is a band of half-width tables. A scheme table next to another
+   scheme table fits; the same table stretched across the page does not. */
+.scheme-cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:14px;align-items:start}
+.scheme-cells>.card{min-width:0}
+@media (max-width:900px){ .scheme-cells{grid-template-columns:minmax(0,1fr)} }
+
+/* ——— PBF: the index and the quarter trend share a row ————————— */
+.pbf-pair .trend-grid{grid-template-columns:minmax(0,1fr)}
+.pbf-pair .trend-side{border-left:0;border-top:1px solid var(--border);padding-left:0;padding-top:8px}
+
+/* ——— Leave: a block carries its own state ————————————————————— */
+.block-chip{display:inline-block;text-align:left;line-height:1.45}
+.block-chip b{display:block;font-weight:600;font-size:9.4px;letter-spacing:.01em;margin-top:1px}
+.block-chip.attended b{color:var(--pos)}
+.block-chip.running{border-color:var(--border-gold);background:rgba(201,168,76,.10)}
+.block-chip.running b{color:var(--gold-bright)}
+.block-chip.planned b{color:var(--text-faint)}
+
+/* ——— Training history: two columns ————————————————————————— */
+.hist-cols{columns:2;column-gap:26px}
+.hist-cols>div{break-inside:avoid;margin-bottom:12px}
+@media (max-width:900px){ .hist-cols{columns:1} }
+
+/* ——— Training: posts that go when the role is called ——————————— */
+.role-posts{display:flex;flex-direction:column;gap:2px;padding:6px 8px 2px;border-radius:10px;
+  background:linear-gradient(90deg,rgba(201,168,76,.10),rgba(201,168,76,.01))}
+.role-post-row{border-bottom:0!important}
+.role-post-row .lr-title{font-weight:600;color:var(--text-strong)}

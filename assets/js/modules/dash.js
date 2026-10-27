@@ -249,12 +249,13 @@ function trustFooter(){
    first free slot, so the page ends level instead of leaving a column of nothing.
    Heights are measured after the cards are in place, then converted into a row
    span on an 8 px row grid; the gap between cards is part of the span. */
-let dashOnResize=null, dashRaf=0, dashObserver=null;
+let dashOnResize=null, dashRaf=0, dashObserver=null, dashFlowObserver=null, dashWidth=0;
 function layoutDash(root){
   const flow=root&&root.querySelector('#dashFlow'); if(!flow) return;
   const cards=Array.prototype.slice.call(flow.children).filter(el=>el.classList.contains('dash-card'));
   if(!cards.length) return;
   const width=flow.clientWidth||root.clientWidth||window.innerWidth||1100;
+  dashWidth=width;
   /* Three columns need ~430 px each to stay readable; below 880 px one column is
      the honest layout, not a squeezed pair. */
   const cols=width>=1320?3:width>=880?2:1;
@@ -299,6 +300,18 @@ function watchDashLayout(root){
     });
     const flow=root.querySelector('#dashFlow');
     if(flow) Array.prototype.forEach.call(flow.children,c=>dashObserver.observe(c));
+    /* The content column changes width without a window resize — collapsing the
+       rail, turning a module off, opening a drawer — and the packed rows were
+       measured at the old width. Watching the flow itself means the cards re-pack
+       instead of leaving a column of nothing behind. */
+    if(dashFlowObserver) dashFlowObserver.disconnect();
+    dashFlowObserver=new window.ResizeObserver(entries=>{
+      const w=entries[0]&&entries[0].contentRect?entries[0].contentRect.width:0;
+      if(!w || Math.abs(w-dashWidth)<8) return;   // a re-pack must not re-trigger itself
+      cancelAnimationFrame(dashRaf);
+      dashRaf=requestAnimationFrame(()=>{ if(document.body.contains(root)) layoutDash(root); });
+    });
+    if(flow) dashFlowObserver.observe(flow);
   }
 }
 M.layout=layoutDash;
@@ -321,7 +334,7 @@ M.render=function(root,params){
      +'<div class="dash-card" data-span="half">'+worklistCard()+'</div>'
      +'<div class="dash-card" data-span="half" id="feedCol">'+feedCard()+'</div>'
    +'</div>'
-   +'<div style="margin-top:16px" id="obCol">'+onboardingCard()+'</div>'
+   +(onboardingCard()?'<div style="margin-top:16px" id="obCol">'+onboardingCard()+'</div>':'')
    +trustFooter();
 
   // throughput chart

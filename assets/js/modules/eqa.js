@@ -175,10 +175,14 @@ function scorecard(){
    +'<div class="c4">'+UI.card({title:'Overall standing',sub:'Traffic-light interpretation',icon:'shield-check',body:
       '<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">'+C.ring(composite(),{size:104,stroke:7})+'<div><div class="strong">'+(composite()>=(S.EQA_MIN+3)?'Excellent':composite()>=S.EQA_MIN?'Acceptable':'Action required')+'</div><div class="xs faint" style="margin-top:3px">ISO 15189 §7.7.3<br>Interlaboratory comparisons</div></div></div>'
       +schemes.map(s=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:12px">'+U.esc(s.name)+'</div><div class="lr-sub">'+U.esc(s.e.code)+' · '+(s.stage==='awaiting'?'awaiting results':U.fmtDate(s.e.reported))+'</div></div><span class="pill '+(s.stage==='awaiting'?'amber':s.pct>=S.EQA_MIN?'teal':'amber')+'">'+(s.stage==='awaiting'?'pending':s.pct+'%')+'</span></div>').join('')})+'</div>'
-   +'<div class="c12"><div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('award',14,'ic')+'Per-scheme scorecard</div>'
+   /* The per-scheme scorecard is a band of half-width tables rather than one full
+      width stack: two schemes sit side by side, so the section stops running the
+      length of the page and each table fits its own card. */
+   +'<div class="c12" style="margin-top:14px"><div class="row between wrap gap-sm" style="margin-bottom:10px">'
+      +'<div><div class="card-title">'+UI.ic('award',14,'ic')+'Per-scheme scorecard</div>'
       +'<div class="card-sub">One table per scheme, newest round first · every analyte that has data for that scheme is shown · analysts can be added from any round</div></div>'
       +'<div class="card-tool row gap-sm"><button class="btn xs" data-new-eqa>'+UI.ic('plus',12)+'New round</button><button class="btn xs" data-export>'+UI.ic('download',12)+'Export</button></div></div>'
-      +'<div class="card-body" style="display:flex;flex-direction:column;gap:14px">'+(schemeTables||'<p class="xs faint">No EQA / PT rounds recorded yet.</p>')+'</div></div></div>'
+      +'<div class="scheme-cells">'+(schemeTables||'<p class="xs faint">No EQA / PT rounds recorded yet.</p>')+'</div></div>'
    +'</div>';
 }
 function qcCalendar(){

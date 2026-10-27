@@ -234,13 +234,20 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(threeNames.every(n=>/Patrick|Jean Paul/.test(n)),'a generated month gives three-in-a-row only to those two ('+threeNames.join(', ')+')');
   ok(!Object.keys(runs).some(n=>runs[n]>3),'and never four in a row');
 
-  /* ── 6 · the TAT-by-laboratory table sizes to its content ─────────── */
+  /* ── 6 · the referred-samples screen fills the page ────────────────── */
   await go('#/samples'); await tick(250);
-  const fit=doc.querySelector('.fit-card');
-  ok(!!fit,'the TAT-by-laboratory card is in a fit-to-content wrapper');
-  ok(/TAT compliance by receiving laboratory/.test(fit.textContent),'and it is that card');
+  const wrap=doc.querySelector('#smpTableWrap');
+  ok(!!wrap,'the register takes the full width of the screen');
+  ok(!doc.querySelector('#smpView .c8'),'no longer squeezed into eight of twelve columns');
+  const side=doc.querySelectorAll('#smpView .grid-12 > .c4');
+  ok(side.length===3,'the three small cards sit in one row under it ('+side.length+')');
+  const tat=Array.from(doc.querySelectorAll('#smpView .card')).find(c=>/TAT compliance by receiving laboratory/.test(c.textContent));
+  ok(!!tat,'the TAT-by-laboratory table is on the screen');
+  ok(!!tat && !tat.closest('.fit-card'),'and no longer sits alone in a narrow fit-to-content box');
   const css=require('fs').readFileSync(require('path').resolve(__dirname,'..','assets/css/modules.css'),'utf8');
-  ok(/\.fit-card\{[^}]*max-width:min\(760px,100%\)/.test(css),'capped at 760 px so a three-row table does not stretch across the screen');
+  const appcss=require('fs').readFileSync(require('path').resolve(__dirname,'..','assets/css/app.css'),'utf8');
+  ok(/\.card\{display:flex;flex-direction:column\}/.test(appcss),'a card fills the row it sits in');
+  ok(/\.card-foot\{margin-top:auto\}/.test(appcss),'so a short card has no blank block under its foot');
   ok(/\.duty-fill\{[^}]*height:auto/.test(css)&&/\.feed-fill\{[^}]*height:auto/.test(css),
      'and the list cards no longer stretch to fill a tall neighbour');
 

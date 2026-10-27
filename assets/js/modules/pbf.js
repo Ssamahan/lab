@@ -355,9 +355,17 @@ function statusLine(r){
   return st.label+' · '+st.detail;
 }
 
+/* PBF scores health centres. Ruli DH is the hospital laboratory that does the
+   assessing — it is not a centre under assessment, so it never appears in the
+   index, the scorecards, the plan or the visit form. */
+const isPbfCentre=name=>!/^\s*ruli\s*dh\b/i.test(String(name||''));
+function pbfCentres(){
+  return U.uniq(S.db().catalog.healthCenters.map(h=>h.name)
+    .concat((S.db().pbf||[]).map(r=>r.name))
+    .concat((S.db().pbfVisits||[]).map(v=>v.hcName))).filter(isPbfCentre);
+}
 function list(){
-  const centres=S.db().catalog.healthCenters.map(h=>h.name);
-  const names=U.uniq(centres.concat((S.db().pbf||[]).map(r=>r.name)).concat((S.db().pbfVisits||[]).map(v=>v.hcName)));
+  const names=pbfCentres();
   return names.map((name,i)=>{
     const vs=visitsFor(name);
     const state=centreState(name);
@@ -457,7 +465,7 @@ function hero(){
        centre's first quarter the rank stands alone — no placeholder word under it. */
     items:rows.map((r,i)=>({name:r.name.replace(' HC',''),pct:total(r),band:bandOf(total(r)),rank:i+1,
       move:r.prior!=null?((total(r)-r.prior)>=0?'+':'')+(total(r)-r.prior):null}))}));
-  return '<div class="grid-12"><div class="c12">'+UI.card({title:'Quarterly index',sub:'Marks earned over marks available · only complete scorecards are ranked',icon:'building-2',
+  return UI.card({title:'Quarterly index',sub:'Marks earned over marks available · only complete scorecards are ranked',icon:'building-2',
     tools:(waiting.length
       ?'<button class="chip gold" data-awaiting title="Open the visits still waiting for marks">'+UI.ic('file-text',12)+waiting.length+' awaiting marks'+UI.ic('chevron-right',11)+'</button>'
       :'<span class="chip slate">'+UI.ic('check-check',12)+'every visit scored</span>'),
@@ -477,7 +485,7 @@ function hero(){
              nothing: a first scorecard has no movement to report */
           :'<div class="mono xs" aria-hidden="true" style="visibility:hidden">&nbsp;</div>')+'</div>';
     }).join('')+'</div>':'<div class="chart-empty">No centre has a complete scorecard yet — record a visit to start the index</div>')
-    +'<div class="pbf-axis"><span class="xs faint">0 % · no marks earned</span><span class="xs faint">90 %+ greenest · 80–89 green · 75–79 light red · below 75 blood red</span><span class="xs faint">100 % · all '+fmtMarks(totalMarks())+' marks</span></div>'})+'</div></div>';
+    +'<div class="pbf-axis"><span class="xs faint">0 % · no marks earned</span><span class="xs faint">90 %+ greenest · 80–89 green · 75–79 light red · below 75 blood red</span><span class="xs faint">100 % · all '+fmtMarks(totalMarks())+' marks</span></div>'});
 }
 function rowData(){
   return list().filter(r=>!q||r.name.toLowerCase().indexOf(q)>=0).slice().sort((a,b)=>{
@@ -658,7 +666,7 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
   const assessors=assessorNames();
   const presetSlot=presetCentre&&presetQuarter?schedule().find(sc=>sc.hcName===presetCentre&&sc.quarter===presetQuarter):null;
   const plannedFor=presetSlot&&presetSlot.plannedDate?String(presetSlot.plannedDate).slice(0,10):null;
-  const centres=U.uniq(db.catalog.healthCenters.map(h=>h.name).concat((db.pbf||[]).map(r=>r.name)));
+  const centres=pbfCentres();
   const qs=questions();
   const answers=v?(v.answers||{}):{};
   const section=k=>domainQuestions(k).map(q=>{
@@ -983,7 +991,7 @@ function scheduleModal(id,presetDate){
   if(!LS.auth.guard('edit')) return;
   const sc=id?schedule().find(x=>x.id===id):null;
   const q=activeQuarter();
-  const centres=U.uniq(S.db().catalog.healthCenters.map(h=>h.name).concat((S.db().pbf||[]).map(r=>r.name)));
+  const centres=pbfCentres();
   UI.modal({title:sc?'Edit scheduled visit':'Schedule a quarterly visit',
     sub:'A scheduled visit can be planned at any point while the quarter is open — including today.',width:'min(560px,100%)',
     body:'<div class="form-grid">'
@@ -1210,7 +1218,7 @@ function scheduleCard(){
 function planQuarterModal(){
   if(!LS.auth.guard('edit')) return;
   const q=activeQuarter();
-  const centres=U.uniq(S.db().catalog.healthCenters.map(h=>h.name));
+  const centres=pbfCentres();
   const missing=centres.filter(name=>!schedule().some(sc=>sc.hcName===name && sc.quarter===q.quarter));
   UI.modal({title:'Plan the supervision quarter',sub:q.quarter+' '+q.fy+' · every health centre on one calendar',width:'min(640px,100%)',
     body:'<div class="form-grid">'
@@ -1394,11 +1402,13 @@ M.render=function(root,params){
   ensureSeeded();
   root.innerHTML='<div class="page-head"><div><h1>PBF evaluation</h1><div class="sub">Performance-based financing. Every centre is scored on the questions you keep in the bank, and a visit only counts once every question carries a mark.</div></div>'
    +'<div class="actions"><a class="btn" href="#/quality">'+UI.ic('shield-check',15)+' ISO readiness</a><button class="btn" data-district>'+UI.ic('printer',15)+' District report</button><button class="btn primary" data-new-visit>'+UI.ic('plus',15)+' Record visit</button></div></div>'
-   +kpis()+hero()
+   +kpis()
+   /* The index and the quarter-on-quarter trend answer the same question from two
+      sides, so they share a row: neither is left sitting alone above a wide band
+      of nothing, and both fit the screen together. */
+   +'<div class="grid-12 pbf-pair"><div class="c7">'+hero()+'</div><div class="c5">'+trendCard()+'</div></div>'
    +'<div class="section-head"><h2>Centre scorecards</h2><span class="more">Click any row for the full evaluation</span></div>'
    +table()
-   +'<div class="section-head"><h2>Progress by quarter</h2><span class="more">Improvement against the previous quarters, and against the '+S.PBF_MIN+'% floor</span></div>'
-   +trendCard()
    +'<div class="section-head"><h2>Domain comparison</h2><span class="more">'+liveDomains().length+' domains in use · each cell is that domain’s own % <button class="btn xs" data-manage-domains>'+UI.ic('layers',11)+'Manage domains</button></span></div>'
    +matrix()
    /* Plan and visits head to head, both columns the same width, with the
