@@ -103,8 +103,11 @@ L.enterAsVisitor=async function(){
   LS.shell.visitorStatus&&LS.shell.visitorStatus('Reading the shared register…','');
   let res={ok:false, reason:'Sync unavailable'};
   try{ res=await LS.sync.visitorRead(); }catch(e){ res={ok:false, reason:(e&&e.message)||'Could not read'}; }
+  /* A visitor keeps reading: the loop pulls whenever the shared copy moves, so a phone
+     left on the visitor view is never a photograph of yesterday. */
   if(res.ok){
     LS.shell.visitorStatus&&LS.shell.visitorStatus('Shared register · '+(res.after?res.after.pbfMarks:0)+' PBF marks · read '+U.relTime(res.updated_at||U.nowISO()),'live');
+    if(LS.sync&&LS.sync.restart) LS.sync.restart();
     try{ LS.shell.route({keepScroll:true}); }catch(e){}
   } else {
     LS.shell.visitorStatus&&LS.shell.visitorStatus('Sample copy on this browser — shared register not read: '+res.reason,'bad');
