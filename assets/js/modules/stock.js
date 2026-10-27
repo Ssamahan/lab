@@ -44,7 +44,7 @@ function itemRow(x){
    +'<td class="num hide-sm">'+U.fmtNum(x.threshold||0)+'</td>'
    +'<td style="width:150px"><div class="meter '+tone+'"><i style="width:'+U.clamp(x.onHand/Math.max(1,(x.max||x.threshold*3))*100,2,100)+'%"></i></div>'
      +'<div class="xs faint" style="margin-top:3px">'+x.burn.toFixed(1)+'/day · <b style="color:var(--text-muted)">'+monthLabel(x.perMonth,x)+'</b>'
-     +(x.cap?' <span style="color:'+(x.capPct>100?'var(--crit)':x.capPct>85?'var(--warn)':'var(--pos)')+'">of '+x.cap+' cap</span>':'')+'</div></td>'
+     +(x.cap?' <span style="color:'+(x.usedMonth>x.cap?'var(--crit)':x.usedMonth>x.cap*.85?'var(--warn)':'var(--pos)')+'">· '+(x.usedMonth||0)+' of '+x.cap+' this month</span>':'')+'</div></td>'
    +'<td><span class="mono small" style="color:'+(days<14?'var(--crit)':days<30?'var(--warn)':'var(--text)')+'">'+Math.min(days,999)+'d</span></td>'
    +'<td>'+(expiry!=null?'<span class="pill '+expTone+' mono">'+expiry+'d</span>':'<span class="xs faint">—</span>')+'</td>'
    +'<td class="num hide-sm">'+(x.daysLeft==null?'<span class="xs faint">—</span>':x.daysLeft+'d')+'</td>'
@@ -141,10 +141,14 @@ function monthlyCeilingsCard(){
     tools:'<span class="pill '+(withCap.length?'gold':'slate')+'">'+withCap.length+' of '+items.length+' ceilings set</span>',
     body:'<div class="dt-scroll"><table class="dt"><thead><tr><th>Consumable</th><th class="num">Used / month</th><th class="num">Ceiling</th><th>Against the ceiling</th><th class="num">Stock covers</th><th></th></tr></thead><tbody>'
       +items.map(x=>{
-        const pct=x.cap?Math.round(x.perMonth/x.cap*100):null;
+        /* The ceiling is a month, so the month is what is compared: the last thirty
+           days of the distribution log, not a ninety-day average. */
+        const monthUse=x.cap?(x.usedMonth||0):x.perMonth;
+        const pct=x.cap?Math.round(monthUse/x.cap*100):null;
         const tone=pct==null?'slate':pct>100?'rose':pct>85?'amber':'teal';
-        return '<tr><td><div class="primary-cell"><b>'+U.esc(x.name)+'</b><small>'+U.esc(x.unit)+(x.perMonth?' · '+x.used30+' issued in the last 30 days':' · nothing issued in 90 days')+'</small></div></td>'
-          +'<td class="num mono">'+(x.perMonth||'0')+'</td>'
+        const split=x.byAge?'<div class="xs faint" style="margin-top:3px">'+x.byAge.map(g=>U.esc(g.group.replace('Pediatric/Neonatal','Paediatric/neonatal'))+' '+g.used+' / '+g.cap).join(' · ')+'</div>':'';
+        return '<tr><td><div class="primary-cell"><b>'+U.esc(x.name)+'</b><small>'+U.esc(x.unit)+(x.cap?' · '+monthUse+' in the last 30 days':(x.perMonth?' · '+x.used30+' in the last 30 days':' · nothing issued in 90 days'))+'</small>'+split+'</div></td>'
+          +'<td class="num mono">'+((x.cap?monthUse:x.perMonth)||'0')+'</td>'
           +'<td class="num">'+(x.cap?'<span class="mono">'+x.cap+'</span>':'<span class="xs faint">not set</span>')+'</td>'
           +'<td style="min-width:150px">'+(x.cap
             ?'<div class="meter '+tone+'"><i style="width:'+U.clamp(pct,2,100)+'%"></i></div><div class="xs" style="margin-top:3px;color:var(--'+(pct>100?'crit':pct>85?'warn':'text-faint')+')">'+(pct>100?(pct-100)+'% over the monthly ceiling':pct+'% of the ceiling')+'</div>'
@@ -153,7 +157,7 @@ function monthlyCeilingsCard(){
           +'<td><button class="icon-btn" style="width:26px;height:26px" data-edit-item="'+x.id+'" title="Set the monthly ceiling">'+UI.ic('pencil',13)+'</button></td></tr>';
       }).join('')
       +'</tbody></table></div>'
-      +'<div class="hint" style="margin-top:10px">A ceiling is the most the bench expects to use in one month — for example five blood-culture bottles. Usage is measured from the distribution log over the last 90 days and expressed per month; when a line runs past its ceiling the row turns amber, then red.</div>',
+      +'<div class="hint" style="margin-top:10px">A ceiling is the most the bench expects to use in one calendar month: three HIV-EID cartridges, five VTM vials (transfers to health centres are counted apart — they leave the building), and three blood-culture bottles, about two paediatric/neonatal and one adult. Usage is read from the distribution log over the last 30 days; the only entries the register posts by itself are the bottles an order draws. When a line runs past its ceiling the row turns amber, then red.</div>',
     foot:'<span>Ceilings are set per consumable, on the same form as the minimum threshold.</span><span class="mono">'+items.length+' lines</span>'});
 }
 function suppliersView(){
@@ -169,7 +173,7 @@ function suppliersView(){
 }
 function reorderItems(){
   const items=S.stockOverview().filter(x=>x.low||x.daysLeft<25).sort((a,b)=>a.daysLeft-b.daysLeft);
-  return '<div style="display:flex;flex-direction:column;gap:10px">'+(items.length?items.slice(0,5).map(x=>'<div><div class="row between"><span class="small truncate">'+U.esc(x.name)+'</span><span class="pill '+(x.low?'rose':'amber')+'">'+Math.min(x.daysLeft,999)+'d</span></div><div class="xs faint" style="margin-top:2px">Order '+Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand))+' '+U.esc(x.unit)+' · '+monthLabel(x.perMonth,x)+' used'+(x.cap?' of '+x.cap+' cap':'')+'</div></div>').join(''):'<p class="xs faint">No reorder needed.</p>')+'</div>';
+  return '<div style="display:flex;flex-direction:column;gap:10px">'+(items.length?items.slice(0,5).map(x=>'<div><div class="row between"><span class="small truncate">'+U.esc(x.name)+'</span><span class="pill '+(x.low?'rose':'amber')+'">'+Math.min(x.daysLeft,999)+'d</span></div><div class="xs faint" style="margin-top:2px">Order '+Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand))+' '+U.esc(x.unit)+' · '+(x.cap?(x.usedMonth||0)+' of '+x.cap+' used this month':monthLabel(x.perMonth,x)+' used')+(x.overCap?' · <b style="color:var(--crit)">over the ceiling</b>':'')+(x.byAge?' · '+x.byAge.map(g=>g.used+'/'+g.cap+' '+(g.group==='Adult'?'adult':'paediatric')).join(', '):'')+'</div></div>').join(''):'<p class="xs faint">No reorder needed.</p>')+'</div>';
 }
 
 /* ——— Actions —————————————————————————— */

@@ -240,8 +240,12 @@ function weekView(){
     +'<button class="btn sm primary" data-week-sheet>'+UI.ic('file-down',13)+' Sheet</button></div></div>'
     +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal"><thead>'+head.slice(7)+'<tbody>'+body+'</tbody>'
     +'<tfoot><tr class="night-row"><td class="staff-cell"><div class="nm">Night</div><div class="rl">17:00–08:00</div></td>'
-    +dates.map(iso=>{ const n=S.unitNight(start,iso)||(S.onDuty(iso).find(x=>x.kind==='night')||{}).staff; const nm=n?(n.name||n):'';
-        return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+'" data-night="'+iso+'" style="cursor:pointer">'+(nm?'<span class="small" style="display:block;line-height:1.3">'+U.esc(String(nm).split(' ')[0])+' <span class="xs faint">'+U.esc(String(nm).split(' ').slice(1).join(' '))+'</span></span>':'<span class="xs faint">—</span>')+'</td>'; }).join('')
+    +dates.map(iso=>{ const n=S.nightCover(iso); const nm=n.name||'';
+        const tag=n.source==='manual'?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">by hand</span>'
+          :n.source==='plan'?'<span class="pill teal" style="font-size:8.5px;padding:1px 5px;margin-top:2px">plan</span>'
+          :n.source==='pattern'?'<span class="pill slate" style="font-size:8.5px;padding:1px 5px;margin-top:2px">pattern</span>':'';
+        return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+'" data-night="'+iso+'" style="cursor:pointer"'+(nm?' data-tip="'+U.esc(nm+' · '+(n.source==='plan'?'from the working plan':'set '+n.source))+'"':'')+'>'
+          +(nm?'<span class="small" style="display:block;line-height:1.3">'+U.esc(String(nm).split(' ')[0])+' <span class="xs faint">'+U.esc(String(nm).split(' ').slice(1).join(' '))+'</span></span>':'<span class="xs faint">—</span>')+tag+'</td>'; }).join('')
     +'</tr></tfoot></table></div>'
     +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
@@ -630,12 +634,15 @@ function orientationFor(iso){
 function nightModal(iso){
   if(!LS.auth.guard('edit')) return;
   const start=weekStart();
-  const cur=S.unitNight(start,iso)||'';
+  const cover=S.nightCover(iso);
+  const cur=S.unitNight(start,iso)||cover.name||'';
   const people=S.activeStaff().filter(x=>x.nightPref!=='no'&&(x.maxNights||0)>0);
   UI.modal({title:'Night duty · '+U.fmtDate(iso),sub:'17:00 – 08:00 the next day.',width:'min(460px,100%)',
-    body:'<div class="field"><label>Who is on nights</label><select class="select" id="ntPick"><option value="">— nobody assigned —</option>'
+    body:'<div class="hint" style="margin-bottom:10px">'+(cover.source==='plan'?'The working plan puts <b>'+U.esc(cover.name||'nobody')+'</b> on this night. Changing it here records a by-hand override and leaves the plan alone.':'No working plan covers this night — the name comes from '+(cover.source==='pattern'?'the contract pattern':'nothing yet')+'.')+'</div>'
+      +'<div class="field"><label>Who is on nights</label><select class="select" id="ntPick"><option value="">— nobody assigned —</option>'
       +people.map(p=>'<option value="'+U.esc(p.name)+'"'+(p.name===cur?' selected':'')+'>'+U.esc(p.name)+' · '+U.esc(p.role)+'</option>').join('')+'</select></div>',
-    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-nt-save>'+UI.ic('check',15)+'Save night cover</button>',
+    foot:(cover.source==='manual'?'<button class="btn" data-nt-clear>'+UI.ic('rotate-ccw',15)+'Back to the plan</button>':'')
+      +'<button class="btn" data-close>Cancel</button><button class="btn primary" data-nt-save>'+UI.ic('check',15)+'Save night cover</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-nt-save]').onclick=()=>{
         const name=el.querySelector('#ntPick').value;
@@ -643,6 +650,12 @@ function nightModal(iso){
           const w=d.unitRosters[start]; w.night=w.night||{}; if(name) w.night[iso]=name; else delete w.night[iso]; },
           {action:'roster.night',entity:'unitRosters',entityId:start,detail:'Night '+U.fmtDate(iso)+' → '+(name||'unassigned')});
         close(); paint(); UI.toast(name?'Night cover set to '+name:'Night cover cleared',{type:'ok'});
+      };
+      const back=el.querySelector('[data-nt-clear]');
+      if(back) back.onclick=()=>{
+        S.commit(d=>{ const w=d.unitRosters&&d.unitRosters[start]; if(w&&w.night) delete w.night[iso]; },
+          {action:'roster.night.clear',entity:'unitRosters',entityId:start,detail:'Night '+U.fmtDate(iso)+' returned to the working plan'});
+        close(); paint(); UI.toast('Back to the working plan — '+cover.name,{type:'ok'});
       };
     }});
 }
@@ -819,14 +832,17 @@ function nightPlanFor(start){
   const monWed=dates.slice(0,3), thuFri=dates.slice(3,5), weekend=dates.slice(5,7);
   const pool=nightEligible(dates).filter(st=>(st.maxConsecN||0)>=2)
     .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
-  const three=pool.filter(st=>(st.maxConsecN||0)>=3);
+  /* A three-night block is earned: only staff flagged for it, Patrick ahead of
+     Jean Paul, and Patrick carries two weeks out of every three. Nobody else is
+     given a third consecutive night. */
+  const three=pool.filter(st=>(st.maxConsecN||0)>=3 && st.threeNight)
+    .sort((a,b)=>(a.nightRank||9)-(b.nightRank||9));
   const capOk=(st,days)=>nightsThisMonth(st.name,mkOf)+days<=st.maxNights;
-  /* three nights, Mon–Wed — the two three-night technologists alternate weekly */
-  const threePick=three.length?three[week%three.length]:null;
+  const threePick=three.length?(three.length>1&&week%3===2?three[1]:three[0]):null;
   if(threePick&&capOk(threePick,3)){ monWed.forEach(iso=>{ out[iso]=threePick.name; }); notes.push('Mon–Wed · '+threePick.name); }
   else if(pool.length){ const alt=pool.find(st=>st!==threePick&&capOk(st,3))||pool[0]; monWed.forEach(iso=>{ out[iso]=alt.name; }); notes.push('Mon–Wed · '+alt.name+' (three-night cover unavailable)'); }
   /* two nights, Thu–Fri — a different person */
-  const twoPick=pool.find(st=>st!==(out[monWed[0]]&&S.staffByName(out[monWed[0]])||{}).name&&capOk(st,2));
+  const twoPick=pool.find(st=>st!==threePick && st.name!==out[monWed[0]] && capOk(st,2));
   if(twoPick){ thuFri.forEach(iso=>{ out[iso]=twoPick.name; }); notes.push('Thu–Fri · '+twoPick.name); }
   else notes.push('Thu–Fri · nobody free');
   /* the weekend, day + night */
@@ -986,13 +1002,13 @@ async function exportSheet(fmt,svg,filename){
 }
 function openWeekSheet(){
   const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
-  const night={}; dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
+  const night={}; dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
   const data={weekStart:start,dates,services:svcs,alloc,night};
   const svg=SH.weeklySVG(data);
   const filename='unit-roster-'+start;
   UI.modal({title:'Weekly unit roster — week of '+U.fmtDateShort(start),sub:'Allocated units, weekend shading and the night shift row, on one A4 landscape page.',width:'min(1180px,96vw)',
     body:'<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;background:#fff;max-height:60vh">'+svg+'</div>'
-      +'<div class="hint" style="margin-top:8px">Night shift names come from this week\'s allocation; where none is set, the person on the night code in the working plan is used.</div>',
+      +'<div class="hint" style="margin-top:8px">Night shift names are read from the working plan (a night code or a day+night code); a night entered by hand overrides the plan and is marked as such.</div>',
     foot:'<button class="btn" data-close>Close</button><button class="btn" data-wpng>'+UI.ic('image',15)+' PNG</button>'
       +'<button class="btn" data-wpdf>'+UI.ic('file-text',15)+' PDF</button>'
       +'<button class="btn" data-wxlsx>'+UI.ic('table-2',15)+' XLSX</button>'
@@ -1017,16 +1033,12 @@ async function exportWeek(fmt,svg,filename,data){
 }
 function weekData(){
   const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={};
-  dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
+  dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
   const wRec=(S.db().unitRosters||{})[start]||{};
   return {weekStart:start,dates,services:S.services(),alloc,night,overrides:wRec.overrides||{},orientation:wRec.orientation||{}};
 }
-function onDutyName(iso){
-  const p=planForDate(iso);
-  const row=p&&p.staff?p.staff.find(s=>(s.codes||[])[p.dates.indexOf(iso)]==='N'):null;
-  if(row) return row.name;
-  return '';
-}
+/* Kept as the one call the sheet builders use; the plan does the deciding. */
+function onDutyName(iso){ return S.nightCover(iso).name||''; }
 function planForDate(iso){
   const e=S.db().workingPlans[String(iso).slice(0,7)];
   return e&&e.primary?e.primary:null;
@@ -1085,7 +1097,7 @@ function wireBody(){
   r.querySelectorAll('[data-print-week]').forEach(b=>b.onclick=printWeek);
   r.querySelectorAll('[data-week-sheet]').forEach(b=>b.onclick=openWeekSheet);
   const wkSvg=function(){ const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start), night={};
-    dates.forEach(iso=>{ const n=S.unitNight(start,iso)||onDutyName(iso); if(n) night[iso]=n; });
+    dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
     const wRec=(S.db().unitRosters||{})[start]||{};
     const data={weekStart:start,dates,services:svcs,alloc,night,overrides:wRec.overrides||{},orientation:wRec.orientation||{}};
     return {start,dates,data,svg:SH.weeklySVG(data)}; };

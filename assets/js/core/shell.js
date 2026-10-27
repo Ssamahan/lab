@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.39';
+const APP_VERSION='6.9.40';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -461,7 +461,6 @@ function commandItems(){
   Object.keys(ROUTES).forEach(k=>{ const r=ROUTES[k]; if(r.permission&&!LS.auth.can(r.permission)) return;
     items.push({group:'Navigate',label:r.title,meta:r.group,icon:r.icon,run:()=>SH.go(k)}); });
   items.push({group:'Actions',label:'Register a new sample',meta:'N',icon:'flask-conical',run:()=>{ SH.go('samples'); setTimeout(()=>document.dispatchEvent(new CustomEvent('ls:new-sample')),400); }});
-  items.push({group:'Actions',label:'Export dashboard briefing (CSV)',meta:'',icon:'download',run:()=>LS.modules.dash&&LS.modules.dash.exportBriefing?LS.modules.dash.exportBriefing():UI.toast('Open the Command Center first',{type:'warn'})});
   items.push({group:'Actions',label:'Backup register to JSON',meta:'',icon:'database',run:()=>{ U.download('lab-systems-backup-'+U.todayISO()+'.json',S.exportJSON(),'application/json'); UI.toast('Backup downloaded',{type:'ok'}); }});
   items.push({group:'Actions',label:(S.settings().theme==='ink'?'Switch to Porcelain (light)':'Switch to Ink (dark)'),meta:'T',icon:'sun',run:SH.toggleTheme});
   items.push({group:'Actions',label:'Toggle density (Comfortable / Compact)',meta:'[',icon:'rows-3',run:SH.toggleDensity});

@@ -7,15 +7,14 @@ const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.samples=M;
 let rootEl=null, st=null, onScroll=null;
 
+/* Only tests that are actually referred. Five bench tests (CBC, Malaria RDT, blood
+   slide, fasting glucose, sputum AFB) are never referred anywhere, so they are not
+   on this list and cannot be ordered from it. */
 const REF={
-  'CBC (Full Blood Count)':{unit:'×10⁹/L',lo:4,hi:11,dec:1},
-  'Fasting Blood Glucose':{unit:'mmol/L',lo:3.9,hi:5.6,dec:1},
   'Serum Creatinine':{unit:'µmol/L',lo:53,hi:106,dec:0},
   'ALT (SGPT)':{unit:'U/L',lo:7,hi:45,dec:0},
   'Hemoglobin':{unit:'g/dL',lo:12,hi:17,dec:1},
   'HIV Rapid Test (Determine)':{unit:'',lo:null,hi:null,dec:0},
-  'Malaria RDT':{unit:'',lo:null,hi:null,dec:0},
-  'Blood Slide for Malaria':{unit:'parasites/µL',lo:0,hi:0,dec:0},
   'TB Culture':{unit:'',lo:null,hi:null,dec:0}
 };
 /* Culture and microscopy results are not numbers. They are a call (negative or
@@ -23,8 +22,7 @@ const REF={
    list is the panel the receiving laboratory reports back to us. */
 const CULTURE_TESTS={
   'Blood Culture':{drugs:['Ampicillin','Gentamicin','Ceftriaxone','Ciprofloxacin','Meropenem','Vancomycin'],organism:'Staphylococcus aureus'},
-  'TB Culture':{drugs:['Rifampicin','Isoniazid','Pyrazinamide','Ethambutol','Streptomycin'],organism:'Mycobacterium tuberculosis'},
-  'Sputum AFB (Ziehl-Neelsen)':{drugs:['Rifampicin','Isoniazid','Pyrazinamide','Ethambutol'],organism:'Mycobacterium tuberculosis'}
+  'TB Culture':{drugs:['Rifampicin','Isoniazid','Pyrazinamide','Ethambutol','Streptomycin'],organism:'Mycobacterium tuberculosis'}
 };
 /* A blood culture is not ordered on its own: Gram Stain and Cytology are done as routine
    with it, on the same specimen, so they join the order and are listed first on the
@@ -93,7 +91,9 @@ function rowHTML(s,sel){
   const label=s.priority==='STAT'?'STAT':s.priority==='Follow-up'?'FLW':'RTN';
   const tatCell = s.resultedAt
     ? '<span class="mono xs">'+Math.round(t.elapsedH)+'h <span class="faint">/ '+Math.round(t.targetH)+'h</span></span>'
-    : '<div style="width:86px"><div class="meter '+tone+'"><i style="width:'+pct+'%"></i></div><div class="xs" style="margin-top:3px;color:'+(t.breached?'var(--crit)':t.ratio>.8?'var(--warn)':'var(--text-faint)')+'">'+(t.breached?'breach +'+Math.round(-t.remainingH)+'h':Math.round(t.remainingH)+'h left')+'</div></div>';
+    : t.awaitingReception
+      ? '<span class="pill slate" data-tip="The TAT clock starts when reception stamps the specimen">awaiting reception</span>'
+      : '<div style="width:86px"><div class="meter '+tone+'"><i style="width:'+pct+'%"></i></div><div class="xs" style="margin-top:3px;color:'+(t.breached?'var(--crit)':t.ratio>.8?'var(--warn)':'var(--text-faint)')+'">'+(t.breached?'breach +'+Math.round(-t.remainingH)+'h':Math.round(t.remainingH)+'h left')+'</div></div>';
   return '<tr class="prio-'+pri+(sel.has(s.id)?' selected':'')+'" data-row="'+s.id+'">'
    +'<td style="width:34px"><span class="checkbox '+(sel.has(s.id)?'on':'')+'" data-check="'+s.id+'">'+UI.ic('check',10)+'</span></td>'
    +'<td style="width:58px"><span class="priority-flag '+pri+'">'+label+'</span></td>'
@@ -325,7 +325,7 @@ function openSample(id){
      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
        +[['Patient',U.ptName(s)==='—'&&U.canSeeNames()
             ?'<button class="btn xs" data-name-add>'+UI.ic('plus',11)+' Record a name</button>'
-            :U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px"'+(k==='Patient'?' id="ptCell"':'')+'>'+(k==='Patient'?v:U.esc(v))+'</div></div>').join('')
+            :U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Received at reception',s.receivedAt?U.fmtDT(s.receivedAt):'not yet received'],['TAT clock',t.awaitingReception?'not started — starts at reception':(t.startFrom==='reception'?'from the reception stamp':'from collection — this record has no reception stamp')],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px"'+(k==='Patient'?' id="ptCell"':'')+'>'+(k==='Patient'?v:U.esc(v))+'</div></div>').join('')
      +'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('timer',14,'ic')+'Turnaround</div><div class="card-sub">'+(s.resultedAt?'Completed in '+Math.round(t.elapsedH)+'h of a '+Math.round(t.targetH)+'h target':'Due '+U.fmtDate(U.isoLocal(t.dueAt)))+'</div></div>'
      +'<span class="pill '+(t.breached?'rose':t.ratio>.8?'amber':'teal')+'">'+(t.breached?'Breached':t.ratio>.8?'At risk':'On track')+'</span></div>'
@@ -473,13 +473,15 @@ function editSample(id){
       +'<div class="field"><label>Origin health centre</label><select class="select" id="edFac">'+opts(facilities,s.healthFacility||'')+'</select></div>'
       +'<div class="field"><label>Receiving laboratory</label><select class="select" id="edLab">'+opts(labs,s.hospital||'')+'</select></div>'
       +'<div class="field"><label>Collected on</label><input class="input" type="date" id="edColl" value="'+U.esc(String(s.collectionDate||'').slice(0,10))+'"></div>'
+      +'<div class="field"><label>Received at reception · date</label><input class="input" type="date" id="edRecv" value="'+U.esc(String(s.receivedAt||'').slice(0,10))+'"><div class="xs faint" style="margin-top:4px">The TAT clock starts here. Leave blank if it has not arrived.</div></div>'
+      +'<div class="field"><label>Received at reception · time</label><input class="input mono" type="time" id="edRecvT" value="'+U.esc(String(s.receivedAt||'').slice(11,16))+'"></div>'
       +'<div class="field"><label>Sent / dispatched on</label><input class="input" type="date" id="edSent" value="'+U.esc(String(s.sentDate||'').slice(0,10))+'"></div>'
       +'<div class="field"><label>Transporter / courier</label><input class="input" id="edTrans" value="'+U.esc(s.transporter||'')+'"></div>'
       +'<div class="field"><label>Status</label><select class="select" id="edStatus">'+opts(statuses,s.status||'Registered')+'</select></div>'
       +'<div class="field"><label>Target TAT (days)</label><input class="input mono" type="number" min="0" step="1" id="edTat" value="'+(s.tatTargetDays!=null?s.tatTargetDays:'')+'"></div>'
       +'<div class="field"><label>Result value</label><input class="input mono" id="edVal" value="'+U.esc(s.resultValue||'')+'" placeholder="Leave blank to keep unreleased"></div>'
       +'<div class="field span2"><label>Notes</label><textarea class="textarea" id="edNotes" rows="2">'+U.esc(s.notes||'')+'</textarea></div>'
-      +'</div><div class="hint" style="margin-top:8px">Editing dates re-computes TAT and the 12-month throughput view immediately. Nothing is deleted — the previous values stay in the audit log.</div>',
+      +'</div><div class="hint" style="margin-top:8px">TAT is counted from the reception date and time, not from collection. Editing any date re-computes TAT and the 12-month throughput view immediately. Nothing is deleted — the previous values stay in the audit log.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save changes</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save]').onclick=()=>{
@@ -492,6 +494,7 @@ function editSample(id){
           dob:dobV, age:(U.ageFromDob(dobV)===''?g('#edAge'):String(U.ageFromDob(dobV))),
           test:g('#edTest'), priority:g('#edPri'), healthFacility:g('#edFac'), hospital:g('#edLab'),
           collectionDate:g('#edColl'), sentDate:g('#edSent')||null, transporter:g('#edTrans').trim(),
+          receivedAt:g('#edRecv')?(g('#edRecv')+'T'+(g('#edRecvT')||'09:00')):null,
           status:g('#edStatus'), resultValue:g('#edVal').trim()||null, notes:g('#edNotes').trim()
         };
         const tatRaw=parseFloat(g('#edTat'));
@@ -746,10 +749,13 @@ function deleteSamples(ids){
     if(!ok) return;
     const snapshot=victims.map(x=>JSON.parse(JSON.stringify(x)));
     const links=victims.filter(x=>x.manifestId).map(x=>({id:x.id,manifestId:x.manifestId,status:x.status}));
+    let returned=0;
     S.commit(d=>{
       d.samples=d.samples.filter(x=>ids.indexOf(x.id)<0);
       (d.manifests||[]).forEach(m=>{ m.samples=(m.samples||[]).filter(x=>ids.indexOf(x)<0); });
-    },{action:'samples.delete',entity:'samples',detail:'Deleted '+victims.length+' order'+(victims.length===1?'':'s')+': '+snapshot.map(x=>x.sampleId).join(', ')});
+      /* the bottle the order drew goes back on the shelf */
+      ids.forEach(id=>{ returned+=S.restoreBottle(d,id); });
+    },{action:'samples.delete',entity:'samples',detail:'Deleted '+victims.length+' order'+(victims.length===1?'':'s')+': '+snapshot.map(x=>x.sampleId).join(', ')+(returned?' · '+returned+' bottle(s) returned to stock':'')});
     st.selected.clear();
     paintView();
     UI.toast(victims.length+' order'+(victims.length===1?'':'s')+' deleted',{type:'ok',duration:9000,
@@ -757,6 +763,8 @@ function deleteSamples(ids){
         S.commit(d=>{
           snapshot.forEach(x=>{ if(!d.samples.some(y=>y.id===x.id)) d.samples.push(x); });
           links.forEach(l=>{ const m=(d.manifests||[]).find(y=>y.id===l.manifestId); if(m&&m.samples.indexOf(l.id)<0) m.samples.push(l.id); });
+          /* the bottle drawn by that order is drawn again */
+          snapshot.forEach(x=>S.drawBottle(d,x));
         },{action:'samples.delete.undo',entity:'samples',detail:'Restored '+snapshot.length+' order'+(snapshot.length===1?'':'s')});
         UI.toast('Restored '+snapshot.length+' order'+(snapshot.length===1?'':'s'),{type:'ok'});
         paintView();
@@ -773,7 +781,9 @@ function newWizard(){
      and is the default. Health centres stay on the list for specimens collected there. */
   const hcs=U.uniq(['Ruli DH'].concat(db.catalog.healthCenters.map(h=>h.name)));
   const hospitals=db.catalog.hospitals.map(h=>h.name).concat(['Ruli DH - GeneXpert']);
-  const state={step:1,patient:{name:'',pid:'',sex:'Female',dob:'',age:''},tests:[],priority:'Routine',origin:'Ruli DH',hospital:hospitals[0],transporter:'',notes:'',sampleId:''};
+  const now=new Date();
+  const state={step:1,patient:{name:'',pid:'',sex:'Female',dob:'',age:''},tests:[],priority:'Routine',origin:'Ruli DH',hospital:hospitals[0],transporter:'',notes:'',sampleId:'',
+    recvDate:U.todayISO(), recvTime:String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')};
   /* The preview must read like the real thing: test code, month, next number. */
   const firstTestName=()=>{ const t=tests.find(x=>x.id===state.tests[0]); return t?t.name:''; };
   const previewId=()=>S.sampleId(firstTestName()||(tests[0]&&tests[0].name),U.todayISO());
@@ -790,7 +800,7 @@ function newWizard(){
       +'<div class="field"><label>Priority</label><select class="select" id="wPri">'+['Routine','STAT','Follow-up'].map(x=>'<option '+(state.priority===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div></div>'
       +'<div class="hint" style="margin-top:10px">The sample ID is built from the test you choose: <span class="mono">R+code+MMYY+number</span>. STAT samples are pinned to the top of the worklist and excluded from batching.</div></div>';
     if(state.step===2) return '<div class="wizard-step">'
-      +'<div class="field" style="margin-bottom:10px"><label>Search test menu</label><div class="searchbox">'+UI.ic('search',14)+'<input class="input" id="wTestSearch" placeholder="CBC, malaria, GeneXpert…"></div></div>'
+      +'<div class="field" style="margin-bottom:10px"><label>Search test menu</label><div class="searchbox">'+UI.ic('search',14)+'<input class="input" id="wTestSearch" placeholder="Blood culture, TB culture, viral load…"></div></div>'
       +'<div id="wTestList" style="max-height:300px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px">'
       +tests.map(t=>'<button class="choice '+(state.tests.includes(t.id)?'on':'')+'" data-test="'+t.id+'" data-name="'+U.esc(t.name.toLowerCase())+'"><span class="cmark">'+UI.ic('check',9)+'</span><span class="grow"><span class="ct">'+U.esc(t.name)+'</span><span class="cs" style="display:block">'+U.esc(t.cat)+' · TAT '+t.tat+'d · '+U.esc(t.code)+'</span></span></button>').join('')
       +'</div><div class="row between" style="margin-top:10px"><span class="hint" id="wTestCount">'+state.tests.length+' selected</span><span class="hint">Barcode generated on save</span></div>'
@@ -801,6 +811,8 @@ function newWizard(){
       +'<div class="field"><label>Receiving laboratory</label><select class="select" id="wHosp">'+hospitals.map(h=>'<option '+(state.hospital===h?'selected':'')+'>'+U.esc(h)+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Transporter</label><select class="select" id="wTrans"><option value="">— assign later —</option>'+S.activeStaff().map(s=>'<option '+(state.transporter===s.name?'selected':'')+'>'+U.esc(s.name)+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Collection date</label><input class="input mono" value="'+U.todayISO()+'" readonly></div>'
+      +'<div class="field"><label>Received at reception · date</label><input class="input mono" type="date" id="wRecv" value="'+U.esc(state.recvDate)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">TAT starts here. Clear it if the specimen has not arrived yet.</div></div>'
+      +'<div class="field"><label>Received at reception · time</label><input class="input mono" type="time" id="wRecvT" value="'+U.esc(state.recvTime)+'"></div>'
       +'<div class="field span2"><label>Notes for receiving laboratory</label><textarea class="textarea" id="wNote" placeholder="Triple packaging, cold chain, clinical context…">'+U.esc(state.notes)+'</textarea></div></div>'
       +'<div class="card pad" style="margin-top:12px;background:rgba(201,168,76,.05);border-color:var(--border-gold)"><div class="row gap-sm"><span class="pill gold">'+state.tests.length+' test'+(state.tests.length===1?'':'s')+'</span><span class="pill '+ (state.priority==='STAT'?'rose':'slate')+'">'+U.esc(state.priority)+'</span><span class="pill slate">'+U.esc(state.origin)+' → '+U.esc(state.hospital)+'</span></div></div>';
   };
@@ -821,7 +833,8 @@ function newWizard(){
           state.patient.age=(calc===''?((el.querySelector('#wAge')||{}).value||''):String(calc));
           state.priority=(el.querySelector('#wPri')||{}).value||'Routine';
         }
-        else if(state.step===3){ state.origin=(el.querySelector('#wOrigin')||{}).value||''; state.hospital=(el.querySelector('#wHosp')||{}).value||''; state.transporter=(el.querySelector('#wTrans')||{}).value||''; state.notes=(el.querySelector('#wNote')||{}).value||''; }
+        else if(state.step===3){ state.origin=(el.querySelector('#wOrigin')||{}).value||''; state.hospital=(el.querySelector('#wHosp')||{}).value||''; state.transporter=(el.querySelector('#wTrans')||{}).value||''; state.notes=(el.querySelector('#wNote')||{}).value||'';
+          state.recvDate=(el.querySelector('#wRecv')||{}).value||''; state.recvTime=(el.querySelector('#wRecvT')||{}).value||''; }
       };
       const paint=()=>{ body.innerHTML=stepHTML(); syncDots(); wireStep(); };
       const wireStep=()=>{
@@ -886,15 +899,23 @@ function newWizard(){
             dob:state.patient.dob||'',age:state.patient.age||'',
             sex:state.patient.sex,
             test:first.name,testCode:first.code,cat:first.cat,hospital:state.hospital,healthFacility:state.origin,district:'Gakenke',
-            collectionDate:today,collectionAt:U.nowISO(),sentDate:today,receivedAt:null,resultedAt:null,status:'Registered',
+            collectionDate:today,collectionAt:U.nowISO(),sentDate:today,
+            /* The sample exists in this laboratory only once reception stamps it, and
+               the TAT clock starts at that stamp. */
+            receivedAt:state.recvDate?(state.recvDate+'T'+(state.recvTime||'09:00')):null,
+            resultedAt:null,status:state.recvDate?'Received':'Registered',
             priority:state.priority,tatTargetDays:Math.max.apply(null,testObjs.map(t=>t.tat)),notes:state.notes,transporter:state.transporter,
             collector:LS.auth.user.name,source:'register',manifestId:null,tests:ordered};
           /* The ID is taken inside the commit, from the test chosen and this month. */
-          let sid='';
-          S.commit(d=>{ sid=S.takeSampleId(first.name,today,d); sample.sampleId=sid; d.samples.push(sample); },
-            {action:'sample.register',entity:'samples',entityId:sample.id,detail:'Registered '+sid+' · '+first.name+' · '+state.priority+' → '+state.hospital});
+          let sid='', drawn=null;
+          S.commit(d=>{ sid=S.takeSampleId(first.name,today,d); sample.sampleId=sid; d.samples.push(sample);
+            /* a blood culture takes one bottle off the shelf — and only a blood culture */
+            drawn=S.drawBottle(d,sample); },
+            {action:'sample.register',entity:'samples',entityId:sample.id,
+             detail:'Registered '+sid+' · '+first.name+' · '+state.priority+' → '+state.hospital+(drawn?' · 1 '+(drawn.ageGroup||'')+' bottle drawn':'')});
           close();
-          UI.toast('Sample '+sid+' registered · barcode ready',{type:'ok',actions:[{label:'Open record',onClick:()=>openSample(sample.id)}]});
+          UI.toast('Sample '+sid+' registered · barcode ready'+(drawn?' · 1 '+(drawn.ageGroup||'')+' bottle drawn':''),
+            {type:'ok',actions:[{label:'Open record',onClick:()=>openSample(sample.id)}]});
           LS.shell.refresh();
         }
       };
@@ -1036,7 +1057,7 @@ function paintView(){
     host.innerHTML='<div class="grid-12" style="margin-bottom:14px"><div class="c8"><div id="smpTableWrap">'+tableHTML()+'</div></div><div class="c4">'+referralPanel()
        +'<div style="margin-top:14px">'+UI.card({title:'TAT pressure',sub:'Active samples by % of target consumed',icon:'gauge',body:'<div id="smpPressure"></div>'})+'</div>'
        +'<div style="margin-top:14px">'+throughputMini()+'</div></div></div>'
-     +'<div style="margin-top:14px">'+tatByLabCard()+'</div>';
+     +'<div style="margin-top:14px" class="fit-card">'+tatByLabCard()+'</div>';
     pressureChart(host);
     host.querySelectorAll('[data-edit-labs]').forEach(b=>b.onclick=labEditor);
     wire();

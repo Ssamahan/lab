@@ -4,6 +4,74 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.40
+
+**The bench asked for eleven things; these are the ten that can be done without guessing.**
+
+### Annual leave takes a number of days
+Both leave forms — the plan editor and the request form — now ask for **Number of days**. Typing a
+number moves the end date (`from + days − 1`); editing the end date recalculates the number. The
+summary line under the form and the fiscal-year charge follow whichever was typed last.
+
+### Briefing removed
+The dashboard hero no longer offers *Briefing*, and the exporter behind it (and its command-palette
+entry) is gone. Register sample and Build manifest remain.
+
+### Cards that fit their data
+*Priority worklist* and *Live activity* were pinned to the full width of a two-column screen, so six
+narrow columns of table and a handful of feed lines sat in a wide empty band. Both now take **half a
+row**, and neither `.duty-fill` nor `.feed-fill` stretches to the height of a taller neighbour any
+more. The *TAT compliance by receiving laboratory* card on the samples screen is wrapped in
+`.fit-card` and capped at 760 px for the same reason: three rows do not need the whole screen.
+
+### Five tests that are never referred, removed
+Sputum AFB (Ziehl-Neelsen), CBC, Malaria RDT, Fasting Blood Glucose and Blood Slide for Malaria have
+left the referral menu, the reference ranges, the culture panel and the generator. On first load of
+6.9.40 every stored order carrying one of them is removed (`meta.neverReferredV6940`), and the
+number removed is recorded on the device. The referral menu is the ten tests that are actually sent.
+
+### TAT starts at reception
+`S.tatFor` used to count from collection at the health centre, so a specimen that travelled
+overnight spent those hours against the receiving laboratory. The clock now starts at the **reception
+stamp** (`receivedAt`), with `S.tatStartOf` naming which stamp it used. The register wizard and the
+record editor both take reception **date and time**; a specimen that has not arrived has no clock at
+all and is shown as *awaiting reception* instead of a countdown or a breach. Records written before
+this version carry no reception stamp; where the status or the dispatch date proves the specimen was
+received, the clock runs from collection and the record says so rather than pretending otherwise.
+
+### One bottle per blood culture, and no invented consumption
+A blood-culture order draws exactly one bottle: the **paediatric/neonatal** bottle at fifteen years
+or younger, the **adult** bottle above that. The movement is written to the distribution log with the
+order's id on it, so deleting the order returns that bottle and the undo draws it again. No other
+registration consumes anything, and no transfer to a hospital is recorded unless someone dispatches
+one.
+
+### Reorder radar: the department's own ceilings
+Monthly ceilings are now three HIV-EID cartridges, five VTM vials (transfers to health centres are
+counted apart, because they leave the building) and three blood-culture bottles — about two
+paediatric/neonatal and one adult, shown as a split on the ceiling row. The ceiling is compared with
+the **last thirty days** of the distribution log, not a ninety-day average.
+
+### Three-night blocks are earned
+`generatePlan` and *Auto nights* only give a third consecutive night to staff flagged for it —
+Patrick ISHIMWE first, Jean Paul NSENGIYUMVA on the weeks Patrick does not take. Patrick carries two
+weeks in three. Everybody else works two-night blocks, the weekend technologist carries Saturday and
+Sunday day+night, and a generated month never runs four nights without a break.
+
+### The weekly roster reads the working plan
+`S.nightCover(iso)` is now the one answer to "who is on nights": a manual night in the unit roster
+wins and is labelled *by hand*, then the working plan (a night code **or** a day+night code — the
+weekend name was previously invisible), then the contract pattern, labelled as a pattern. The weekly
+roster, the sheet preview, PNG, PDF, XLSX and print all read the same selector, and the night dialog
+opens on the planned name and offers *Back to the plan*.
+
+### Still open
+The **previous clean working plan** for November was referred to but never arrived with the request,
+so the November grid has not been transcribed or replaced. Send it (photo, PDF, XLSX or CSV) and it
+will be entered cell for cell against the rules above.
+
+---
+
 ## What changed in 6.9.39
 
 **The phone shows the whole register, and Confidential is a word only a visitor reads.**
