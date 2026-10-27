@@ -11,8 +11,29 @@ const S = {};
 window.LS = window.LS || {};
 LS.store = S;
 
-const LS_TYPES = {AL:'Annual leave', W:'Weekend', TR:'Training', SICK:'Sick leave', MAT:'Maternity', STUDY:'Study', COMP:'Compassionate', UNPAID:'Unpaid',
-  IL:'Circumstantial leave', AA:'Authorised absence', RBW:'Rest before work', OFF:'Off duty'};
+/* One vocabulary of leave abbreviations, used on the working plan, in the leave
+   register and on the printed sheet — the same letters the department writes by hand:
+     AL annual · ML maternal · PL paternal · SL sick · CL circumstantial ·
+     AA authorised · H public holiday · WD work desertion / unauthorised absence
+   Training (TR) is not leave, but it is an absence from the bench, so it keeps a code. */
+const LS_TYPES = {AL:'Annual leave', ML:'Maternal leave', PL:'Paternal leave', SL:'Sick leave',
+  CL:'Circumstantial leave', AA:'Authorised leave', H:'Public holiday',
+  WD:'Work desertion / unauthorised absence', TR:'Training'};
+/* The older sheets and earlier builds used other letters. Anything stored under an
+   old letter is read as its standard one; nothing is silently dropped. */
+const LEAVE_ALIAS = {SICK:'SL', MAT:'ML', MATERNITY:'ML', PAT:'PL', PATERNAL:'PL',
+  IL:'CL', COMP:'AA', COMPASSIONATE:'AA', STUDY:'AA', W:'AA', UNPAID:'AA', ABS:'WD',
+  AWOL:'WD', OFF:'OFF', RBW:'RBW'};
+S.leaveCode=function(type){
+  const t=String(type||'').toUpperCase();
+  if(LS_TYPES[t]) return t;
+  return LEAVE_ALIAS[t]||'AL';
+};
+/* Codes that mean "away from the bench on leave or absence". A public holiday (H) is
+   a date, not a person's leave, so it is kept apart: it is never counted as absence. */
+S.LEAVE_CODES=['AL','ML','PL','SL','CL','AA','WD'];
+S.isLeaveCode=code=>S.LEAVE_CODES.indexOf(String(code||'').toUpperCase())>=0;
+S.isHolidayCode=code=>String(code||'').toUpperCase()==='H';
 /* Circumstantial leave (IL on the 2025 working plans) is the bereavement leave the
    department gives when a member of staff loses their spouse or a close relative.
    It is leave in force like any other, and it is never written up as an absence. */
@@ -441,7 +462,7 @@ function generatePlan(monthKey, seedDB){
       const dow=U.dow(iso);
       const isWeekend=dow>=5;
       const onLeave=leaves.find(l=>l.staffId===s.id && !/declin|reject/i.test(l.status||'') && iso>=l.from && iso<=l.to);
-      if(onLeave){ codes.push(onLeave.type==='TR'?'TR':onLeave.type==='SICK'?'SICK':onLeave.type||'AL'); return; }
+      if(onLeave){ codes.push(S.leaveCode(onLeave.type)); return; }
       if(isWeekend){
         /* only the people rostered at the weekend carry a code here */
         const w=weekendOwner[iso];
@@ -663,6 +684,22 @@ function normalize(db){
       });
     }
   }
+  /* v6.9.46 — one set of leave letters, everywhere. The older sheets and earlier
+     builds used SICK, MAT, IL, COMP, STUDY, W and UNPAID; the department writes SL,
+     ML, CL, AA. Every stored record and every stored plan cell is rewritten to the
+     standard letter here, so nothing is left reading as an unexplained absence and
+     nothing is counted twice. */
+  if(!db.meta.leaveAcronymsV6946){
+    db.meta.leaveAcronymsV6946=1;
+    (db.leaves||[]).forEach(l=>{ if(l.type) l.type=S.leaveCode(l.type); });
+    (db.absences||[]).forEach(a=>{ if(a.type) a.type=S.leaveCode(a.type); });
+    Object.keys(db.workingPlans||{}).forEach(k=>{
+      const p=db.workingPlans[k];
+      const rows=(p.primary&&p.primary.staff)||[];
+      (p.versions||[]).forEach(v=>(v.staff||[]).forEach(r=>rows.push(r)));
+      rows.forEach(r=>{ if(r.codes) r.codes=r.codes.map(c=>S.leaveCode(c)===c?c:(S.LEAVE_CODES.indexOf(S.leaveCode(c))>=0&&['SICK','MAT','IL','COMP','STUDY','W','UNPAID','ABS'].indexOf(c)>=0?S.leaveCode(c):c)); });
+    });
+  }
   /* v6.9.44 — the working plans on file, month by month, as a record. Each month is
      transcribed from the department's own paper into assets/data/plan-archive.js and
      installed here only where the console holds no plan for that month: a plan in
@@ -675,10 +712,27 @@ function normalize(db){
       const e=A[k];
       if(!e||!e.from||!e.staff||!e.staff.length) return;
       db.workingPlans[k]=db.workingPlans[k]||{versions:[]};
-      if(db.workingPlans[k].primary) return;
-      const n=Math.max.apply(null,e.staff.map(r=>r.codes.length));
-      const dates=e.staff[0].codes.map((_,i)=>U.addDays(e.from,i));
-      const staff=e.staff.map(r=>({name:r.name, codes:dates.map((_,i)=>r.codes[i]||'')}));
+      /* A plan in force is never replaced by a record. A generated draft is: the paper
+         is the record, the draft was only ever the console's guess at it. */
+      if(db.workingPlans[k].primary){
+        if(!(db.workingPlans[k].primary.meta&&db.workingPlans[k].primary.meta.generated)) return;
+        db.workingPlans[k].versions=(db.workingPlans[k].versions||[]).concat([db.workingPlans[k].primary]);
+      }
+      const n=e.days||Math.max.apply(null,e.staff.map(r=>r.codes.length));
+      const dates=[]; for(let i=0;i<n;i++) dates.push(U.addDays(e.from,i));
+      /* every row is read from the same first date: trailing blanks are padding,
+         never content, so a row shorter than the sheet ends where the sheet does */
+      const staff=e.staff.map(r=>{
+        const c=r.codes.slice();
+        while(c.length>n&&c[c.length-1]==='') c.pop();
+        while(c.length<n) c.push('');
+        /* The paper shades a public holiday across every row. A cell left blank on
+           such a date is written H here, so the day is not read as an unrostered
+           gap: nobody is on the bench because the hospital is closed. */
+        const hol=(db.holidays||[]);
+        const codes=c.slice(0,n).map((code,i)=>code||(hol.some(h=>h.date===dates[i])?'H':''));
+        return {name:r.name, codes};
+      });
       db.workingPlans[k].primary={
         label:U.monthLabel(k)+' — transcribed from the working plan on file',
         dates, staff,
@@ -1249,7 +1303,7 @@ S.leaves=()=>S.db().leaves||[];
 S.holiday=(iso)=>(S.db().holidays||[]).find(h=>h.date===iso);
 S.tatTarget=test=>sampleTAT(test,S.db().settings);
 S.and=()=>{};
-S.leaveTypeLabel=t=>LS_TYPES[t]||t||'Leave';
+S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;
 
 /* Leave that is in force — anything not declined/rejected. Approvals can be
@@ -1270,12 +1324,12 @@ S.approvedLeaveFor=function(who,iso){
 };
 S.approvedLeaveCodeFor=function(who,iso){
   const lv=S.approvedLeaveFor(who,iso); if(!lv) return '';
-  return lv.type==='SICK'?'SL':lv.type==='MAT'?'ML':lv.type==='COMP'||lv.type==='UNPAID'?'CL':lv.type==='STUDY'?'TR':lv.type==='W'?'W':'AL';
+  return S.leaveCode(lv.type);
 };
 /* Working-plan code for an approved/pending leave, in the printed vocabulary. */
 S.leaveCodeFor=function(who,iso){
   const lv=S.leaveFor(who,iso); if(!lv) return '';
-  return lv.type==='SICK'?'SL':lv.type==='MAT'?'ML':lv.type==='COMP'||lv.type==='UNPAID'?'CL':lv.type==='STUDY'?'TR':lv.type==='W'?'W':'AL';
+  return S.leaveCode(lv.type);
 };
 /* Contract terms: under statute 30 calendar days a year, contractual 21 working
    days (Mon–Fri). Sponsor names who pays: Global Fund, own revenue, MoH, partner. */
@@ -1311,7 +1365,7 @@ S.leaveEntitlement=function(staff, fy){
 };
 S.leaveUsed=function(staff, fy){
   fy=fy||U.fyLabel();
-  const rows=S.leaveInForce().filter(l=>l.staffId===staff.id && l.type!=='SICK' && l.type!=='W' && fyOf(l)===fy);
+  const rows=S.leaveInForce().filter(l=>l.staffId===staff.id && S.leaveCountsAgainstEntitlement(l.type) && fyOf(l)===fy);
   const days=U.sum(rows,l=>{
     if(S.contractOf(staff)!=='contractual') return U.daysBetween(l.from,l.to)+1;
     let n=0; const d=U.parseISO(l.from), end=U.parseISO(l.to);
@@ -1328,7 +1382,7 @@ S.absenceHistory=function(){
   months.forEach(k=>{
     const p=S.planForMonth(k); if(!p||!p.staff||!p.staff.length) return;
     let abs=0, cells=0;
-    p.staff.forEach(r=>(r.codes||[]).forEach(c=>{ if(!c) return; cells++; if(['AL','SL','SICK','CL','ML','TR','ABS'].indexOf(c)>=0) abs++; }));
+    p.staff.forEach(r=>(r.codes||[]).forEach(c=>{ if(!c) return; cells++; if(S.isLeaveCode(c)) abs++; }));
     if(cells) out.push({month:k,rate:abs/cells,abs,cells,staff:p.staff.length});
   });
   const leaveRows=S.leaveInForce();
@@ -1363,12 +1417,14 @@ S.shiftLabel=kind=>(SHIFT[kind]||SHIFT.day).label;
 /* Leave vocabulary: annual leave and other AUTHORISED leave are recorded
    entitlements. "Absent" is deliberately reserved for an unexplained absence —
    it is an offence under Rwandan labour law and is never inferred from a plan. */
-/* Circumstantial leave (IL) and an authorised absence (AA) are given, not drawn from
-   the thirty days, so they never count against anyone's entitlement. */
-const LEAVE_KIND={AL:'annual',COMP:'authorised',SICK:'authorised',MAT:'authorised',TR:'authorised',STUDY:'authorised',W:'authorised',UNPAID:'authorised',
-  IL:'authorised',AA:'authorised',RBW:'authorised',OFF:'authorised'};
-S.leaveKind=type=>LEAVE_KIND[type]||'annual';
-S.leaveKindLabel=type=>S.leaveKind(type)==='annual'?'Annual leave':'Authorised leave';
+/* Only annual leave (AL) comes out of the thirty days. Sick, maternal, paternal,
+   circumstantial, authorised leave and a public holiday are given, not drawn from the
+   entitlement. Work desertion is recorded, but it is not leave and it is not granted. */
+const LEAVE_KIND={AL:'annual',ML:'authorised',PL:'authorised',SL:'authorised',CL:'authorised',
+  AA:'authorised',H:'authorised',TR:'authorised',WD:'unauthorised'};
+S.leaveKind=type=>LEAVE_KIND[S.leaveCode(type)]||'annual';
+S.leaveKindLabel=type=>{ const k=S.leaveKind(type);
+  return k==='annual'?'Annual leave':k==='unauthorised'?'Unauthorised absence':'Authorised leave'; };
 S.leaveCountsAgainstEntitlement=type=>S.leaveKind(type)==='annual' && type!=='W';
 
 /* A leave plan is a block of days charged to a fiscal year. It can be entered
@@ -1788,10 +1844,10 @@ S.shiftState=function(who, iso){
     if(code==='N')  return {code,kind:'night',label:'On duty · night 17:00–08:00 next day',tone:'blue',source:'plan'};
     if(code==='DN') return {code,kind:'daynight',label:'On duty · day + night',tone:'teal',source:'plan'};
     if(code==='TR') return {code,kind:'training',label:'Training',tone:'gold',source:'plan'};
-    if(code==='AL'||code==='SICK'||code==='CL'||code==='ML') return {code,kind:'leave',label:S.leaveTypeLabel(code==='SICK'?'SICK':code==='CL'?'COMP':code==='ML'?'MAT':'AL'),tone:'blue',source:'plan'};
+    if(S.isLeaveCode(code)) return {code,kind:'leave',label:S.leaveTypeLabel(code),tone:'blue',source:'plan'};
     if(code==='OFF'||code==='W') return {code,kind:'off',label:'At home',tone:'slate',source:'plan'};
     if(code==='RBW') return {code,kind:'off',label:'Rest before work',tone:'slate',source:'plan'};
-    if(code==='AA') return {code,kind:'leave',label:'Authorised absence',tone:'amber',source:'plan'};
+
   }
   // No plan published for that day: fall back to the contract, clearly labelled.
   const dow=U.dow(iso);

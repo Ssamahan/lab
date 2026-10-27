@@ -99,12 +99,35 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(dj.codes.slice(7).every(c=>c==='AL'),'Dieudonne is on annual leave from the 8th, as the sheet shows');
 
   /* ── 7 · circumstantial leave is leave, not absence, and not the thirty days ── */
-  ok(S().leaveTypeLabel('IL')==='Circumstantial leave','IL reads as circumstantial leave');
-  ok(S().leaveKind('IL')==='authorised','and it is authorised leave, not annual leave');
-  ok(!S().leaveCountsAgainstEntitlement('IL'),'so it never comes out of the thirty days');
-  ok(S().leaveKind('AA')==='authorised'&&!S().leaveCountsAgainstEntitlement('AA'),'nor does an authorised absence');
+  ok(S().leaveTypeLabel('CL')==='Circumstantial leave','CL reads as circumstantial leave');
+  ok(S().leaveKind('CL')==='authorised','and it is authorised leave, not annual leave');
+  ok(!S().leaveCountsAgainstEntitlement('CL'),'so it never comes out of the thirty days');
+  ok(S().leaveTypeLabel('IL')==='Circumstantial leave','the old IL still reads as circumstantial leave');
+  ok(S().leaveKind('AA')==='authorised'&&!S().leaveCountsAgainstEntitlement('AA'),'nor does authorised leave');
+  /* the department's eight letters, and nothing else claiming a column */
+  const std=['AL','ML','PL','SL','CL','AA','H','WD'];
+  ok(std.every(c=>S().leaveTypeLabel(c)&&S().leaveTypeLabel(c)!==c),'every standard letter has a name');
+  ok(S().leaveTypeLabel('ML')==='Maternal leave'&&S().leaveTypeLabel('PL')==='Paternal leave','ML maternal, PL paternal');
+  ok(S().leaveTypeLabel('SL')==='Sick leave'&&S().leaveTypeLabel('WD').indexOf('desertion')>=0,'SL sick, WD work desertion');
+  ok(S().leaveKind('WD')==='unauthorised'&&!S().leaveCountsAgainstEntitlement('WD'),'work desertion is recorded but never drawn from the thirty days');
 
-  /* ── 8 · tables fit the card they are in ── */
+  /* ── 8 · December 2025, read from the sheet on file ── */
+  const dec=db().workingPlans['2025-12'];
+  ok(!!(dec&&dec.primary),'December 2025 is on file');
+  ok(dec.primary.meta.transcribed===true,'as a transcribed record');
+  ok(dec.primary.dates[0]==='2025-12-01'&&dec.primary.dates.length===42,'1 December to 11 January, as the sheet runs');
+  ok(dec.primary.staff.length===8,'eight names on the sheet');
+  ok(dec.primary.staff.every(r=>r.codes.length===42),'a code for every day of every row');
+  const kel=dec.primary.staff.find(r=>/Kelvin/.test(r.name));
+  ok(kel.codes.slice(0,16).every(c=>c==='AL'),'the manager is on annual leave for the first sixteen days');
+  ok(kel.codes[24]==='H'&&kel.codes[25]==='H','Christmas and Boxing Day are marked as public holidays');
+  ok(dec.primary.staff.some(r=>r.codes[0]==='H'||r.codes.filter(c=>c==='H').length>0),'and H is used, not left blank');
+  const pat=dec.primary.staff.find(r=>/Patrick/.test(r.name));
+  ok(pat.codes[0]==='N'&&pat.codes[1]==='N'&&pat.codes[2]==='N','Patrick opens the month on three nights, as the sheet shows');
+  const diane=dec.primary.staff.find(r=>/Diane/.test(r.name));
+  ok(diane.codes.slice(35).every(c=>c==='AL'),'Diane takes her leave into the new year');
+
+  /* ── 9 · tables fit the card they are in ── */
   ok(typeof U.fitTables==='function','the table fitter is part of the toolkit');
   await go('#/dash'); await tick(320);
   ok(doc.querySelectorAll('#app .card[data-fit]').length>=0,'cards report their fit after render');

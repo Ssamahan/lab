@@ -14,6 +14,20 @@
    as the sheet reads from that date. Blanks are cells the sheet leaves empty.
    ========================================================================== */
 window.LS_PLAN_ARCHIVE = {
+  '2025-12': {
+    source:'Working plan — December 2025 (New Dec 25 sheet on file; Diane is marked requisition in-charge with an asterisk)',
+    from:'2025-12-01', days:42,
+    staff:[
+      {name:'Kelvin SAMAHANI', codes:['AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','D','D','D','','','D','D','D','','','','','D','D','D','','','','','D','D','D','D','D','','']},
+      {name:'Aurelie YANSONEYE', codes:['OFF','OFF','D','D','OFF','','','D','D','D','D','D','','DN','OFF','OFF','D','D','D','','','D','D','D','','','','','D','N','N','OFF','OFF','D','D','D','D','D','OFF','OFF','','']},
+      {name:'Patrick ISHIMWE', codes:['N','N','N','OFF','OFF','OFF','','N','N','N','OFF','OFF','OFF','','N','N','OFF','OFF','D','','N','N','OFF','OFF','','','D','D','OFF','OFF','D','','','N','N','OFF','OFF','D','D','N','N','']},
+      {name:'Diane UWASE', codes:['D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','RBW','D','D','OFF','D','D','D','D','','','D','D','OFF','','','','','AL','AL','AL','AL','AL','AL','AL']},
+      {name:'Beatrice NGEZEKURE', codes:['D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','','','','','D','D','D','D','D','','','OFF','OFF','D','D','D','','']},
+      {name:'Faustin', codes:['D','D','OFF','D','D','N','N','OFF','OFF','D','N','N','OFF','OFF','D','D','D','D','N','N','OFF','OFF','D','D','','','','N','N','OFF','OFF','N','N','OFF','OFF','D','D','D','D','D','','N']},
+      {name:'Dieudonne NIYIDUHABYOSE', codes:['OFF','D','D','D','RBW','D','D','OFF','D','D','D','D','DN','OFF','OFF','OFF','D','D','D','','','D','D','N','N','OFF','OFF','','D','D','D','','','','','N','N','OFF','OFF','D','D','D']},
+      {name:'Jean Paul NSENGIYUMVA', codes:['D','D','D','N','N','','','D','D','D','D','D','','','D','D','N','N','OFF','OFF','','D','N','OFF','','N','N','OFF','OFF','D','D','','','','','D','D','N','N','OFF','OFF','']}
+    ]
+  },
   '2025-09': {
     source:'Working plan — September 2025 (photograph on file)',
     from:'2025-09-01',
