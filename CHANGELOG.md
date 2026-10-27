@@ -4,6 +4,41 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.41
+
+**November 2026 exists, built from the rules and the record — and the sheet now reads
+like the department's own plans.**
+
+### The November plan
+The department's plan for November 2026 had not been written down. It is now built once,
+as a **draft**, from the rules the bench works to and from the record of August 2026 and
+November 2025: Mon–Wed carries the three-night block, Thu–Fri carries a two-night block,
+Saturday and Sunday belong to the weekend technologist, and the manager is off from
+1 November and on his carried-over annual leave from 2 November to the end of the month,
+exactly where the leave register already puts him. Patrick holds three blocks (10 nights),
+Jean Paul the other one (3 nights), Dieudonné and Bernadette work two at a time, Beatrice is
+on days, nobody runs a fourth night.
+
+It is a **draft**: the roster header says so, the sheet prints `DRAFT — for review, not yet
+published` across its face, and nothing is published until the department reads it. Any cell
+is editable by clicking it, and *Generate draft* rebuilds the month the same way.
+
+### The sheet follows the record
+Every plan the department has kept names the post under the person. The monthly sheet now
+prints **role under name** (Laboratory Manager, Laboratory Technologist…), keeps the three
+signature blocks (Prepared / Verified / Approved), the key strip and the holiday line, and
+adds the two codes the paper plans have always used: **RBW — off duty (rest before work)**
+and **AA — authorised absence**. Both are offered in the shift picker and read correctly in
+the dashboard and the roster ("Rest before work", "Authorised absence").
+
+### Still open
+The nineteen months of plans sent as photographs are the **record**, not yet the register:
+they are not transcribed into the app, because a mis-read cell would become a false
+attendance record. Say the word and a month (or a whole year) can be entered cell by cell
+and checked against the photographs before it is saved.
+
+---
+
 ## What changed in 6.9.40
 
 **The bench asked for eleven things; these are the ten that can be done without guessing.**
