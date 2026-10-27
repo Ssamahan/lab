@@ -11,7 +11,11 @@ const S = {};
 window.LS = window.LS || {};
 LS.store = S;
 
-const LS_TYPES = {AL:'Annual leave', W:'Weekend', TR:'Training', SICK:'Sick leave', MAT:'Maternity', STUDY:'Study', COMP:'Compassionate', UNPAID:'Unpaid'};
+const LS_TYPES = {AL:'Annual leave', W:'Weekend', TR:'Training', SICK:'Sick leave', MAT:'Maternity', STUDY:'Study', COMP:'Compassionate', UNPAID:'Unpaid',
+  IL:'Circumstantial leave', AA:'Authorised absence', RBW:'Rest before work', OFF:'Off duty'};
+/* Circumstantial leave (IL on the 2025 working plans) is the bereavement leave the
+   department gives when a member of staff loses their spouse or a close relative.
+   It is leave in force like any other, and it is never written up as an absence. */
 
 /* One vocabulary for shift times: day 08:00–17:00, night 17:00–08:00 of the
    NEXT day. Anything that prints a shift time reads it from here. */
@@ -1359,7 +1363,10 @@ S.shiftLabel=kind=>(SHIFT[kind]||SHIFT.day).label;
 /* Leave vocabulary: annual leave and other AUTHORISED leave are recorded
    entitlements. "Absent" is deliberately reserved for an unexplained absence —
    it is an offence under Rwandan labour law and is never inferred from a plan. */
-const LEAVE_KIND={AL:'annual',COMP:'authorised',SICK:'authorised',MAT:'authorised',TR:'authorised',STUDY:'authorised',W:'authorised',UNPAID:'authorised'};
+/* Circumstantial leave (IL) and an authorised absence (AA) are given, not drawn from
+   the thirty days, so they never count against anyone's entitlement. */
+const LEAVE_KIND={AL:'annual',COMP:'authorised',SICK:'authorised',MAT:'authorised',TR:'authorised',STUDY:'authorised',W:'authorised',UNPAID:'authorised',
+  IL:'authorised',AA:'authorised',RBW:'authorised',OFF:'authorised'};
 S.leaveKind=type=>LEAVE_KIND[type]||'annual';
 S.leaveKindLabel=type=>S.leaveKind(type)==='annual'?'Annual leave':'Authorised leave';
 S.leaveCountsAgainstEntitlement=type=>S.leaveKind(type)==='annual' && type!=='W';

@@ -4,6 +4,21 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.45
+
+**`IL` on the 2025 working plans is circumstantial leave — the leave the department gives
+when a member of staff loses their spouse or a close relative.**
+
+It was being read as an unexplained absence. It is not one:
+
+- `IL` now carries the label **Circumstantial leave** everywhere it can appear — the roster
+  legend, the shift picker on a cell, the leave screen, an exported register.
+- It is **authorised leave**, not annual leave: it never comes out of anyone's thirty days,
+  and it is never counted as an absence or held against attendance.
+- An authorised absence (`AA`) is treated the same way.
+- The chip on the grid has its own colour, so a circumstantial-leave block is visible at a
+  glance on the months transcribed from the older sheets — including Beatrice's February 2025.
+
 ## What changed in 6.9.44
 
 **While the weekend technologist is away the weekend is worked by two people — and the
