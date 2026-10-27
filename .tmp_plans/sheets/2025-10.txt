@@ -1,0 +1,9 @@
+# Work Plan - October 2025 | from=2025-10-01 | days=40
+| Kelvin\* | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  |  | 
+| Aurelie | D | D | D |  |  | D | D | D | D | D |  |  | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL |  | 
+| Patrick | N | OFF | OFF | D | D | D | D | OFF | OFF | N | N | N | OFF | OFF | OFF | D | N | N | N | OFF | OFF | N | N | N | OFF | OFF | D | D | OFF | OFF | N | N | N | OFF | OFF | OFF | RBW | N | N | N |  | 
+| Diane | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | N | N | OFF | OFF | RBW | D | D | OFF | D | N | N | OFF | OFF |  | D | D | D | D | D |  |  |  | 
+| Béatrice | D | D | D |  |  | AA | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | RBW | D | D | OFF | D | D | D | D |  |  |  | 
+| Faustin | D | N | N | OFF | OFF | N | N | OFF | OFF | D |  |  | N | N | OFF | OFF | D | D | D | D | D | D | OFF | OFF | N | N | OFF | OFF | D | D | D |  |  | D | D | N | N | OFF | OFF |  |  | 
+| Dieudonne | AL | AL | AL | AL | AL | AL | AL | N | N | OFF | OFF |  | D | D | N | N | OFF | OFF |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  |  | 
+| Jean Paul | D | D | OFF | N | N | OFF | OFF | D | D | RBW | D | D | D | D | D | D | OFF |  |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |  |  | N | N | OFF | OFF | RBW | D | D |  | 

@@ -4,6 +4,45 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.47
+
+**Every month the workbook holds is now read into the console — sheet by sheet, straight from
+the source.**
+
+The workbook (*Work plan - Lab.xlsx*, 26 tabs) is read directly rather than off photographs.
+Each month is transcribed cell by cell into `assets/data/plan-archive.js` and installed as a
+**transcribed record**: never *Official*, never printed as signed, and never overwriting a plan
+that is in force.
+
+- **Twenty-one months are in:** January, February, April, May, June, August, September,
+  October, November and December 2024; every month of 2025 except June. The workbook has no
+  tab for March or July 2024, and none for June 2025 — nothing is invented to fill them.
+- Where a month has two tabs (the original and a revised one, or an older and a "New" one), the
+  later tab is the one kept: `Jan 25 Revised`, `Sep 25 - Rev`, `Sept 24 Revised`,
+  `New May 2025`, `New Dec 25`.
+- Every row keeps its blanks, its mentorship days, its trainings, its rest days, its day-and-night
+  weekends and its leave **exactly** where the sheet puts them, from the first date the sheet
+  covers to the last cell it fills. The 2024 sheets run past the end of their month, into the
+  next — that tail is kept too.
+- **The paper's letters are translated to the standard set** on the way in:
+  `IL` → **CL**, `SICK` → **SL**, `MAT` → **ML**, `Tr` → **TR**, `Ms` → **MS**, `RWB` → `RBW`,
+  `-` → **BE**, and from the French sheets `J`/`GJ` → **D**, `GN` → **N**, `JN` → **DN**,
+  `R` → **OFF**, `CO` → **AL**, `FO` → **TR**, `A.C` → **TR**.
+- **`BE` — before employment** is a code in its own right: Jean Paul's first two days of February
+  2025, Dieudonné's first days of September 2024. It is not leave and never draws on the thirty
+  days.
+- A month is re-installed only when its content changes (each carries a stamp), so reading a
+  sheet again updates that month and touches nothing else.
+
+**From the sheets themselves**
+
+- Beatrice's block on 4–7 and 10–12 February 2025 is **circumstantial leave (CL)**, followed by
+  maternal leave to the 22nd — exactly as you said it should read.
+- Diane's 5–7 May 2025 block, marked `IL` on the paper, now reads **CL**.
+- Dieudonné is on annual leave from 8 September 2025 to 6 October, across the month's edge.
+- Elie, who is on the 2024 sheets only, has his 26 days of `CO` read as annual leave and his
+  weekend `JN` as day-and-night; Siladji, also only on the 2024 sheets, keeps his own roster.
+
 ## What changed in 6.9.46
 
 **One set of leave letters, the department's own: `AL · ML · PL · SL · CL · AA · H · WD`.**

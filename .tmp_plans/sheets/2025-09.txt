@@ -1,0 +1,9 @@
+# Work Plan - September 2025 (revised 04/09/2025) | from=2025-09-01 | days=35
+| Kelvin\* | Ms | Ms | Ms | D | D |  |  | Ms | Ms | Ms | Ms | Ms |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D |  |  |  |  | 
+| Aurelie | AA | D | D | D | N | N | OFF | Tr | Tr | Tr | Tr | Tr | D | D | OFF | OFF | N | N | OFF | OFF |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D |  |  |  |  | 
+| Patrick | OFF | OFF | OFF | RBW | RBW |  | N | N | N | OFF | OFF | N | N | N | OFF | OFF | OFF | D | N | N | N | OFF | OFF | D | D | D |  |  | N | N | N | OFF | OFF | D | D | D | OFF | N |  |  | 
+| Diane | D | D | D | D | D |  |  | D | D | N | N | OFF | OFF |  | D | D | D | D | OFF | D | D | Tr | Tr | Tr | Tr | Tr | D | D | OFF | OFF | D | D | D |  |  | D |  |  |  |  | 
+| Béatrice | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | AA |  |  |  |  | 
+| Faustin | D | OFF | D | D | D |  |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |  |  | N | N | OFF | OFF | RBW | N | N | OFF | D | D | N | N | OFF | OFF | N | N | OFF | OFF |  | 
+| Dieudonne | N | N | OFF | OFF | OFF |  |  | AL\* | AL\* | AL\* | AL\* | AL\* | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL |  |  |  | 
+| Jean Paul | D | D | N | N | OFF | D | D | Tr | Tr | Tr | Tr | Tr |  |  | D | D | D | D | D |  |  | D | D | N | N | N | OFF | OFF | D | D | D | D | OFF | N | N | OFF | OFF |  |  |  | 

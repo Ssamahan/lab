@@ -1,0 +1,9 @@
+# Work Plan - March 2025 | from=2025-03-01
+| Kelvin\* |  |  | D | D | D | D | D |  |  | Tr | Tr | Tr | Tr | Tr |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  |  | D | D | D |  |  |  |  |  |  | 
+| Aurelie | OFF |  | D | D | D | D | N | DN | D | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | D | D | OFF | OFF | D | D |  |  |  |  |  |  | 
+| Patrick | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | N | N | OFF | OFF | D | D | D | D | D |  |  | N | N | OFF | OFF | N | N | OFF | OFF | N | N | OFF |  |  |  |  |  |  | 
+| Diane | D | D | OFF | OFF | D | D | D |  |  | D | D | D | D | D |  |  | D | D | N | N | OFF | OFF |  | D | D | D | D | D |  |  |  | D | D | D |  |  |  |  |  |  | 
+| Beatrice |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  |  | D | D | D |  |  |  |  |  |  | 
+| Faustin | OFF | OFF | N | N | OFF | OFF | D |  |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |  |  | D | D | N | N | OFF | OFF |  |  | D | D | N |  |  |  |  |  |  | 
+| Dieudonne | N | N | OFF | OFF | D | D | D |  |  | D | N | N | OFF | OFF |  |  | D | D | D | D | N | OFF |  | D | D | D | OFF | D |  | N | N | OFF | OFF | D |  |  |  |  |  |  | 
+| Jean Paul |  |  | D | D | N | N | OFF | OFF | N | N | OFF | OFF | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D |  |  |  |  |  |  | 

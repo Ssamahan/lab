@@ -1,0 +1,9 @@
+# Work Plan - December 2025 | from=2025-12-01 | days=42
+| Kelvin | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | D | D | D |  |  | D | D | D |  |  |  |  | D | D | D |  |  |  |  | D | D | D | D | D |  |  | 
+| Aurelie | OFF | OFF | D | D | OFF |  |  | D | D | D | D | D |  | DN | OFF | OFF | D | D | D |  |  | D | D | D |  |  |  |  | D | N | N | OFF | OFF | D | D | D | D | D | OFF | OFF |  |  | 
+| Patrick | N | N | N | OFF | OFF | OFF |  | N | N | N | OFF | OFF | OFF |  | N | N | OFF | OFF | D |  | N | N | OFF | OFF |  |  | D | D | OFF | OFF | D |  |  | N | N | OFF | OFF | D | D | N | N |  |  | 
+| Diane\* | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | RBW | D | D | OFF | D | D | D | D |  |  | D | D | OFF |  |  |  |  | AL | AL | AL | AL | AL | AL | AL |  | 
+| Béatrice | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D |  |  |  |  | D | D | D | D | D |  |  | OFF | OFF | D | D | D |  |  |  | 
+| Faustin | D | D | OFF | D | D | N | N | OFF | OFF | D | N | N | OFF | OFF | D | D | D | D | N | N | OFF | OFF | D | D |  |  |  | N | N | OFF | OFF | N | N | OFF | OFF | D | D | D | D | D |  | N |  | 
+| Dieudonne | OFF | D | D | D | RBW | D | D | OFF | D | D | D | D | DN | OFF | OFF | OFF | D | D | D |  |  | D | D | N | N | OFF | OFF |  | D | D | D |  |  |  |  | N | N | OFF | OFF | D | D | D |  | 
+| Jean Paul | D | D | D | N | N |  |  | D | D | D | D | D |  |  | D | D | N | N | OFF | OFF |  | D | N | OFF |  | N | N | OFF | OFF | D | D |  |  |  |  | D | D | N | N | OFF | OFF |  |  | 

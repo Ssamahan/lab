@@ -92,11 +92,11 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(!!(arc&&arc.primary),'September 2025 is on file');
   ok(arc.primary.meta.transcribed===true&&!arc.primary.meta.official,'and it is a transcribed record, not a published plan');
   ok(/transcribed/i.test(arc.primary.meta.label||''),'the label says so');
-  ok(arc.primary.dates[0]==='2025-09-01'&&arc.primary.dates.length===35,'covering 1 September to 5 October, as the sheet does');
+  ok(arc.primary.dates[0]==='2025-09-01'&&arc.primary.dates.length===39,'covering 1 September to 9 October, as the sheet runs on');
   ok(arc.primary.staff.length===8,'with every name the sheet carries ('+arc.primary.staff.length+')');
-  ok(arc.primary.staff.every(r=>r.codes.length===35),'a code — a blank where the sheet is blank — for every day of every row');
+  ok(arc.primary.staff.every(r=>r.codes.length===39),'a code — a blank where the sheet is blank — for every day of every row');
   const dj=arc.primary.staff.find(r=>/Dieudonne/.test(r.name));
-  ok(dj.codes.slice(7).every(c=>c==='AL'),'Dieudonne is on annual leave from the 8th, as the sheet shows');
+  ok(dj.codes.slice(7,37).every(c=>c==='AL'),'Dieudonne is on annual leave from the 8th of September to the 6th of October, as the sheet shows');
 
   /* ── 7 · circumstantial leave is leave, not absence, and not the thirty days ── */
   ok(S().leaveTypeLabel('CL')==='Circumstantial leave','CL reads as circumstantial leave');
@@ -127,7 +127,32 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   const diane=dec.primary.staff.find(r=>/Diane/.test(r.name));
   ok(diane.codes.slice(35).every(c=>c==='AL'),'Diane takes her leave into the new year');
 
-  /* ── 9 · tables fit the card they are in ── */
+  /* ── 9 · the whole 2025 run is on file, straight from the workbook ── */
+  const months=Object.keys(db().workingPlans).filter(k=>{
+    const e=db().workingPlans[k]; return e.primary&&e.primary.meta&&e.primary.meta.transcribed;
+  }).sort();
+  ok(months.length>=21,'every month the workbook holds is transcribed ('+months.length+')');
+  ['2024-01','2024-02','2024-04','2024-05','2024-06','2024-08','2024-09','2024-10','2024-11','2024-12',
+   '2025-01','2025-02','2025-03','2025-04','2025-05','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12']
+    .forEach(k=>ok(months.indexOf(k)>=0, k+' is on file'));
+  const may24=db().workingPlans['2024-05'].primary;
+  ok(may24.staff.some(r=>/Siladji/.test(r.name)),'May 2024 keeps its own roster, Siladji and all');
+  const elie=may24.staff.find(r=>/Elie/.test(r.name));
+  ok(elie.codes.slice(0,26).every(c=>c==='AL'),'Elie on the 2024 sheets: CO on the paper, annual leave here, 26 days running');
+  ok(may24.staff.find(r=>/Kelvin/.test(r.name)).codes[0]==='N','and GN on the paper reads as a night shift');
+  const feb=db().workingPlans['2025-02'].primary;
+  const bea=feb.staff.find(r=>/Beatrice/.test(r.name));
+  ok(bea.codes.slice(3,7).every(c=>c==='CL'),'Beatrice 4–7 February 2025 reads as circumstantial leave (CL)');
+  ok(bea.codes.slice(9,12).every(c=>c==='CL'),'and again 10–12 February');
+  ok(bea.codes.slice(12,22).every(c=>c==='ML'),'then maternal leave to the 22nd');
+  const jp=feb.staff.find(r=>/Jean Paul/.test(r.name));
+  ok(jp.codes[0]==='BE'&&jp.codes[1]==='BE','Jean Paul reads before employment on the first two days');
+  const may=db().workingPlans['2025-05'].primary;
+  const dia=may.staff.find(r=>/Diane/.test(r.name));
+  ok(dia.codes.slice(4,7).every(c=>c==='CL'),'Diane 5–7 May 2025 is circumstantial leave, as the sheet marks it (IL on the paper)');
+  ok(S().leaveKind('BE')==='none'&&!S().leaveCountsAgainstEntitlement('BE'),'before employment is not leave and never drawn from the thirty days');
+
+  /* ── 10 · tables fit the card they are in ── */
   ok(typeof U.fitTables==='function','the table fitter is part of the toolkit');
   await go('#/dash'); await tick(320);
   ok(doc.querySelectorAll('#app .card[data-fit]').length>=0,'cards report their fit after render');

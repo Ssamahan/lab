@@ -18,7 +18,7 @@ LS.store = S;
    Training (TR) is not leave, but it is an absence from the bench, so it keeps a code. */
 const LS_TYPES = {AL:'Annual leave', ML:'Maternal leave', PL:'Paternal leave', SL:'Sick leave',
   CL:'Circumstantial leave', AA:'Authorised leave', H:'Public holiday',
-  WD:'Work desertion / unauthorised absence', TR:'Training'};
+  WD:'Work desertion / unauthorised absence', TR:'Training', BE:'Before employment'};
 /* The older sheets and earlier builds used other letters. Anything stored under an
    old letter is read as its standard one; nothing is silently dropped. */
 const LEAVE_ALIAS = {SICK:'SL', MAT:'ML', MATERNITY:'ML', PAT:'PL', PATERNAL:'PL',
@@ -701,46 +701,45 @@ function normalize(db){
     });
   }
   /* v6.9.44 — the working plans on file, month by month, as a record. Each month is
-     transcribed from the department's own paper into assets/data/plan-archive.js and
-     installed here only where the console holds no plan for that month: a plan in
-     force is never overwritten by an archive. A transcribed month is not official —
-     it is a record of what the paper said, and it is labelled as one. */
-  if(!db.meta.planArchiveV6944){
-    db.meta.planArchiveV6944=1;
+     transcribed from the department's own workbook into assets/data/plan-archive.js
+     and installed here unless the console already holds a plan in force for it: an
+     official plan is never overwritten by a record. A transcribed month is not
+     official — it is a record of what the paper said, and it is labelled as one.
+     Every month carries a stamp of its content, so a month that is read again (or
+     added later) is installed once, on the next load, without disturbing the rest. */
+  if(!db.meta.planArchiveStamps) db.meta.planArchiveStamps={};
+  {
     const A=(typeof window!=='undefined'&&window.LS_PLAN_ARCHIVE)||{};
+    const hol=(db.holidays||[]);
     Object.keys(A).forEach(k=>{
       const e=A[k];
       if(!e||!e.from||!e.staff||!e.staff.length) return;
-      db.workingPlans[k]=db.workingPlans[k]||{versions:[]};
-      /* A plan in force is never replaced by a record. A generated draft is: the paper
-         is the record, the draft was only ever the console's guess at it. */
-      if(db.workingPlans[k].primary){
-        if(!(db.workingPlans[k].primary.meta&&db.workingPlans[k].primary.meta.generated)) return;
-        db.workingPlans[k].versions=(db.workingPlans[k].versions||[]).concat([db.workingPlans[k].primary]);
-      }
+      const stamp=k+'@'+e.from+'/'+e.staff.map(r=>r.codes.join('')).join('|');
+      if(db.meta.planArchiveStamps[k]===stamp) return;
+      const entry=db.workingPlans[k]=db.workingPlans[k]||{versions:[]};
+      const prev=entry.primary;
+      /* a plan in force stands: only a generated draft or an earlier record is replaced */
+      if(prev && !(prev.meta&&(prev.meta.generated||prev.meta.transcribed))) return;
       const n=e.days||Math.max.apply(null,e.staff.map(r=>r.codes.length));
       const dates=[]; for(let i=0;i<n;i++) dates.push(U.addDays(e.from,i));
-      /* every row is read from the same first date: trailing blanks are padding,
-         never content, so a row shorter than the sheet ends where the sheet does */
       const staff=e.staff.map(r=>{
-        const c=r.codes.slice();
-        while(c.length>n&&c[c.length-1]==='') c.pop();
+        const c=r.codes.slice(0,n);
         while(c.length<n) c.push('');
         /* The paper shades a public holiday across every row. A cell left blank on
-           such a date is written H here, so the day is not read as an unrostered
-           gap: nobody is on the bench because the hospital is closed. */
-        const hol=(db.holidays||[]);
-        const codes=c.slice(0,n).map((code,i)=>code||(hol.some(h=>h.date===dates[i])?'H':''));
-        return {name:r.name, codes};
+           such a date is written H here, so a closed day is not read as an
+           unrostered gap: nobody is on the bench because the hospital is closed. */
+        return {name:r.name, codes:c.map((code,i)=>code||(hol.some(h=>h.date===dates[i])?'H':''))};
       });
-      db.workingPlans[k].primary={
+      if(prev) entry.versions=(entry.versions||[]).concat([prev]);
+      entry.primary={
         label:U.monthLabel(k)+' — transcribed from the working plan on file',
         dates, staff,
         meta:{date:U.todayISO(), fy:U.fyInfo(e.from).label, period:U.monthLabel(k),
           generated:false, draft:false, transcribed:true, source:e.source||'',
           label:U.monthLabel(k)+' — transcribed from the working plan on file'}
       };
-      db.workingPlans[k].versions=db.workingPlans[k].versions||[];
+      entry.versions=entry.versions||[];
+      db.meta.planArchiveStamps[k]=stamp;
     });
   }
   /* v6.9.43 — September 2026, read again against the sheet on file, cell by cell.
@@ -1421,11 +1420,11 @@ S.shiftLabel=kind=>(SHIFT[kind]||SHIFT.day).label;
    circumstantial, authorised leave and a public holiday are given, not drawn from the
    entitlement. Work desertion is recorded, but it is not leave and it is not granted. */
 const LEAVE_KIND={AL:'annual',ML:'authorised',PL:'authorised',SL:'authorised',CL:'authorised',
-  AA:'authorised',H:'authorised',TR:'authorised',WD:'unauthorised'};
+  AA:'authorised',H:'authorised',TR:'authorised',WD:'unauthorised',BE:'none'};
 S.leaveKind=type=>LEAVE_KIND[S.leaveCode(type)]||'annual';
 S.leaveKindLabel=type=>{ const k=S.leaveKind(type);
-  return k==='annual'?'Annual leave':k==='unauthorised'?'Unauthorised absence':'Authorised leave'; };
-S.leaveCountsAgainstEntitlement=type=>S.leaveKind(type)==='annual' && type!=='W';
+  return k==='annual'?'Annual leave':k==='unauthorised'?'Unauthorised absence':k==='none'?'Not yet employed':'Authorised leave'; };
+S.leaveCountsAgainstEntitlement=type=>S.leaveKind(type)==='annual' && S.leaveCode(type)==='AL';
 
 /* A leave plan is a block of days charged to a fiscal year. It can be entered
    for a past FY (a carry-over still being taken) or for a future month. */
@@ -1845,6 +1844,8 @@ S.shiftState=function(who, iso){
     if(code==='DN') return {code,kind:'daynight',label:'On duty · day + night',tone:'teal',source:'plan'};
     if(code==='TR') return {code,kind:'training',label:'Training',tone:'gold',source:'plan'};
     if(S.isLeaveCode(code)) return {code,kind:'leave',label:S.leaveTypeLabel(code),tone:'blue',source:'plan'};
+    if(code==='BE') return {code,kind:'off',label:'Before employment',tone:'slate',source:'plan'};
+    if(code==='MS') return {code,kind:'training',label:'Mentorship — outbreaks surveillance and HIV service delivery',tone:'gold',source:'plan'};
     if(code==='OFF'||code==='W') return {code,kind:'off',label:'At home',tone:'slate',source:'plan'};
     if(code==='RBW') return {code,kind:'off',label:'Rest before work',tone:'slate',source:'plan'};
 
