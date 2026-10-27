@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.49** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.50** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.49`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.50`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -207,6 +207,9 @@ register records.
 - **A carry-over is only counted when the year it came from was recorded.** Silence in a
   previous fiscal year is not thirty unused days; the manager's own leave is charged to the
   year he takes it in.
+- **The plan book is a record, not a rota**: somebody who left during the year keeps their
+  row while leave is charged to that year (Diane's thirty days of 2026/27 ended with her
+  leaving on 12 August), marked with the day they left.
 - **Leave is listed in turn order** — on leave now, then the next to go — and every block
   says what happened to it: *On leave*, *Attended*, *Attended 1st installment*, *Attended a
   carry-over of 2025/26*.

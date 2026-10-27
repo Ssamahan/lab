@@ -4,6 +4,22 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.50
+
+**A person who leaves keeps their leave in the book.**
+
+Diane took her thirty days of FY 2026/27 from 13 July to 11 August 2026 and left two days
+later, on 12 August. The plan book only listed people still on the establishment, so her
+block — the one the archived working plans show running to the day she left — had dropped out
+of the year it belongs to.
+
+The book is a record, not a rota. It now carries anyone who has leave charged to the fiscal
+year being shown, whether or not they are still on the bench: Diane keeps her row, marked
+**left 12 Aug 2026**, with her block reading **Attended**; the timeline carries her too. A
+person who left with no leave in that year — Faustin, whose last block was in 2025/26 — is
+not carried in, so the book stays a record of the year and not a list of everybody who ever
+worked here.
+
 ## What changed in 6.9.49
 
 **The screens fit, the holiday is rostered, and the leave book reads in turn order.**

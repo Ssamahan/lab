@@ -133,10 +133,31 @@ function kpis(){
       note:unauth?'Recorded separately — a disciplinary matter':'None on record',spark:C.spark([0,0,0,0,0,0,0,0,0,0,0,unauth],{color:unauth?'var(--crit)':'var(--pos)'})})+'</div></div>';
 }
 
+/* ——— Who the plan book carries ————————————————
+   The book is a record, not a rota. Someone who left during the year keeps
+   their row for as long as leave is charged to that year: Diane's thirty days
+   of 2026/27 ran to 11 August 2026 and ended with her leaving two days later,
+   so the book must not drop her just because she is no longer on the bench. */
+function bookStaff(fy){
+  const active=S.activeStaff();
+  const seen={}; active.forEach(s=>{ seen[s.id]=1; });
+  const left=[];
+  S.leaves().forEach(l=>{
+    if(seen[l.staffId] || fyOfLeave(l)!==fy) return;
+    const st=S.staffById(l.staffId);
+    if(st){ seen[st.id]=1; left.push(st); }
+  });
+  return active.concat(left);
+}
+function leftPill(st){
+  if(!st||st.status==='active') return '';
+  return '<span class="pill slate" data-left="'+U.esc(st.id)+'">'+UI.ic('log-out',9)+'left '+U.fmtDate(st.exitDate||'')+'</span>';
+}
+
 /* ——— Plan book: annual leave per person, per fiscal year ————— */
 function planBookView(){
   const book=(S.db().leavePlans&&S.db().leavePlans.fy)||currentFy();
-  const rows=leaveOrder(S.activeStaff().map(s=>S.leaveBook(s,currentFy())));
+  const rows=leaveOrder(bookStaff(currentFy()).map(s=>S.leaveBook(s,currentFy())));
   const totals=rows.reduce((a,r)=>({ent:a.ent+r.entitlement.days,carry:a.carry+r.carry.days,taken:a.taken+r.taken,planned:a.planned+r.planned,bal:a.bal+r.balance}),{ent:0,carry:0,taken:0,planned:0,bal:0});
   return '<div class="row between wrap gap-sm" style="margin-bottom:10px">'
     +'<div class="row gap-sm"><span class="xs faint">Fiscal year</span><div class="seg">'+fyList().map(f=>'<button data-fy="'+f+'" class="'+(f===currentFy()?'on':'')+'">FY '+f+'</button>').join('')+'</div></div>'
@@ -146,7 +167,7 @@ function planBookView(){
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Staff</th><th>Contract</th><th class="num">Entitlement</th><th class="num" title="Unused days carried in from the previous fiscal year">Carried in</th><th class="num">Taken</th><th class="num">On leave now</th><th class="num">Booked ahead</th><th class="num">Balance</th><th>Planned blocks</th><th></th></tr></thead><tbody>'
    +rows.map(r=>{
       const blocks=r.annual.slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
-      return '<tr><td><div class="row gap-sm">'+U.avatar(r.staff.name,'sm')+'<div><div class="small">'+U.esc(r.staff.name)+'</div><div class="xs faint">'+U.esc(r.staff.role||'')+'</div></div></div></td>'
+      return '<tr'+(r.staff.status!=='active'?' data-exited="'+U.esc(r.staff.id)+'" style="opacity:.86"':'')+'><td><div class="row gap-sm">'+U.avatar(r.staff.name,'sm')+'<div><div class="small">'+U.esc(r.staff.name)+(r.staff.status!=='active'?' '+leftPill(r.staff):'')+'</div><div class="xs faint">'+U.esc(r.staff.role||'')+'</div></div></div></td>'
       +'<td><span class="pill '+(r.entitlement.kind==='contractual'?'blue':'teal')+'">'+U.esc(r.entitlement.label)+'</span><div class="xs faint" style="margin-top:2px">'+U.esc(r.entitlement.sponsor)+'</div></td>'
       +'<td class="num">'+r.entitlement.days+' <span class="xs faint">'+(r.entitlement.workingDays?'wd':'d')+'</span></td>'
       +'<td class="num">'+(r.carry.days?'<span class="pill gold mono" title="Unused in FY '+U.esc(r.carry.prevFy||'')+'">'+r.carry.days+'d</span>':'<span class="faint">—</span>')+'</td>'
@@ -160,7 +181,7 @@ function planBookView(){
             +'<b>'+U.esc(bs.label)+'</b></button>'; }).join('') : '<span class="xs faint">No block booked</span>')+'</td>'
       +'<td><button class="icon-btn" style="width:26px;height:26px" data-newplan="'+r.staff.id+'" aria-label="Plan leave for '+U.esc(r.staff.name)+'">'+UI.ic('plus',13)+'</button></td></tr>';
    }).join('')
-   +'</tbody></table></div><div class="card-foot"><span>Entitlement follows the contract: under statute 30 calendar days, contractual 21 working days. A block is charged to the fiscal year its dates fall in — never to a label typed on it — and unused days are carried into the next year.</span><span class="mono">'+rows.length+' staff</span></div></div>'
+   +'</tbody></table></div><div class="card-foot"><span>Entitlement follows the contract: under statute 30 calendar days, contractual 21 working days. A block is charged to the fiscal year its dates fall in — never to a label typed on it — and unused days are carried into the next year. A person who left keeps their row while they have leave charged to the year.</span><span class="mono">'+rows.length+' staff</span></div></div>'
    +'<div class="grid-12" style="margin-top:14px">'
      +'<div class="c7">'+forecastCard()+'</div>'
      +'<div class="c5">'+whoOffCard()+'</div>'
@@ -335,8 +356,8 @@ function requestsView(){
 function timelineView(){
   /* the rows follow the plan book: on leave now, then whoever is next, then the
      people who have already been */
-  const order=leaveOrder(S.activeStaff().map(s=>S.leaveBook(s,currentFy()))).map(r=>r.staff.id);
-  const staff=S.activeStaff().slice().sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
+  const order=leaveOrder(bookStaff(currentFy()).map(s=>S.leaveBook(s,currentFy()))).map(r=>r.staff.id);
+  const staff=bookStaff(currentFy()).slice().sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
   const fyStart=U.fyInfo().start, fyEnd=U.fyInfo().end;
   const start=fyStart, end=fyEnd;
   const total=U.daysBetween(start,end)+1;
