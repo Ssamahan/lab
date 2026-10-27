@@ -78,7 +78,7 @@ function sharedForVisitor(){
 function cfg(){
   const vis=sharedForVisitor();
   if(vis) return {url:baseUrl(vis.endpoint), raw:vis.endpoint, key:String(vis.key).trim(),
-    email:'', password:'', anonAuth:true, live:false, pollMs:15000, pushMs:700,
+    email:'', password:'', anonAuth:true, live:true, pollMs:15000, pushMs:700,
     mode:'pull', enabled:true, visitor:true};
   const c=S.settings().cloud||{};
   return {url:baseUrl(c.endpoint), raw:(c.endpoint||''), key:(c.anonKey||'').trim(),
@@ -393,6 +393,60 @@ SY.visitorRead=async function(){
       anonymousAllowed:(e&&e.anonymousAllowed)===undefined?null:e.anonymousAllowed};
   }
 };
+/* One press — or one page becoming visible — asks the shared copy whether it moved and
+   takes it if it did. Quiet by default; `loud` puts a toast up when the answer is
+   'nothing new' too, so a phone can be checked without guessing. */
+SY.refresh=async function(opts){
+  opts=opts||{};
+  if(!SY.configured()) return {ok:false, reason:'Cloud sync is off'};
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()){
+    const res=await SY.visitorSync();
+    if(res&&res.ok) { try{ refreshScreen(); }catch(e){} }
+    if(opts.loud&&res&&res.ok) UI.toast(res.action==='pulled'?'Register updated from the shared copy':'Already up to date',{type:'ok'});
+    return res;
+  }
+  const res=await SY.sync({auto:true, quiet:!opts.loud});
+  if(opts.loud&&res&&res.ok){
+    const pulled=res.action==='pulled';
+    UI.toast(pulled?'Register updated from the shared copy':(res.action==='noop'?'Already up to date':'Synced'),{type:'ok'});
+  }
+  return res;
+};
+/* 'Show me what the other device has' — an explicit pull that does not weigh local edits.
+   A restore point of this device is written first (inside applyRemote), so the press can
+   always be undone from Data & sync. This is what the freshness chip calls. */
+SY.pullLatest=async function(){
+  if(!SY.configured()) return {ok:false, reason:'Cloud sync is off'};
+  try{
+    const row=await SY.pull();
+    if(!row||!row.data) return {ok:false, reason:'The shared copy is empty — there is nothing to read yet.'};
+    const before=SY.tally(S.db());
+    applyRemote(row);
+    return {ok:true, action:'pulled', before:before, after:SY.tally(S.db()),
+      revision:row.revision||null, updated_at:row.updated_at||null, updated_by:row.updated_by||null};
+  }catch(e){
+    return {ok:false, reason:(e&&e.message)||'Could not read the shared copy'};
+  }
+};
+/* How stale is what is on this screen? Used by the header chip. */
+SY.freshness=function(){
+  const st=state();
+  const at=st.lastPullAt||st.lastCheckAt||st.lastPushAt;
+  if(!at) return {known:false, ms:null, text:'not synced yet'};
+  const ms=Date.now()-new Date(at).getTime();
+  return {known:true, ms:ms, at:at, text:U.relTime(at)};
+};
+/* A visitor's poll: ask for the revision, pull only when it moved. Reading the whole
+   document every fifteen seconds would be wasteful and would fight the browser cache. */
+SY.visitorSync=async function(){
+  if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor())) return {ok:false, reason:'not a visitor'};
+  const seen=Number(state().lastRevision||0);
+  let v=null;
+  try{ v=await SY.remoteVersion(); }catch(e){ return {ok:false, reason:(e&&e.message)||'Could not reach the shared copy'}; }
+  if(!v) return {ok:true, action:'noop'};
+  if(Number(v.revision||0)<=seen) { setState({lastCheckAt:U.nowISO()}); return {ok:true, action:'noop'}; }
+  return SY.visitorRead();
+};
 SY.visitorReady=function(){ return !!sharedForVisitor(); };
 
 /* ——— What is actually in each copy ———————————————————————————
@@ -640,6 +694,12 @@ SY.sync=async function(opts){
   opts=opts||{};
   if(busy) return {ok:false, reason:'A sync is already running'};
   if(!SY.configured()) return {ok:false, reason:'Cloud sync is off — add the project URL and the API key.'};
+  /* A visitor only ever reads — never through the staff cycle, which can push. */
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()){
+    busy=true;
+    try{ return await SY.visitorSync(); }
+    finally{ busy=false; }
+  }
   if(opts.auto && typeof navigator!=='undefined' && navigator.onLine===false) return {ok:false, reason:'Offline'};
   busy=true; setState({running:true});
   const quiet=!!opts.quiet;
@@ -762,6 +822,12 @@ SY.startLive=function(){
 };
 SY.stopLive=function(){ clearInterval(liveTimer); liveTimer=null; SY.emit('live'); };
 
+/* Called whenever the session changes (sign in, sign out, enter as visitor): the loop is
+   rebuilt from the current configuration instead of the one at boot. */
+SY.restart=function(){
+  SY.stopLive();
+  if(SY.configured()) SY.startLive();
+};
 SY.start=function(){
   if(SY._started) return; SY._started=true;
   window.addEventListener('online',()=>{ if(SY.configured()){ SY.startLive(); SY.schedule(600); } });

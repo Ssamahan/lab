@@ -50,7 +50,7 @@ const FILTERS=[
   {k:'register',label:'Register data'}
 ];
 function base(){
-  if(!st) st={q:'',filter:'all',selected:new Set(),limit:90,sort:'collected',dir:'desc'};
+  if(!st) st={q:'',filter:'all',selected:new Set(),limit:0,sort:'collected',dir:'desc'};
   return st;
 }
 function filtered(){
@@ -74,6 +74,12 @@ function filtered(){
   if(s.sort==='id') list.sort((a,b)=>String(a.sampleId).localeCompare(String(b.sampleId))*dir);
   return list;
 }
+function datesOf(){
+  const d=S.db().samples.map(x=>String(x.collectionDate||x.sentDate||'').slice(0,10)).filter(Boolean).sort();
+  return d.length?{oldest:d[0],newest:d[d.length-1]}:{oldest:'',newest:''};
+}
+function oldestDate(){ return datesOf().oldest; }
+function newestDate(){ return datesOf().newest; }
 function counts(){
   const db=S.db(); const all=db.samples;
   return {all:all.length, active:all.filter(x=>!x.resultedAt).length, stat:all.filter(x=>x.priority==='STAT'&&!x.resultedAt).length,
@@ -91,7 +97,12 @@ function rowHTML(s,sel){
   return '<tr class="prio-'+pri+(sel.has(s.id)?' selected':'')+'" data-row="'+s.id+'">'
    +'<td style="width:34px"><span class="checkbox '+(sel.has(s.id)?'on':'')+'" data-check="'+s.id+'">'+UI.ic('check',10)+'</span></td>'
    +'<td style="width:58px"><span class="priority-flag '+pri+'">'+label+'</span></td>'
-   +'<td><div class="primary-cell"><b class="mono" style="font-size:11px;letter-spacing:-.01em">'+U.esc(s.sampleId)+'</b><small>'+U.esc(U.ptName(s))+' · '+(s.sex||'—')+'</small></div></td>'
+   +'<td><div class="primary-cell"><b class="mono" style="font-size:11px;letter-spacing:-.01em">'+U.esc(s.sampleId)+'</b>'
+      +'<small>'+U.esc(U.ptName(s))
+      +(s.patientId?' · PID '+U.esc(s.patientId):'')
+      +(s.sex?' · '+U.esc(s.sex):'')
+      +(s.dob?' · born '+U.fmtDate(s.dob):(s.age!==''&&s.age!=null?' · '+U.esc(String(s.age))+'y':''))
+      +'</small></div></td>'
    +'<td><span class="small truncate" style="display:block;max-width:150px">'+U.esc(s.test)+'</span><span class="xs faint mono">'+U.esc(s.testCode||'')+'</span></td>'
    +'<td class="hide-sm"><span class="small truncate" style="display:block;max-width:130px">'+U.esc(s.healthFacility||s.healthCenter||'—')+'</span><span class="xs faint truncate" style="display:block;max-width:130px">'+U.esc(s.hospital||'Ruli DH')+'</span></td>'
    +'<td><span class="pill '+U.statusTone(s.status)+'">'+U.esc(s.status)+'</span></td>'
@@ -101,7 +112,9 @@ function rowHTML(s,sel){
    +'<td style="width:60px"><span class="row" style="gap:2px"><button class="icon-btn row-actions" style="width:26px;height:26px" data-edit="'+s.id+'" aria-label="Edit sample">'+UI.ic('pencil',13)+'</button><button class="icon-btn row-actions" style="width:26px;height:26px" data-open="'+s.id+'" aria-label="Open sample">'+UI.ic('chevron-right',14)+'</button></span></td></tr>';
 }
 function tableHTML(){
-  const s=base(); const list=filtered(); const shown=list.slice(0,s.limit); const cnt=counts();
+  /* The register is the whole register: every order of every month is drawn, newest first.
+     `st.limit` still exists for a very large register, but its default is "everything". */
+  const s=base(); const list=filtered(); const shown=(s.limit&&s.limit<list.length)?list.slice(0,s.limit):list; const cnt=counts();
   const rows=shown.map(x=>rowHTML(x,s.selected)).join('');
   const bulk=s.selected.size? '<div class="bulkbar">'+UI.ic('layers',13)+'<b>'+s.selected.size+' selected</b><span class="faint">·</span><button class="btn xs" data-bulk-manifest>Add to manifest</button><button class="btn xs" data-bulk-export>Export selection</button>'+(LS.auth.can('delete')?'<button class="btn xs danger" data-bulk-delete>'+UI.ic('trash-2',12)+' Delete selected</button>':'')+'<button class="btn xs ghost" data-bulk-clear>Clear</button><span class="grow"></span><span class="xs faint">Chain of custody preserved</span></div>':'';
   return '<div class="card table-card">'
@@ -119,8 +132,11 @@ function tableHTML(){
    +'<div class="dt-scroll" id="smpScroll"><table class="dt" id="smpTable">'
    +'<thead><tr><th style="width:34px"></th><th style="width:58px">Pri</th><th data-sort="id" class="sortable"><span class="sort">Sample '+UI.ic('chevron-down',10)+'</span></th><th>Test</th><th class="hide-sm">Origin → laboratory</th><th>Status</th><th data-sort="tat" class="sortable"><span class="sort">TAT '+UI.ic('chevron-down',10)+'</span></th><th class="hide-lg">Flag</th><th class="hide-sm">Audit</th><th></th></tr></thead>'
    +'<tbody id="smpBody">'+(rows||'<tr><td colspan="10">'+UI.empty({art:'samples',title: s.q?'No samples match “'+U.esc(s.q)+'”':'Nothing in this view',body: s.q?'Try a sample ID, patient surname or facility. Filters stay shareable by URL.':'Register a sample to begin the chain of custody. Every registration is stamped to the audit trail.',action:'<button class="btn primary" data-new>'+UI.ic('plus',14)+' Register sample</button>'})+'</td></tr>')+'</tbody></table>'
-   +'<div id="smpMore" style="padding:10px 14px;text-align:center">'+(list.length>s.limit?'<button class="btn sm" data-more>Load '+(Math.min(100,list.length-s.limit))+' more · '+list.length+' matching</button>':'<span class="xs faint">'+list.length+' samples · sorted by '+(s.sort==='tat'?'TAT pressure':'newest collection')+'</span>')
-     +'<div class="xs faint" style="margin-top:6px">'+S.db().samples.length+' referred samples on the register — every one was sent by Ruli DH to NRL, CHUK or Kibagabaga. Nothing is generated.</div></div>'
+   +'<div id="smpMore" style="padding:10px 14px;text-align:center">'+(shown.length<list.length?'<button class="btn sm" data-more>Show the remaining '+(list.length-shown.length)+'</button>':'')
+     +'<div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap"><span class="pill slate mono">'+list.length+' order'+(list.length===1?'':'s')+' shown</span>'
+       +'<span class="pill slate">all time</span>'
+       +'<span class="xs faint">sorted by '+(s.sort==='tat'?'TAT pressure':'newest collection')+'</span></div>'
+     +'<div class="xs faint" style="margin-top:6px">'+S.db().samples.length+' referred samples on the register — every order ever recorded on this device or pulled from the shared copy, from '+U.fmtDate(oldestDate())+' to '+U.fmtDate(newestDate())+'. Nothing is generated and nothing is hidden.</div></div>'
    +'</div></div>';
 }
 
@@ -307,7 +323,9 @@ function openSample(id){
      +'<div class="row between" style="margin-bottom:10px"><div><div class="eyebrow">Sample ID</div><div class="mono" style="font-size:15px;color:var(--text-strong);letter-spacing:.02em;margin-top:2px">'+U.esc(s.sampleId)+'</div></div>'+UI.barcode(s.sampleId)+'</div>'
      +'<div class="thread" style="margin:10px 0"></div>'
      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
-       +[['Patient',U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')
+       +[['Patient',U.ptName(s)==='—'&&U.canSeeNames()
+            ?'<button class="btn xs" data-name-add>'+UI.ic('plus',11)+' Record a name</button>'
+            :U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px"'+(k==='Patient'?' id="ptCell"':'')+'>'+(k==='Patient'?v:U.esc(v))+'</div></div>').join('')
      +'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('timer',14,'ic')+'Turnaround</div><div class="card-sub">'+(s.resultedAt?'Completed in '+Math.round(t.elapsedH)+'h of a '+Math.round(t.targetH)+'h target':'Due '+U.fmtDate(U.isoLocal(t.dueAt)))+'</div></div>'
      +'<span class="pill '+(t.breached?'rose':t.ratio>.8?'amber':'teal')+'">'+(t.breached?'Breached':t.ratio>.8?'At risk':'On track')+'</span></div>'
@@ -348,6 +366,25 @@ function openSample(id){
       +(s.manifestId?'<button class="btn" data-print-manifest>'+UI.ic('clipboard-list',15)+'View manifest</button>':'<button class="btn" data-add-manifest>'+UI.ic('clipboard-list',15)+'Add to manifest</button>')
       +(s.resultedAt?'':'<button class="btn" data-quick-result>'+UI.ic('check',15)+'Quick result</button>')});
   const panel=d.panel;
+  const nameBtn=panel.querySelector('[data-name-add]');
+  if(nameBtn) nameBtn.onclick=()=>{
+    UI.modal({title:'Record the patient name',sub:s.sampleId+' · shown to signed-in staff only',
+      body:'<div class="field"><label>Patient name</label><input class="input" id="nmVal" autocomplete="off" placeholder="MUKAMANA Alice"></div>'
+        +'<div class="hint" style="margin-top:8px">This writes the name to the order and to its manifest. It is never put in a file export.</div>',
+      foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-name>Save name</button>',
+      onMount:(el,close)=>{
+        el.querySelector('[data-save-name]').onclick=()=>{
+          const v=(el.querySelector('#nmVal').value||'').trim();
+          if(!v) return UI.toast('Type the name first',{type:'warn'});
+          S.commit(x=>{ const rec=x.samples.find(y=>y.id===s.id); if(rec){ rec.patientName=v; rec.editedAt=U.nowISO(); rec.editedBy=LS.auth.user.name; } },
+            {action:'sample.name',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+s.sampleId});
+          close(); UI.toast('Name recorded',{type:'ok'});
+          /* the record updates in place — no second drawer stacked on the first */
+          const cell=panel.querySelector('#ptCell'); if(cell) cell.textContent=v;
+          try{ if(rootEl) paintTable(); }catch(e){}   /* the row behind the drawer updates too */
+        };
+      }});
+  };
   const val=panel.querySelector('#resVal');
   if(val) val.addEventListener('input',()=>{
     const v=parseFloat(val.value); const box=panel.querySelector('#resFlag');
@@ -425,7 +462,7 @@ function editSample(id){
     body:'<div class="form-grid">'
       +'<div class="field"><label>Sample ID</label><input class="input mono" id="edSid" value="'+U.esc(s.sampleId)+'"></div>'
       +(U.canSeeNames()
-        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(U.ptName(s))+'"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to signed-in staff; the public visitor and every file read '+U.CONFIDENTIAL+'.</div></div>'
+        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(U.ptName(s))+'"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to every signed-in member of staff. A dash means no name was ever recorded for it.</div></div>'
         : '<div class="field"><label>Patient</label><input class="input" id="edName" value="'+U.CONFIDENTIAL+'" readonly></div>')
       +'<div class="field"><label>Patient ID</label><input class="input mono" id="edPid" value="'+U.esc(s.patientId||'')+'"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="edSex">'+opts(['Female','Male','Other','Unknown'],s.sex||'Unknown')+'</select></div>'
@@ -744,8 +781,8 @@ function newWizard(){
     if(state.step===1) return '<div class="wizard-step">'
       +'<div class="form-grid">'
       +(U.canSeeNames()
-        ? '<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Recorded on this device and shown to signed-in staff. The public visitor reads <b>'+U.CONFIDENTIAL+'</b>.</div></div>'
-        : '<div class="field span2"><label>Patient</label><div class="card pad" style="background:var(--surface-inset);padding:9px 11px"><b class="small">'+U.CONFIDENTIAL+'</b><div class="xs faint" style="margin-top:3px">Names are recorded by signed-in staff. The sample ID and the patient/insurance ID identify the specimen.</div></div></div>')
+        ? '<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to every signed-in member of staff. Only the public visitor reads <b>'+U.CONFIDENTIAL+'</b>.</div></div>'
+        : '<div class="field span2"><label>Patient</label><div class="card pad" style="background:var(--surface-inset);padding:9px 11px"><b class="small">'+U.CONFIDENTIAL+'</b><div class="xs faint" style="margin-top:3px">Only the public visitor reads the masked value. Sign in to record and read a name.</div></div></div>')
       +'<div class="field"><label>Patient / insurance ID</label><input class="input mono" id="wPid" value="'+U.esc(state.patient.pid)+'" placeholder="430129"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="wSex">'+['Female','Male'].map(x=>'<option '+(state.patient.sex===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Date of birth</label><input class="input mono" type="date" id="wDob" value="'+U.esc(state.patient.dob)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">The age below is calculated from it.</div></div>'
@@ -890,12 +927,12 @@ function paintTable(){
 function wire(){
   const r=rootEl;
   const search=r.querySelector('#smpSearch');
-  if(search){ const deb=U.debounce(()=>{ st.q=search.value; st.limit=90; paintTableKeepFocus(); },180); search.addEventListener('input',deb); }
-  r.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{ st.filter=b.dataset.filter; st.limit=90; st.selected.clear(); syncURL(); paintTable(); });
+  if(search){ const deb=U.debounce(()=>{ st.q=search.value; paintTableKeepFocus(); },180); search.addEventListener('input',deb); }
+  r.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{ st.filter=b.dataset.filter; st.selected.clear(); syncURL(); paintTable(); });
   r.querySelectorAll('[data-new]').forEach(b=>b.onclick=newWizard);
   r.querySelectorAll('[data-saved]').forEach(b=>b.onclick=savedViews);
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=exportCSV);
-  r.querySelectorAll('[data-more]').forEach(b=>b.onclick=()=>{ st.limit+=100; paintTable(); });
+  r.querySelectorAll('[data-more]').forEach(b=>b.onclick=()=>{ st.limit=0; paintTable(); });
   r.querySelectorAll('[data-sort]').forEach(th=>th.onclick=()=>{ const k=th.dataset.sort; if(st.sort===k) st.dir=st.dir==='asc'?'desc':'asc'; else { st.sort=k; st.dir='desc'; } paintTable(); });
   r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); openSample(b.dataset.open); });
   r.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); editSample(b.dataset.edit); });
@@ -907,7 +944,7 @@ function wire(){
   r.querySelectorAll('[data-bulk-export]').forEach(b=>b.onclick=()=>{ const rows=[['Sample ID','Patient','Test','Origin','Hospital','Priority','Status','Collected']].concat(S.db().samples.filter(s=>st.selected.has(s.id)).map(s=>[s.sampleId,U.ptName(s),orderedTests(s).join(' · '),s.healthFacility,s.hospital,s.priority,s.status,s.collectionDate])); U.exportCSV('samples-selection-'+U.todayISO()+'.csv',rows,{title:'Referred samples — selection',actor:LS.auth.user.name}); UI.toast(rows.length-1+' samples exported',{type:'ok'}); });
   // infinite scroll
   const scroll=r.querySelector('#smpScroll');
-  if(scroll){ onScroll=U.throttle(()=>{ if(scroll.scrollTop+scroll.clientHeight>scroll.scrollHeight-120){ const list=filtered(); if(st.limit<list.length){ st.limit+=80; const keep=scroll.scrollTop; paintTable(); const ns=rootEl.querySelector('#smpScroll'); if(ns) ns.scrollTop=keep; } } },300); scroll.addEventListener('scroll',onScroll); }
+  if(scroll){ onScroll=U.throttle(()=>{ if(!st.limit) return; if(scroll.scrollTop+scroll.clientHeight>scroll.scrollHeight-120){ const list=filtered(); if(st.limit<list.length){ st.limit=0; const keep=scroll.scrollTop; paintTable(); const ns=rootEl.querySelector('#smpScroll'); if(ns) ns.scrollTop=keep; } } },300); scroll.addEventListener('scroll',onScroll); }
 }
 function paintTableKeepFocus(){
   const v=st.q; paintTable();
@@ -943,15 +980,55 @@ function pressureChart(scope){
     return buckets.map(([label,value,tone])=>({label,value:Math.max(value,0),display:value+'',tone}));
   })()});
 }
+/* The phone must show what the machine shows. This chip is the answer to "is this the
+   latest?" — it names the last read and pulls the shared copy on a press. */
+function freshnessChip(){
+  const SY=LS.sync;
+  if(!SY||!SY.configured||!SY.configured()) return '<span class="pill slate" data-tip="This device has no shared copy — everything here is local.">'+UI.ic('hard-drive',11)+' Local device</span>';
+  const f=(SY.freshness&&SY.freshness())||{text:'not synced yet'};
+  const tone=(f.ms==null)?'amber':(f.ms>120000?'amber':'teal');
+  return '<button class="btn sm" data-refresh title="Read the shared copy now">'+UI.ic('refresh-cw',13)
+    +' <span style="color:var(--text-muted)">'+(f.known?'Updated '+U.esc(f.text):'Not synced yet')+'</span></button>';
+}
+function wireFreshness(){
+  const b=rootEl&&rootEl.querySelector('[data-refresh]'); if(!b) return;
+  b.onclick=async()=>{
+    if(!LS.sync||!LS.sync.refresh) return;
+    b.disabled=true; const label=b.innerHTML;
+    b.innerHTML=UI.ic('refresh-cw',13)+' <span style="color:var(--text-muted)">Reading…</span>';
+    /* an explicit press means "give me what the other device has", so it is a pull, not a
+       comparison — the local copy is kept as a restore point */
+    try{
+      const res=(LS.sync.pullLatest?await LS.sync.pullLatest():await LS.sync.refresh({loud:true}));
+      if(res&&res.ok){
+        const n=res.after&&res.after.samples;
+        UI.toast(res.action==='pulled'
+          ? 'Showing the shared register'+(typeof n==='number'?' · '+n+' orders':'')
+          : 'Already up to date',{type:'ok'});
+      } else if(res&&res.reason){ UI.toast(res.reason,{type:'warn'}); }
+    }catch(e){ UI.toast('Could not read the shared copy',{type:'err'}); }
+    b.disabled=false; b.innerHTML=label;
+    paintView();
+  };
+}
+/* Opening a data screen on a device that has been asleep for a while asks once. */
+function catchUp(){
+  const SY=LS.sync;
+  if(!SY||!SY.configured||!SY.configured()||!SY.refresh) return;
+  const f=SY.freshness?SY.freshness():{ms:null};
+  if(f.ms==null||f.ms>20000) setTimeout(()=>{ SY.refresh().then(()=>{ try{ paintView(); }catch(e){} }).catch(()=>{}); },250);
+}
 function paintView(){
   if(!rootEl) return;
   const host=rootEl.querySelector('#smpView'); if(!host) return;
   const tab=(st&&st.tab)==='manifests'?'manifests':'samples';
   const tabs=rootEl.querySelector('#smpTabs'); if(tabs) tabs.outerHTML=viewTabsHTML();
   const head=rootEl.querySelector('#smpHeadActions');
-  if(head) head.innerHTML = tab==='manifests'
-    ? '<button class="btn" data-man-export>'+UI.ic('download',15)+' Export list</button><button class="btn primary magnetic" data-man-new>'+UI.ic('clipboard-list',15)+' Generate manifest</button>'
-    : '<button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-saved>'+UI.ic('book-marked',15)+' Saved views</button><button class="btn primary magnetic" data-new>'+UI.ic('plus',15)+' Register sample</button>';
+  if(head) head.innerHTML = freshnessChip()
+    +(tab==='manifests'
+      ? '<button class="btn" data-man-export>'+UI.ic('download',15)+' Export list</button><button class="btn primary magnetic" data-man-new>'+UI.ic('clipboard-list',15)+' Generate manifest</button>'
+      : '<button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-saved>'+UI.ic('book-marked',15)+' Saved views</button><button class="btn primary magnetic" data-new>'+UI.ic('plus',15)+' Register sample</button>');
+  wireFreshness();
   if(tab==='manifests'){
     host.innerHTML=manifestsHTML();
     wireManifests();
@@ -981,11 +1058,12 @@ function renderHeadMeta(){
 }
 
 M.render=function(root,params){
-  rootEl=root; st={q:params.q||'',filter:params.filter||'all',selected:new Set(),limit:90,sort:'collected',dir:'desc',tab:params.tab==='manifests'?'manifests':'samples'};
+  rootEl=root; st={q:params.q||'',filter:params.filter||'all',selected:new Set(),limit:0,sort:'collected',dir:'desc',tab:params.tab==='manifests'?'manifests':'samples'};
   root.innerHTML='<div class="page-head"><div><h1>Referred samples</h1><div class="sub"></div></div><div class="actions" id="smpHeadActions"></div></div>'
    +viewTabsHTML()
    +'<div id="smpView"></div>';
   paintView();
+  catchUp();
   if(M._nsHandler) document.removeEventListener('ls:new-sample',M._nsHandler);
   M._nsHandler=()=>newWizard();
   document.addEventListener('ls:new-sample',M._nsHandler);

@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.38';
+const APP_VERSION='6.9.39';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -760,6 +760,12 @@ function afterAuth(){
   LS.auth.renderUserChip();
   SH.build();
   SH.route();
+  /* The session decides what the live loop may do (a visitor only reads), so it is
+     rebuilt here rather than left as it was at boot. */
+  if(LS.sync&&LS.sync.restart) LS.sync.restart();
+  if(LS.sync&&LS.sync.configured&&LS.sync.configured()){
+    setTimeout(()=>{ LS.sync.refresh&&LS.sync.refresh().catch(()=>{}); },600);
+  }
 }
 SH.afterAuth=afterAuth;
 SH.openPalette=openPalette;

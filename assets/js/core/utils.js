@@ -735,8 +735,15 @@ U.canSeeNames=function(){
     return !LS.auth.user.visitor;
   }catch(e){ return false; }
 };
+/* The mask is for the visitor and for nothing else. A signed-in member of staff is
+   answered with the recorded name — and, where the register never held one (the names
+   erased by the 6.9.30 mask), with a dash rather than the word Confidential, so the word
+   stops appearing in front of the people who work the register. */
 U.ptName=function(rec){
-  if(rec && U.canSeeNames() && rec.patientName && rec.patientName!==U.CONFIDENTIAL) return rec.patientName;
+  if(U.canSeeNames()){
+    const n=rec&&rec.patientName;
+    return (n&&n!==U.CONFIDENTIAL)?n:'—';
+  }
   return U.CONFIDENTIAL;
 };
 /* Whole years between a date of birth and a reference date. */

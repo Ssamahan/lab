@@ -123,9 +123,19 @@ it from that manifest, writes an audit entry, and the toast offers **Undo**.
 `U.ptName(record)` answers with the recorded name to **anyone signed in** — every staff role records
 it on the order and reads it in the register, the drawer, the manifest and the exports. The word
 `Confidential` is reserved for the **public visitor**, the read-only session opened from the landing
-without an account. A record whose name was erased by the 6.9.30 mask reads `Confidential` until the
-name is typed again in the order or in **Edit**. **Age is calculated** from a date of birth
-(`LSU.ageFromDob`), never typed while a date is present.
+without an account; a signed-in user never meets it. Where a record holds no name (the 6.9.30 mask
+erased what was there), staff see **—** and the record offers **Record a name**, which writes it back
+on the order in place. **Age is calculated** from a date of birth (`LSU.ageFromDob`), never typed
+while a date is present.
+
+## Seeing the same register on the phone
+
+The register is one list: **every order of every month is drawn, newest first** — no page size, no
+"load more" holding the older work back. The referral samples header carries a **freshness chip**
+(`Updated 4 minutes ago`); pressing it pulls the shared copy and repaints, and the local copy is kept
+as a restore point first. A device that has been asleep catches up when the screen opens or becomes
+visible, and a cloud change repaints the screen by itself — including on a visitor session, which now
+keeps polling the shared copy instead of showing the snapshot it read when it entered.
 
 ## Security, stated plainly
 

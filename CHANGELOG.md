@@ -4,6 +4,32 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.39
+
+**The phone shows the whole register, and Confidential is a word only a visitor reads.**
+
+### Every order, all time
+The referral samples list drew the first 90 rows and left the rest behind a "load more" step; a
+phone that never scrolled the inner box therefore looked like it held less than the PC. The list now
+draws **every order in the register, newest first**, and the footer names the span:
+`147 orders shown · all time · from 30 Jul 2026 to 27 Oct 2026`. Each row carries the whole identity
+line — name, patient ID, sex, date of birth or age.
+
+### No Confidential for staff
+`U.ptName()` answers a signed-in user with the recorded name. Where the register holds none — the
+names the 6.9.30 migration replaced — it answers **—**, never the word, and the record offers
+**Record a name**, which writes the name back onto the order (and its manifests) and audits it.
+`Confidential` is now returned only to the public visitor.
+
+### The phone catching up with the machine
+- the referral samples header has a **freshness chip** (`Updated 4 minutes ago`); one press does a
+  real pull (`SY.pullLatest`) and repaints, keeping the local copy as a restore point;
+- opening the screen, or coming back to the app, asks for the shared copy when it is more than 20
+  seconds old;
+- a visitor session now **keeps polling** (`SY.visitorSync` — revision first, document only when it
+  moved) instead of freezing on the snapshot read when they entered, and `SY.restart()` rebuilds the
+  loop whenever a session begins.
+
 ## What changed in 6.9.38
 
 **Ruli DH is the sending laboratory, and a manifest code always ends in four alphanumeric
