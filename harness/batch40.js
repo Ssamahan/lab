@@ -36,11 +36,15 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
 
   /* ── 5 · TAT starts at reception, and reception has a time ─────────── */
   await go('#/samples');
+  /* the reception stamp is taken from the clock, not from a fixed hour, so the
+     test says the same thing at 09:00 and at 17:00 */
+  const ago=new Date(Date.now()-30*60000), pz=n=>String(n).padStart(2,'0');
+  const stamp=ago.getFullYear()+'-'+pz(ago.getMonth()+1)+'-'+pz(ago.getDate())+'T'+pz(ago.getHours())+':'+pz(ago.getMinutes());
   w.eval(`LS.store.commit(d=>{
     d.samples.push({id:'rx1',sampleId:'BC261001A101',patientName:'Mukamana Alice',patientId:'4301',sex:'Female',age:'9',
       dob:'',test:'Blood Culture',testCode:'BC',cat:'General',hospital:'CHUK',healthFacility:'Coko HC',
       collectionDate:LSU.addDays(LSU.todayISO(),-3), collectionAt:LSU.addDays(LSU.todayISO(),-3)+'T08:00',
-      receivedAt:LSU.todayISO()+'T10:30', sentDate:LSU.todayISO(), resultedAt:null, status:'Received',
+      receivedAt:'${stamp}', sentDate:LSU.todayISO(), resultedAt:null, status:'Received',
       priority:'Routine', tatTargetDays:4, collector:'Coko HC', source:'register', manifestId:null,
       tests:['Cytology','Gram Stain','Blood Culture']});
     d.samples.push({id:'rx2',sampleId:'BC261001A102',patientName:'Habimana Jean',patientId:'4302',sex:'Male',age:'40',

@@ -46,6 +46,29 @@ function offToday(){
     return null;
   }).filter(Boolean);
 }
+/* ——— Who is away, and how long until they are back ————————————
+   One strip, at the top of the leave screens: the person, the day of their block
+   they are on today, how many days they have used of what they asked for, and the
+   day they are expected back. Nothing here has to be worked out by hand. */
+function onLeaveStrip(){
+  const today=U.todayISO();
+  const rows=S.leaves().filter(l=>today>=l.from&&today<=l.to&&!/declin|reject/i.test(l.status||''))
+    .map(l=>{ const st=S.staffById(l.staffId)||{name:'—'};
+      const total=days(l);
+      const used=U.daysBetween(l.from,today)+1;
+      const left=Math.max(0,U.daysBetween(today,l.to));
+      return {l,staff:st,total,used,left,back:l.backOn||U.addDays(l.to,1),type:tOf(l)}; });
+  if(!rows.length) return '';
+  return '<div class="leave-now">'
+    +rows.map(r=>'<div class="leave-now-card">'
+      +U.avatar(r.staff.name,'md')
+      +'<div style="min-width:0;flex:1"><div class="ln-name">'+U.esc(r.staff.name)+'</div>'
+      +'<div class="ln-sub">'+U.esc(r.type.label)+' leave · day <b>'+r.used+'</b> of <b>'+r.total+'</b></div>'
+      +'<div class="ln-bar"><i style="width:'+U.clamp(r.used/r.total*100,3,100)+'%"></i></div>'
+      +'<div class="ln-meta"><span><b>'+r.used+'</b> day'+(r.used===1?'':'s')+' used</span><span><b>'+r.left+'</b> left</span><span>back <b>'+U.fmtDate(r.back)+'</b></span></div>'
+      +'</div></div>').join('')
+    +'</div>';
+}
 function approvalWindow(l){
   const start=U.daysBetween(U.todayISO(),l.from);
   if(start<0) return {state:'running',label:'Already started',tone:'blue'};
@@ -84,7 +107,7 @@ function kpis(){
 /* ——— Plan book: annual leave per person, per fiscal year ————— */
 function planBookView(){
   const book=(S.db().leavePlans&&S.db().leavePlans.fy)||currentFy();
-  const rows=S.activeStaff().map(s=>S.leaveBook(s,currentFy()));
+  const rows=leaveOrder(S.activeStaff().map(s=>S.leaveBook(s,currentFy())));
   const totals=rows.reduce((a,r)=>({ent:a.ent+r.entitlement.days,carry:a.carry+r.carry.days,taken:a.taken+r.taken,planned:a.planned+r.planned,bal:a.bal+r.balance}),{ent:0,carry:0,taken:0,planned:0,bal:0});
   return '<div class="row between wrap gap-sm" style="margin-bottom:10px">'
     +'<div class="row gap-sm"><span class="xs faint">Fiscal year</span><div class="seg">'+fyList().map(f=>'<button data-fy="'+f+'" class="'+(f===currentFy()?'on':'')+'">FY '+f+'</button>').join('')+'</div></div>'
@@ -110,6 +133,26 @@ function planBookView(){
      +'<div class="c7">'+forecastCard()+'</div>'
      +'<div class="c5">'+whoOffCard()+'</div>'
    +'</div>';
+}
+
+/* Chronological order for the plan book: whoever is on leave now first, then the
+   next block coming up in the fiscal year, then those with nothing planned — and
+   the people who have already taken their leave listed last, because the question
+   the book answers is "who is next", not "who was first". */
+function leaveOrder(rows){
+  const today=U.todayISO();
+  return rows.map(r=>{
+    const blocks=(r.annual||[]).slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+    const running=blocks.find(l=>l.from<=today&&l.to>=today)||null;
+    const next=blocks.find(l=>l.from>today)||null;
+    const past=blocks.filter(l=>l.to<today);
+    const lastPast=past.length?past[past.length-1]:null;
+    const anchor=running&&running.from || (next&&next.from) || (lastPast?lastPast.to:'');
+    return Object.assign({},r,{_anchor:anchor,_group:running?0:next?1:past.length?2:3,_lastPast:lastPast,_next:next});
+  }).sort((a,b)=>{
+    if(a._group!==b._group) return a._group-b._group;
+    return String(a._anchor||'9999').localeCompare(String(b._anchor||'9999'));
+  });
 }
 
 /* Per-person authorised-leave forecast, phrased from each person's own records. */
@@ -168,8 +211,8 @@ function planModal(staffId, leaveId){
       +'<div class="field"><label>Leave type</label><select class="select" id="plType">'+Object.keys(TYPE).map(k=>'<option value="'+k+'"'+((l&&l.type===k)?' selected':'')+'>'+TYPE[k].label+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Charged to fiscal year</label><select class="select" id="plFy" disabled>'+fys.map(f=>'<option value="'+f+'"'+((l?fyOfLeave(l):currentFy())===f?' selected':'')+'>FY '+f+'</option>').join('')+'</select><div class="xs faint" style="margin-top:4px">Follows the start date — a record can never sit under the wrong year.</div></div>'
       +'<div class="field"><label>From</label><input class="input" type="date" id="plFrom" value="'+(l?l.from:U.addDays(U.todayISO(),30))+'"></div>'
-      +'<div class="field"><label>Number of days</label><input class="input mono" type="number" min="1" step="1" id="plDays" value="'+((l&&l.to&&l.from)?U.daysBetween(l.from,l.to)+1:15)+'"><div class="xs faint" style="margin-top:4px">The end date is calculated from it.</div></div>'
-      +'<div class="field"><label>To</label><input class="input" type="date" id="plTo" value="'+(l?l.to:U.addDays(U.todayISO(),44))+'"><div class="xs faint" style="margin-top:4px">Changing this recalculates the days.</div></div>'
+      +'<div class="field"><label>Number of days</label><input class="input mono" type="number" min="1" step="1" id="plDays" value="'+((l&&l.to&&l.from)?U.daysBetween(l.from,l.to)+1:30)+'"><div class="xs faint" style="margin-top:4px">30 by default — every member of staff is under statute. The end date is calculated from it.</div></div>'
+      +'<div class="field"><label>To</label><input class="input" type="date" id="plTo" value="'+(l?l.to:U.addDays(U.todayISO(),59))+'"><div class="xs faint" style="margin-top:4px">Changing this recalculates the days.</div></div>'
       +'<div class="field"><label>Status</label><select class="select" id="plStatus">'+['Planned','Approved','Pending'].map(x=>'<option '+(l&&l.status===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Entitlement</label><input class="input" value="'+ent.days+' days · '+ent.label+'" readonly></div>'
       +'<div class="field span2"><label>Note</label><input class="input" id="plNote" value="'+U.esc(l?l.note||'':'')+'" placeholder="e.g. carry-over from last FY, second installment, approval reference"></div>'
@@ -330,7 +373,9 @@ function decide(id, approve){
 }
 function paint(){
   const host=rootEl.querySelector('#lvBody'); if(!host) return;
-  host.innerHTML=tab==='plan'?planBookView():tab==='requests'?requestsView():tab==='timeline'?timelineView():recordsView();
+  /* the strip follows you across the leave screens: who is away, how far into
+     their block they are, and when they are expected back */
+  host.innerHTML=onLeaveStrip()+(tab==='plan'?planBookView():tab==='requests'?requestsView():tab==='timeline'?timelineView():recordsView());
   U.$$('[data-lv-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.lvTab===tab));
   wireBody();
 }

@@ -356,25 +356,63 @@ function generatePlan(monthKey, seedDB){
   const threePool=nightCrew.filter(s=>(s.maxConsecN||0)>=3 && s.threeNight)
     .sort((a,b)=>(a.nightRank||9)-(b.nightRank||9));
   const twoPool=nightCrew.filter(s=>(s.maxConsecN||0)>=2 && threePool.indexOf(s)<0);
+  /* ——— the weekend ————————————————————————————————
+     One person covers the weekend day and one covers the weekend night. By default
+     that is the same person — the weekend technologist, on day+night — so a weekend
+     is never split between two people. Only the people actually working the weekend
+     carry a code; every other cell stays blank so the roster reads clean.
+     It is worked out first, because the week's nights have to step around it: the
+     person who worked Saturday and Sunday is not given the Monday night as well. */
+  const onLeaveOn=(stId,iso)=>!!leaves.find(l=>l.staffId===stId && !/declin|reject/i.test(l.status||'') && iso>=l.from && iso<=l.to);
+  const weekendOwner={};                 // iso -> {name, code}
+  const weekendStaff=staff.filter(st=>st.weekendOnly);
+  const fallbackWeekend=nightCrew.filter(st=>!st.weekendOnly&&(st.maxConsecN||0)>=2)
+    .sort((a,b)=>(a.nightRank||9)-(b.nightRank||9));
+  days.forEach((iso,idx)=>{
+    if(U.dow(iso)<5) return;
+    const own=weekendStaff.find(st=>!onLeaveOn(st.id,iso));
+    if(own){ weekendOwner[iso]={name:own.name,code:'DN'}; return; }
+    /* she is away: one person still takes the whole day — not two people sharing it,
+       and the same one person for the whole weekend wherever the roster allows it */
+    const alt=fallbackWeekend.find(st=>!onLeaveOn(st.id,iso));
+    if(alt) weekendOwner[iso]={name:alt.name,code:'DN'};
+  });
+  const weekendName=iso=>{ const w=weekendOwner[iso]; return w?w.name:null; };
+
+  /* Nights are held a week at a time, not a day at a time: one person takes
+     Monday to Wednesday and one person takes Thursday and Friday, so a block is
+     never broken in the middle by a shift of holder. The week's holders are chosen
+     around the weekend on both sides — the person who has Saturday and Sunday is
+     never also given the nights that touch them. */
   const nightOf={};
+  const weekOf={};                                  // Monday index -> {three, two}
+  days.forEach((iso,idx)=>{ const m=idx-U.dow(iso); if(weekOf[m]===undefined) weekOf[m]=null; });
+  Object.keys(weekOf).map(Number).forEach(m=>{
+    const prevSun=days[m-1], prevSat=days[m-2], nextSat=days[m+5];
+    const banned=[weekendName(prevSun),weekendName(prevSat),weekendName(nextSat)].filter(Boolean);
+    const free=list=>list.filter(s=>banned.indexOf(s.name)<0);
+    const wk=Math.max(0,Math.floor(m/7));
+    let three=null;
+    const threeFree=free(threePool);
+    if(threeFree.length){
+      /* two weeks in three go to the first name on the list, one in three to the second */
+      three=threeFree.length>1?(wk%3===2?threeFree[1]:threeFree[0]):threeFree[0];
+    } else {
+      const twoFree=free(twoPool).length?free(twoPool):free(nightCrew);
+      if(twoFree.length) three=twoFree[wk%twoFree.length];
+    }
+    const base=twoPool.length?twoPool:nightCrew.filter(s=>threePool.indexOf(s)<0);
+    const pool=free(base).filter(s=>!three||s.name!==three.name);
+    const use=pool.length?pool:free(base);
+    const two=use.length?use[wk%use.length]:null;
+    weekOf[m]={three:three?three.name:null, two:two?two.name:null};
+  });
   days.forEach((iso,idx)=>{
     const dow=U.dow(iso);
     if(dow>=5) return;                              // the weekend has its own owner
-    const wk=Math.floor(idx/7);
-    if(dow<=2){                                     // Mon–Wed: three nights
-      if(threePool.length){
-        /* two weeks in three go to the first name on the list, one in three to the second */
-        const pick=threePool.length>1?(wk%3===2?threePool[1]:threePool[0]):threePool[0];
-        nightOf[iso]=pick.name;
-      } else if(twoPool.length){ nightOf[iso]=twoPool[wk%twoPool.length].name; }
-    } else {                                        // Thu–Fri: two nights
-      const pool=twoPool.length?twoPool:nightCrew.filter(s=>threePool.indexOf(s)<0);
-      if(pool.length){
-        const first=(threePool.length>1?(wk%3===2?threePool[1]:threePool[0]):(threePool[0]||{})).name;
-        const cand=pool.filter(s=>s.name!==first);
-        nightOf[iso]=(cand.length?cand:pool)[wk%Math.max(1,(cand.length?cand:pool).length)].name;
-      }
-    }
+    const holder=weekOf[idx-dow]||{};
+    const pick=dow<=2?holder.three:holder.two;
+    if(pick) nightOf[iso]=pick;
   });
   staff.forEach(s=>{
     const codes=[];
@@ -383,17 +421,29 @@ function generatePlan(monthKey, seedDB){
       const isWeekend=dow>=5;
       const onLeave=leaves.find(l=>l.staffId===s.id && !/declin|reject/i.test(l.status||'') && iso>=l.from && iso<=l.to);
       if(onLeave){ codes.push(onLeave.type==='TR'?'TR':onLeave.type==='SICK'?'SICK':onLeave.type||'AL'); return; }
-      if(s.weekendOnly){ codes.push(isWeekend?'DN':'OFF'); return; }
-      if(s.pattern==='manager'){ codes.push('OFF'); return; }   // reserve: filled in below if the bench is short
-      if(s.pattern==='dayonly'){ codes.push(isWeekend?'OFF':'D'); return; }
       if(isWeekend){
-        // the weekend owner above carries it; nobody else is rostered at the weekend
-        codes.push(nightOf[iso]===s.name?'DN':'OFF');
+        /* only the person on the weekend carries a code here */
+        const w=weekendOwner[iso];
+        codes.push(w&&w.name===s.name?w.code:'');
         return;
       }
+      if(s.weekendOnly){ codes.push('OFF'); return; }
+      if(s.pattern==='manager'){ codes.push('OFF'); return; }   // reserve: filled in below if the bench is short
+      if(s.pattern==='dayonly'){ codes.push('D'); return; }
       /* A night is a whole shift: whoever holds the night that day is not also on
          the day bench. */
       if(nightOf[iso]===s.name){ codes.push('N'); return; }
+      /* The weekend is a night block too: Saturday and Sunday on day+night is
+         followed by the Monday off and the Tuesday as rest-before-work, so nobody
+         comes back on an empty tank. */
+      if(dow===0&&(weekendName(days[idx-1])===s.name||weekendName(days[idx-2])===s.name)){ codes.push('OFF'); return; }
+      if(dow===1&&(weekendName(days[idx-2])===s.name||weekendName(days[idx-3])===s.name)){ codes.push('RBW'); return; }
+      /* Coming off a night block: the day after the last night is rest, and so is
+         the day after that (rest before work). Rest lands on Thursday and Friday
+         for a Mon–Wed block, which keeps Tuesday and Wednesday fully staffed. */
+      const y1=days[idx-1], y2=days[idx-2];
+      if(y1&&(nightOf[y1]===s.name)&&U.dow(iso)<5){ codes.push('OFF'); return; }
+      if(y2&&(nightOf[y2]===s.name)&&U.dow(iso)<5){ codes.push('RBW'); return; }
       codes.push('D');
     });
     plan.staff.push({name:s.name, id:s.id, codes});
@@ -543,6 +593,60 @@ function normalize(db){
       else if(can && st.threeNight && st.nightRank==null){ st.nightRank=3; }
       else if(!can) st.threeNight=false;
     });
+  }
+  /* v6.9.40 — training organisers are a picklist, grown from what is already in the
+     registry so nothing has to be typed twice, plus the bodies this department
+     actually deals with. */
+  if(!db.meta.trainingOrganizersV6943){
+    db.meta.trainingOrganizersV6943=1;
+    const seen=[];
+    ['RBC','WHO','Africa CDC','PHAMALAB','UR','Roche Diagnostics','Ruli DH']
+      .concat((db.trainings||[]).map(t=>String(t.organizer||'').trim()).filter(Boolean))
+      .forEach(n=>{ if(seen.map(x=>x.toLowerCase()).indexOf(n.toLowerCase())<0) seen.push(n); });
+    db.trainingOrganizers=seen;
+  }
+  /* v6.9.43 — the manager's carried-over thirty days of 2025/2026 leave start on
+     19 November 2026, and the end date is the start plus twenty-nine days. The
+     block is corrected here once; the November draft is rebuilt from it if it has
+     not been published yet. */
+  if(!db.meta.leaveCarryV6943){
+    db.meta.leaveCarryV6943=1;
+    const carry=(db.leaves||[]).find(l=>l.id==='l18'&&l.staffId==='s1');
+    if(carry){
+      const from='2026-11-19';
+      Object.assign(carry,{from,to:U.addDays(from,29),backOn:U.addDays(from,30),days:30,
+        note:'Carry-over — the whole 30-day FY 2025/26 entitlement was left unused and is taken from 19 November 2026; no annual leave was drawn in FY 2025/26. The two days pencilled for 8-9 December fall inside this block and are part of the same thirty.',
+        autoEnd:true});
+      /* One absence, one record: the shorter block that used to sit inside the
+         window would otherwise be counted a second time. Only that seeded row is
+         removed — anything entered by hand is left alone. */
+      const to=U.addDays(from,29);
+      db.leaves=(db.leaves||[]).filter(l=>!(l.id==='l7'&&l.staffId==='s1'&&l.from>=from&&l.to<=to));
+    }
+    const nov=db.workingPlans&&db.workingPlans['2026-11'];
+    if(nov&&nov.primary&&!(nov.primary.meta&&nov.primary.meta.official)){
+      nov.versions=(nov.versions||[]).concat([nov.primary]);
+      nov.primary=generatePlan('2026-11',db);
+      nov.primary.meta=Object.assign({},nov.primary.meta,{
+        label:'Draft for November 2026 — built from the department\'s rules and the record of previous months; review before publishing',
+        period:'November 2026', reference:'August 2026 and November 2025 plans'
+      });
+    }
+  }
+  /* v6.9.43 — September 2026, read again against the sheet on file, cell by cell.
+     The sheet (printed 06-09-2026) runs Patrick's annual leave to 1 October, puts a
+     single day on 2 October, leaves the weekend of 3-4 October blank — that weekend
+     belongs to the weekend technologist — and starts his two nights on 5 October.
+     The six cells at the tail of that row were out of step with the sheet; they are
+     put right here. Nothing else on the month is touched: every other row already
+     matches the sheet, and the October plan keeps its own record of the same days. */
+  if(!db.meta.sepTailV6943){
+    db.meta.sepTailV6943=1;
+    const sep=db.workingPlans&&db.workingPlans['2026-09'];
+    const row=sep&&sep.primary&&(sep.primary.staff||[]).find(r=>/Patrick ISHIMWE/.test(r.name));
+    if(row&&sep.primary.dates&&sep.primary.dates[31]==='2026-10-01'&&sep.primary.dates[36]==='2026-10-06'){
+      row.codes.splice(31,6,'AL','D','','','N','N');
+    }
   }
   /* v6.9.41 — November 2026 is built once, as a draft, from the department's own
      rules and the record of the previous months: three-night blocks for the two who
@@ -1122,6 +1226,27 @@ S.leaveCodeFor=function(who,iso){
 S.CONTRACTS=['statute','contractual'];
 S.SPONSORS=['Government of Rwanda','Global Fund','Own revenue','MoH / RBC','Partner / NGO'];
 S.contractOf=function(staff){ return (staff&&staff.contract==='contractual')?'contractual':'statute'; };
+/* ——— Training organisers ——————————————————————————————
+   A short, growable picklist: the bodies and hotels that run the sessions this
+   department sends staff to. Adding one from the form adds it for good. */
+S.trainingOrganizers=function(){
+  const db=S.db();
+  db.trainingOrganizers=db.trainingOrganizers||[];
+  (db.trainings||[]).forEach(t=>{
+    const n=String(t.organizer||'').trim();
+    if(n && db.trainingOrganizers.map(x=>x.toLowerCase()).indexOf(n.toLowerCase())<0) db.trainingOrganizers.push(n);
+  });
+  return db.trainingOrganizers.slice().sort((a,b)=>String(a).localeCompare(String(b)));
+};
+S.addTrainingOrganizer=function(name){
+  name=String(name||'').trim(); if(!name) return false;
+  const db=S.db(); db.trainingOrganizers=db.trainingOrganizers||[];
+  if(db.trainingOrganizers.map(x=>x.toLowerCase()).indexOf(name.toLowerCase())>=0) return false;
+  db.trainingOrganizers.push(name); db.trainingOrganizers.sort((a,b)=>String(a).localeCompare(String(b)));
+  try{ S.save(); }catch(e){}
+  return true;
+};
+
 S.leaveEntitlement=function(staff, fy){
   const kind=S.contractOf(staff);
   return {kind, label:kind==='contractual'?'Contractual':'Under statute',

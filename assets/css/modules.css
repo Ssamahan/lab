@@ -423,6 +423,23 @@
 .fit-card .dt{width:100%}
 @media (max-width:820px){ .fit-card{max-width:100%} }
 
+/* ——— Training queue: who is next, made impossible to miss ————————— */
+.fifo-next{background:linear-gradient(90deg,rgba(201,168,76,.13),rgba(201,168,76,.02));border-radius:11px;box-shadow:inset 0 0 0 1px var(--border-gold)}
+.fifo-next .lr-title{color:var(--text-strong);font-weight:600}
+.fifo-ring .avatar,.avatar.fifo-ring{box-shadow:0 0 0 2px var(--gold),0 0 0 4px rgba(201,168,76,.22);border-radius:50%}
+.fifo-ring{position:relative}
+
+
+/* ——— Who is on leave now ————————————————————————————— */
+.leave-now{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-bottom:14px}
+.leave-now-card{display:flex;gap:11px;align-items:center;padding:12px 13px;border-radius:12px;border:1px solid var(--border-gold);background:linear-gradient(135deg,rgba(201,168,76,.10),rgba(201,168,76,.02))}
+.ln-name{font-size:12.6px;font-weight:600;color:var(--text-strong);letter-spacing:-.01em}
+.ln-sub{font-size:10.8px;color:var(--text-muted);margin-top:2px}
+.ln-bar{height:5px;border-radius:99px;background:var(--surface-3);margin-top:7px;overflow:hidden}
+.ln-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold),var(--gold-bright))}
+.ln-meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:10.2px;color:var(--text-muted)}
+.ln-meta b{color:var(--text);font-family:var(--font-mono);font-weight:600}
+
 /* ——— Index bands: one colour language for every percentage —————— */
 .pill.g2{background:rgba(23,196,139,.14);color:var(--idx-g2);border-color:rgba(23,196,139,.34)}
 .pill.g1{background:rgba(46,158,119,.13);color:var(--idx-g1);border-color:rgba(46,158,119,.32)}

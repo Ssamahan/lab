@@ -4,6 +4,42 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.43
+
+**The weekend belongs to one person, the month is read in order, and the leave screen says
+who is away today.**
+
+- **The weekend is one duty, not two.** Saturday and Sunday are covered by the weekend
+  technologist on day+night (`DN`); a weekend is never split between one person on the day
+  and another on the night. If she is on leave, one fallback technician takes the whole
+  weekend rather than two people sharing it. Nights are chosen a week at a time — one holder
+  for Monday–Wednesday, one for Thursday–Friday — and the week's nights step around the
+  weekend on both sides, so nobody runs a fourth night. The Monday after a weekend on duty is
+  a rest day and the Tuesday is rest-before-work (`RBW`).
+- **Only the people working the weekend carry a code.** Every other weekend cell is blank, so
+  the grid reads as a roster and not as a wall of `OFF`. Annual leave, sickness and training
+  are still written on the weekend — an absence is not a shift.
+- **The carried-over leave: thirty days from 19 November 2026.** The whole FY 2025/26
+  entitlement was left unused, so the block now runs 19 November → 18 December, back on the
+  19th, marked `autoEnd`. The two days once pencilled for 8–9 December sit inside that block
+  and are part of the same thirty — the shorter seeded row is removed rather than counted
+  twice.
+- **The leave screen names who is away now.** A strip at the top of every leave tab shows the
+  person, the type of leave, day *n* of *total* with a progress bar, days used, days left and
+  the expected return date.
+- **September 2026 read again against the sheet on file, cell by cell.** Every row already
+  matched the printed sheet; one row did not. Patrick's annual leave runs to 1 October, the
+  2nd is a single day, the weekend of 3–4 October is blank because that weekend belongs to
+  the weekend technologist, and his two nights start on 5 October. The six cells at the tail
+  of that row now say exactly that.
+- **The plan book is in time order.** Running leave first, then the next block ahead,
+  then those who have already taken theirs, listed last.
+- **Wide tables fit the card they sit in.** A content-aware fitter measures each table card
+  after render; narrow cards are capped to their natural width instead of stretching, and wide
+  ones scroll inside the card — horizontally on a phone, never overflowing the page.
+
+---
+
 ## What changed in 6.9.42
 
 **A draft becomes the plan in force only when the department publishes it.**
