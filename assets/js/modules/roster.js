@@ -14,7 +14,7 @@ const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'
   ['AL','AL · Annual leave'],['ML','ML · Maternal leave'],['PL','PL · Paternal leave'],
   ['SL','SL · Sick leave'],['CL','CL · Circumstantial leave'],['AA','AA · Authorised leave'],
   ['H','H · Public holiday'],['WD','WD · Work desertion (unauthorised absence)'],
-  ['MS','As printed on the 2025 plans (Ms)'],['MC','Mentorship · outbreaks surveillance and HIV service delivery']];
+  ['MS','Ms · Mentorship — outbreaks surveillance and HIV service delivery'],['BE','Before employment']];
 
 function plan(){ const e=S.db().workingPlans[mk||U.monthKey()]; return e&&e.primary?e.primary:null; }
 function ensurePlan(){ return plan(); }

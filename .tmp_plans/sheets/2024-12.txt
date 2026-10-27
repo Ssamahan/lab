@@ -1,0 +1,9 @@
+# Work Plan - December 2024 | from=2024-12-01
+| Kelvin\* |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | OFF |  |  | D |  |  | D | D |  |  | D |  |  |  |  |  |  | 
+| Aurelie |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |  |  | D | D |  | D | D |  |  | D | D |  |  | D |  |  |  |  |  |  | 
+| Patrick |  | D | D | D | D | N |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | N | N |  |  | D |  |  | N | N | N | N | OFF |  |  |  |  |  |  | 
+| Diane |  | N | N | OFF | OFF | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D |  | OFF |  |  | D | D |  |  | D |  |  |  |  |  |  | 
+| Beatrice |  | D | D | D | D | D |  |  | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL |  |  |  |  |  |  | 
+| Elie | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF |  |  |  |  |  |  | 
+| Faustin |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |  |  | D | D | D | D | N |  |  | D | D |  |  | N |  |  | D | D | D | D | OFF |  |  |  |  |  |  | 
+| Dieudonne |  | D | D | D | D | D |  |  | D | D | D | D | N |  |  | N | N | OFF | OFF | D |  |  | D | D | N | N | OFF |  |  | D | D |  |  | N |  |  |  |  |  |  | 

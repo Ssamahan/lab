@@ -1,0 +1,9 @@
+# Work Plan - February 2025 (revised 19/02/2025) | from=2025-02-01
+| Kelvin\* |  |  | D | D | D | D | D |  |  | D | D | D | D | D | D |  | OFF | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D |  |  |  |  |  |  | 
+| Aurelie | OFF |  | N | N | N | OFF | OFF | OFF |  | N | N | N | OFF | OFF | OFF |  | N | N | N | OFF | OFF | OFF |  | N | N | N | OFF | OFF | OFF |  | N | N | N | OFF |  |  |  |  |  |  | 
+| Patrick | N | N | OFF | OFF | D | N | N | OFF | OFF | AL | AL | AL | AL | AL |  |  | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL |  |  |  |  |  |  | 
+| Diane | D | D | OFF | OFF | D | D | D | D | D | OFF | OFF | D | D | D |  |  | D | D | D | D | OFF | N | N | OFF | OFF | D | D | D | D | D | OFF | OFF | D | D |  |  |  |  |  |  | 
+| Beatrice |  |  |  | IL | IL | IL | IL |  |  | IL | IL | IL | ML | ML | ML | ML | ML | ML | ML | ML | ML | ML |  | D | D | D | D | D |  |  | D | D | D | D |  |  |  |  |  |  | 
+| Faustin |  |  | AL | AL | AL | D | D | N | N | OFF | OFF | D | D | D | N | N | OFF | OFF | D | N | N | OFF | OFF | D | D | D | N | N | OFF | OFF | D | D | D | D |  |  |  |  |  |  | 
+| Dieudonne | OFF | OFF | D | D | D | D | OFF |  |  | D | D | D | N | N | OFF | OFF | D | ML | ML | ML | D | D | D | OFF | OFF | D | D | D | N | N | OFF | OFF | D | D |  |  |  |  |  |  | 
+| Jean Paul | - | - | D | D | D | D | D |  |  | D | D | D | D | D |  | D | D | D | D | D | D |  |  | D | D | D | D | OFF |  |  | D | D | D | N |  |  |  |  |  |  | 

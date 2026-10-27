@@ -4,6 +4,35 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.47
+
+**The department's own workbook is being read into the console — sheet by sheet, month by
+month.**
+
+The workbook (*Work plan - Lab.xlsx*, 26 tabs) is now read directly rather than off
+photographs. Every month is transcribed cell by cell into `assets/data/plan-archive.js` and
+installed as a **transcribed record**: never *Official*, never printed as signed, and never
+overwriting a plan that is in force.
+
+- **Twelve months are in:** December 2024; January, February, March, April, May, July, August,
+  September, October, November, December 2025. (The workbook has no June 2025 tab.)
+- Every row keeps its blanks, its `Ms` mentorship days, its `Tr` trainings, its `RBW` rest days,
+  its `DN` weekends and its leave **exactly** where the sheet puts them, from the first date the
+  sheet covers to the last cell it fills.
+- **The paper's letters are translated to the standard set** on the way in: `IL` (incidental /
+  circumstantial) → **CL**, `SICK` → **SL**, `MAT`/`Medical` → **ML**, `Tr` → **TR**, `Ms` → **MS**,
+  `RWB` → **RBW**, `-` → **BE**.
+- **`BE` — before employment** is a code in its own right: Jean Paul's first two days of February
+  2025 are marked `BE`, not left blank and not counted as leave.
+- A month is re-installed only when its content changes (each carries a stamp), so reading a sheet
+  again updates that month and touches nothing else.
+
+**From the sheets themselves**
+
+- Beatrice's block on 4–7 and 10–12 February 2025 is **circumstantial leave (CL)**, followed by
+  maternal leave to the 22nd — exactly as you said it should read.
+- Diane's 5–7 May 2025 block, marked `IL` on the paper, now reads **CL**.
+
 ## What changed in 6.9.46
 
 **One set of leave letters, the department's own: `AL · ML · PL · SL · CL · AA · H · WD`.**
