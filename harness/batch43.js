@@ -8,41 +8,51 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   const {w,go}=await boot('#/roster');
   const doc=w.document, S=()=>w.LS.store, db=()=>w.LS.store.db(), U=w.LSU;
 
-  /* ── 1 · the weekend has one owner, and only that owner is written in ── */
+  /* ── 1 · the weekend: one owner on day+night, or a day and a night ── */
   const p=db().workingPlans['2026-11'].primary;
   const dowOf=iso=>U.dow(iso);
   const weekendIdx=p.dates.map((iso,i)=>({iso,i,dow:dowOf(iso)})).filter(x=>x.dow>=5);
   ok(weekendIdx.length>=8,'the month has its weekends ('+weekendIdx.length+' days)');
-  let split=[], blanks=[], ownerSeen={};
-  weekendIdx.forEach(x=>{
-    const staff=S().activeStaff();
-    let names=[], owner=null;
-    p.staff.forEach(r=>{ const c=r.codes[x.i]; if(!c) return;
-      /* annual leave is written on the weekend too — it is an absence, not a shift */
-      if(/^AL|^SICK|^ML|^SL|^TR/.test(c)) return;
-      names.push(r.name+'='+c);
-      if(c==='DN'||c==='D'||c==='N') owner={name:r.name,code:c}; });
-    okOwner(names.length<=1, x.iso, names);
-    ownerSeen[x.iso]=owner;
+  const at=(iso,i)=>p.staff.filter(r=>r.codes[i]).map(r=>({name:r.name,code:r.codes[i]}))
+    .filter(x=>!/^AL|^SICK|^ML|^SL|^TR|^OFF/.test(x.code));
+  const over=[];
+  weekendIdx.forEach(x=>{ const who=at(x.iso,x.i); if(who.length>2) over.push(x.iso+': '+who.map(w=>w.name+'='+w.code).join(', ')); });
+  ok(over.length===0,'no weekend day is worked by more than two people'+(over.length?' ('+over.join(' | ')+')':''));
+  const pairs={};
+  weekendIdx.forEach(x=>{ const k=p.dates[x.i-x.dow+5]||x.iso; pairs[k]=pairs[k]||[]; pairs[k].push({i:x.i,who:at(x.iso,x.i)}); });
+  const bad=[];
+  Object.keys(pairs).forEach(k=>{
+    const daysOf=pairs[k].map(d=>d.who);
+    if(!daysOf.length) return;
+    const first=daysOf[0];
+    daysOf.forEach(who=>{
+      if(who.length!==first.length) bad.push(k+' differs between days');
+      who.forEach(w=>{
+        const twin=first.find(f=>f.name===w.name);
+        if(!twin||twin.code!==w.code) bad.push(k+' '+w.name+' changes code across the weekend');
+      });
+    });
   });
-  function okOwner(cond, iso, names){ if(!cond) split.push(iso+': '+names.join(', ')); }
-  ok(split.length===0,'no weekend day carries more than one name'+(split.length?' ('+split.join(' | ')+')':''));
-  const owners=weekendIdx.map(x=>ownerSeen[x.iso]).filter(Boolean);
-  ok(owners.every(o=>o.code==='DN'),'the weekend is day+night for the one person on it');
-  const sun=weekendIdx.filter(x=>x.dow===6), sat=weekendIdx.filter(x=>x.dow===5);
-  ok(sat.every(x=>{ const s=ownerSeen[x.iso], n=ownerSeen[p.dates[x.i+1]];
-      return !s||!n||s.name===n.name; }),'Saturday and Sunday of a weekend go to the same person');
+  ok(bad.length===0,'Saturday and Sunday of a weekend go to the same people, on the same shifts'+(bad.length?' ('+bad.slice(0,3).join(' | ')+')':''));
+  const forms=Object.keys(pairs).map(k=>pairs[k][0].who.map(w=>w.code).sort().join('+'));
+  ok(forms.every(f=>f==='DN'||f==='D+N'),'a weekend is either one person on day+night, or one on the day and one on the night ('+[...new Set(forms)].join(', ')+')');
+  const splitWeekend=Object.keys(pairs).find(k=>pairs[k][0].who.length===2);
+  ok(!!splitWeekend,'the weekend the technologist is away is split between two people');
 
-  /* ── 2 · nobody runs a fourth night, and the weekend is followed by rest ── */
+  /* ── 2 · the rest that follows the weekend ── */
   const runs=row=>{ let best=0,run=0; (row.codes||[]).forEach(c=>{ if(c==='N'||c==='DN'){ run++; best=Math.max(best,run); } else run=0; }); return best; };
   ok(p.staff.every(r=>runs(r)<=3),'nobody is on more than three nights in a row ('+p.staff.map(r=>r.name.split(' ')[0]+':'+runs(r)).join(' ')+')');
-  const afterWeekend=[];
+  const missed=[];
   p.staff.forEach(r=>weekendIdx.forEach(x=>{
-    const mondayIdx=p.dates.findIndex((d,i)=>i===x.i+1&&dowOf(d)===0);
-    if(mondayIdx<0) return;
-    if(r.codes[x.i]==='DN'&&r.codes[mondayIdx]!=='OFF') afterWeekend.push(r.name+' '+p.dates[mondayIdx]+'='+r.codes[mondayIdx]);
+    const mondayIdx=x.i+1;
+    if(mondayIdx>=p.dates.length||dowOf(p.dates[mondayIdx])!==0) return;
+    const code=r.codes[x.i];
+    if((code==='DN'||code==='N'||code==='D')&&r.codes[mondayIdx]!=='OFF') missed.push(r.name.split(' ')[0]+' '+p.dates[mondayIdx]+'='+r.codes[mondayIdx]);
   }));
-  ok(afterWeekend.length===0,'the Monday after a weekend on duty is a rest day'+(afterWeekend.length?' ('+afterWeekend.join(', ')+')':''));
+  ok(missed.length===0,'whoever worked the weekend is off on the Monday after'+(missed.length?' ('+missed.join(', ')+')':''));
+  ok(p.staff.every(r=>{ let seven=false;
+    for(let i=0;i+6<r.codes.length;i++){ const win=r.codes.slice(i,i+7); if(win.filter(c=>c==='D'||c==='N'||c==='DN').length===7) seven=true; }
+    return !seven; }),'and nobody works seven days without an off');
 
   /* ── 3 · the carry-over leave: thirty days from 19 November, end calculated ── */
   const carry=db().leaves.find(l=>l.id==='l18');
@@ -77,6 +87,18 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(satSun.every(x=>rowOf('Aurelie')[x.i]==='DN'),'the weekend technologist is day+night on every weekend of the month');
   ok(rowOf('Kelvin').filter(c=>c==='D').length===27,'the manager works every weekday on the sheet');
 
+  /* ── 6 · the plans on file are installed as records, never as signed plans ── */
+  const arc=db().workingPlans['2025-09'];
+  ok(!!(arc&&arc.primary),'September 2025 is on file');
+  ok(arc.primary.meta.transcribed===true&&!arc.primary.meta.official,'and it is a transcribed record, not a published plan');
+  ok(/transcribed/i.test(arc.primary.meta.label||''),'the label says so');
+  ok(arc.primary.dates[0]==='2025-09-01'&&arc.primary.dates.length===35,'covering 1 September to 5 October, as the sheet does');
+  ok(arc.primary.staff.length===8,'with every name the sheet carries ('+arc.primary.staff.length+')');
+  ok(arc.primary.staff.every(r=>r.codes.length===35),'a code — a blank where the sheet is blank — for every day of every row');
+  const dj=arc.primary.staff.find(r=>/Dieudonne/.test(r.name));
+  ok(dj.codes.slice(7).every(c=>c==='AL'),'Dieudonne is on annual leave from the 8th, as the sheet shows');
+
+  /* ── 7 · tables fit the card they are in ── */
   ok(typeof U.fitTables==='function','the table fitter is part of the toolkit');
   await go('#/dash'); await tick(320);
   ok(doc.querySelectorAll('#app .card[data-fit]').length>=0,'cards report their fit after render');

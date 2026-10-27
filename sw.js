@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.43';
+const VERSION = 'v6.9.44';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -15,6 +15,7 @@ const CORE = [
   './assets/css/app.css',
   './assets/css/modules.css',
   './assets/css/landing.css',
+  './assets/data/plan-archive.js',
   './assets/js/core/icons.js',
   './assets/js/core/seed.js',
   './assets/js/core/utils.js',

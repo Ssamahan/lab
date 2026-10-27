@@ -4,6 +4,36 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.44
+
+**While the weekend technologist is away the weekend is worked by two people — and the
+month they worked is rested around, not just after.**
+
+- **The weekend split.** When the weekend technologist is on duty the weekend is hers alone,
+  day+night (`DN`), as before. When she is on leave the weekend is worked by **two** people:
+  one takes the Saturday and Sunday **day** shifts, a different one takes the Saturday and
+  Sunday **nights**, and the same pair holds both days.
+- **Only the night is rested straight after it.** The night technician is off on the Monday
+  and on rest-before-work (`RBW`) on the Tuesday. The day technician is off on the
+  **Friday before** — so the week never runs seven days — and off again on the **Monday
+  after**, the two offs that cover the two day shifts worked at the weekend.
+- **Rest now takes priority over the shift pattern.** A day-only technician used to be
+  written straight to `D` and could work the weekend and then the whole week; rest is now
+  decided first, so a weekend on duty can never run into seven days of work.
+
+**The working plans on file are being transcribed into the console.**
+
+- A new archive (`assets/data/plan-archive.js`) holds the department's paper plans month by
+  month, read off the photographs cell by cell. **September 2025** is in it: eight names as
+  the sheet prints them, 1 September to 5 October, 35 days, with the leave, the training, the
+  nights and the blanks exactly where the paper puts them.
+- A transcribed month is installed **only where the console holds no plan for that month** —
+  a plan in force is never overwritten — and it is labelled **Transcribed**, never *Official*.
+  It is a record of what the paper said; it is not proof that the department published it,
+  and it is not printed as if it had been.
+- `Ms` (as printed on the 2025 plans) and `Mc` (mentorship in outbreaks surveillance and HIV
+  service delivery) are now in the code legend, so the older sheets read as they were written.
+
 ## What changed in 6.9.43
 
 **The weekend belongs to one person, the month is read in order, and the leave screen says
