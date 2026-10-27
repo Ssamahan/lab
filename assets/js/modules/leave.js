@@ -168,7 +168,8 @@ function planModal(staffId, leaveId){
       +'<div class="field"><label>Leave type</label><select class="select" id="plType">'+Object.keys(TYPE).map(k=>'<option value="'+k+'"'+((l&&l.type===k)?' selected':'')+'>'+TYPE[k].label+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Charged to fiscal year</label><select class="select" id="plFy" disabled>'+fys.map(f=>'<option value="'+f+'"'+((l?fyOfLeave(l):currentFy())===f?' selected':'')+'>FY '+f+'</option>').join('')+'</select><div class="xs faint" style="margin-top:4px">Follows the start date — a record can never sit under the wrong year.</div></div>'
       +'<div class="field"><label>From</label><input class="input" type="date" id="plFrom" value="'+(l?l.from:U.addDays(U.todayISO(),30))+'"></div>'
-      +'<div class="field"><label>To</label><input class="input" type="date" id="plTo" value="'+(l?l.to:U.addDays(U.todayISO(),44))+'"></div>'
+      +'<div class="field"><label>Number of days</label><input class="input mono" type="number" min="1" step="1" id="plDays" value="'+((l&&l.to&&l.from)?U.daysBetween(l.from,l.to)+1:15)+'"><div class="xs faint" style="margin-top:4px">The end date is calculated from it.</div></div>'
+      +'<div class="field"><label>To</label><input class="input" type="date" id="plTo" value="'+(l?l.to:U.addDays(U.todayISO(),44))+'"><div class="xs faint" style="margin-top:4px">Changing this recalculates the days.</div></div>'
       +'<div class="field"><label>Status</label><select class="select" id="plStatus">'+['Planned','Approved','Pending'].map(x=>'<option '+(l&&l.status===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Entitlement</label><input class="input" value="'+ent.days+' days · '+ent.label+'" readonly></div>'
       +'<div class="field span2"><label>Note</label><input class="input" id="plNote" value="'+U.esc(l?l.note||'':'')+'" placeholder="e.g. carry-over from last FY, second installment, approval reference"></div>'
@@ -192,8 +193,17 @@ function planModal(staffId, leaveId){
           +' · balance after booking <b style="color:var(--text)">'+after+' of '+b.pool+'</b>.'
           +(overlap?'<br><span style="color:var(--warn)">Overlaps an existing block ('+U.fmtDate(overlap.from)+' – '+U.fmtDate(overlap.to)+'): '+U.esc(overlap.status||'Planned')+'.</span>':'');
       };
-      ['#plStaff','#plFrom','#plTo','#plFy','#plType'].forEach(s=>{ q(s).addEventListener('change',summary); q(s).addEventListener('input',summary); });
-      summary();
+      /* The days field drives the end date; editing the end date drives the days.
+         Either way the count shown in the summary is the same number. */
+      const setTo=()=>{ const from=q('#plFrom').value; const n=Math.max(1,parseInt(q('#plDays').value,10)||0);
+        if(!from||!n) return; q('#plTo').value=U.addDays(from,n-1); };
+      const setDays=()=>{ const from=q('#plFrom').value, to=q('#plTo').value;
+        if(from&&to&&to>=from) q('#plDays').value=U.daysBetween(from,to)+1; };
+      q('#plDays').addEventListener('input',()=>{ setTo(); summary(); });
+      q('#plFrom').addEventListener('change',()=>{ setTo(); summary(); });
+      q('#plTo').addEventListener('change',()=>{ setDays(); summary(); });
+      ['#plStaff','#plFy','#plType'].forEach(s=>{ q(s).addEventListener('change',summary); q(s).addEventListener('input',summary); });
+      setDays(); setTo(); summary();
       q('[data-save]').onclick=()=>{
         const id=q('#plStaff').value, from=q('#plFrom').value, to=q('#plTo').value;
         if(!from||!to) return UI.toast('Pick both dates',{type:'warn'});
@@ -285,14 +295,22 @@ function newRequest(){
     '<div class="form-grid"><div class="field span2"><label>Staff</label><select class="select" id="lvStaff">'+S.activeStaff().map(s=>'<option value="'+s.id+'">'+U.esc(s.name)+'</option>').join('')+'</select></div>'
     +'<div class="field"><label>Type</label><select class="select" id="lvType">'+Object.keys(TYPE).map(k=>'<option value="'+k+'">'+TYPE[k].label+'</option>').join('')+'</select></div>'
     +'<div class="field"><label>From</label><input class="input mono" type="date" id="lvFrom" value="'+U.addDays(U.todayISO(),3)+'"></div>'
-    +'<div class="field"><label>To</label><input class="input mono" type="date" id="lvTo" value="'+U.addDays(U.todayISO(),5)+'"></div>'
+    +'<div class="field"><label>Number of days</label><input class="input mono" type="number" min="1" step="1" id="lvDays" value="3"><div class="xs faint" style="margin-top:4px">The end date is calculated from it.</div></div>'
+    +'<div class="field"><label>To</label><input class="input mono" type="date" id="lvTo" value="'+U.addDays(U.todayISO(),5)+'"><div class="xs faint" style="margin-top:4px">Changing this recalculates the days.</div></div>'
     +'<div class="field"><label>Note</label><input class="input" id="lvNote" placeholder="Reason / attachment reference"></div></div>'
     +'<div id="lvCheck" class="hint" style="margin-top:10px"></div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-send>Submit request</button>',
     onMount:(el,close)=>{
       const check=()=>{ const l={staffId:el.querySelector('#lvStaff').value,from:el.querySelector('#lvFrom').value,to:el.querySelector('#lvTo').value};
         const c=conflicts(l); const box=el.querySelector('#lvCheck'); box.innerHTML=c.text; box.style.color=c.level==='block'?'var(--crit)':c.level==='warn'?'var(--warn)':'var(--pos)'; };
-      ['#lvStaff','#lvFrom','#lvTo'].forEach(s=>el.querySelector(s).addEventListener('change',check)); check();
+      const setTo=()=>{ const from=el.querySelector('#lvFrom').value; const n=Math.max(1,parseInt(el.querySelector('#lvDays').value,10)||0);
+        if(!from||!n) return; el.querySelector('#lvTo').value=U.addDays(from,n-1); };
+      const setDays=()=>{ const from=el.querySelector('#lvFrom').value, to=el.querySelector('#lvTo').value;
+        if(from&&to&&to>=from) el.querySelector('#lvDays').value=U.daysBetween(from,to)+1; };
+      el.querySelector('#lvDays').addEventListener('input',()=>{ setTo(); check(); });
+      el.querySelector('#lvFrom').addEventListener('change',()=>{ setTo(); check(); });
+      el.querySelector('#lvTo').addEventListener('change',()=>{ setDays(); check(); });
+      el.querySelector('#lvStaff').addEventListener('change',check); check();
       el.querySelector('[data-send]').onclick=()=>{
         const from=el.querySelector('#lvFrom').value,to=el.querySelector('#lvTo').value;
         if(to<from) return UI.toast('End date cannot precede start date',{type:'warn'});

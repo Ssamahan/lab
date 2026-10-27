@@ -57,7 +57,6 @@ function hero(){
     +'<div class="hero-actions">'
       +'<button class="btn primary magnetic" data-hero-register>'+U.ic('flask-conical',16)+' Register sample</button>'
       +'<button class="btn magnetic" data-hero-manifest>'+U.ic('clipboard-list',16)+' Build manifest</button>'
-      +'<button class="btn ghost" data-hero-export>'+U.ic('download',16)+' Briefing</button>'
     +'</div>'
    +'</div>'
    +'<div class="hero-side">'
@@ -265,10 +264,10 @@ function layoutDash(root){
   // 1. column spans first, so every card is measured at its final width
   cards.forEach(card=>{
     const pref=card.getAttribute('data-span')||'';
-    /* 'wide' takes two columns on a medium screen; 'table' takes the full width
-       only when the screen cannot give it two, because a six-column register needs
-       the room. */
-    const span=pref==='full'?cols:pref==='table'?(cols>=3?2:cols):pref==='wide'?Math.min(cols,2):1;
+    /* 'wide' takes two columns; 'half' takes half the row — a short register and the
+       activity list hold about that much, and stretching them across a wide screen
+       leaves the card looking empty. 'full' is only for a genuinely wide chart. */
+    const span=pref==='full'?cols:pref==='half'?Math.max(1,Math.round(cols/2)):pref==='wide'?Math.min(cols,2):1;
     card.style.gridColumn='span '+span;
     card.style.gridRowEnd='auto';
   });
@@ -319,8 +318,8 @@ M.render=function(root,params){
      +'<div class="dash-card">'+referralCard()+'</div>'
      +'<div class="dash-card">'+eqaCard()+'</div>'
      +'<div class="dash-card">'+equipmentCard()+'</div>'
-     +'<div class="dash-card" data-span="table">'+worklistCard()+'</div>'
-     +'<div class="dash-card" data-span="full" id="feedCol">'+feedCard()+'</div>'
+     +'<div class="dash-card" data-span="half">'+worklistCard()+'</div>'
+     +'<div class="dash-card" data-span="half" id="feedCol">'+feedCard()+'</div>'
    +'</div>'
    +'<div style="margin-top:16px" id="obCol">'+onboardingCard()+'</div>'
    +trustFooter();
@@ -359,7 +358,6 @@ M.render=function(root,params){
   // hero actions
   root.querySelector('[data-hero-register]').onclick=()=>{ location.hash='#/samples?new=1'; };
   root.querySelector('[data-hero-manifest]').onclick=()=>{ location.hash='#/samples?manifest=1'; };
-  root.querySelector('[data-hero-export]').onclick=()=>M.exportBriefing();
   // onboarding actions
   U.$$('[data-ob]',root).forEach(b=>b.onclick=()=>{
     S.commit(d=>{ d.settings.onboarding[b.dataset.ob]=true; },{action:'onboarding.step',entity:'settings',detail:'Completed setup step: '+b.dataset.ob});
@@ -378,17 +376,6 @@ M.render=function(root,params){
       b.addEventListener('mouseleave',()=>{ b.style.transform=''; });
     });
   }
-};
-M.exportBriefing=function(){
-  const st=S.sampleStats();
-  const rows=[['Metric','Value','Window'],
-    ['Active worklist',st.active,'now'],['Registered today',st.today,'today'],['TAT compliance',st.tatCompliance==null?'no result on the register yet':st.tatCompliance+'%',st.tatWindow+' days'],
-    ['Past TAT target',st.overdue,'now'],['STAT awaiting',st.stat,'now'],
-    ['Median days of stock cover',S.stockCover().median===null?'no consumption logged':S.stockCover().median,'now'],
-    ['ISO 15189 readiness',S.compliance().pct+'%','current'],
-    ['EQA composite',(function(){ const r=S.eqaSeries('__all'); return r.length?Math.round(U.avg(r.map(x=>x.score)))+'%':'no PT round scored'; })(),'all PT rounds']];
-  U.exportCSV('ruli-lab-briefing-'+U.todayISO()+'.csv',rows,{title:'Command Center briefing',actor:LS.auth.user?LS.auth.user.name:''});
-  UI.toast('Briefing exported with letterhead metadata',{type:'ok',actions:[{label:'Undo',onClick:()=>UI.toast('Export cannot be undone',{type:'info'})}]});
 };
 M._clear=clearTimers;
 })();

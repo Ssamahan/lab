@@ -47,20 +47,19 @@ const DEFAULT_SETTINGS = {
    test. The bench panel below is kept for competency records, which are about the
    work performed here, not about referrals. */
 const BENCH_PANEL = [
-  {code:'CBC', name:'CBC (Full Blood Count)',        cat:'Hematology'},
-  {code:'MRDT',name:'Malaria RDT',                   cat:'Parasitology'},
-  {code:'BSM', name:'Blood Slide for Malaria',       cat:'Parasitology'},
-  {code:'GLU', name:'Fasting Blood Glucose',         cat:'Biochemistry'},
   {code:'CREA',name:'Serum Creatinine',              cat:'Biochemistry'},
   {code:'ALT', name:'ALT (SGPT)',                    cat:'Biochemistry'},
   {code:'HIVR',name:'HIV Rapid Test (Determine)',    cat:'Serology'},
   {code:'RPR', name:'Syphilis (RPR)',                cat:'Serology'},
-  {code:'URIN',name:'Urinalysis',                    cat:'Parasitology'},
-  {code:'AFB', name:'Sputum AFB (Ziehl-Neelsen)',    cat:'Microbiology'}
+  {code:'URIN',name:'Urinalysis',                    cat:'Parasitology'}
 ];
 /* Tests withdrawn from the referral menu in v6.8. Existing installations keep a
    local copy of the catalogue, so the ids are pruned on load as well. */
 const RETIRED_TESTS=['t11','t12','t13','t14','t15','t16','t17','t18','t19','t20'];
+/* Tests the department never refers anywhere. They are not offered, not generated,
+   and any record carrying one is removed on load: a bench test belongs in the
+   bench register, not on the referral list. */
+const NEVER_REFERRED=['CBC (Full Blood Count)','Malaria RDT','Blood Slide for Malaria','Fasting Blood Glucose','Sputum AFB (Ziehl-Neelsen)'];
 const SUPPLIERS = [
   {id:'s1', name:'RBC — National Medical Stores', leadDays:18, fillRate:96, priceVariance:2.1, region:'Kigali', rating:96},
   {id:'s2', name:'CHUK Laboratory Supply', leadDays:11, fillRate:88, priceVariance:6.4, region:'Huye', rating:88},
@@ -348,10 +347,35 @@ function generatePlan(monthKey, seedDB){
   const reserve=staff.filter(s=>s.pattern==='manager');
   const leaves=(seedDB.leaves||[]);
   const eligibleNights=staff.filter(s=>!s.weekendOnly && (s.nightPref!=='no') && s.maxNights>0);
-  const weekendOnly=staff.filter(s=>s.weekendOnly);
-  const dayStaff=staff.filter(s=>!s.weekendOnly);
   const plan={ label:U.monthLabel(monthKey), dates:days, staff:[], meta:{date:U.todayISO(), fy:U.fyLabel(), period:U.monthLabel(monthKey), generated:true, draft:true} };
   const nightCrew = eligibleNights.length? eligibleNights : staff.filter(s=>s.nightPref!=='no');
+  /* Nights are three-in-a-row for the two people who can take them, two-in-a-row
+     for everybody else, and the weekend technologist carries Saturday and Sunday.
+     The three-night block is earned, not rotated: Patrick carries it most often,
+     Jean Paul takes the weeks he does not. Nobody else is given a third night. */
+  const threePool=nightCrew.filter(s=>(s.maxConsecN||0)>=3 && s.threeNight)
+    .sort((a,b)=>(a.nightRank||9)-(b.nightRank||9));
+  const twoPool=nightCrew.filter(s=>(s.maxConsecN||0)>=2 && threePool.indexOf(s)<0);
+  const nightOf={};
+  days.forEach((iso,idx)=>{
+    const dow=U.dow(iso);
+    if(dow>=5) return;                              // the weekend has its own owner
+    const wk=Math.floor(idx/7);
+    if(dow<=2){                                     // Mon–Wed: three nights
+      if(threePool.length){
+        /* two weeks in three go to the first name on the list, one in three to the second */
+        const pick=threePool.length>1?(wk%3===2?threePool[1]:threePool[0]):threePool[0];
+        nightOf[iso]=pick.name;
+      } else if(twoPool.length){ nightOf[iso]=twoPool[wk%twoPool.length].name; }
+    } else {                                        // Thu–Fri: two nights
+      const pool=twoPool.length?twoPool:nightCrew.filter(s=>threePool.indexOf(s)<0);
+      if(pool.length){
+        const first=(threePool.length>1?(wk%3===2?threePool[1]:threePool[0]):(threePool[0]||{})).name;
+        const cand=pool.filter(s=>s.name!==first);
+        nightOf[iso]=(cand.length?cand:pool)[wk%Math.max(1,(cand.length?cand:pool).length)].name;
+      }
+    }
+  });
   staff.forEach(s=>{
     const codes=[];
     days.forEach((iso,idx)=>{
@@ -363,19 +387,14 @@ function generatePlan(monthKey, seedDB){
       if(s.pattern==='manager'){ codes.push('OFF'); return; }   // reserve: filled in below if the bench is short
       if(s.pattern==='dayonly'){ codes.push(isWeekend?'OFF':'D'); return; }
       if(isWeekend){
-        // one rotating day-cover on weekends
-        const wk=Math.floor(idx/7);
-        const pick=dayStaff.filter(x=>x.pattern==='normal');
-        const cover=pick.length? pick[wk%pick.length]:null;
-        codes.push(cover && cover.id===s.id ? 'D' : 'OFF');
+        // the weekend owner above carries it; nobody else is rostered at the weekend
+        codes.push(nightOf[iso]===s.name?'DN':'OFF');
         return;
       }
-      // weekdays: night rotation in 2-night blocks
-      const globalDay=Math.floor((U.parseISO(iso)-U.parseISO(days[0]))/86400000);
-      const block=Math.floor(globalDay/2);
-      const nightPerson=nightCrew.length? nightCrew[block%nightCrew.length]:null;
-      if(nightPerson && nightPerson.id===s.id) codes.push('N');
-      else codes.push('D');
+      /* A night is a whole shift: whoever holds the night that day is not also on
+         the day bench. */
+      if(nightOf[iso]===s.name){ codes.push('N'); return; }
+      codes.push('D');
     });
     plan.staff.push({name:s.name, id:s.id, codes});
   });
@@ -510,6 +529,34 @@ function normalize(db){
     db.meta.patientNamesMasked=true;
     db.samples.forEach(x=>{ if(x && x.patientName!==U.CONFIDENTIAL) x.patientName=U.CONFIDENTIAL; });
   }
+  /* v6.9.40 — a three-night block is earned, not rotated. Only the two technologists
+     whose contract allows three consecutive nights may hold it, and Patrick carries
+     it most often. The flag lives on the staff record so it can be changed in the
+     staff editor without a code change. */
+  if(!db.meta.nightRuleV6940){
+    db.meta.nightRuleV6940=1;
+    (db.staff||[]).forEach(st=>{
+      const n=String(st.name||'');
+      const can=(st.maxConsecN||0)>=3 && st.nightPref!=='no' && !st.weekendOnly && st.pattern!=='manager';
+      if(can && /patrick\s+ishimwe/i.test(n)){ st.threeNight=true; st.nightRank=1; }
+      else if(can && /jean\s*paul\s+nsengiyumva/i.test(n)){ st.threeNight=true; st.nightRank=2; }
+      else if(can && st.threeNight && st.nightRank==null){ st.nightRank=3; }
+      else if(!can) st.threeNight=false;
+    });
+  }
+  /* v6.9.40 — five bench tests were still on the referral list although nothing is
+     ever referred for them: CBC, Malaria RDT, Blood Slide for Malaria, Fasting Blood
+     Glucose and Sputum AFB. The catalogue entries go, and so do the records that were
+     generated against them. Nothing else is touched. */
+  if(!db.meta.neverReferredV6940){
+    db.meta.neverReferredV6940=1;
+    const gone=NEVER_REFERRED.slice();
+    db.catalog.tests=(db.catalog.tests||[]).filter(t=>gone.indexOf(t.name)<0);
+    const before=(db.samples||[]).length;
+    db.samples=(db.samples||[]).filter(x=>gone.indexOf(x.test)<0);
+    db.meta.neverReferredRemoved=before-db.samples.length;
+    (db.manifests||[]).forEach(m=>{ m.samples=(m.samples||[]).filter(id=>db.samples.some(x=>x.id===id)); });
+  }
   /* v6.9.38 — the laboratory that sends these specimens is the hospital's own, Ruli DH.
      Orders registered in this console were being filed under the first health centre in
      the list (Ruli HC); they are corrected to Ruli DH, which is also the new default.
@@ -563,6 +610,25 @@ function normalize(db){
     db.meta.stockCapsV695=1;
     (db.catalog.consumables||[]).forEach(c=>{
       if(c.monthlyCap==null && /blood culture/i.test(c.name||'')) c.monthlyCap=5;
+    });
+  }
+  /* v6.9.40 — the ceilings the bench actually works to, stated by the department:
+     at most three HIV-EID cartridges a month, at most five VTM vials a month for our
+     own use (transfers to health centres are counted apart), and blood culture at
+     about two paediatric plus one adult bottle a month. The earlier 5-bottle
+     blood-culture figure was a round guess and is corrected here. */
+  if(!db.meta.stockCapsV6940){
+    db.meta.stockCapsV6940=1;
+    (db.catalog.consumables||[]).forEach(c=>{
+      const n=String(c.name||'');
+      if(/blood culture/i.test(n)){
+        c.monthlyCapPrev=c.monthlyCap==null?null:c.monthlyCap;
+        c.monthlyCap=3;
+        c.capSplit={'Pediatric/Neonatal':2,'Adult':1};
+        c.capNote='About two paediatric/neonatal bottles and one adult bottle a month';
+      }
+      else if(/hiv[- ]?eid/i.test(n)){ c.monthlyCap=c.monthlyCap==null?3:Math.min(c.monthlyCap,3); c.capNote='At most three cartridges a month'; }
+      else if(/\bVTM\b|viral transport/i.test(n)){ c.monthlyCap=c.monthlyCap==null?5:Math.min(c.monthlyCap,5); c.transfersExempt=true; c.capNote='At most five vials a month for our own use · transfers to health centres are counted apart'; }
     });
   }
   /* v6.9.5 — the seeded record that placed a week of annual leave in May 2026
@@ -1223,12 +1289,14 @@ S.referralTAT=function(months){
   const byLab={};
   rows.forEach(s=>{
     const lab=s.hospital||'Unassigned';
-    const g=byLab[lab]=byLab[lab]||{lab,registered:0,resulted:0,compliant:0,sumH:0,sumTargetH:0,open:0};
+    const g=byLab[lab]=byLab[lab]||{lab,registered:0,resulted:0,compliant:0,sumH:0,sumTargetH:0,open:0,unreceived:0};
     g.registered++;
     const t=S.tatFor(s);
     g.sumTargetH+=t.targetH;
     if(s.resultedAt){ g.resulted++; g.sumH+=t.elapsedH; if(t.elapsedH<=t.targetH) g.compliant++; }
-    else { g.open++; if(Date.now()-new Date(s.collectionAt||s.collectionDate).getTime()>t.targetH*36e5) g.compliant+=0; }
+    /* An open sample whose clock has not started yet — nothing has been received
+       at this laboratory — cannot be compliant or late. It is counted apart. */
+    else { g.open++; if(t.from!=='reception') g.unreceived=(g.unreceived||0)+1; }
   });
   return Object.keys(byLab).map(k=>{
     const g=byLab[k];
@@ -1310,13 +1378,84 @@ S.planMonths=function(){ return Object.keys(S.db().workingPlans||{}).filter(k=>S
 S.planFor=mk=>S.db().workingPlans[mk]||null;
 
 /* TAT computation */
+/* The clock starts when the specimen is received at this laboratory — not when it
+   was collected at the health centre. A sample that travelled overnight must not
+   spend those hours against the receiving laboratory's target. Where a reception
+   stamp exists it is used; where it does not, the collection time is the only
+   honest fallback, and the selector says which one it used. */
+S.tatStartOf=function(s){
+  const at=(s&&s.receivedAt)||null;
+  if(at) return {at:new Date(at), from:'reception'};
+  const c=(s&&(s.collectionAt||s.collectionDate))||null;
+  if(c) return {at:new Date(c), from:'collection'};
+  return {at:new Date(), from:'unknown'};
+};
+/* Records written before the reception stamp existed have none. Their status and
+   their dispatch date prove the specimen was received, so the clock is running and
+   the earliest defensible start — collection — is used. Nothing is invented: an
+   order that is still only Registered has no clock at all. */
+S.receivedEvidence=function(s){
+  if(!s) return false;
+  if(s.receivedAt||s.resultedAt||s.sentDate) return true;
+  return /^(Received|Pending|Resulting|Resulted|Done|Positive|Negative)$/i.test(String(s.status||''));
+};
 S.tatFor=function(s){
   const target=s.tatTargetDays||S.tatTarget(s.test);
-  const start=new Date(s.collectionAt||s.collectionDate||U.todayISO());
+  const from=S.tatStartOf(s), start=from.at;
+  const started=from.from==='reception'||S.receivedEvidence(s);
   const end=s.resultedAt? new Date(s.resultedAt) : new Date();
   const hours=(end-start)/3600000;
   const elapsedH=s.resultedAt? hours : (Date.now()-start.getTime())/3600000;
-  return { targetH:target*24, elapsedH, remainingH:target*24-elapsedH, ratio:elapsedH/(target*24), breached:elapsedH>target*24, done:!!s.resultedAt, dueAt:new Date(start.getTime()+target*86400000) };
+  return { targetH:target*24, elapsedH, remainingH:target*24-elapsedH, ratio:elapsedH/(target*24),
+    /* A clock that has not started cannot have run out. Until reception stamps the
+       specimen, the order is underlined as "awaiting reception", never as late. */
+    breached:started && elapsedH>target*24, done:!!s.resultedAt, started, startFrom:from.from,
+    awaitingReception:!started, dueAt:new Date(start.getTime()+target*86400000) };
+};
+
+/* ——— Consumables an order actually draws ——————————————————————
+   A blood-culture order takes one bottle off the shelf and no other registration
+   takes anything. The bottle is the neonatal/paediatric one when the patient is
+   fifteen or younger and the adult one after that. The movement carries the order's
+   id, so deleting the order puts the same bottle back; nothing is ever invented. */
+S.BOTTLE_TEST='Blood Culture';
+S.bottleAgeGroup=function(sample){
+  let age=sample&&sample.age!==''&&sample.age!=null?parseFloat(sample.age):NaN;
+  if(isNaN(age)&&sample&&sample.dob) age=parseFloat(U.ageFromDob(sample.dob));
+  if(isNaN(age)) return null;                        // age unknown: no guess
+  return age<=15?'Pediatric/Neonatal':'Adult';
+};
+S.bloodCultureOf=function(sample){
+  const tests=(sample&&sample.tests&&sample.tests.length?sample.tests:[sample&&sample.test]).filter(Boolean);
+  return tests.indexOf(S.BOTTLE_TEST)>=0;
+};
+S.drawBottle=function(d,sample){
+  if(!sample||!S.bloodCultureOf(sample)) return null;
+  const c=(d.catalog.consumables||[]).find(x=>/blood culture/i.test(x.name||''))||null;
+  if(!c) return null;
+  d.stock=d.stock||{batches:[],entries:[]};
+  const want=S.bottleAgeGroup(sample);
+  const lots=(d.stock.batches||[]).filter(b=>b.cid===c.id&&(b.qty||0)>0);
+  let lot=want?lots.filter(b=>(b.ageGroup||'')===want).sort((a,b)=>String(a.expiry).localeCompare(String(b.expiry)))[0]:null;
+  let note='Drawn for order '+sample.sampleId;
+  if(!lot){ lot=lots.sort((a,b)=>String(a.expiry).localeCompare(String(b.expiry)))[0]||null;
+    if(lot&&want&&(lot.ageGroup||'')!==want) note+=' · no '+want+' bottle on the shelf, took '+(lot.ageGroup||'unlabelled'); }
+  if(lot) lot.qty=Math.max(0,(lot.qty||0)-1);
+  const entry={id:U.uid('e'),cid:c.id,date:U.todayISO(),type:'used',ageGroup:lot?(lot.ageGroup||want||null):want,
+    qty:1,batch:lot?lot.id:null,sampleId:sample.id,order:sample.sampleId,note};
+  d.stock.entries=d.stock.entries||[]; d.stock.entries.push(entry);
+  return entry;
+};
+/* Deleting an order returns its bottle, and only its own bottle. */
+S.restoreBottle=function(d,sampleId){
+  d.stock=d.stock||{batches:[],entries:[]};
+  const mine=(d.stock.entries||[]).filter(e=>e.type==='used'&&e.sampleId===sampleId);
+  mine.forEach(e=>{
+    const b=(d.stock.batches||[]).find(x=>x.id===e.batch);
+    if(b) b.qty=(b.qty||0)+(e.qty||1);
+    d.stock.entries=d.stock.entries.filter(x=>x!==e);
+  });
+  return mine.length;
 };
 
 /* Stock selectors */
@@ -1338,8 +1477,15 @@ S.stockOverview=function(){
        issues at all means no monthly usage — never a nominal 1.5 a month. */
     const perMonth=Math.round((used90Total/3)*10)/10;
     const cap=+c.monthlyCap||null;
+    /* The ceiling is checked against the last thirty days, which is the month the
+       bench is standing in. Blood culture is also split by bottle, because the
+       ceiling is two paediatric and one adult. */
+    const since30=U.addDays(U.todayISO(),-30);
+    const useByAge=g=>U.sum(db.stock.entries.filter(e=>e.cid===c.id&&e.type==='used'&&e.date>=since30&&((e.ageGroup||'')===g)),e=>e.qty);
+    const byAge=c.capSplit?Object.keys(c.capSplit).map(g=>({group:g,used:useByAge(g),cap:c.capSplit[g]})):null;
     return { ...c, onHand, batches, nearest, burn, daysLeft: burn? Math.round(onHand/burn) : 999,
       used30, perMonth, cap, capPct: cap? Math.min(999,Math.round(perMonth/cap*100)) : null,
+      usedMonth:used30, overCap: !!(cap&&used30>cap), byAge,
       monthsLeft: perMonth? Math.round(onHand/perMonth*10)/10 : null,
       value: onHand*(c.unitCost||0), low: onHand <= (c.threshold||0), expiring: nearest && U.daysBetween(U.todayISO(),nearest.expiry)<=30 };
   });
@@ -1500,6 +1646,25 @@ S.unitSetNight=function(start,date,name){
   const w=S.unitWeek(start); w.night=w.night||{};
   if(name) w.night[date]=name; else delete w.night[date];
   return w;
+};
+/* Who is on nights on a date. The working plan is the source of truth: a night code
+   (N) or a day+night code (DN) names the person, and that name is what the roster
+   shows. A night entered by hand in the unit roster still wins — the override is
+   always available — and where no plan covers the day the contract pattern is used,
+   labelled as such so nobody mistakes it for the plan. */
+S.nightCover=function(iso){
+  const start=S.weekStart(iso);
+  const manual=S.unitNight(start,iso);
+  if(manual) return {name:manual, source:'manual', code:'N'};
+  const p=S.planForMonth(String(iso).slice(0,7));
+  if(p&&(p.dates||[]).indexOf(iso)>=0){
+    const di=p.dates.indexOf(iso);
+    const row=(p.staff||[]).find(st=>{ const c=(st.codes||[])[di]; return c==='N'||c==='DN'; });
+    if(row) return {name:row.name, source:'plan', code:(row.codes||[])[di], staff:row.id?S.staffById(row.id):S.staffByName(row.name)||null};
+    return {name:'', source:'plan', code:''};
+  }
+  const pat=S.activeStaff().find(st=>{ const k=S.shiftState(st,iso).kind; return k==='night'||k==='daynight'; });
+  return pat?{name:pat.name, source:'pattern', code:'N', staff:pat}:{name:'', source:'none', code:''};
 };
 S.unitAssign=function(start,date,service){ const w=S.db().unitRosters&&S.db().unitRosters[start]; return w&&w.assignments&&w.assignments[date]?w.assignments[date][service]||'':''; };
 
