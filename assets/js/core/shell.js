@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.42';
+const APP_VERSION='6.9.43';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -284,6 +284,8 @@ SH.route=async function(opts){
     await mod.render(root, params);
     clearTimeout(SH._failTimer);
     UI.animateCounts(root); UI.observeReveals(root);
+    /* tables size to their content, everywhere, on every route */
+    try{ U.fitTables(root); setTimeout(()=>U.fitTables(root),240); }catch(e){}
     wireChartExports(root);
     wireCardExports(root);
     /* Charts drawn after the first paint (trends, dashboard plots, tab switches)

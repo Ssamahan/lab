@@ -835,6 +835,34 @@ U.staffPhoto = name=>{
   if(!name) return '';
   try{ const st=(LS.store&&LS.store.db&&LS.store.db().staff)||[]; const p=st.find(x=>x&&x.name===name); return (p&&p.photo)||''; }catch(e){ return ''; }
 };
+/* ——— Tables that fit what they hold ————————————————————
+   A three-row table stretched across a wide screen is an empty block; a wide table
+   squeezed into a phone is a horizontal scrollbar. After every paint each table card
+   is measured: a narrow table is capped to the width its columns need, a wide one is
+   allowed the full width and its scroll box is the only thing that moves. Nothing
+   pushes the page sideways. */
+U.fitTables = function(root){
+  (root||document).querySelectorAll('.card').forEach(card=>{
+    const table=card.querySelector('table.dt, table.cal, table.heat');
+    if(!table) return;
+    const cols=(table.tHead&&table.tHead.rows[0]?table.tHead.rows[0].cells.length:0)||0;
+    if(!cols) return;
+    card.classList.add('fit-card-on');
+    /* 132 px a column is the comfortable width of a register column; anything
+       narrower than five columns is centred rather than stretched. */
+    if(cols<=5){
+      card.style.maxWidth=Math.min(cols*132+96,1200)+'px';
+      card.dataset.fit='narrow';
+    } else {
+      card.style.maxWidth='';
+      card.dataset.fit='wide';
+    }
+    const sc=card.querySelector('.dt-scroll');
+    if(sc) sc.style.maxHeight=card.dataset.fit==='narrow'?'none':sc.style.maxHeight;
+  });
+};
+window.addEventListener('resize',()=>{ clearTimeout(U._fitT); U._fitT=setTimeout(()=>U.fitTables(document),180); });
+
 U.avatar = (name,cls,photo)=>{
   photo=photo||U.staffPhoto(name);
   if(photo) return '<span class="avatar '+(cls||'')+'"><img src="'+U.esc(photo)+'" alt="'+U.esc(name||'')+'"></span>';

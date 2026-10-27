@@ -23,8 +23,10 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
 
   /* ── the manager's carried-over leave is where the register puts it ── */
   const kelvin=p.staff.find(r=>/Kelvin/.test(r.name));
-  ok(kelvin.codes[0]==='OFF','the manager is off on 1 November');
-  ok(kelvin.codes.slice(1).every(c=>c==='AL'),'and on annual leave from 2 November to the end of the month');
+  const i19=p.dates.indexOf('2026-11-19');
+  ok(i19>=0,'the carry-over leave begins on 19 November');
+  ok(kelvin.codes.slice(i19).every(c=>c==='AL'),'the manager is on carried-over annual leave from the 19th to the end of the month');
+  ok(kelvin.codes.slice(0,i19).every(c=>c!=='AL'),'and not a day before it');
 
   /* ── the nights follow the rule, not a rotation ────────────────────── */
   const runs=(row)=>{ let best=0,run=0; (row.codes||[]).forEach(c=>{ if(c==='N'||c==='DN'){ run++; best=Math.max(best,run); } else run=0; }); return best; };
