@@ -2,5 +2,7 @@
   "name": "lab-harness",
   "private": true,
   "description": "Local jsdom harness for the console — not part of the shipped app",
-  "dependencies": { "jsdom": "^26.1.0" }
+  "dependencies": {
+    "jsdom": "^26.1.0"
+  }
 }

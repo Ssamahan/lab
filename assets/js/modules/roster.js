@@ -6,7 +6,7 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SH=LS.sheets;
 const M={}; LS.modules.roster=M;
 let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
-const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],['OFF','At home (not on shift)'],['RBW','Off duty · rest before work'],['AL','Annual leave'],['AA','Authorised absence'],['TR','Training'],['SICK','Sick leave'],['W','Wedding day']];
+const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],['OFF','At home (not on shift)'],['RBW','Off duty · rest before work'],['AL','Annual leave'],['AA','Authorised absence'],['TR','Training'],['SICK','Sick leave'],['W','Wedding day'],['MS','As printed on the 2025 plans (Ms)'],['MC','Mentorship · outbreaks surveillance and HIV service delivery']];
 
 function plan(){ const e=S.db().workingPlans[mk||U.monthKey()]; return e&&e.primary?e.primary:null; }
 function ensurePlan(){ return plan(); }
@@ -14,6 +14,7 @@ function planState(p){
   if(!p) return {label:'No plan for '+U.monthLabel(mk),tone:'rose',official:false};
   const official=p.meta&&p.meta.official;
   if(official) return {label:'Official · '+U.monthLabel(mk),tone:'gold',official:true};
+  if(p.meta&&p.meta.transcribed) return {label:'Transcribed · '+U.monthLabel(mk),tone:'teal',official:false,transcribed:true};
   if(p.meta&&p.meta.generated) return {label:'Draft · '+U.monthLabel(mk),tone:'amber',official:false};
   return {label:'Edited plan · '+U.monthLabel(mk),tone:'teal',official:false};
 }
@@ -99,7 +100,7 @@ function gridView(){
   const under=p.dates.filter(iso=>cov[iso].day<required(iso).day||cov[iso].night<required(iso).night);
   return legend()
    +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal">'+head+'<tbody>'+body+'</tbody>'+footer+'</table></div>'
-   +'<div class="card-foot"><span>'+(p.meta&&p.meta.official?'Official published plan — edits are audited':p.meta&&p.meta.generated?'Draft generated from staff patterns':'Edited plan')+' · '+p.dates.length+' days · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div></div>'
+   +'<div class="card-foot"><span>'+(p.meta&&p.meta.official?'Official published plan — edits are audited':p.meta&&p.meta.transcribed?'Transcribed record of the paper plan — not published':p.meta&&p.meta.generated?'Draft generated from staff patterns':'Edited plan')+' · '+p.dates.length+' days · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div></div>'
    +'<div class="c3"><div class="col" style="gap:14px">'
      +UI.card({title:'Coverage',sub:'Required vs assigned per day',icon:'gauge',body:function(){
         return '<div style="display:flex;flex-direction:column;gap:7px">'+p.dates.slice(0,12).map(iso=>{ const c=cov[iso], r=required(iso); const pctD=U.clamp(c.day/r.day*100,0,100), pctN=U.clamp(c.night/r.night*100,0,100);
@@ -159,7 +160,7 @@ let sheetSVG=null, sheetFailed=false;
 function sheetView(){
   const p=plan();
   return '<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('file-text',14,'ic')+'Official sheet — '+(p?((p.meta&&p.meta.period)||p.label):U.monthLabel(mk))+'</div>'
-    +'<div class="card-sub">'+(p?(p.meta&&p.meta.official?'Transcribed from the signed register · edits are audited':'Working draft — publish before circulating'):'No plan stored for this month — the sheet shows the register only')+'</div></div>'
+    +'<div class="card-sub">'+(p?(p.meta&&p.meta.official?'Transcribed from the signed register · edits are audited':p.meta&&p.meta.transcribed?'Record copy of the paper plan — checked against the sheet, not published':'Working draft — publish before circulating'):'No plan stored for this month — the sheet shows the register only')+'</div></div>'
     +'<div class="card-tool row gap-sm"><button class="btn xs" data-sheet-png>'+UI.ic('image',12)+'PNG</button>'
     +'<button class="btn xs" data-sheet-pdf>'+UI.ic('file-text',12)+'PDF</button>'
     +'<button class="btn xs" data-sheet-xlsx>'+UI.ic('table-2',12)+'XLSX</button>'
