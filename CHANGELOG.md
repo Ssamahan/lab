@@ -4,6 +4,27 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.42
+
+**A draft becomes the plan in force only when the department publishes it.**
+
+Until now a month could be *transcribed* as official but a reviewed draft had no way to become one —
+the November draft could be read and edited but never signed. The roster header now offers **Publish
+plan** on any month that is not yet official. Publishing:
+
+- asks first, and names who will appear as prepared, verified and approved;
+- records `publishedBy` and `publishedAt` on the plan and rewrites the label to *Official <month> —
+  published by <name>*;
+- keeps the version it replaced in `workingPlans[mk].versions`, restorable as before;
+- turns the sheet from `DRAFT — for review, not yet published` into the signed calendar, with the
+  three signature blocks unchanged;
+- is written to the audit trail (`roster.publish`).
+
+*Generate draft* still rebuilds a month from the rules at any time, and an official month still asks
+before it is replaced.
+
+---
+
 ## What changed in 6.9.41
 
 **November 2026 exists, built from the rules and the record — and the sheet now reads

@@ -58,6 +58,7 @@ function header(){
    +(p&&p.meta&&p.meta.label?'<span class="xs faint">'+U.esc(p.meta.label)+'</span>':'<span class="xs faint">Stored plans are never auto-generated — a month without a plan stays empty until someone creates one.</span>')+'</div></div>'
    +'<div class="actions">'
      +'<div class="seg" style="margin-right:4px"><button data-nav="-1" aria-label="Previous month">'+UI.ic('chevron-left',14)+'</button><button data-nav="0" style="font-family:var(--font-mono);font-size:11px;min-width:92px">'+U.esc(label)+'</button><button data-nav="1" aria-label="Next month">'+UI.ic('chevron-right',14)+'</button></div>'
+     +(p&&!(p.meta&&p.meta.official)?'<button class="btn" data-publish>'+UI.ic('badge-check',15)+' Publish plan</button>':'')
      +'<button class="btn" data-generate>'+UI.ic('sparkles',15)+' Generate draft</button>'
      +'<button class="btn" data-patterns>'+UI.ic('layers',15)+' Patterns</button>'
      +'<button class="btn" data-print>'+UI.ic('printer',15)+' Print roster</button>'
@@ -1049,6 +1050,35 @@ function printRoster(){
   SH.printSVG(SH.monthlySVG(p),{title:'Working plan — '+(p.meta&&p.meta.period||p.label||'')});
   S.audit({action:'roster.print',entity:'workingPlans',entityId:mk,detail:'Printed roster '+p.label}); S.save();
 }
+/* A draft only becomes the plan in force when the department says so. Publishing
+   records who published it and when, keeps the version it replaced, and is the one
+   action that turns the sheet from DRAFT into the signed calendar. */
+async function publishMonth(){
+  if(!LS.auth.guard('approve')) return;
+  const p=plan();
+  if(!p) return UI.toast('There is no plan for this month to publish',{type:'warn'});
+  if(p.meta&&p.meta.official) return UI.toast('This month is already published',{type:'info'});
+  const s=S.settings();
+  const cover=Object.keys(p.dates).length?p.dates.length:0;
+  const ok=await UI.confirm({title:'Publish the plan for '+U.monthLabel(mk)+'?',
+    body:'<p class="small" style="line-height:1.7">The grid becomes the plan in force for '+cover+' days: the roster, the sheet, PNG, PDF, XLSX and print all read it, and the sheet stops being marked DRAFT.</p>'
+      +'<p class="small" style="margin-top:8px;line-height:1.7">It will carry <b>Prepared by '+U.esc(LS.auth.user.name)+'</b>, <b>Verified by '+U.esc(s.verified||'—')+'</b> and <b>Approved by '+U.esc(s.approved||'—')+'</b>. The version it replaces stays in the plan history and can be restored.</p>',
+    confirm:'Publish plan'});
+  if(!ok) return;
+  S.commit(d=>{
+    const e=d.workingPlans[mk]; if(!e||!e.primary) return;
+    const cur=e.primary;
+    e.versions=(e.versions||[]).concat([JSON.parse(JSON.stringify(cur))]);
+    cur.meta=Object.assign({},cur.meta,{
+      official:true, draft:false, generated:false,
+      label:(cur.meta&&/^Official/.test(cur.meta.label||''))?cur.meta.label:('Official '+U.monthLabel(mk)+' — published by '+LS.auth.user.name),
+      publishedBy:LS.auth.user.name, publishedAt:U.nowISO()
+    });
+  },{action:'roster.publish',entity:'workingPlans',entityId:mk,
+     detail:'Published the plan for '+U.monthLabel(mk)+' · '+cover+' days · prepared by '+LS.auth.user.name});
+  paint();
+  UI.toast('Plan for '+U.monthLabel(mk)+' published',{type:'ok'});
+}
 async function generateMonth(){
   if(!LS.auth.guard('edit')) return;
   const key=mk, existing=plan();
@@ -1078,6 +1108,7 @@ function wireBody(){
     paint();
   });
   r.querySelectorAll('[data-generate]').forEach(b=>b.onclick=generateMonth);
+  r.querySelectorAll('[data-publish]').forEach(b=>b.onclick=publishMonth);
   r.querySelectorAll('[data-empty-generate]').forEach(b=>b.onclick=generateMonth);
   r.querySelectorAll('[data-open-month]').forEach(b=>b.onclick=()=>{ mk=b.dataset.openMonth; paint(); });
   r.querySelectorAll('[data-empty-blank]').forEach(b=>b.onclick=()=>{
