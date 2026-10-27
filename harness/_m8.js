@@ -1,0 +1,14 @@
+const {boot}=require('./env');
+(async()=>{const {w}=await boot('#/roster');
+const doc=w.document;
+doc.querySelector('[data-nav="1"]').click(); await new Promise(r=>setTimeout(r,300));
+console.log('plan-fit present:', !!doc.querySelector('.plan-fit'));
+console.log('plan-pair present:', !!doc.querySelector('.plan-pair'));
+const pair=doc.querySelector('.plan-pair');
+console.log('pair cards:', [...pair.children].map(c=>c.className).join(' | '));
+console.log('cov tiles:', doc.querySelectorAll('.cov-cell').length);
+console.log('cov first:', doc.querySelector('.cov-cell')&&doc.querySelector('.cov-cell').textContent);
+console.log('staff cells:', [...doc.querySelectorAll('.plan-fit td.staff-cell .nm')].map(x=>x.textContent).length);
+console.log('tables on page:', doc.querySelectorAll('table.cal').length);
+console.log('foot:', (doc.querySelector('.plan-fit .card-foot')||{}).textContent);
+process.exit(0);})();

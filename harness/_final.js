@@ -1,0 +1,10 @@
+const {boot}=require('./env');
+(async()=>{const {w,errors}=await boot('#/roster');
+const doc=w.document;
+doc.querySelector('[data-nav="1"]').click(); await new Promise(r=>setTimeout(r,400));
+const p=w.LS.store.db().workingPlans['2026-11'].primary;
+console.log('errors:',errors.length, errors.slice(0,3));
+console.log('range',p.dates[0],'→',p.dates[p.dates.length-1]);
+p.staff.forEach(r=>console.log(r.name.split(' ')[0].padEnd(11), r.codes.map(c=>c||'.').join(' ')));
+console.log('\nheader:', p.dates.map((d,i)=>String(w.LSU.parseISO(d).getDate())).join(' '));
+process.exit(0);})();

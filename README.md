@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.47** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.48** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.47`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.48`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -195,6 +195,12 @@ register records.
 
 - **A night is a whole shift.** Anyone on nights that day is off the day roster, is never
   given a bench post, and is not counted in the head-count.
+- **One name a night, two or three nights in a row.** A single night is never handed out;
+  a fourth never happens. The three-night block belongs to Patrick and Jean Paul.
+- **The weekend carries one on the days and one on the nights** — and only the weekend
+  technologist ever works day + night. Every other weekend cell is blank.
+- **Each month takes its first week over from the month before** and runs a week past its
+  own end, so the plan is written ahead of the monthly reports.
 - **Posts follow the head-count** (excluding the manager): ≥6 → six posts; 5 → Phlebotomy +
   Haematology as one post; 4 → Biochemistry + Serology also merge; 3 → Reception joins
   Parasitology + TB; ≤2 → the manager takes Biochemistry + Serology.

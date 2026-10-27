@@ -38,7 +38,10 @@ function coverage(p){
   });
   return out;
 }
-function req(){ const s=S.settings(); return {day:s.coverWeekdayDay||3,night:s.coverWeekdayNight||1,wkDay:s.coverWeekendDay||2,wkNight:s.coverWeekendNight||1}; }
+/* What the department actually requires. A weekday carries the day bench and one
+   name on the night; a weekend carries one person on the days and one on the
+   nights — the weekend technologist alone on day + night counts as both. */
+function req(){ const s=S.settings(); return {day:s.coverWeekdayDay||3,night:s.coverWeekdayNight||1,wkDay:s.coverWeekendDay||1,wkNight:s.coverWeekendNight||1}; }
 function required(iso){ const r=req(); return U.dow(iso)>=5?{day:r.wkDay,night:r.wkNight}:{day:r.day,night:r.night}; }
 
 function fairness(p){
@@ -106,18 +109,49 @@ function gridView(){
    +'<tr class="cov-footer"><td class="staff-cell" style="background:var(--surface-inset);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)">Night cover</td>'
    +p.dates.map(iso=>{ const c=cov[iso], r=required(iso); return '<td class="'+(c.night<r.night?'low':'')+'" data-tip="'+c.night+' of '+r.night+' required">'+c.night+'</td>'; }).join('')+'</tr></tfoot>';
   const under=p.dates.filter(iso=>cov[iso].day<required(iso).day||cov[iso].night<required(iso).night);
+  /* The table fits the page: every day of the run, from the first date the plan
+     covers to the last, with no sideways scrolling and no second column of names
+     left floating over the grid. Coverage and balance sit underneath it, side by
+     side where the screen is wide enough. */
+  const covCell=(iso)=>{
+    const c=cov[iso], r=required(iso), dow=U.dow(iso), we=dow>=5;
+    const shortD=c.day<r.day, shortN=c.night<r.night;
+    return '<div class="cov-cell'+(we?' wkend':'')+(shortD||shortN?' low':'')+'" data-tip="'+U.esc(iso)+' · day '+c.day+' of '+r.day+' · night '+c.night+' of '+r.night+'">'
+      +'<span class="cd">'+U.parseISO(iso).getDate()+'<em>'+U.DOW1[dow]+'</em></span>'
+      +'<span class="cn"><b class="'+(shortD?'crit':'ok')+'">'+c.day+'</b><i>/</i><b class="'+(shortN?'crit':'ok')+'">'+c.night+'</b></span>'
+      +'</div>';
+  };
   return legend()
-   +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal">'+head+'<tbody>'+body+'</tbody>'+footer+'</table></div>'
-   +'<div class="card-foot"><span>'+(p.meta&&p.meta.official?'Official published plan — edits are audited':p.meta&&p.meta.transcribed?'Transcribed record of the paper plan — not published':p.meta&&p.meta.generated?'Draft generated from staff patterns':'Edited plan')+' · '+p.dates.length+' days · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div></div>'
-   +'<div class="c3"><div class="col" style="gap:14px">'
-     +UI.card({title:'Coverage',sub:'Required vs assigned per day',icon:'gauge',body:function(){
-        return '<div style="display:flex;flex-direction:column;gap:7px">'+p.dates.slice(0,12).map(iso=>{ const c=cov[iso], r=required(iso); const pctD=U.clamp(c.day/r.day*100,0,100), pctN=U.clamp(c.night/r.night*100,0,100);
-          return '<div class="row" style="gap:8px"><span class="mono xs faint" style="width:26px">'+U.parseISO(iso).getDate()+'</span><div class="grow"><div style="height:5px;border-radius:99px;background:var(--surface-3)"><div style="height:100%;width:'+pctD+'%;background:'+(pctD<100?'var(--crit)':'var(--gold)')+';border-radius:99px"></div></div></div><span class="mono xs" style="width:26px;text-align:right">'+c.day+'</span></div>';
-        }).join('')+'</div><div class="hint" style="margin-top:8px">First 12 days · day-shift coverage.</div>';
+   +'<div class="card table-card plan-fit"><div class="dt-scroll"><table class="cal">'+head+'<tbody>'+body+'</tbody>'+footer+'</table></div>'
+   +'<div class="card-foot"><span>'+(p.meta&&p.meta.official?'Official published plan — edits are audited':p.meta&&p.meta.transcribed?'Transcribed record of the paper plan — not published':p.meta&&p.meta.generated?'Draft generated from staff patterns':'Edited plan')+' · '+p.dates.length+' days'
+     +(p.meta&&p.meta.carriedFrom?' · takes over from '+U.fmtDateShort(p.meta.carriedFrom)+' (previous month)':'')
+     +' · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div>'
+   +'<div class="plan-pair">'
+     +UI.card({title:'Coverage',sub:'Required vs assigned, every day on the plan',icon:'gauge',body:function(){
+        return '<div class="cov-grid">'+p.dates.map(covCell).join('')+'</div>'
+          +'<div class="hint" style="margin-top:10px">Each tile: date · weekday, then day staff and night staff against what the department requires. A day below the requirement is marked in red.</div>';
       }()})
-     +UI.card({title:'Balance',sub:'Night · weekend · holiday load',icon:'scale',body:'<div id="fairMini"></div>'})
-   +'</div></div></div>';
+     +UI.card({title:'Balance',sub:'Night · weekend · holiday load, name by name',icon:'scale',body:balanceBody(p)})
+   +'</div>';
 }
+/* The balance card under the grid: what each name carries this month, drawn as
+   two small bars and a count. An even spread is the rule; a difference is a
+   decision the manager can see and defend. */
+function balanceBody(p){
+  const f=fairness(p), names=Object.keys(f);
+  if(!names.length) return '<div class="hint">No rows to weigh yet.</div>';
+  const maxN=Math.max.apply(null,names.map(n=>f[n].nights).concat([1]));
+  const maxW=Math.max.apply(null,names.map(n=>f[n].weekends).concat([1]));
+  return '<div class="bal"><div class="bal-head"><span></span><span>Nights</span><span>Weekend</span><span>Holiday</span></div>'
+   +names.map(n=>'<div class="bal-row">'
+      +'<span class="bl" title="'+U.esc(n)+'">'+U.esc(n.split(' ')[0])+' <em>'+U.esc(n.split(' ').slice(1).join(' '))+'</em></span>'
+      +'<span class="bb" data-tip="'+f[n].nights+' nights"><i style="width:'+Math.round(f[n].nights/maxN*100)+'%"></i></span><b>'+f[n].nights+'</b>'
+      +'<span class="bb wk" data-tip="'+f[n].weekends+' weekend days"><i style="width:'+Math.round(f[n].weekends/maxW*100)+'%"></i></span><b>'+f[n].weekends+'</b>'
+      +'<span class="bv">'+f[n].holidays+'</span>'
+    +'</div>').join('')
+   +'</div><div class="hint" style="margin-top:8px">A night counts once a day-and-night is worked; the weekend column counts Saturday and Sunday shifts.</div>';
+}
+
 function fairnessView(){
   const p=plan(); if(!p) return '<div class="card pad">'+UI.empty({art:'calendar',title:'No plan to analyse',body:'Fairness is computed from a stored working plan. Create or import '+U.monthLabel(mk)+' first.',action:'<button class="btn primary" data-empty-generate>Generate draft</button>'})+'</div>';
   const f=fairness(p);

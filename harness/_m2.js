@@ -1,0 +1,13 @@
+const {boot}=require('./env');
+(async()=>{const {w}=await boot('#/roster');
+const doc=w.document;
+doc.querySelector('[data-nav="1"]').click(); await new Promise(r=>setTimeout(r,250));
+console.log('label:', doc.querySelector('.page-head .seg button[data-nav="0"]').textContent);
+const tds=[...doc.querySelectorAll('td.staff-cell .nm')].map(x=>x.textContent);
+console.log('rows',tds.length, JSON.stringify(tds));
+const heads=[...doc.querySelectorAll('table.cal thead th')].map(x=>x.textContent);
+console.log('cols',heads.length, heads.slice(0,5).join(','));
+const cardsGroup=doc.querySelector('.grid-12');
+console.log('grid-12 children:', [...cardsGroup.children].map(c=>c.className).join(' | '));
+console.log('cards:', [...doc.querySelectorAll('.grid-12 .card')].map(c=>(c.querySelector('.card-title,h3,h4')||{}).textContent).join(' / '));
+process.exit(0);})();

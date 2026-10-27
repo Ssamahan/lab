@@ -549,3 +549,59 @@
     padding:4px 0 0;text-align:center;border-top:1px solid #d8dde7;background:#fff!important}
   body.manifest-open #manDoc svg{overflow:visible}
 }
+
+/* ── the working plan fits the page ───────────────────────────────────────────
+   A month runs to six weeks on the department's own sheets. The grid is drawn to
+   the width of the screen instead of scrolling sideways, the staff column is a
+   single column of names (never a second one left floating over the grid), and
+   the day cells share what is left equally. */
+.plan-fit{overflow:hidden}
+.plan-fit .dt-scroll{overflow:visible;max-height:none}
+.plan-fit table.cal{table-layout:fixed;width:100%;font-size:10px}
+.plan-fit .cal th{padding:5px 2px}
+.plan-fit .cal .staff-cell{position:static;width:134px;min-width:0;padding:4px 8px;z-index:auto;background:var(--surface)}
+.plan-fit .cal .staff-cell .nm{max-width:none;font-size:10.6px;letter-spacing:-.01em}
+.plan-fit .cal .staff-cell .rl{max-width:none;font-size:8.4px}
+.plan-fit .cal .day{min-width:0;height:27px}
+.plan-fit .shift-code{min-width:0;width:calc(100% - 3px);height:17px;padding:0;font-size:8.4px;border-radius:3px;letter-spacing:0}
+.plan-fit .cov-footer td{font-size:9px;padding:3px 0}
+@media (max-width:820px){
+  .plan-fit .dt-scroll{overflow-x:auto}
+  .plan-fit table.cal{table-layout:auto}
+  .plan-fit .cal .staff-cell{position:sticky;left:0}
+  .plan-fit .cal .day{min-width:26px}
+  .plan-fit .shift-code{width:auto;min-width:20px;font-size:9.4px}
+}
+/* coverage and balance sit under the grid, two columns where there is room */
+.plan-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+@media (max-width:1080px){ .plan-pair{grid-template-columns:minmax(0,1fr)} }
+.cov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px}
+.cov-cell{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:4px 7px;border-radius:6px;
+  border:1px solid var(--border);background:var(--surface-2);font-family:var(--font-mono);font-size:10px;color:var(--text-muted)}
+.cov-cell.wkend{background:var(--surface-inset)}
+.cov-cell.low{border-color:var(--crit);background:rgba(220,120,120,.10)}
+.cov-cell .cd{display:inline-flex;align-items:baseline;gap:3px;color:var(--text-faint);font-size:9px}
+.cov-cell .cd em{font-style:normal;text-transform:uppercase;font-size:8px;letter-spacing:.06em}
+.cov-cell .cn{display:inline-flex;align-items:center;gap:3px;font-size:10px}
+.cov-cell .cn b{font-weight:600}
+.cov-cell .cn b.ok{color:var(--text)}
+.cov-cell .cn b.crit{color:var(--crit)}
+.cov-cell .cn i{font-style:normal;color:var(--text-faint);font-size:8px}
+/* the balance ledger under the grid — a name, two bars, two counts */
+.bal{display:flex;flex-direction:column;gap:5px}
+.bal-head,.bal-row{display:grid;grid-template-columns:minmax(0,1fr) 74px 34px 74px 34px 34px;align-items:center;gap:8px}
+.bal-head{font-size:8.6px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-faint);padding:0 0 2px}
+.bal-head span:nth-child(2){grid-column:2 / span 2}
+.bal-head span:nth-child(3){grid-column:4 / span 2;justify-self:center}
+.bal-head span:nth-child(4){grid-column:6;justify-self:center}
+.bal-row{font-size:11px;color:var(--text-muted);padding:2px 0;border-top:1px solid var(--border)}
+.bal-row .bl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.bal-row .bl em{font-style:normal;color:var(--text-faint);font-size:9.4px}
+.bal-row .bb{height:6px;border-radius:99px;background:var(--surface-inset);overflow:hidden}
+.bal-row .bb i{display:block;height:100%;border-radius:99px;background:var(--info)}
+.bal-row .bb.wk i{background:var(--gold-bright)}
+.bal-row b{font-family:var(--font-mono);font-size:10px;font-weight:600;text-align:right;color:var(--text)}
+.bal-row .bv{font-family:var(--font-mono);font-size:10px;text-align:center;color:var(--text-faint)}
+@media (max-width:520px){
+  .plan-pair .bal-head,.plan-pair .bal-row{grid-template-columns:minmax(0,1fr) 52px 28px 52px 28px 24px;gap:6px}
+}

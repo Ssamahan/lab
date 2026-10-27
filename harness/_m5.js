@@ -1,0 +1,10 @@
+const {boot}=require('./env');
+(async()=>{const {w}=await boot('#/roster');
+const doc=w.document;
+doc.querySelector('[data-nav="1"]').click(); await new Promise(r=>setTimeout(r,250));
+doc.querySelector('[data-view="sheet"]').click(); await new Promise(r=>setTimeout(r,400));
+const app=doc.getElementById('app');
+const txt=app.textContent.replace(/\s+/g,' ');
+const i=txt.indexOf('Kelvin SAMAHANI');
+console.log(txt.slice(i, i+900));
+process.exit(0);})();
