@@ -131,9 +131,15 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   const months=Object.keys(db().workingPlans).filter(k=>{
     const e=db().workingPlans[k]; return e.primary&&e.primary.meta&&e.primary.meta.transcribed;
   }).sort();
-  ok(months.length>=12,'twelve months of the 2025 run are transcribed ('+months.length+')');
-  ['2024-12','2025-01','2025-02','2025-03','2025-04','2025-05','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12']
+  ok(months.length>=21,'every month the workbook holds is transcribed ('+months.length+')');
+  ['2024-01','2024-02','2024-04','2024-05','2024-06','2024-08','2024-09','2024-10','2024-11','2024-12',
+   '2025-01','2025-02','2025-03','2025-04','2025-05','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12']
     .forEach(k=>ok(months.indexOf(k)>=0, k+' is on file'));
+  const may24=db().workingPlans['2024-05'].primary;
+  ok(may24.staff.some(r=>/Siladji/.test(r.name)),'May 2024 keeps its own roster, Siladji and all');
+  const elie=may24.staff.find(r=>/Elie/.test(r.name));
+  ok(elie.codes.slice(0,26).every(c=>c==='AL'),'Elie on the 2024 sheets: CO on the paper, annual leave here, 26 days running');
+  ok(may24.staff.find(r=>/Kelvin/.test(r.name)).codes[0]==='N','and GN on the paper reads as a night shift');
   const feb=db().workingPlans['2025-02'].primary;
   const bea=feb.staff.find(r=>/Beatrice/.test(r.name));
   ok(bea.codes.slice(3,7).every(c=>c==='CL'),'Beatrice 4–7 February 2025 reads as circumstantial leave (CL)');

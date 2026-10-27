@@ -1,0 +1,9 @@
+# Work Plan - September 2024 | from=2024-09-01
+| Kelvin\* |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | Tr | Tr | Tr | Tr | Tr |  |  | D | D | D | D | D |  |  | D |
+| Aurelie |  | N | N | OFF | OFF | D |  |  | D | D | D | D | D |  |  | D | N | N | OFF | OFF |  |  | D | D | N | N | OFF |  |  | D |
+| Patrick |  | D | D | D | D | N |  |  | N | N | OFF | OFF | N | N |  | OFF | D | D | N | N |  |  | N | N | OFF | OFF | D | D | D | OFF |
+| Diane |  | D | D | N | N | OFF |  |  | D | D | D | D | D |  |  | D | D | D | D | D | N | N | OFF | OFF | D | D | N | N |  | D |
+| Beatrice |  | D | D | D | D | D |  |  | D | D | D | D | OFF | D | D | D | D | D | D | OFF |  |  | D | D | D | D | D |  |  | D |
+| Elie | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL |
+| Faustin |  | D | D | D | D | D |  |  | D | D | N | N | OFF |  | N | N | OFF | OFF | D | D | D | D | OFF | OFF | D | D | D |  | N | N |
+| Dieudonne |  | - | - | - | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D |

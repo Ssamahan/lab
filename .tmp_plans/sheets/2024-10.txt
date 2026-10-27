@@ -1,0 +1,9 @@
+# Work Plan - October 2024 | from=2024-09-30
+| Kelvin\* | D | D | D | D | D |  |  | D | D | D | D | D | D |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |
+| Aurelie | D | D | N | N | OFF |  |  | D | N | N | OFF | OFF |  |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |
+| Patrick | D | D | D | D | N | N |  | OFF | D | D | N | N |  |  | N | N | Tr | Tr | Tr | Tr |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |
+| Diane | OFF | OFF | D | D | D |  | N | N | OFF | OFF | D | D | N |  | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | OFF | D | D | D |
+| Beatrice | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |
+| Elie | AL | AL | AL | AL | AL | AL | AL | AL | AL | IL | IL | IL | IL | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF |
+| Faustin | OFF | OFF | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | N |  |  | D | D | D | D | N |  |  | D | D | D | D | D |
+| Dieudonne | N | N | OFF | OFF | D | D | D | OFF | OFF | D | D | D |  |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |  |  | D | D | D | D | N |

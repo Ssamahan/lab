@@ -6,7 +6,10 @@ NAMES={
  'faustin':'Faustin','dieudonne':'Dieudonne NIYIDUHABYOSE','jean paul':'Jean Paul NSENGIYUMVA'}
 MAP={'MS':'MS','TR':'TR','TRS':'TR','RWB':'RBW','RBW':'RBW','AL*':'AL','AL':'AL','DN':'DN',
      'D':'D','N':'N','OFF':'OFF','ML':'ML','PL':'PL','SL':'SL','CL':'CL','IL':'CL','AA':'AA',
-     'H':'H','WD':'WD','ABS':'WD','SICK':'SL','MAT':'ML','-':'BE','BE':'BE'}
+     'H':'H','WD':'WD','ABS':'WD','SICK':'SL','MAT':'ML','-':'BE','BE':'BE',
+     # the 2024 sheets are written in French: J jour, GJ garde jour, GN garde nuit,
+     # R récupération, CO congé annuel, FO formation, A.C audit & certification
+     'J':'D','GJ':'D','GN':'N','G':'N','R':'OFF','CO':'AL','FO':'TR','A.C':'TR','AC':'TR','JN':'DN'}
 
 def parse(path):
     head=None; rows=[]

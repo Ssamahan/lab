@@ -1,0 +1,9 @@
+# Work Plan - June 2024 | from=2024-06-01
+| Aurelie\* |  |  | A.C | A.C | A.C | A.C | A.C |  |  | D | D | D | D | D |  |  |  | D | D | D | D |  |  | D | D | D | D | D |  |  |  |
+| Kelvin |  |  | D | D | D | D | D |  |  | Tr | Tr | Tr | Tr | Tr |  |  |  | D | D | D | D |  |  | OFF | D | N | N | OFF |  |  |  |
+| Patrick |  |  | D | D | D | D | N |  |  | N | N | OFF | OFF | D |  |  |  | D | N | N | OFF |  |  | N | N | OFF | OFF | OFF |  |  | D |
+| Siladji |  |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |  |  | N | N | OFF | OFF | D |  |  | D | D | D | D | N |  |  |  |
+| Diane | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | D | D | D | N |  |  | D | OFF | D | D | N |  |  | D | D | D | D | D |  |  |  |
+| Beatrice |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  |  | D | D | D | D |  |  | D | D | D | D | D |  |  |  |
+| Elie | GN | GN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN |  |
+| Faustin |  |  | N | N | OFF | OFF | D |  |  | D | D | D | D | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL | AL |  |  | N |

@@ -13,6 +13,131 @@
    A row carries one code per day, from `from`, for `days` days; '' is a blank cell.
    ========================================================================== */
 window.LS_PLAN_ARCHIVE = {
+  '2024-01': {
+    source:'Work Plan - January 2024',
+    from:'2024-01-01', days:37,
+    staff:[
+      {name:'Aurelie YANSONEYE', codes:['','','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','','D','','','D','D']},
+      {name:'Kelvin SAMAHANI', codes:['','','D','D','N','','','D','D','D','D','D','','','D','D','N','N','OFF','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D']},
+      {name:'Patrick ISHIMWE', codes:['','D','D','D','D','','','N','N','OFF','OFF','D','','','D','D','D','D','D','','','D','D','N','N','OFF','','','D','D','D','','D','','','N','N']},
+      {name:'Siladji', codes:['N','N','OFF','OFF','D','','','D','D','D','D','N','','','N','N','OFF','OFF','D','','','D','D','D','D','D','','','N','N','OFF','','D','','','D','D']},
+      {name:'Diane UWASE', codes:['','','N','N','OFF','','','D','D','D','D','D','','','D','D','D','D','N','','','D','D','D','D','D','','','D','D','N','N','OFF','','','D','D']},
+      {name:'Beatrice NGEZEKURE', codes:['AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','N','','','D','D','D','','D','','','D','D']},
+      {name:'Elie', codes:['','','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','','OFF','DN','DN','OFF','OFF']},
+      {name:'Faustin', codes:['D','','D','D','D','','','D','D','N','N','OFF','','','D','D','D','D','D','','','N','N','OFF','OFF','D','','','D','D','D','','N','','','D','D']}
+    ]
+  },
+  '2024-02': {
+    source:'Work Plan - February 2024',
+    from:'2024-02-01', days:31,
+    staff:[
+      {name:'Aurelie YANSONEYE', codes:['','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','']},
+      {name:'Kelvin SAMAHANI', codes:['D','D','','','D','D','D','D','N','','','TR','TR','TR','TR','TR','','','D','D','D','D','D','','','D','D','N','N','OFF','']},
+      {name:'Patrick ISHIMWE', codes:['','D','','','N','N','OFF','OFF','D','','','TR','TR','TR','TR','TR','','','N','N','OFF','OFF','D','','','N','N','OFF','OFF','N','']},
+      {name:'Siladji', codes:['','D','','','D','D','D','D','D','','','D','D','N','N','OFF','','','AL','AL','AL','AL','AL','','','AL','AL','AL','AL','AL','']},
+      {name:'Diane UWASE', codes:['N','OFF','','','D','D','N','N','OFF','','','D','D','D','D','N','','','D','D','D','D','N','','','D','D','D','D','D','']},
+      {name:'Beatrice NGEZEKURE', codes:['','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','']},
+      {name:'Elie', codes:['','OFF','','','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','','OFF','OFF','OFF','OFF','OFF','','','OFF','OFF','OFF','OFF','OFF','DN']},
+      {name:'Faustin', codes:['','N','','','D','D','D','D','D','','','N','N','OFF','OFF','D','','','D','D','N','N','OFF','','','D','D','D','D','D','']}
+    ]
+  },
+  '2024-04': {
+    source:'Work Plan - April 2024',
+    from:'2024-04-01', days:33,
+    staff:[
+      {name:'Aurelie YANSONEYE', codes:['','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','','D','D']},
+      {name:'Kelvin SAMAHANI', codes:['','D','D','D','D','','','OFF','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','N','N','OFF','OFF']},
+      {name:'Patrick ISHIMWE', codes:['N','N','OFF','OFF','OFF','','','D','D','N','N','OFF','','','N','N','OFF','OFF','D','','','D','D','N','N','OFF','','D','D','D','','D','OFF']},
+      {name:'Siladji', codes:['','D','D','D','D','','','N','N','OFF','OFF','D','','','D','D','D','D','N','','','N','N','OFF','OFF','D','D','','OFF','D','D','D','D']},
+      {name:'Diane UWASE', codes:['','D','N','N','OFF','','','D','D','D','D','D','','','D','D','D','D','D','','','','OFF','OFF','D','D','','N','N','OFF','','N','N']},
+      {name:'Beatrice NGEZEKURE', codes:['','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','','D','D']},
+      {name:'Elie', codes:['','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','AL','AL','AL','AL','AL','AL','AL']},
+      {name:'Faustin', codes:['D','D','D','D','N','','','D','D','D','D','N','','','D','D','N','N','OFF','','','D','OFF','D','D','N','N','OFF','OFF','D','','OFF','D']}
+    ]
+  },
+  '2024-05': {
+    source:'Work Plan - May 2024',
+    from:'2024-05-01', days:33,
+    staff:[
+      {name:'Aurelie YANSONEYE', codes:['TR','TR','TR','','','D','D','D','D','D','','','D','D','D','D','D','','','OFF','D','D','D','D','','','D','D','D','D','D','','']},
+      {name:'Kelvin SAMAHANI', codes:['N','OFF','OFF','','','D','D','N','N','OFF','','','D','D','D','D','D','','','N','N','OFF','OFF','D','','N','N','OFF','OFF','D','D','','']},
+      {name:'Patrick ISHIMWE', codes:['','D','D','','D','N','N','OFF','OFF','N','N','','OFF','D','D','N','N','','','D','D','D','D','N','N','','OFF','D','OFF','N','N','','']},
+      {name:'Siladji', codes:['TR','TR','TR','','N','N','TR','TR','TR','TR','TR','N','N','OFF','OFF','D','D','N','N','OFF','OFF','N','N','OFF','','D','D','D','D','OFF','D','','']},
+      {name:'Diane UWASE', codes:['','N','N','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','AL','AL','AL','AL','AL','','']},
+      {name:'Beatrice NGEZEKURE', codes:['D','D','D','','','OFF','D','D','D','D','','D','D','D','D','D','D','','D','D','OFF','OFF','D','D','','','D','D','D','D','D','','']},
+      {name:'Elie', codes:['AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','OFF','OFF','OFF','OFF','OFF','N','N']},
+      {name:'Faustin', codes:['','D','D','N','N','OFF','OFF','OFF','D','D','D','','D','N','N','OFF','OFF','D','','D','D','D','OFF','OFF','D','','OFF','N','N','OFF','OFF','','']}
+    ]
+  },
+  '2024-06': {
+    source:'Work Plan - June 2024',
+    from:'2024-06-01', days:31,
+    staff:[
+      {name:'Aurelie YANSONEYE', codes:['','','TR','TR','TR','TR','TR','','','D','D','D','D','D','','','','D','D','D','D','','','D','D','D','D','D','','','']},
+      {name:'Kelvin SAMAHANI', codes:['','','D','D','D','D','D','','','TR','TR','TR','TR','TR','','','','D','D','D','D','','','OFF','D','N','N','OFF','','','']},
+      {name:'Patrick ISHIMWE', codes:['','','D','D','D','D','N','','','N','N','OFF','OFF','D','','','','D','N','N','OFF','','','N','N','OFF','OFF','OFF','','','D']},
+      {name:'Siladji', codes:['','','D','D','N','N','OFF','','','D','D','N','N','OFF','','','N','N','OFF','OFF','D','','','D','D','D','D','N','','','']},
+      {name:'Diane UWASE', codes:['AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','D','D','D','N','','','D','OFF','D','D','N','','','D','D','D','D','D','','','']},
+      {name:'Beatrice NGEZEKURE', codes:['','','D','D','D','D','D','','','D','D','D','D','D','','','','D','D','D','D','','','D','D','D','D','D','','','']},
+      {name:'Elie', codes:['N','N','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','']},
+      {name:'Faustin', codes:['','','N','N','OFF','OFF','D','','','D','D','D','D','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','','','N']}
+    ]
+  },
+  '2024-08': {
+    source:'Work Plan - August 2024',
+    from:'2024-08-01', days:31,
+    staff:[
+      {name:'Kelvin SAMAHANI', codes:['AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','D','D','','','D','D','D','D','D','']},
+      {name:'Aurelie YANSONEYE', codes:['D','D','','','OFF','D','D','D','D','','','D','D','N','N','OFF','','','D','D','D','D','OFF','','','D','D','N','N','OFF','']},
+      {name:'Patrick ISHIMWE', codes:['OFF','N','','','N','N','OFF','OFF','D','','','D','D','D','D','N','','','OFF','D','N','N','OFF','','','N','N','OFF','OFF','N','']},
+      {name:'Diane UWASE', codes:['N','','','','D','D','D','D','N','','','D','D','D','','D','','','N','N','OFF','OFF','D','','','D','D','D','D','D','']},
+      {name:'Beatrice NGEZEKURE', codes:['ML','ML','ML','ML','ML','D','D','D','D','','','D','D','D','','D','','','D','D','D','D','D','','','D','D','D','D','D','']},
+      {name:'Elie', codes:['OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN']},
+      {name:'Faustin', codes:['OFF','','','','D','D','N','N','OFF','','','N','N','OFF','','D','','','D','D','D','D','N','','','D','OFF','D','D','D','']}
+    ]
+  },
+  '2024-09': {
+    source:'Work Plan - September 2024',
+    from:'2024-09-01', days:30,
+    staff:[
+      {name:'Kelvin SAMAHANI', codes:['','D','D','D','D','D','','','D','D','D','D','D','','','TR','TR','TR','TR','TR','','','D','D','D','D','D','','','D']},
+      {name:'Aurelie YANSONEYE', codes:['','N','N','OFF','OFF','D','','','D','D','D','D','D','','','D','N','N','OFF','OFF','','','D','D','N','N','OFF','','','D']},
+      {name:'Patrick ISHIMWE', codes:['','D','D','D','D','N','','','N','N','OFF','OFF','N','N','','OFF','D','D','N','N','','','N','N','OFF','OFF','D','D','D','OFF']},
+      {name:'Diane UWASE', codes:['','D','D','N','N','OFF','','','D','D','D','D','D','','','D','D','D','D','D','N','N','OFF','OFF','D','D','N','N','','D']},
+      {name:'Beatrice NGEZEKURE', codes:['','D','D','D','D','D','','','D','D','D','D','OFF','D','D','D','D','D','D','OFF','','','D','D','D','D','D','','','D']},
+      {name:'Elie', codes:['DN','OFF','OFF','OFF','OFF','OFF','DN','DN','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL']},
+      {name:'Faustin', codes:['','D','D','D','D','D','','','D','D','N','N','OFF','','N','N','OFF','OFF','D','D','D','D','OFF','OFF','D','D','D','','N','N']},
+      {name:'Dieudonne NIYIDUHABYOSE', codes:['','BE','BE','BE','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D']}
+    ]
+  },
+  '2024-10': {
+    source:'Work Plan - October 2024',
+    from:'2024-09-30', days:33,
+    staff:[
+      {name:'Kelvin SAMAHANI', codes:['D','D','D','D','D','','','D','D','D','D','D','D','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D']},
+      {name:'Aurelie YANSONEYE', codes:['D','D','N','N','OFF','','','D','N','N','OFF','OFF','','','D','D','N','N','OFF','','','D','D','N','N','OFF','','','D','D','N','N','OFF']},
+      {name:'Patrick ISHIMWE', codes:['D','D','D','D','N','N','','OFF','D','D','N','N','','','N','N','TR','TR','TR','TR','','D','D','D','D','D','','','N','N','OFF','OFF','D']},
+      {name:'Diane UWASE', codes:['OFF','OFF','D','D','D','','N','N','OFF','OFF','D','D','N','','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','AL','OFF','D','D','D']},
+      {name:'Beatrice NGEZEKURE', codes:['D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D']},
+      {name:'Elie', codes:['AL','AL','AL','AL','AL','AL','AL','AL','AL','CL','CL','CL','CL','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF']},
+      {name:'Faustin', codes:['OFF','OFF','D','D','D','','','D','D','D','D','D','','','D','D','D','D','N','','','D','D','D','D','N','','','D','D','D','D','D']},
+      {name:'Dieudonne NIYIDUHABYOSE', codes:['N','N','OFF','OFF','D','D','D','OFF','OFF','D','D','D','','','D','D','D','D','D','','','N','N','OFF','OFF','D','','','D','D','D','D','N']}
+    ]
+  },
+  '2024-11': {
+    source:'Work Plan - November 2024',
+    from:'2024-11-01', days:33,
+    staff:[
+      {name:'Kelvin SAMAHANI', codes:['D','D','','D','D','D','D','OFF','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','OFF','','','D','D']},
+      {name:'Aurelie YANSONEYE', codes:['OFF','','','D','D','N','N','OFF','','','D','D','N','N','OFF','','','D','D','N','N','OFF','','','D','D','N','N','OFF','','','D','D']},
+      {name:'Patrick ISHIMWE', codes:['D','','','N','N','OFF','OFF','N','','','D','D','D','D','D','','','D','D','D','D','N','','','D','D','D','D','D','','','D','D']},
+      {name:'Diane UWASE', codes:['D','','','D','D','D','D','D','','','D','D','D','D','D','','','N','N','OFF','OFF','D','','','D','D','D','D','D','','','N','N']},
+      {name:'Beatrice NGEZEKURE', codes:['D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D','D','D','D','','','D','D']},
+      {name:'Elie', codes:['OFF','ML','ML','ML','ML','ML','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF','OFF','OFF','OFF','DN','DN','OFF','OFF']},
+      {name:'Faustin', codes:['D','N','N','OFF','OFF','D','D','D','','','D','D','D','D','N','','','D','D','D','D','D','','','N','N','OFF','OFF','D','','','D','D']},
+      {name:'Dieudonne NIYIDUHABYOSE', codes:['N','','D','D','D','OFF','D','D','','','N','N','OFF','OFF','D','','','D','D','D','D','D','','','D','D','D','D','N','','','D','D']}
+    ]
+  },
   '2024-12': {
     source:'Work Plan - December 2024',
     from:'2024-12-01', days:34,

@@ -1,0 +1,9 @@
+# Work Plan - November 2024 | from=2024-11-01
+| Kelvin\* | D | D |  | D | D | D | D | OFF |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | OFF |  |  | D | D |
+| Aurelie | OFF |  |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |  |  | D | D | N | N | OFF |  |  | D | D |
+| Patrick | D |  |  | N | N | OFF | OFF | N |  |  | D | D | D | D | D |  |  | D | D | D | D | N |  |  | D | D | D | D | D |  |  | D | D |
+| Diane | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |  |  | D | D | D | D | D |  |  | N | N |
+| Beatrice | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D | D | D | D |  |  | D | D |
+| Elie | OFF | ML | ML | ML | ML | ML | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF | OFF | OFF | OFF | DN | DN | OFF | OFF |
+| Faustin | D | N | N | OFF | OFF | D | D | D |  |  | D | D | D | D | N |  |  | D | D | D | D | D |  |  | N | N | OFF | OFF | D |  |  | D | D |
+| Dieudonne | N |  | D | D | D | OFF | D | D |  |  | N | N | OFF | OFF | D |  |  | D | D | D | D | D |  |  | D | D | D | D | N |  |  | D | D |
