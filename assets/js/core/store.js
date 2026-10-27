@@ -544,6 +544,26 @@ function normalize(db){
       else if(!can) st.threeNight=false;
     });
   }
+  /* v6.9.41 — November 2026 is built once, as a draft, from the department's own
+     rules and the record of the previous months: three-night blocks for the two who
+     take them (Patrick first), two for everybody else, the weekend technologist on
+     Saturday and Sunday, and the manager's carried-over annual leave exactly where
+     the leave register already puts it. It is a draft: nothing is published until
+     the department reviews the grid. An existing November plan is never touched. */
+  if(!db.meta.novPlanV6941){
+    db.meta.novPlanV6941=1;
+    const key='2026-11';
+    const has=db.workingPlans[key]&&db.workingPlans[key].primary;
+    if(!has){
+      const built=generatePlan(key,db);
+      built.meta=Object.assign({},built.meta,{
+        label:'Draft for November 2026 — built from the department\'s rules and the record of previous months; review before publishing',
+        period:'November 2026', reference:'August 2026 and November 2025 plans'
+      });
+      db.workingPlans[key]=db.workingPlans[key]||{versions:[]};
+      db.workingPlans[key].primary=built;
+    }
+  }
   /* v6.9.40 — five bench tests were still on the referral list although nothing is
      ever referred for them: CBC, Malaria RDT, Blood Slide for Malaria, Fasting Blood
      Glucose and Sputum AFB. The catalogue entries go, and so do the records that were
@@ -1586,6 +1606,8 @@ S.shiftState=function(who, iso){
     if(code==='TR') return {code,kind:'training',label:'Training',tone:'gold',source:'plan'};
     if(code==='AL'||code==='SICK'||code==='CL'||code==='ML') return {code,kind:'leave',label:S.leaveTypeLabel(code==='SICK'?'SICK':code==='CL'?'COMP':code==='ML'?'MAT':'AL'),tone:'blue',source:'plan'};
     if(code==='OFF'||code==='W') return {code,kind:'off',label:'At home',tone:'slate',source:'plan'};
+    if(code==='RBW') return {code,kind:'off',label:'Rest before work',tone:'slate',source:'plan'};
+    if(code==='AA') return {code,kind:'leave',label:'Authorised absence',tone:'amber',source:'plan'};
   }
   // No plan published for that day: fall back to the contract, clearly labelled.
   const dow=U.dow(iso);

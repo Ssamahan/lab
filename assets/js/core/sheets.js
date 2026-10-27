@@ -30,11 +30,14 @@ const CODE={
   TR:  {bg:'#EAF3EC',   fg:'#2F7A4F', label:'TR',  key:'TR — Training'},
   W:   {bg:C.cream,     fg:C.alInk,   label:'W',   key:'W — Wedding day'},
   ABS: {bg:'#FBECEE',   fg:'#B03A48', label:'ABS', key:'ABS — Unexcused absence (recorded)'},
+  /* The two codes the department's own paper plans have always used. */
+  RBW: {bg:'#F4F1E6',   fg:'#7A6428', label:'RBW', key:'RBW — Off duty (rest before work)'},
+  AA:  {bg:'#F3E9F6',   fg:'#6B3C7A', label:'AA',  key:'AA — Authorised absence'},
   H:   {bg:'#FBECEE',   fg:'#B03A48', label:'H',   key:'H — Public holiday'}
 };
 SH.codes=Object.keys(CODE);
 /* printed register order: shifts, rest, leave, then the rest */
-SH.keyOrder=['D','N','DN','OFF','AL','ML','SL','CL','TR','W','ABS','H'].filter(c=>CODE[c]);
+SH.keyOrder=['D','N','DN','OFF','RBW','AL','ML','SL','CL','AA','TR','W','ABS','H'].filter(c=>CODE[c]);
 SH.keyOrder=SH.keyOrder.concat(SH.codes.filter(c=>SH.keyOrder.indexOf(c)<0));
 const styleOf=c=>CODE[c]||null;
 
@@ -273,7 +276,10 @@ SH.monthlySVG=function(plan,opts){
   if(plan.meta&&plan.meta.date) metaBits.push('Date: '+plan.meta.date);
   if(plan.meta&&plan.meta.fy) metaBits.push('FY: '+plan.meta.fy);
   if(plan.meta&&plan.meta.revised) metaBits.push('Revised');
-  g+=text(W/2,412,metaBits.join('      '),{size:25,anchor:'middle',fill:'#3D4759'});
+  /* A draft is never printed as if it were signed. */
+  const draft=!!(plan.meta&&(plan.meta.draft||plan.meta.generated))&&!(plan.meta&&plan.meta.official);
+  if(draft) metaBits.push('DRAFT — for review, not yet published');
+  g+=text(W/2,412,metaBits.join('      '),{size:25,anchor:'middle',fill:draft?C.gold:'#3D4759'});
   g+=rect(pad,424,W-pad*2,2,C.goldLine);
 
   /* header bands */
@@ -296,7 +302,13 @@ SH.monthlySVG=function(plan,opts){
   rows.forEach((r,ri)=>{
     const y=gridTop+bandH+dateH+ri*rowH;
     g+=rect(pad,y,labelW,rowH,ri%2?'#FAFBFD':'#FFFFFF');
-    g+=nameBlock(pad+24,y+rowH/2+(rowH>=70?0:9),labelW-48,r.name,{pref:31,min:20});
+    /* Every paper plan this department has kept names the post under the name, and
+       the sheet follows the record. */
+    const st_=LS.store.staffByName?LS.store.staffByName(r.name):null;
+    const role=st_?String(st_.role||''):'';
+    const shrink=!!role&&rowH>=64;
+    g+=nameBlock(pad+24,y+rowH/2+(shrink?-7:(rowH>=70?0:9)),labelW-48,r.name,{pref:31,min:20});
+    if(shrink) g+=text(pad+24,y+rowH/2+19,role,{size:18,weight:500,fill:'#5B6474'});
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
       let code=(codes[i]||'').trim();
