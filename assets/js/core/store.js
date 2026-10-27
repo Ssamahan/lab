@@ -633,6 +633,21 @@ function normalize(db){
       });
     }
   }
+  /* v6.9.43 — September 2026, read again against the sheet on file, cell by cell.
+     The sheet (printed 06-09-2026) runs Patrick's annual leave to 1 October, puts a
+     single day on 2 October, leaves the weekend of 3-4 October blank — that weekend
+     belongs to the weekend technologist — and starts his two nights on 5 October.
+     The six cells at the tail of that row were out of step with the sheet; they are
+     put right here. Nothing else on the month is touched: every other row already
+     matches the sheet, and the October plan keeps its own record of the same days. */
+  if(!db.meta.sepTailV6943){
+    db.meta.sepTailV6943=1;
+    const sep=db.workingPlans&&db.workingPlans['2026-09'];
+    const row=sep&&sep.primary&&(sep.primary.staff||[]).find(r=>/Patrick ISHIMWE/.test(r.name));
+    if(row&&sep.primary.dates&&sep.primary.dates[31]==='2026-10-01'&&sep.primary.dates[36]==='2026-10-06'){
+      row.codes.splice(31,6,'AL','D','','','N','N');
+    }
+  }
   /* v6.9.41 — November 2026 is built once, as a draft, from the department's own
      rules and the record of the previous months: three-night blocks for the two who
      take them (Patrick first), two for everybody else, the weekend technologist on

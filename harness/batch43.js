@@ -67,7 +67,16 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   await go('#/leave?tab=timeline'); await tick(300);
   ok(true,'the timeline tab paints without an error');
 
-  /* ── 5 · tables fit the card they are in ── */
+  /* ── 5 · September 2026 reads the way the sheet on file reads ── */
+  const sep=db().workingPlans['2026-09'].primary;
+  ok(sep.dates[0]==='2026-08-31'&&sep.dates[36]==='2026-10-06','the September sheet runs 31 August to 6 October');
+  const rowOf=n=>(sep.staff.find(r=>new RegExp(n).test(r.name))||{codes:[]}).codes;
+  ok(rowOf('Patrick').slice(31).join(',')==='AL,D,,,N,N','Patrick: leave to 1 October, one day on the 2nd, the weekend blank, nights from the 5th');
+  ok(rowOf('Patrick').slice(0,5).join(',')==='AL,AL,AL,AL,AL','and he is on leave from the first day of the sheet');
+  const satSun=sep.dates.map((d,i)=>({d,i,w:U.dow(d)>=5})).filter(x=>x.w);
+  ok(satSun.every(x=>rowOf('Aurelie')[x.i]==='DN'),'the weekend technologist is day+night on every weekend of the month');
+  ok(rowOf('Kelvin').filter(c=>c==='D').length===27,'the manager works every weekday on the sheet');
+
   ok(typeof U.fitTables==='function','the table fitter is part of the toolkit');
   await go('#/dash'); await tick(320);
   ok(doc.querySelectorAll('#app .card[data-fit]').length>=0,'cards report their fit after render');

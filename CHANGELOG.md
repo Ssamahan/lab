@@ -27,6 +27,11 @@ who is away today.**
 - **The leave screen names who is away now.** A strip at the top of every leave tab shows the
   person, the type of leave, day *n* of *total* with a progress bar, days used, days left and
   the expected return date.
+- **September 2026 read again against the sheet on file, cell by cell.** Every row already
+  matched the printed sheet; one row did not. Patrick's annual leave runs to 1 October, the
+  2nd is a single day, the weekend of 3–4 October is blank because that weekend belongs to
+  the weekend technologist, and his two nights start on 5 October. The six cells at the tail
+  of that row now say exactly that.
 - **The plan book is in time order.** Running leave first, then the next block ahead,
   then those who have already taken theirs, listed last.
 - **Wide tables fit the card they sit in.** A content-aware fitter measures each table card
