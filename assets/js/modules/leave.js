@@ -17,6 +17,7 @@ const TYPE={AL:{label:'Annual',cls:'al',kind:'annual'},
   STUDY:{label:'Study',cls:'tr',kind:'authorised'},
   W:{label:'Wedding / rest',cls:'w',kind:'authorised'},
   COMP:{label:'Compassionate',cls:'al',kind:'authorised'},
+  IL:{label:'Circumstantial',cls:'al',kind:'authorised'},
   UNPAID:{label:'Unpaid',cls:'w',kind:'authorised'}};
 /* Requests are entered by people. The module never seeds demo requests: an
    empty inbox stays empty and says so. */

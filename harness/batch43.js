@@ -98,7 +98,13 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   const dj=arc.primary.staff.find(r=>/Dieudonne/.test(r.name));
   ok(dj.codes.slice(7).every(c=>c==='AL'),'Dieudonne is on annual leave from the 8th, as the sheet shows');
 
-  /* ── 7 · tables fit the card they are in ── */
+  /* ── 7 · circumstantial leave is leave, not absence, and not the thirty days ── */
+  ok(S().leaveTypeLabel('IL')==='Circumstantial leave','IL reads as circumstantial leave');
+  ok(S().leaveKind('IL')==='authorised','and it is authorised leave, not annual leave');
+  ok(!S().leaveCountsAgainstEntitlement('IL'),'so it never comes out of the thirty days');
+  ok(S().leaveKind('AA')==='authorised'&&!S().leaveCountsAgainstEntitlement('AA'),'nor does an authorised absence');
+
+  /* ── 8 · tables fit the card they are in ── */
   ok(typeof U.fitTables==='function','the table fitter is part of the toolkit');
   await go('#/dash'); await tick(320);
   ok(doc.querySelectorAll('#app .card[data-fit]').length>=0,'cards report their fit after render');

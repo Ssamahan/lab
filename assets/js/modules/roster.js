@@ -6,7 +6,7 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SH=LS.sheets;
 const M={}; LS.modules.roster=M;
 let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
-const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],['OFF','At home (not on shift)'],['RBW','Off duty · rest before work'],['AL','Annual leave'],['AA','Authorised absence'],['TR','Training'],['SICK','Sick leave'],['W','Wedding day'],['MS','As printed on the 2025 plans (Ms)'],['MC','Mentorship · outbreaks surveillance and HIV service delivery']];
+const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],['OFF','At home (not on shift)'],['RBW','Off duty · rest before work'],['AL','Annual leave'],['AA','Authorised absence'],['TR','Training'],['SICK','Sick leave'],['IL','Circumstantial leave'],['W','Wedding day'],['MS','As printed on the 2025 plans (Ms)'],['MC','Mentorship · outbreaks surveillance and HIV service delivery']];
 
 function plan(){ const e=S.db().workingPlans[mk||U.monthKey()]; return e&&e.primary?e.primary:null; }
 function ensurePlan(){ return plan(); }
