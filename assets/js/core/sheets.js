@@ -314,9 +314,14 @@ SH.monthlySVG=function(plan,opts){
        the sheet follows the record. */
     const st_=LS.store.staffByName?LS.store.staffByName(r.name):null;
     const role=st_?String(st_.role||''):'';
-    const shrink=!!role&&rowH>=64;
+    /* who answers for the weekly request for lab commodities from the main
+       pharmacy — the manager, or the person acting for him while he is away */
+    const req=LS.store.requisitionOfficer?LS.store.requisitionOfficer(String((plan.dates||[''])[0]).slice(0,7)):null;
+    const reqLine=req&&req.name===r.name?(' · service requisition'+(req.acting?' (acting)':'')):'';
+    const sub=role+reqLine;
+    const shrink=!!sub&&rowH>=64;
     g+=nameBlock(pad+24,y+rowH/2+(shrink?-7:(rowH>=70?0:9)),labelW-48,r.name,{pref:31,min:20});
-    if(shrink) g+=text(pad+24,y+rowH/2+19,role,{size:18,weight:500,fill:'#5B6474'});
+    if(shrink) g+=text(pad+24,y+rowH/2+19,sub,{size:18,weight:500,fill:'#5B6474'});
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
       let code=(codes[i]||'').trim();

@@ -48,14 +48,18 @@ const mod=fs.readFileSync(path.resolve(__dirname,'..','assets/css/modules.css'),
 
   /* ── 2 · the manager's own annual leave belongs to FY 2026/27 ──────── */
   const k=db().leaves.find(l=>l.id==='l18');
-  ok(!!k && k.from==='2026-11-19','the manager has a 30-day block from 19 November 2026');
+  ok(!!k && k.from==='2026-11-16','the manager has a 30-day block from 16 November 2026');
   ok(U.daysBetween(k.from,k.to)+1===30,'and it is thirty days');
   ok(k.fy==='2026/2027','charged to FY 2026/2027');
-  ok(!/carry[- ]?over/i.test(k.note||''),'and not described as a carry-over: '+((k.note||'').slice(0,60)));
+  ok(/carry[- ]?over/i.test(k.note||''),'and it is named for what it is — the FY 2025/26 carry-over: '+((k.note||'').slice(0,60)));
   ok(!db().leaves.some(l=>l.id==='l3'&&l.staffId==='s1'),'the stale second block that would double-book the same thirty days is gone');
+  /* the thirty days come out of the year they were earned in, so this year's own
+     entitlement is untouched and nothing is carried into it a second time */
   const kb=S.leaveBook(S.staffById('s1'),'2026/2027');
   ok(kb.carry.days===0,'nothing is carried into FY 2026/27 for him');
-  ok(kb.planned+kb.running===30,'his own thirty days are what the year shows');
+  ok(kb.charged===0 && kb.balance===30,'his own thirty days of 2026/27 are untouched');
+  const kprev=S.leaveBook(S.staffById('s1'),'2025/2026');
+  ok(kprev.charged===30 && kprev.balance===0,'the thirty days are charged to FY 2025/2026, where they were earned');
   const pat=S.leaveBook(S.staffById('s5'),'2026/2027');
   ok(pat.carry.days===15,'a real carry-over — Patrick left fifteen days of 2025/26 — is still counted');
   ok(!db().leaves.some(l=>l.carryOver),'no record is flagged as a carry-over to prop the numbers up');

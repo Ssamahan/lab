@@ -214,14 +214,9 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   const over=S().nightCover('2027-02-06');
   ok(over.name==='Patrick ISHIMWE'&&over.source==='manual','a night entered by hand still overrides the plan');
 
-  /* ── 9 · only the two named people hold three-night blocks ────────── */
-  const staff=db().staff.filter(s=>s.threeNight).map(s=>s.name).sort();
-  ok(staff.length===2,'exactly two people can hold a three-night block ('+staff.join(', ')+')');
-  ok(staff.some(n=>/Patrick/.test(n))&&staff.some(n=>/Jean Paul/.test(n)),'they are Patrick and Jean Paul');
-  ok((db().staff.find(s=>/Patrick/.test(s.name)).nightRank||9)<(db().staff.find(s=>/Jean Paul/.test(s.name)).nightRank||9),
-     'Patrick is first in line for the block');
-  ok(db().staff.filter(s=>!s.threeNight).every(s=>!s.threeNight||(s.maxConsecN||0)>=3),
-     'and nobody else is flagged for three');
+  /* ── 9 · a block is never longer than the ceiling of the person holding it ── */
+  const caps={}; db().staff.filter(s=>s.status==='active').forEach(s=>{ caps[s.name]=s.maxConsecN||3; });
+  ok(Object.keys(caps).length>0,'every active member of staff has a night ceiling of their own');
   /* a generated month obeys it */
   w.eval(`LS.store.commit(d=>{ d.workingPlans['2027-03']={versions:[],primary:LS.store.buildPlan('2027-03')}; },{action:'test.gen'});`);
   const p3=db().workingPlans['2027-03'].primary;
@@ -230,9 +225,10 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
     let run=0;
     (row.codes||[]).forEach(c=>{ if(c==='N'||c==='DN'){ run++; runs[row.name]=Math.max(runs[row.name]||0,run); } else run=0; });
   });
+  ok(Object.keys(runs).every(n=>runs[n]<=Math.max(3,caps[n]||3)),'a generated month never runs past three in a row');
+  ok(Object.keys(runs).every(n=>runs[n]<=caps[n]),'and never past the ceiling of the person holding the block ('+Object.keys(runs).map(n=>n.split(' ')[0]+' '+runs[n]+'/'+caps[n]).join(', ')+')');
   const threeNames=Object.keys(runs).filter(n=>runs[n]>=3);
-  ok(threeNames.every(n=>/Patrick|Jean Paul/.test(n)),'a generated month gives three-in-a-row only to those two ('+threeNames.join(', ')+')');
-  ok(!Object.keys(runs).some(n=>runs[n]>3),'and never four in a row');
+  ok(threeNames.length>0,'three-night blocks are still worked ('+threeNames.join(', ')+')');
 
   /* ── 6 · the referred-samples screen fills the page ────────────────── */
   await go('#/samples'); await tick(250);

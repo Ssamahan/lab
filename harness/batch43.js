@@ -1,6 +1,6 @@
 /* v6.9.43 — the weekend belongs to one person, the cells stay blank for everybody
    else, the nights never run past three, the carry-over leave is thirty days from
-   19 November, and the leave screen says who is away and when they are back. */
+   16 November, and the leave screen says who is away and when they are back. */
 const {boot,ok,done}=require('./env');
 const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
 
@@ -54,14 +54,14 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
     for(let i=0;i+6<r.codes.length;i++){ const win=r.codes.slice(i,i+7); if(win.filter(c=>c==='D'||c==='N'||c==='DN').length===7) seven=true; }
     return !seven; }),'and nobody works seven days without an off');
 
-  /* ── 3 · the carry-over leave: thirty days from 19 November, end calculated ── */
+  /* ── 3 · the carry-over leave: thirty days from 16 November, end calculated ── */
   const carry=db().leaves.find(l=>l.id==='l18');
   ok(!!carry,'the carried-over block is on the register');
-  ok(carry.from==='2026-11-19','it starts on 19 November 2026 ('+carry.from+')');
-  ok(carry.to==='2026-12-18','and ends thirty days later, calculated not typed ('+carry.to+')');
+  ok(carry.from==='2026-11-16','it starts on 16 November 2026 ('+carry.from+')');
+  ok(carry.to==='2026-12-15','and it runs the full thirty days, calculated not typed ('+carry.to+')');
   ok(Number(carry.days)===30,'thirty days requested');
-  ok(carry.backOn==='2026-12-19','and the expected return date follows it ('+carry.backOn+')');
-  const inside=db().leaves.filter(l=>l.staffId===carry.staffId&&l.id!==carry.id&&!(l.to<'2026-11-19'||l.from>'2026-12-18'));
+  ok(carry.backOn==='2026-12-16','and the expected return date follows it ('+carry.backOn+')');
+  const inside=db().leaves.filter(l=>l.staffId===carry.staffId&&l.id!==carry.id&&!(l.to<'2026-11-16'||l.from>'2026-12-15'));
   ok(inside.length===0,'nothing else is booked on top of it ('+inside.map(l=>l.id+' '+l.from+'..'+l.to).join(', ')+')');
 
   /* ── 4 · the leave screen says who is away, how many days, and when they are back ── */

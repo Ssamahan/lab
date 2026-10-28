@@ -268,10 +268,13 @@ function planModal(staffId, leaveId){
       +'<div class="field"><label>Leave type</label><select class="select" id="plType">'+Object.keys(TYPE).map(k=>'<option value="'+k+'"'+((l&&l.type===k)?' selected':'')+'>'+TYPE[k].label+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Charged to fiscal year</label><select class="select" id="plFy" disabled>'+fys.map(f=>'<option value="'+f+'"'+((l?fyOfLeave(l):currentFy())===f?' selected':'')+'>FY '+f+'</option>').join('')+'</select><div class="xs faint" style="margin-top:4px">Follows the start date — a record can never sit under the wrong year.</div></div>'
       +'<div class="field"><label>From</label><input class="input" type="date" id="plFrom" value="'+(l?l.from:U.addDays(U.todayISO(),30))+'"></div>'
-      +'<div class="field"><label>Number of days</label><input class="input mono" type="number" min="1" step="1" id="plDays" value="'+((l&&l.to&&l.from)?U.daysBetween(l.from,l.to)+1:30)+'"><div class="xs faint" style="margin-top:4px">30 by default — every member of staff is under statute. The end date is calculated from it.</div></div>'
+      +'<div class="field"><label>Number of days</label><input class="input mono" type="number" min="1" step="1" id="plDays" value="'+((l&&l.to&&l.from)?U.daysBetween(l.from,l.to)+1:30)+'">'
+        +'<div class="row wrap gap-sm" style="margin-top:6px">'+[10,15,20,30].map(n=>'<button class="btn xs" data-days="'+n+'">'+n+' days</button>').join('')+'</div>'
+        +'<div class="xs faint" style="margin-top:4px">30 by default — every member of staff is under statute. The end date is calculated from it.</div></div>'
       +'<div class="field"><label>To</label><input class="input" type="date" id="plTo" value="'+(l?l.to:U.addDays(U.todayISO(),59))+'"><div class="xs faint" style="margin-top:4px">Changing this recalculates the days.</div></div>'
       +'<div class="field"><label>Status</label><select class="select" id="plStatus">'+['Planned','Approved','Pending'].map(x=>'<option '+(l&&l.status===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Entitlement</label><input class="input" value="'+ent.days+' days · '+ent.label+'" readonly></div>'
+      +'<div class="field"><label>Charged to</label><select class="select" id="plCharge"></select><div class="xs faint" style="margin-top:4px">A block taken out of last year’s balance is charged back to the year it was earned.</div></div>'
       +'<div class="field span2"><label>Note</label><input class="input" id="plNote" value="'+U.esc(l?l.note||'':'')+'" placeholder="e.g. carry-over from last FY, second installment, approval reference"></div>'
       +'</div>'
       +'<div class="hint" style="margin-top:10px" id="plSummary"></div>',
@@ -285,6 +288,16 @@ function planModal(staffId, leaveId){
         const n=U.daysBetween(from,to)+1;
         const derived=U.fyInfo(from).label;
         q('#plFy').value=derived;
+        /* the years a block can be charged to: the one it falls in, and any year
+           that still has unused days carried into this one */
+        const carryIn=S.leaveCarryOver(s,derived);
+        const charge=q('#plCharge');
+        if(charge){
+          const keep=q('#plCharge').value||(l&&l.chargedFy)||'';
+          charge.innerHTML='<option value="">The year it falls in · FY '+derived+'</option>'
+            +(carryIn&&carryIn.days?('<option value="'+carryIn.prevFy+'">FY '+carryIn.prevFy+' · carry-over ('+carryIn.days+' days unused)</option>'):'');
+          charge.value=[...charge.options].some(o=>o.value===keep)?keep:'';
+        }
         const b=S.leaveBook(s,derived);
         const overlap=S.leaves().find(x=>x.id!==(l&&l.id)&&x.staffId===s.id&&!(x.to<from||x.from>to));
         const after=Math.max(0,b.balance-(S.leaveCountsAgainstEntitlement(q('#plType').value)?n:0));
@@ -300,6 +313,7 @@ function planModal(staffId, leaveId){
       const setDays=()=>{ const from=q('#plFrom').value, to=q('#plTo').value;
         if(from&&to&&to>=from) q('#plDays').value=U.daysBetween(from,to)+1; };
       q('#plDays').addEventListener('input',()=>{ setTo(); summary(); });
+      el.querySelectorAll('[data-days]').forEach(b=>b.onclick=()=>{ q('#plDays').value=b.dataset.days; setTo(); summary(); });
       q('#plFrom').addEventListener('change',()=>{ setTo(); summary(); });
       q('#plTo').addEventListener('change',()=>{ setDays(); summary(); });
       ['#plStaff','#plFy','#plType'].forEach(s=>{ q(s).addEventListener('change',summary); q(s).addEventListener('input',summary); });
@@ -310,6 +324,7 @@ function planModal(staffId, leaveId){
         if(to<from) return UI.toast('End date cannot precede start date',{type:'warn'});
         const rec={staffId:id,type:q('#plType').value,from,to,backOn:U.addDays(to,1),
           fy:U.fyInfo(from).label,status:q('#plStatus').value,
+          chargedFy:(q('#plCharge')&&q('#plCharge').value)||undefined,
           note:q('#plNote').value.trim(),requested:(l?l.requested:U.nowISO()),plannedBy:LS.auth.user.name,plannedAt:U.nowISO()};
         S.commit(d=>{
           if(l){ const x=(d.leaves||[]).find(y=>y.id===l.id); if(x) Object.assign(x,rec); }

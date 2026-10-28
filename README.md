@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.54** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.55** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.54`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.55`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -195,8 +195,14 @@ register records.
 
 - **A night is a whole shift.** Anyone on nights that day is off the day roster, is never
   given a bench post, and is not counted in the head-count.
-- **One name a night, two or three nights in a row.** A single night is never handed out;
-  a fourth never happens. The three-night block belongs to Patrick and Jean Paul.
+- **One name a night, two or three nights in a row.** A single night is never handed out and
+  a fourth never happens; a three-night block only goes to somebody whose own ceiling allows
+  it, and the rotation shares it out. The nights are shared by Dieudonné, Bernadette and
+  Marie Claudine; whoever is **acting for the manager takes none**, and Beatrice stays on days.
+- **RBW is Rest Before Work, and it has one cause.** When nobody covers the weekend, the
+  person who carries both weekend nights rests on the **Friday before** it, so the Tuesday
+  after is worked — Monday to Wednesday keep the whole bench. It is never a mechanical second
+  day off after a block of nights.
 - **The weekend carries one on the days and one on the nights** — and only the weekend
   technologist ever works day + night. Every other weekend cell is blank.
 - **Each month takes its first week over from the month before** and runs a week past its
@@ -205,8 +211,15 @@ register records.
   duty alternating so it is shared fairly, and every other cell blank. The manager is never
   put on a holiday unless he has chosen to work them.
 - **A carry-over is only counted when the year it came from was recorded.** Silence in a
-  previous fiscal year is not thirty unused days; the manager's own leave is charged to the
-  year he takes it in.
+  previous fiscal year is not thirty unused days. A block can name the year it is charged to:
+  the manager's thirty days run from 16 November 2026 and are charged back to FY 2025/2026.
+- **The working plan reads the annual-leave plan.** Leave blocks are painted on the cells
+  they cover, and *Fill the leaves* writes the whole register onto the month on request.
+- **The roster is read in one order**: Kelvin, Jean Paul, Dieudonné, Beatrice, Patrick,
+  Bernadette, Marie Claudine, Aurelie last. A new name joins at the end of the bench.
+- **The service requisition sits against the name that signs it** — the Monday request for
+  the week's lab commodities from the main pharmacy. It moves to the acting manager while the
+  manager is on leave, on the screen and on the printed sheet.
 - **An off-site repair starts with the day it left.** Setting an analyser to *Off-site repair*
   asks for the shipment date (and a backup, if one is free); leaving that status asks for the
   return date. The difference is the repair time, printed on the fleet card, the ledger, the
