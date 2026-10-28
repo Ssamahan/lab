@@ -118,7 +118,6 @@
 .topbar.is-hidden{transform:translateY(-100%); box-shadow:none}
 @media (prefers-reduced-motion: reduce){ .topbar{transition:none} }
 .topbar-left{display:flex; align-items:center; gap:12px; min-width:0; flex:0 1 auto}
-.hamburger{display:none; width:38px; height:38px; border-radius:10px; align-items:center; justify-content:center; border:1px solid var(--border); color:var(--text)}
 .crumbs{display:flex; align-items:center; gap:6px; font-size:var(--fs-micro); letter-spacing:.04em; color:var(--text-faint); text-transform:uppercase; font-weight:600; margin-bottom:2px}
 .crumbs a,.crumbs button{color:inherit; text-transform:inherit; letter-spacing:inherit; font:inherit; cursor:pointer}
 .crumbs .sep{opacity:.5}
@@ -495,7 +494,6 @@ html.scroll-lock, body.scroll-lock{overflow:hidden!important; overscroll-behavio
   .app.rail-open .rail{transform:none}
   .app.rail-open::after{content:""; position:fixed; inset:0; z-index:39; background:var(--scrim); backdrop-filter:blur(2px)}
   .rail-close{display:inline-flex; margin-left:auto}
-  .hamburger{display:inline-flex}
   .rail-mini .rail-brand-text,.rail-mini .nav-group-label,.rail-mini .nav-item span.lbl,.rail-mini .rail-user .txt,.rail-mini .rail-meta{display:revert}
   .rail-mini .nav-item{justify-content:flex-start; padding:9px 11px}
   .rail-mini .rail-brand{justify-content:flex-start; padding:18px 18px 16px}
@@ -517,10 +515,17 @@ html.scroll-lock, body.scroll-lock{overflow:hidden!important; overscroll-behavio
     background:color-mix(in srgb,var(--bg) 82%,transparent);
     backdrop-filter:blur(22px) saturate(1.6); -webkit-backdrop-filter:blur(22px) saturate(1.6);
     border-top:1px solid var(--border);
+    transition:transform var(--dur-2) var(--spring);
   }
+  /* rides down with the page and comes back on the way up — the content gets the
+     whole screen while it is being read, and one small flick returns the bar */
+  .bottomnav.is-hidden{transform:translateY(calc(100% + 10px))}
   .bottomnav::before{content:""; position:absolute; top:-1px; left:0; right:0; height:1px; background:var(--gold-thread); opacity:.28}
-  .bnav-item{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:7px 2px 5px; border-radius:10px; color:var(--text-faint); font-size:9px; font-weight:600; letter-spacing:.02em; position:relative; transition:color var(--dur-1), transform var(--dur-1), background var(--dur-1); min-width:0}
-  .bnav-item svg{width:20px; height:20px}
+  /* icons only — no labels under them */
+  .bnav-item{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; padding:11px 2px 10px; border-radius:10px; color:var(--text-faint); position:relative; transition:color var(--dur-1), transform var(--dur-1), background var(--dur-1); min-width:0}
+  .bnav-item svg{width:22px; height:22px}
+  .bnav-item .lbl{display:none}
+  .bnav-item[data-more] svg{stroke-width:1.7}
   .bnav-item.active{color:var(--gold-bright)}
   .bnav-item.active::before{content:""; position:absolute; top:0; width:16px; height:2px; border-radius:2px; background:var(--gold-gradient); box-shadow:0 0 8px rgba(201,168,76,.6)}
   .bnav-item:active{transform:scale(.94); background:var(--surface-hover)}

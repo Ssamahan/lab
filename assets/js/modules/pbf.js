@@ -350,6 +350,8 @@ function centreState(name){
   return {key:'due',label:'Not yet visited',detail:'no supervision recorded this quarter',pill:'blue',schedule:null};
 }
 function statusLine(r){
+  if(r.recorded) return (r.assessor&&!/district pbf team/i.test(r.assessor)?r.assessor:'District PBF team')
+    +' · recorded scorecard · question marks still to be entered';
   const st=r.state||{key:'due',label:'Not yet visited',detail:''};
   if(st.key==='visited') return (r.assessor||'District PBF team')+' · '+U.fmtDate(r.submitted);
   return st.label+' · '+st.detail;
@@ -369,8 +371,25 @@ function list(){
   return names.map((name,i)=>{
     const vs=visitsFor(name);
     const state=centreState(name);
+    const legacy=(S.db().pbf||[]).find(r=>r.name===name);
+    /* The register may hold a scorecard that was recorded at domain level — six
+       percentages and an index, the way the district's own sheet carries it —
+       before the questions were broken out. That record is evidence and it is
+       what the screen shows; it is labelled as recorded, and the visit that is
+       waiting for question-level marks is still listed underneath. Nothing is
+       filled in on the centre's behalf. */
+    const complete=vs.find(v=>scorecardOf(v).complete);
+    if(!complete && legacy && legacy.scores && Object.keys(legacy.scores).length){
+      const scores={};
+      domains().forEach(d=>{ const v=legacy.scores[d.key]; if(v!=null) scores[d.key]=v; });
+      const vals=Object.keys(scores).map(k=>scores[k]);
+      const recTotal=legacy.total!=null?Math.round(legacy.total):(vals.length?Math.round(U.avg(vals)):null);
+      return {id:legacy.id||('hc-'+i), name, scores, dm:null, marks:null,
+        prior:legacy.prior==null?null:legacy.prior, submitted:legacy.submitted||null,
+        assessor:legacy.assessor||'', quarter:legacy.quarter||'Q1', fy:legacy.fy||U.fyLabel(),
+        visit:null, visits:vs.length, recorded:true, recordedTotal:recTotal, state};
+    }
     if(!vs.length){
-      const legacy=(S.db().pbf||[]).find(r=>r.name===name);
       return {id:(legacy&&legacy.id)||('hc-'+i),name,scores:{},prior:null,submitted:null,assessor:'',visits:0,state};
     }
     const latest=vs[0];
@@ -389,6 +408,8 @@ function total(row){
   if(!row) return null;
   if(row.marks) return row.marks.complete?row.marks.pct:null;
   if(row.answers) return visitMarks(row).pct;
+  /* a scorecard recorded at domain level carries its own index */
+  if(row.recordedTotal!=null) return row.recordedTotal;
   return null;
 }
 /* ——— Bands ————————————————————————————————
@@ -417,7 +438,7 @@ function kpis(){
   const s=stats();
   const spark=vals=>C.spark(vals.length?vals:[0],{color:'var(--gold)'});
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
-   +'<div class="c3">'+UI.stat({label:'District average',value:s.avg==null?0:s.avg,unit:'%',icon:'chart-line',formatted:'0',note:s.scored+' of '+s.rows.length+' centres scored',spark:spark(s.rows.filter(r=>total(r)!=null).map(total))})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'District average',value:s.avg==null?0:s.avg,unit:'%',icon:'chart-line',formatted:'0',note:s.scored+' of '+s.rows.length+' centres with a scorecard',spark:spark(s.rows.filter(r=>total(r)!=null).map(total))})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Leading centre',value:s.top?total(s.top):0,unit:'%',icon:'award',formatted:'0',note:s.top?s.top.name:'No scorecard yet',spark:spark(s.rows.filter(r=>total(r)!=null).map(total))})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Below the green band',value:s.below,icon:'alert-triangle',formatted:'0',note:s.below?'Support plan required':(s.scored?'Every scored centre is green':'Nothing scored yet'),spark:spark([s.below])})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Marks pending',value:s.pending,icon:'clipboard-list',formatted:'0',note:s.pending?'Visits recorded without a full scorecard':'Every visit has a full scorecard',spark:spark([s.pending])})+'</div></div>'
@@ -465,13 +486,13 @@ function hero(){
        centre's first quarter the rank stands alone — no placeholder word under it. */
     items:rows.map((r,i)=>({name:r.name.replace(' HC',''),pct:total(r),band:bandOf(total(r)),rank:i+1,
       move:r.prior!=null?((total(r)-r.prior)>=0?'+':'')+(total(r)-r.prior):null}))}));
-  return UI.card({title:'Quarterly index',sub:'Marks earned over marks available · only complete scorecards are ranked',icon:'building-2',
+  return UI.card({title:'Quarterly index',sub:'Marks earned over marks available · a centre is ranked as soon as it has a scorecard — at question level, or the way the district sheet records it',icon:'building-2',
     tools:(waiting.length
       ?'<button class="chip gold" data-awaiting title="Open the visits still waiting for marks">'+UI.ic('file-text',12)+waiting.length+' awaiting marks'+UI.ic('chevron-right',11)+'</button>'
       :'<span class="chip slate">'+UI.ic('check-check',12)+'every visit scored</span>'),
     body:(rows.length?'<div class="pbf-strip" data-chart-model="'+model+'">'+rows.map((r,i)=>{
       const t=total(r), d=delta(r)||0;
-      return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'% · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks">'
+      return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'%'+(r.marks?' · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks':' · recorded scorecard')+'">'
         +'<div class="pbf-pct idx-text '+bandOf(t)+'">'+t+'<span>%</span></div>'
         /* a pixel height inside a fixed plot band: a percentage of an auto-height
            column would collapse the bar and leave the label outside the strip */
@@ -520,7 +541,7 @@ function table(){
    +'<div class="seg">'+[['total','Score'],['delta','Momentum'],['name','Name']].map(([k,l])=>'<button class="'+(sort===k?'on':'')+'" data-sort="'+k+'">'+l+'</button>').join('')+'</div></div>'
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+liveDomains().map(d=>'<th class="num" title="'+U.esc(d.label)+'">'+U.esc(d.label.split(' ')[0])+'<span class="xs faint" style="display:block;font-weight:400">'+w[d.key]+'% weight</span></th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th><th></th></tr></thead>'
    +'<tbody id="pbfBody">'+rowsHTML()+'</tbody></table></div>'
-   +'<div class="card-foot"><span>Draft indices — subject to district verification</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
+   +'<div class="card-foot"><span>Draft indices — subject to district verification. A row that is <b>recorded</b> carries the domain scorecard the register holds; its question-level marks are still to be entered.</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
 }
 function matrix(){
   const rows=list().slice().sort((a,b)=>{ const ta=total(a), tb=total(b); if(ta==null&&tb==null) return a.name.localeCompare(b.name); if(ta==null) return 1; if(tb==null) return -1; return tb-ta; });
@@ -1263,20 +1284,43 @@ function qSort(a,b){
   if(fa!==fb) return fa<b?-1:1;
   return (+(qa||'Q1').replace(/\D/g,'')||1)-(+(qb||'Q1').replace(/\D/g,'')||1);
 }
+/* One observation per centre per quarter: the question-level scorecard where the
+   marks are in, otherwise the scorecard the register records at domain level.
+   A quarter that was never recorded stays a gap — never a zero. */
+function observations(){
+  const out=[], seen={};
+  (S.db().pbfVisits||[]).forEach(v=>{
+    const m=visitMarks(v); if(!m.complete) return;
+    const k=qKey(v); seen[v.hcName+'|'+k]=1;
+    const dom={}; liveDomains().forEach(d=>{ dom[d.key]=domainMarksFor(v,d.key).pct; });
+    out.push({key:k,pct:m.pct,dom,hc:v.hcName,date:v.date});
+  });
+  (S.db().pbf||[]).forEach(r=>{
+    if(!r.scores) return;
+    const k=qKey(r); if(seen[r.name+'|'+k]) return;
+    const dom={}, vals=[];
+    Object.keys(r.scores).forEach(x=>{ if(r.scores[x]!=null){ dom[x]=r.scores[x]; vals.push(r.scores[x]); } });
+    if(!vals.length) return;
+    out.push({key:k, pct:r.total!=null?Math.round(r.total):Math.round(U.avg(vals)),
+      dom, hc:r.name, date:r.submitted});
+  });
+  return out;
+}
 function trendModel(){
-  const visits=(S.db().pbfVisits||[]).filter(v=>visitMarks(v).complete);
-  const keys=U.uniq(visits.map(qKey)).sort(qSort);
+  const obs=observations();
+  const keys=U.uniq(obs.map(o=>o.key)).sort(qSort);
   const avg=arr=>{ const xs=arr.filter(v=>v!=null); return xs.length?Math.round(U.avg(xs)):null; };
-  const district=keys.map(k=>avg(visits.filter(v=>qKey(v)===k).map(v=>visitMarks(v).pct)));
+  const at=k=>obs.filter(o=>o.key===k);
+  const district=keys.map(k=>avg(at(k).map(o=>o.pct)));
   const doms=liveDomains().map((d,i)=>({name:d.label,color:TREND_COLORS[i%TREND_COLORS.length],
-    values:keys.map(k=>avg(visits.filter(v=>qKey(v)===k).map(v=>domainMarksFor(v,d.key).pct)))}));
-  const names=U.uniq(visits.map(v=>v.hcName));
+    values:keys.map(k=>avg(at(k).map(o=>o.dom[d.key])))}));
+  const names=U.uniq(obs.map(o=>o.hc));
   const centres=names.map((n,i)=>{
-    const mine=visits.filter(v=>v.hcName===n);
+    const mine=obs.filter(o=>o.hc===n);
     return {name:n.replace(' HC',''),color:TREND_COLORS[i%TREND_COLORS.length],
-      values:keys.map(k=>{ const hit=mine.filter(v=>qKey(v)===k)
+      values:keys.map(k=>{ const hit=mine.filter(o=>o.key===k)
         .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-        return hit.length?visitMarks(hit[0]).pct:null; })};
+        return hit.length?hit[0].pct:null; })}
   });
   const scored=centres.map(c=>{ const vals=c.values.filter(v=>v!=null); return Object.assign({},c,{first:vals[0],last:vals[vals.length-1],gain:vals.length>1?vals[vals.length-1]-vals[0]:0}); })
     .sort((a,b)=>(b.last==null?-1:b.last)-(a.last==null?-1:a.last));

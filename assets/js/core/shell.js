@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.50';
+const APP_VERSION='6.9.51';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -99,9 +99,13 @@ SH.build=function(){
   if(navEl) navEl.innerHTML=navHTML();
   const bn=document.getElementById('bottomNav');
   if(bn){
-    const items=[['dash','Ikibaho','layout-dashboard','Dashboard'],['samples','Ingero','flask-conical','Samples'],['roster','Gahunda','calendar-days','Plan'],['eqa','EQA','target','EQA']];
-    bn.innerHTML=items.map(([k,l,ic,tt])=>'<button class="bnav-item" data-tab="'+k+'" title="'+tt+'">'+U.ic(ic,20)+'<span class="lbl">'+l+'</span></button>').join('')
-      +'<button class="bnav-item" data-more="1" title="More">'+U.ic('menu',20)+'<span class="lbl">More</span></button>';
+    /* On a phone the bar is icons alone: a symbol is read faster than a word, and
+       the word never fits under a thumb anyway. Each button keeps its name in the
+       title and the aria-label, so a screen reader still says what it is. The last
+       one is an upward arrow — it lifts the full module list up over the page. */
+    const items=[['dash','Dashboard','layout-dashboard'],['samples','Samples','flask-conical'],['roster','Plan','calendar-days'],['eqa','EQA','target']];
+    bn.innerHTML=items.map(([k,tt,ic])=>'<button class="bnav-item" data-tab="'+k+'" title="'+tt+'" aria-label="'+tt+'">'+U.ic(ic,20)+'</button>').join('')
+      +'<button class="bnav-item" data-more="1" title="All modules" aria-label="All modules">'+U.ic('chevron-up',20)+'</button>';
   }
   LS.auth.renderUserChip();
   paintVisitorBar();
@@ -134,7 +138,7 @@ function paintVisitorBar(){
     rf.disabled=true; SH.visitorStatus('Reading the shared register…','');
     try{
       const res=await LS.sync.visitorRead();
-      SH.visitorStatus(res.ok?('Shared register · '+(res.after?res.after.pbfMarks:0)+' PBF marks · read '+U.relTime(res.updated_at||U.nowISO())):'Could not read: '+res.reason, res.ok?'live':'bad');
+      SH.visitorStatus(res.ok?('Shared register · '+(res.after?res.after.pbfMarks:0)+' PBF marks · read '+U.relTime(res.updated_at||U.nowISO())+(res.plain?' · read with the shared key':'')):'Could not read: '+res.reason, res.ok?'live':'bad');
       if(res.ok) SH.route({keepScroll:true});
     }finally{ rf.disabled=false; }
   };
@@ -654,7 +658,6 @@ function wireGlobal(){
     if(nav){ const id=nav.dataset.tab; if(ROUTES[id]) SH.go(id); if(nav.classList.contains('bnav-item')) document.querySelector('.app')?.classList.remove('rail-open'); return; }
     const go=e.target.closest('[data-go]'); if(go){ SH.go(go.dataset.go); return; }
     if(e.target.closest('[data-more]')){ openMoreSheet(); return; }
-    if(e.target.closest('#hamburger')){ document.querySelector('.rail')?.scrollTop; document.querySelector('.app')?.classList.toggle('rail-open'); return; }
     if(e.target.closest('[data-rail-close]')){ document.querySelector('.app')?.classList.remove('rail-open'); return; }
     if(e.target.closest('#railToggle')){
       const app=document.querySelector('.app'); if(!app) return;
@@ -700,10 +703,20 @@ function wireGlobal(){
     if(ticking) return; ticking=true;
     requestAnimationFrame(()=>{
       const y=window.scrollY||0, bar=document.getElementById('topbar');
+      const bnav=document.querySelector('.bottomnav');
+      const doc=document.documentElement;
+      const atEnd=y+window.innerHeight>=(doc.scrollHeight||0)-12;
+      const down=y>lastY+4, up=y<lastY-4;
       if(bar){
-        const down=y>lastY+4, up=y<lastY-4;
         if(down && y>76 && !document.body.classList.contains('palette-open')) bar.classList.add('is-hidden');
         else if(up || y<=76) bar.classList.remove('is-hidden');
+      }
+      /* The bar follows the same rule — down with the page, back on an upward
+         flick — and it always returns at the very bottom, where the next thing a
+         thumb wants is the next screen, not another half-line of text. */
+      if(bnav){
+        if(down && y>76 && !atEnd && !document.body.classList.contains('palette-open')) bnav.classList.add('is-hidden');
+        else if(up || y<=76 || atEnd) bnav.classList.remove('is-hidden');
       }
       lastY=y; ticking=false;
     });

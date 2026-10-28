@@ -1,0 +1,13 @@
+const {boot}=require('./env');
+(async()=>{const {w,go}=await boot('#/pbf');
+const S=w.LS.store, d=w.document;
+await go('#/pbf'); await new Promise(r=>setTimeout(r,400));
+const db=S.db();
+console.log('pbfVisits', (db.pbfVisits||[]).length, (db.pbfVisits||[]).map(v=>v.hcName+':'+Object.keys(v.answers||{}).length+'ans').join(', '));
+console.log('pbfSchedule', (db.pbfSchedule||[]).length);
+console.log('pbf legacy rows', (db.pbf||[]).length);
+const t=d.querySelector('#app').textContent.replace(/\s+/g,' ');
+console.log('page has "not yet visited":', /not yet visited/.test(t));
+console.log('page has "no centre has a complete scorecard":', /No centre has a complete scorecard/i.test(t));
+console.log('KPI area:', t.slice(t.indexOf('Quarterly index'), t.indexOf('Quarterly index')+500));
+process.exit(0);})();

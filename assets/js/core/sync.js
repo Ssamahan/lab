@@ -161,7 +161,11 @@ async function authError(r, body, c, mode){
     return authErr('Supabase rejected the sign-in: '+msg+'. Use a real-looking address such as lab@rulidh.rw.');
   }
   if(r.status===401&&/api key/i.test(msg)){
-    return authErr('Supabase sign-in failed (401) — the API key was not accepted. Copy the publishable key again; it must not carry a trailing space or quote.');
+    const e=authErr('Supabase sign-in failed (401) — the project does not accept the shared key in this build. '
+      +'The app is sending '+keyFingerprint(c.key)+' to '+c.url.replace(/^https?:\/\//,'')+', and the project answered “'+msg+'”. '
+      +'That key is not one this project issued: check it in Supabase → Project Settings → API keys → publishable key. If the project was migrated to the new key format, the publishable key replaces the old anon key everywhere.');
+    e.keyRejected=true;
+    return e;
   }
   const err=new Error('Supabase sign-in failed ('+r.status+') — '+msg);
   err.auth=true;
@@ -197,12 +201,23 @@ async function anonymousSignIn(force){
       +(SY.authProvidersUrl()||'Supabase dashboard → Authentication → Sign In / Providers')
       +' (the switch is called “Allow anonymous sign-ins”; it takes effect immediately). Or use the other route: create a user in Authentication → Users and type its email and password above.');
   }
-  const r=await fetch(c.url+'/auth/v1/signup',{
+  const attempt=async(extra)=>fetch(c.url+'/auth/v1/signup',{
     method:'POST',
-    headers:{'apikey':c.key,'Content-Type':'application/json'},
+    headers:Object.assign({'apikey':c.key,'Content-Type':'application/json'},extra||{}),
     body:'{}'
   });
-  const body=await r.text();
+  let r=await attempt();
+  let body=await r.text();
+  /* Two conventions are in the wild: the key in `apikey` alone, and the key as the
+     bearer token. A publishable key is public, so trying the second shape after the
+     first is refused costs one request and removes a whole class of 401s. */
+  if((r.status===401||r.status===403)&&/api key|jwt|apikey/i.test(body||'')){
+    try{
+      const r2=await attempt({Authorization:'Bearer '+c.key});
+      const b2=await r2.text();
+      if(r2.ok){ r=r2; body=b2; } else { r=r2; body=b2; }
+    }catch(e){}
+  }
   if(!r.ok) throw await authError(r, body, c, 'anonymous');
   let j={}; try{ j=JSON.parse(body); }catch(e){}
   if(!j.access_token) throw authErr('Supabase answered but created no session. Check that “Allow anonymous sign-ins” is on in '
@@ -263,6 +278,16 @@ function keyKind(k){
   return k?'other':'none';
 }
 SY.keyKind=keyKind;
+/* What a person can compare against the dashboard without ever seeing the key in a
+   message: the shape, the length and the last four characters. A key pasted with a
+   trailing space is trimmed by cfg() before it is used, so never blame the whitespace. */
+function keyFingerprint(k){
+  k=String(k||'');
+  if(!k) return 'no key at all';
+  const head=k.slice(0,14), tail=k.slice(-4);
+  return head+'…'+tail+' ('+k.length+' characters)';
+}
+SY.keyFingerprint=keyFingerprint;
 async function headers(extra){
   const c=cfg();
   const h={'apikey':c.key, 'Content-Type':'application/json'};
@@ -338,6 +363,25 @@ SY.pull=async function(){
   return noteRow(rows[0]||null);
 };
 
+/* A read with the key alone — no session, no bearer token. Some projects leave the
+   register readable by whoever holds the publishable key. When the sign-in route is
+   refused, this is the last honest way to put the real register in front of a visitor
+   instead of the sample copy: the key goes where Supabase says it goes and nothing is
+   invented if the answer is still a refusal. */
+SY.pullBare=async function(){
+  const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
+  const q=s=>TABLE+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select='+s;
+  const send=s=>fetch(c.url+'/rest/v1/'+q(s),{headers:{'apikey':c.key,'Content-Type':'application/json'}});
+  let r=await send(COLS_FULL), body='';
+  if(!r.ok){
+    body=(await r.text())||'';
+    if(missingColumn(r,body)){ r=await send(COLS_LEAN); if(!r.ok) throw new Error('Read failed ('+r.status+') '+((await r.text())||'').slice(0,140)); return noteRow((await r.json())[0]||null); }
+    if(r.status===404) throw new Error('The lab_registers table does not exist yet');
+    throw new Error('Read failed ('+r.status+') '+body.slice(0,140));
+  }
+  return noteRow((await r.json())[0]||null);
+};
+
 SY.push=async function(opts){
   if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) throw new Error('This is a read-only visitor view — nothing is published from here.');
   const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
@@ -389,6 +433,22 @@ SY.visitorRead=async function(){
     return {ok:true, before:before, after:after, revision:row.revision||null,
       updated_at:row.updated_at||null, updated_by:row.updated_by||null};
   }catch(e){
+    /* The sign-in may be refused while the register itself is readable with the key
+       alone. Try that before falling back to the sample copy, and say in the strip
+       which of the two routes answered. */
+    const looksAuth=e&&(e.auth||e.keyRejected||/\b40[13]\b|api key|jwt|not signed in|permission denied/i.test(String(e.message||'')));
+    if(looksAuth){
+      try{
+        const row=await SY.pullBare();
+        if(row&&row.data){
+          const before=SY.tally(S.db());
+          applyRemote(row);
+          setState({lastPullAt:U.nowISO(), lastRevision:row.revision||null, lastError:null, plainRead:true});
+          return {ok:true, plain:true, before:before, after:SY.tally(S.db()), revision:row.revision||null,
+            updated_at:row.updated_at||null, updated_by:row.updated_by||null};
+        }
+      }catch(e2){}
+    }
     return {ok:false, reason:(e&&e.message)||'Could not read the shared register',
       anonymousAllowed:(e&&e.anonymousAllowed)===undefined?null:e.anonymousAllowed};
   }
@@ -587,6 +647,29 @@ SY.diagnose=async function(){
     else if(r.ok){ const rows=await r.json(); row('Table lab_registers',true,rows.length?'The shared register exists and is readable.':'Empty and ready for the first push.'); }
     else row('Table lab_registers',false,'Answered '+r.status+'.');
   }catch(e){ row('Table lab_registers',false,e.auth?e.message:'Network: '+e.message); }
+
+  /* The route a fresh phone in incognito actually takes: the coordinates published in
+     shared.js, an anonymous session, then one read. It is a different key from the one
+     in Settings, so it is checked on its own line — and its answer is what the visitor
+     strip will say on that phone. */
+  const v=sharedForVisitor();
+  if(v){
+    const vu=baseUrl(v.endpoint), vk=String(v.key||'').trim();
+    row('Visitor route · key',!!vk,vk?('shared.js carries '+keyFingerprint(vk)+' for '+vu.replace(/^https?:\/\//,'')):'shared.js has no key.');
+    try{
+      const r=await fetch(vu+'/auth/v1/signup',{method:'POST',headers:{'apikey':vk,'Content-Type':'application/json'},body:'{}'});
+      const body=(await r.text())||'';
+      if(r.ok) row('Visitor route · anonymous session',true,'A session was created with the shared key — a phone in incognito can read the register.');
+      else if(r.status===422&&/anonymous/i.test(body)) row('Visitor route · anonymous session',false,'The project refuses the anonymous session: “'+body.slice(0,120)+'”. Turn on Authentication → Sign In / Providers → Allow anonymous sign-ins.');
+      else if(r.status===401||r.status===403) row('Visitor route · anonymous session',false,'The project rejected the shared key ('+r.status+'): “'+body.slice(0,140)+'”. '+keyFingerprint(vk)+' is not a key this project issued — compare it with Project Settings → API keys.');
+      else row('Visitor route · anonymous session',false,'Answered '+r.status+': “'+body.slice(0,140)+'”.');
+    }catch(e){ row('Visitor route · anonymous session',false,'Network: '+e.message); }
+    try{
+      const r=await fetch(vu+'/rest/v1/'+TABLE+'?select=id&limit=1',{headers:{'apikey':vk}});
+      if(r.ok) row('Visitor route · key-only read',true,'The register answers a request that carries only the key, so a visitor reads it even when the session route is refused.');
+      else row('Visitor route · key-only read',false,'The register answered '+r.status+' to a key-only read — the visitor depends on the anonymous session.');
+    }catch(e){}
+  }
 
   const bad=out.filter(x=>!x.ok).length;
   setState({diagnosedAt:U.nowISO()});
