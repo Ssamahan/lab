@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.53** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.54** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.53`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.54`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -207,6 +207,10 @@ register records.
 - **A carry-over is only counted when the year it came from was recorded.** Silence in a
   previous fiscal year is not thirty unused days; the manager's own leave is charged to the
   year he takes it in.
+- **An off-site repair starts with the day it left.** Setting an analyser to *Off-site repair*
+  asks for the shipment date (and a backup, if one is free); leaving that status asks for the
+  return date. The difference is the repair time, printed on the fleet card, the ledger, the
+  asset history and the export.
 - **Names are Rwandan names.** Given name(s) first, family name last, and the given name is
   one unit: “Jean Paul” is never split into a first name “Jean” and a middle name “Paul”.
   The roster, the plan sheet and the avatars all read it that way.

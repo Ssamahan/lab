@@ -4,6 +4,34 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.54
+
+**An off-site repair starts with the day it left.**
+
+Setting an analyser to *Off-site repair* only changed a word on a card: nothing recorded when
+it went, so "how many days did the repair take" had no answer — the downtime figure could be
+read off the ledger, but the round trip to the supplier could not.
+
+Choosing **Off-site repair** in the equipment form now opens the case properly. It asks for the
+**shipment date** — the day the analyser left — and, if one is free, which **backup analyser**
+covers it; the case cannot be saved without that date, because a clock with no start records
+nothing. The form then counts out loud: *“Out for 9 days so far.”*
+
+The mirror side is closed too. Changing the status away from Off-site repair asks for the
+**return date**, writes it on the same case and records the repair time; a case can never be
+left open by accident. The return form does the same thing with the same numbers.
+
+The days are then visible wherever the question is asked:
+
+- the fleet card and the off-site banner read *“Off site since 8 Oct · 9 days out”*;
+- the curative ledger shows downtime **and** *“9 days out so far”* or *“9 days to repair”*;
+- the asset drawer carries a **Repair time** figure and each case says *“repair took 9 days”*;
+- *Open off-site cases* prints the mean, fastest and slowest turnaround across returned cases;
+- the register export gained **Last shipment · Last return · Repair days · Off-site cases**.
+
+Nothing is back-filled: an analyser already off site with no shipment date keeps an empty one
+until somebody opens its record and gives the day it left.
+
 ## What changed in 6.9.53
 
 **Names are given name then family name, and the given name is one unit.**
