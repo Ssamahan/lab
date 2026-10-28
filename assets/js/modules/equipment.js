@@ -72,6 +72,28 @@ function overdue(e){ return !!(e.nextPM && e.nextPM<U.todayISO()); }
 function daysToPM(e){ return e.nextPM?U.daysBetween(U.todayISO(),e.nextPM):null; }
 
 function openCase(e){ return events(e).find(ev=>ev.shippedOn && !ev.returnedOn) || null; }
+/* How long an analyser was away — shipment day to return day, counted in calendar
+   days because that is how a supplier's turnaround is spoken about. A case that is
+   still open counts the days so far, so the number is never blank while it matters. */
+function daysAway(ev){
+  if(!ev||!ev.shippedOn) return null;
+  const start=String(ev.shippedOn).slice(0,10);
+  const end=ev.returnedOn? String(ev.returnedOn).slice(0,10) : U.todayISO();
+  return Math.max(0, U.daysBetween(start,end));
+}
+function daysText(n){ return n==null?'—':(n===1?'1 day':n+' days'); }
+/* Turnaround across every off-site case the register holds: closed ones give a real
+   repair time, open ones give the days already spent out. */
+function repairStats(){
+  const rows=allCurative().filter(x=>x.ev.shippedOn);
+  const closed=rows.filter(x=>x.ev.returnedOn).map(x=>daysAway(x.ev)).filter(n=>n!=null).sort((a,b)=>a-b);
+  const open=rows.filter(x=>!x.ev.returnedOn);
+  if(!closed.length) return {n:0, mean:null, median:null, best:null, worst:null, open:open.length, rows:rows};
+  const sum=closed.reduce((a,b)=>a+b,0);
+  const median=closed.length%2?closed[(closed.length-1)/2]:(closed[closed.length/2-1]+closed[closed.length/2])/2;
+  return {n:closed.length, mean:Math.round(sum/closed.length*10)/10, median:median,
+    best:closed[0], worst:closed[closed.length-1], open:open.length, rows:rows};
+}
 function evDowntime(ev){
   if(ev.shippedOn){
     const s=new Date(ev.shippedOn+'T08:00:00').getTime();
@@ -172,7 +194,7 @@ function fleetCard(e){
     +'<div class="row between" style="align-items:flex-start;margin-bottom:9px"><div style="min-width:0"><div class="card-title truncate">'+U.esc(e.name)+'</div><div class="card-sub truncate">'+U.esc(e.model)+' · '+U.esc(e.location)+'</div></div><span class="pill '+st[1]+'"><span class="dot'+(e.status==='operational'?' live':'')+'"></span>'+st[0]+'</span></div>'
     +'<div class="row between" style="margin-bottom:5px"><span class="xs faint">Uptime (30 d)</span><span class="mono small" style="color:var(--'+(up>=95?'pos':up>=85?'gold-bright':'crit')+')">'+up+'%</span></div>'
     +UI.meter(up,up>=95?'teal':up>=85?'gold':'rose')
-    +(oc? '<div class="hint" style="margin-top:9px;color:var(--rose)">'+UI.ic('truck',12)+' Off site since '+U.fmtDateShort(oc.shippedOn)+' · '+hm(evDowntime(oc))+' downtime'+'</div>':'')
+    +(oc? '<div class="hint" style="margin-top:9px;color:var(--rose)">'+UI.ic('truck',12)+' Off site since '+U.fmtDateShort(oc.shippedOn)+' · <b>'+daysText(daysAway(oc))+' out</b> · '+hm(evDowntime(oc))+' downtime</div>':'')
     +'<div class="thread" style="margin:12px 0 10px"></div>'
     +'<div class="row between"><span class="xs faint">Next PM</span><span class="xs '+(late?'':'muted')+'" style="'+(late?'color:var(--crit)':'')+'">'+(e.nextPM? U.fmtDate(e.nextPM)+(late?' · overdue':' · in '+d+'d') : 'Not scheduled')+'</span></div>'
     +'<div class="row between" style="margin-top:4px"><span class="xs faint mono">'+U.esc(e.serial)+'</span><span class="xs faint">'+(dt?'downtime '+hm(dt):U.esc(e.manufacturer||''))+'</span></div></div></div>';
@@ -201,7 +223,7 @@ function curativeView(){
   const r=responseStats(rows.map(x=>x.ev));
   const open=rows.filter(x=>x.ev.shippedOn&&!x.ev.returnedOn);
   const awaiting=rows.filter(x=>x.ev.emailAt&&!x.ev.interventionAt);
-  const body=rows.length? '<div class="dt-scroll"><table class="dt"><thead><tr><th>Analyser</th><th>Case</th><th>Email to supplier</th><th>Intervened</th><th>Response</th><th>Site</th><th>Downtime</th><th>Backup</th><th>Status</th></tr></thead><tbody>'
+  const body=rows.length? '<div class="dt-scroll"><table class="dt"><thead><tr><th>Analyser</th><th>Case</th><th>Email to supplier</th><th>Intervened</th><th>Response</th><th>Site</th><th>Downtime · away</th><th>Backup</th><th>Status</th></tr></thead><tbody>'
     +rows.map(({e,ev})=>{
       const resp=responseOf(ev);
       const oc=ev.shippedOn&&!ev.returnedOn;
@@ -212,7 +234,8 @@ function curativeView(){
         +'<td class="num">'+(ev.interventionAt? fmtDT(ev.interventionAt):(ev.emailAt?'<span class="pill amber">awaiting</span>':'—'))+'</td>'
         +'<td class="num mono">'+(resp!=null? hm(resp):'—')+'</td>'
         +'<td>'+(ev.offsite||oc? '<span class="pill rose">Off site</span>':'<span class="pill slate">On site</span>')+'</td>'
-        +'<td class="num mono">'+hm(evDowntime(ev))+'</td>'
+        +'<td class="num mono">'+hm(evDowntime(ev))
+          +(ev.shippedOn?'<div class="xs faint" style="font-weight:400">'+daysText(daysAway(ev))+(ev.returnedOn?' to repair':' out so far')+'</div>':'')+'</td>'
         +'<td>'+(bk? '<span class="xs">'+U.esc(bk.name)+'</span>':'<span class="faint">—</span>')+'</td>'
         +'<td>'+(oc? '<span class="pill rose"><span class="dot live"></span>open</span>':'<span class="pill teal">closed</span>')+'</td></tr>';
     }).join('')+'</tbody></table></div>'
@@ -222,10 +245,13 @@ function curativeView(){
         (r? '<div class="split-3">'+[['Mean',hm(r.avg)],['Median',hm(r.median)],['Cases',String(r.n)]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl">'+v+'</span></div>').join('')+'</div>'
             +'<div class="hint" style="margin-top:10px">Fastest '+hm(r.best)+' · slowest '+hm(r.worst)+'</div>'
           : '<p class="xs faint">No case has both an email time and an intervention time yet. Enter both when you log a curative case and the response speed is calculated automatically.</p>')})+'</div>'
-    +'<div class="c4">'+UI.card({title:'Open off-site cases',sub:'Downtime keeps accruing until return',icon:'truck',body:
+    +'<div class="c4">'+UI.card({title:'Open off-site cases',sub:(function(){ const rs=repairStats(); return 'Shipment to return · '+(rs.n?('mean repair '+daysText(rs.mean)):'no returned case yet'); })(),icon:'truck',body:
         (open.length? open.map(x=>{ const oc=openCase(x.e);
-            return '<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(x.e.name)+'</div><div class="lr-sub">Shipped '+U.fmtDateShort(oc.shippedOn)+' · '+hm(evDowntime(oc))+' so far</div></div><button class="btn xs" data-return="'+x.e.id+'">Mark returned</button></div>'; }).join('')
-          : '<p class="xs faint">Nothing is out for repair. When an analyser cannot be fixed on site, record the shipment and a backup; it stays in downtime until you mark it returned.</p>')})+'</div>'
+            return '<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(x.e.name)+'</div><div class="lr-sub">Shipped '+U.fmtDateShort(oc.shippedOn)+' · <b>'+daysText(daysAway(oc))+' out</b> · '+hm(evDowntime(oc))+' downtime so far</div></div><button class="btn xs" data-return="'+x.e.id+'">Mark returned</button></div>'; }).join('')
+          : '<p class="xs faint">Nothing is out for repair. When an analyser cannot be fixed on site, record the shipment and a backup; it stays in downtime until you mark it returned.</p>')
+        +(function(){ const rs=repairStats(); if(!rs.n) return '';
+            return '<div class="hint" style="margin-top:10px">Repaired in <b style="color:var(--text)">'+daysText(rs.mean)+'</b> on average across '+rs.n+' returned case'+(rs.n===1?'':'s')
+              +' · fastest '+daysText(rs.best)+' · slowest '+daysText(rs.worst)+'.</div>'; })()})+'</div>'
     +'<div class="c4">'+UI.card({title:'Awaiting intervention',sub:'Email sent, no visit recorded',icon:'clock',body:
         (awaiting.length? awaiting.map(({e,ev})=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.6px">'+U.esc(e.name)+'</div><div class="lr-sub">Emailed '+fmtDT(ev.emailAt)+'</div></div><span class="pill amber">'+hm(hBetween(ev.emailAt,nowLocalInput()))+'</span></div>').join('')
           : '<p class="xs faint">No supplier email is waiting for a visit.</p>')})+'</div>'
@@ -449,27 +475,37 @@ function returnModal(eqId){
   const bk=oc.backupId? S.db().equipment.find(x=>x.id===oc.backupId):null;
   UI.modal({title:'Mark analyser returned',sub:'Downtime stops on the return date · the backup is released back to the pool.',width:'min(520px,100%)',
     body:'<div class="form-grid">'
-     +'<div class="field span2"><div class="hint">'+U.esc(e.name)+' was shipped on '+U.fmtDate(oc.shippedOn)+' — '+hm(evDowntime(oc))+' of downtime so far'+(bk?', covered by '+U.esc(bk.name):'')+'.</div></div>'
+     +'<div class="field span2"><div class="hint">'+U.esc(e.name)+' was shipped on '+U.fmtDate(oc.shippedOn)+' — <b style="color:var(--text)">'+daysText(daysAway(oc))+' out so far</b>, '+hm(evDowntime(oc))+' of downtime'+(bk?', covered by '+U.esc(bk.name):'')+'. The return date closes the case and records how long the repair took.</div></div>'
      +'<div class="field"><label>Returned on</label><input class="input" type="date" id="rtDate" value="'+U.todayISO()+'" min="'+oc.shippedOn+'" max="'+U.todayISO()+'"></div>'
      +'<div class="field"><label>Status after return</label><select class="select" id="rtStatus"><option value="operational">Operational</option><option value="maintenance">In maintenance</option><option value="offline">Still offline</option></select></div>'
      +'<div class="field span2"><label>Return note</label><input class="input" id="rtNote" placeholder="Repaired, verified with QC, accessories returned…"></div>'
+     +'<div class="field span2"><div class="hint" id="rtDays"></div></div>'
      +'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Mark returned</button>',
     onMount:(el,close)=>{
+      const paintDays=()=>{
+        const d=el.querySelector('#rtDate').value;
+        const n=d&&d>=oc.shippedOn?U.daysBetween(oc.shippedOn,d):null;
+        el.querySelector('#rtDays').innerHTML=n==null?'':'<b style="color:var(--text)">Out for '+daysText(n)+'.</b> That is the repair time recorded against this case.';
+      };
+      el.querySelector('#rtDate').oninput=paintDays;
+      el.querySelector('#rtDate').onchange=paintDays;
+      paintDays();
       el.querySelector('[data-save]').onclick=()=>{
         const date=el.querySelector('#rtDate').value;
         if(!date) return UI.toast('Pick the return date',{type:'warn'});
         if(date<oc.shippedOn) return UI.toast('Return cannot precede the shipment',{type:'warn'});
         const status=el.querySelector('#rtStatus').value;
         const note=el.querySelector('#rtNote').value.trim();
+        const away=U.daysBetween(String(oc.shippedOn).slice(0,10),date);
         S.commit(d=>{
           const x=d.equipment.find(y=>y.id===eqId); if(!x) return;
           const ev=(x.services||[]).find(y=>y.id===oc.id) || (x.services||[]).find(y=>y.shippedOn===oc.shippedOn&&!y.returnedOn);
-          if(ev){ ev.returnedOn=date; if(note) ev.returnNote=note; }
+          if(ev){ ev.returnedOn=date; ev.awayDays=away; ev.repairDays=away; if(note) ev.returnNote=note; }
           if(status==='offsite') x.status='operational'; else x.status=status;
           if(oc.backupId){ const b=d.equipment.find(y=>y.id===oc.backupId); if(b){ b.status='standby'; b.deployedTo=null; b.deployedAt=null; b.deployedFor=null; } }
-        },{action:'equipment.return',entity:'equipment',entityId:eqId,detail:e.name+' returned '+date+(note?' · '+note:'')});
-        close(); LS.shell.refresh(); UI.toast(e.name+' marked returned · downtime closed',{type:'ok'});
+        },{action:'equipment.return',entity:'equipment',entityId:eqId,detail:e.name+' returned '+date+' after '+daysText(away)+' off site'+(note?' · '+note:'')});
+        close(); LS.shell.refresh(); UI.toast(e.name+' back after '+daysText(away)+' · downtime closed',{type:'ok',duration:5000});
       };
     }});
 }
@@ -479,6 +515,8 @@ function equipmentModal(id,presetRole){
   if(!LS.auth.guard('edit')) return;
   const e=id?S.db().equipment.find(x=>x.id===id):null;
   const role=e? (e.role||'primary') : (presetRole||'primary');
+  const oc=e? openCase(e) : null;
+  const pool=backups().filter(b=>b.status!=='deployed'||(oc&&oc.backupId===b.id));
   UI.modal({title:e?'Edit equipment record':(role==='backup'?'Register a backup analyser':'Add equipment'),sub:'Admin only · the register feeds maintenance scheduling, QC links, the backup pool and the exported asset list.',width:'min(680px,100%)',
     body:'<div class="form-grid">'
       +'<div class="field span2"><label>Equipment name</label><input class="input" id="eqName" value="'+U.esc(e?e.name:'')+'" placeholder="e.g. Sysmex XN-550"></div>'
@@ -493,9 +531,55 @@ function equipmentModal(id,presetRole){
       +'<div class="field"><label>Last service</label><input class="input" type="date" id="eqLast" value="'+U.esc(e&&e.lastPM?String(e.lastPM).slice(0,10):'')+'" max="'+U.todayISO()+'"></div>'
       +'<div class="field"><label>PM interval (days)</label><input class="input mono" type="number" min="15" step="15" id="eqInterval" value="'+(e&&e.pmIntervalDays?e.pmIntervalDays:180)+'"></div>'
       +'<div class="field"><label>Supplier service email</label><input class="input" type="email" id="eqVendorEmail" value="'+U.esc(e&&e.vendorEmail?e.vendorEmail:'')+'" placeholder="service@supplier.rw"></div>'
-      +'<div class="field span2"><label>Notes</label><textarea class="textarea" id="eqNote" rows="2" placeholder="Service contract, known faults, accessories…">'+U.esc(e?e.note||'':'')+'</textarea></div></div>',
+      +'<div class="field span2"><label>Notes</label><textarea class="textarea" id="eqNote" rows="2" placeholder="Service contract, known faults, accessories…">'+U.esc(e?e.note||'':'')+'</textarea></div>'
+      /* The moment the status becomes Off-site repair the form asks the two things a
+         repair case cannot be counted without: the day it left, and — if there is one —
+         the backup that covers it. The return date closes the same case. */
+      +'<div class="field span2" id="eqOffsiteWrap" style="display:none"><div class="card pad" style="background:var(--surface-inset);border-left:3px solid var(--rose)">'
+        +'<div class="eyebrow" style="color:var(--rose)">'+UI.ic('truck',12)+' Off-site repair</div>'
+        +'<div class="form-grid" style="margin-top:8px">'
+          +'<div class="field"><label>Shipment date · the day it left</label><input class="input" type="date" id="eqShip" value="'+(oc?oc.shippedOn:U.todayISO())+'" max="'+U.todayISO()+'"></div>'
+          +'<div class="field"><label>Backup analyser covering it</label><select class="select" id="eqBackup"><option value="">None available</option>'
+            +pool.map(b=>'<option value="'+b.id+'"'+((oc&&oc.backupId===b.id)?' selected':'')+'>'+U.esc(b.name+' · '+b.serial)+'</option>').join('')+'</select></div>'
+          +'<div class="field span2"><div class="hint" id="eqShipHint"></div></div>'
+        +'</div></div></div>'
+      +'<div class="field span2" id="eqReturnWrap" style="display:none"><div class="card pad" style="background:var(--surface-inset);border-left:3px solid var(--teal)">'
+        +'<div class="eyebrow">'+UI.ic('check-check',12)+' Back from repair</div>'
+        +'<div class="form-grid" style="margin-top:8px">'
+          +'<div class="field"><label>Returned on</label><input class="input" type="date" id="eqReturn" value="'+U.todayISO()+'" min="'+(oc?oc.shippedOn:'')+'" max="'+U.todayISO()+'"></div>'
+          +'<div class="field"><div class="hint" id="eqReturnHint"></div></div>'
+        +'</div></div></div>'
+      +'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save equipment</button>',
     onMount:(el,close)=>{
+      const q=s=>el.querySelector(s);
+      const shipBox=q('#eqOffsiteWrap'), retBox=q('#eqReturnWrap');
+      const paintOffsite=()=>{
+        const status=q('#eqStatus').value;
+        const off=status==='offsite';
+        /* leaving off-site with a case still open must end it, or the days away never close */
+        const closing=!!oc && !off;
+        shipBox.style.display=off?'':'none';
+        retBox.style.display=closing?'':'none';
+        if(off){
+          const ship=q('#eqShip').value||U.todayISO();
+          const d=Math.max(0,U.daysBetween(ship,U.todayISO()));
+          q('#eqShipHint').innerHTML='<b style="color:var(--text)">Out for '+daysText(d)+' so far.</b> '
+            +(oc?'The case is open since '+U.fmtDate(oc.shippedOn)+'. ':'The repair clock starts on the shipment date. ')
+            +'It stays under downtime until the status leaves Off-site repair and you give the return date.';
+        }
+        if(closing){
+          const rq=q('#eqReturn');
+          if(oc) rq.min=oc.shippedOn;
+          if(rq.value<oc.shippedOn) rq.value=oc.shippedOn;
+          const d=Math.max(0,U.daysBetween(oc.shippedOn,rq.value||U.todayISO()));
+          q('#eqReturnHint').innerHTML='Shipped '+U.fmtDate(oc.shippedOn)+' — returning now closes the case after <b style="color:var(--text)">'+daysText(d)+'</b>.';
+        }
+      };
+      q('#eqStatus').onchange=paintOffsite;
+      ['#eqShip','#eqReturn'].forEach(s2=>{ q(s2).oninput=paintOffsite; q(s2).onchange=paintOffsite; });
+      paintOffsite();
+
       el.querySelector('[data-save]').onclick=()=>{
         const name=el.querySelector('#eqName').value.trim();
         if(!name) return UI.toast('Equipment name required',{type:'warn'});
@@ -510,11 +594,56 @@ function equipmentModal(id,presetRole){
         rec.vendor=rec.manufacturer;
         rec.lastPM=el.querySelector('#eqLast').value||null;
         rec.nextPM=rec.lastPM?U.addDays(rec.lastPM,rec.pmIntervalDays):null;
+
+        /* Off-site repair without a shipment date is a case nobody can count: ask for
+           the day it left. Leaving off-site with the case still open is the mirror
+           image — ask for the day it came back, so the repair has an end. */
+        const shipDate=q('#eqShip').value||'';
+        const retDate=q('#eqReturn').value||'';
+        const backupId=q('#eqBackup').value||null;
+        if(rec.status==='offsite'){
+          if(!shipDate){ UI.toast('Pick the shipment date — the repair clock starts the day the analyser leaves',{type:'warn',duration:6000}); q('#eqShip').focus(); return; }
+          if(shipDate>U.todayISO()){ UI.toast('The shipment date cannot be in the future',{type:'warn'}); return; }
+        }
+        if(oc && rec.status!=='offsite'){
+          if(!retDate){ UI.toast('Give the return date — that is the day the repair finished',{type:'warn',duration:6000}); q('#eqReturn').focus(); return; }
+          if(retDate<oc.shippedOn){ UI.toast('The return cannot precede the shipment',{type:'warn'}); return; }
+        }
+        const by=LS.auth.user.name;
+        let shipped=null, returned=null, awayDays=null;
         S.commit(d=>{
-          if(e){ const x=d.equipment.find(y=>y.id===e.id); if(x){ Object.assign(x,rec); x.services=x.services||[]; x.downtime=x.downtime||[]; } }
-          else { const nid=U.uid('eq'); d.equipment.push(Object.assign({id:nid,services:[],downtime:[],uptime:rec.uptime},rec)); }
-        },{action:'equipment.'+(e?'edit':'add'),entity:'equipment',entityId:e?e.id:rec.name,detail:rec.name+' · '+rec.serial});
-        close(); LS.shell.refresh(); UI.toast(e?'Equipment record updated':'Equipment added to the register',{type:'ok'});
+          let x;
+          if(e){ x=d.equipment.find(y=>y.id===e.id); if(!x) return; Object.assign(x,rec); x.services=x.services||[]; x.downtime=x.downtime||[]; }
+          else { x={id:U.uid('eq'),services:[],downtime:[],uptime:rec.uptime}; Object.assign(x,rec); d.equipment.push(x); }
+          x.services=x.services||[]; x.downtime=x.downtime||[];
+          let open=(x.services||[]).find(y=>y.shippedOn&&!y.returnedOn)||null;
+          if(rec.status==='offsite'){
+            if(open){ open.shippedOn=shipDate; open.backupId=backupId||open.backupId||null; }
+            else{
+              open={id:U.uid('svc'),date:shipDate,kind:'curative',type:'Off-site repair',by,
+                note:'Sent to the supplier for repair',hours:0,shippedOn:shipDate,
+                backupId:backupId||null,recordedAt:new Date().toISOString(),source:'status'};
+              x.services.push(open);
+            }
+            shipped=open.shippedOn;
+            if(open.backupId){
+              const b=d.equipment.find(y=>y.id===open.backupId);
+              if(b){ b.status='deployed'; b.deployedTo=x.name; b.deployedAt=open.shippedOn; b.deployedFor=x.id; }
+            }
+          } else if(open){
+            open.returnedOn=retDate||U.todayISO();
+            returned=open.returnedOn; awayDays=daysAway(open);
+            if(open.backupId){
+              const b=d.equipment.find(y=>y.id===open.backupId);
+              if(b){ b.status='standby'; b.deployedTo=null; b.deployedAt=null; b.deployedFor=null; }
+            }
+          }
+        },{action:'equipment.'+(e?'edit':'add'),entity:'equipment',entityId:e?e.id:rec.name,
+          detail:rec.name+' · '+rec.serial+(shipped?' · shipped '+shipped:'')+(returned?' · returned '+returned+' after '+daysText(awayDays):'')});
+        close(); LS.shell.refresh();
+        UI.toast(shipped&&!returned? rec.name+' sent off site on '+U.fmtDate(shipped)+' · the repair clock is running'
+          : returned? rec.name+' back after '+daysText(awayDays)+' · repair time recorded'
+          : (e?'Equipment record updated':'Equipment added to the register'),{type:'ok',duration:5000});
       };
     }});
 }
@@ -540,12 +669,15 @@ function eqDrawer(id){
         +(ev.source==='backfill'?' <span class="xs faint">· back-filled</span>':'')+'</div>'
       +'<div class="custody-meta">'+U.fmtDate(ev.date)+(ev.by?' · '+U.esc(ev.by):'')+' · '+U.esc(ev.note||'')+'</div>'
       +(ev.emailAt||ev.interventionAt? '<div class="custody-meta">'+UI.ic('mail',11)+' Email '+fmtDT(ev.emailAt)+' → intervened '+fmtDT(ev.interventionAt)+(resp!=null?' · <b style="color:var(--text)">response '+hm(resp)+'</b>':' · awaiting')+'</div>':'')
-      +(ev.shippedOn? '<div class="custody-meta">'+UI.ic('truck',11)+' Shipped '+U.fmtDate(ev.shippedOn)+(ev.returnedOn?' · returned '+U.fmtDate(ev.returnedOn):' · still off site')+(ev.backupId&&S.db().equipment.find(x=>x.id===ev.backupId)?' · backup '+U.esc(S.db().equipment.find(x=>x.id===ev.backupId).name):'')+'</div>':'')
+      +(ev.shippedOn? '<div class="custody-meta">'+UI.ic('truck',11)+' Shipped '+U.fmtDate(ev.shippedOn)+(ev.returnedOn?' · returned '+U.fmtDate(ev.returnedOn)+' · <b style="color:var(--text)">repair took '+daysText(daysAway(ev))+'</b>':' · <b style="color:var(--text)">'+daysText(daysAway(ev))+' out</b>')+(ev.backupId&&S.db().equipment.find(x=>x.id===ev.backupId)?' · backup '+U.esc(S.db().equipment.find(x=>x.id===ev.backupId).name):'')+'</div>':'')
       +'</div></div>';
   };
   UI.drawer({title:e.name,eyebrow:e.role==='backup'?'Backup analyser':'Equipment record',sub:e.model+' · '+e.location,wide:true,body:
-    '<div class="split-4">'+[['Uptime 30d',uptimeOf(e)+'%'],['Status',(STATUS[e.status]||['—'])[0]],['Downtime 30d',hm(downtimeIn(e,30,false))],['Supplier response',rs?hm(rs.avg):'—']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:'+(String(v).length>12?'10.5px':'13px')+'">'+U.esc(v)+'</span></div>').join('')+'</div>'
-    +(oc? '<div class="card pad" style="background:var(--surface-inset);margin-top:12px;border-left:3px solid var(--rose)"><div class="row between"><div><div class="eyebrow" style="color:var(--rose)">Off-site repair in progress</div><div class="xs muted" style="margin-top:4px">Shipped '+U.fmtDate(oc.shippedOn)+' · '+hm(evDowntime(oc))+' downtime accrued'+(bk?' · covered by '+U.esc(bk.name):'')+'. The clock runs until the analyser is marked returned.</div></div><button class="btn sm" data-return>Mark returned</button></div></div>':'')
+    (function(){ const mine=events(e).filter(x=>x.shippedOn); const done=mine.filter(x=>x.returnedOn);
+      const turns=done.map(daysAway); const avgTurns=turns.length?Math.round(U.avg(turns)*10)/10:null;
+      return '<div class="split-4">'+[['Uptime 30d',uptimeOf(e)+'%'],['Status',(STATUS[e.status]||['—'])[0]],['Downtime 30d',hm(downtimeIn(e,30,false))],
+        done.length?['Repair time ('+done.length+')',daysText(avgTurns)]:['Supplier response',rs?hm(rs.avg):'—']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:'+(String(v).length>12?'10.5px':'13px')+'">'+U.esc(v)+'</span></div>').join('')+'</div>'; })()
+    +(oc? '<div class="card pad" style="background:var(--surface-inset);margin-top:12px;border-left:3px solid var(--rose)"><div class="row between"><div><div class="eyebrow" style="color:var(--rose)">Off-site repair in progress · '+daysText(daysAway(oc))+'</div><div class="xs muted" style="margin-top:4px">Shipped '+U.fmtDate(oc.shippedOn)+' · '+hm(evDowntime(oc))+' downtime accrued'+(bk?' · covered by '+U.esc(bk.name):'')+'. The clock runs until the analyser is marked returned.</div></div><button class="btn sm" data-return>Mark returned</button></div></div>':'')
     +'<div class="section-head"><h2>Maintenance & downtime history</h2><span class="more">'+hist.length+' events</span></div>'
     +'<div class="custody">'+(hist.length?hist.map(evRow).join(''):'<p class="xs faint" style="padding-left:22px">No maintenance events recorded yet — use “Record maintenance”, or “Previous history” to back-fill visits from before the console.</p>')+'</div>'
     +'<div class="hint" style="margin-top:8px">Latest preventive service: '+(last?U.fmtDate(last.date)+' ('+U.esc(last.type)+')':'—')+' · PM interval '+(e.pmIntervalDays||180)+' days · next '+(e.nextPM?U.fmtDate(e.nextPM):'not scheduled')+'</div>'
@@ -604,10 +736,14 @@ M.render=function(root,params){
   root.querySelector('[data-history]').onclick=()=>historyModal();
   root.querySelector('[data-export]').onclick=()=>{
     U.exportCSV('equipment-register-'+U.todayISO()+'.csv',
-      [['Asset','Role','Model','Manufacturer','Serial','Location','Status','Uptime %','Last service','Next PM','Downtime 30d h','Curative cases','Supplier response h','Events']]
+      [['Asset','Role','Model','Manufacturer','Serial','Location','Status','Uptime %','Last service','Next PM','Downtime 30d h','Curative cases','Supplier response h','Events','Last shipment','Last return','Repair days','Off-site cases']]
       .concat(S.db().equipment.map(e=>{ const rs=responseStats(curative(e));
+        const off=events(e).filter(x=>x.shippedOn);
+        const last=off.slice().sort((a,b)=>String(b.shippedOn).localeCompare(String(a.shippedOn)))[0]||null;
+        const closed=off.filter(x=>x.returnedOn).map(daysAway);
         return [e.name,e.role==='backup'?'Backup':'In service',e.model,e.manufacturer,e.serial,e.location,e.status,uptimeOf(e),e.lastPM,e.nextPM,
-          Math.round(downtimeIn(e,30,false)*10)/10,curative(e).length,rs?rs.avg:'',events(e).length]; })),
+          Math.round(downtimeIn(e,30,false)*10)/10,curative(e).length,rs?rs.avg:'',events(e).length,
+          last?last.shippedOn:'',last&&last.returnedOn?last.returnedOn:'',closed.length?Math.round(U.avg(closed)*10)/10:'',off.length]; })),
       {title:'Equipment register — '+S.settings().labName,actor:LS.auth.user.name});
     UI.toast('Equipment register exported',{type:'ok'});
   };
