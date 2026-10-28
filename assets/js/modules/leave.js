@@ -71,7 +71,8 @@ function offToday(){
       detail:(S.leaveKind(lv.type)==='annual'?'Annual':'Authorised')+' · returns '+U.fmtDate(lv.backOn||U.addDays(lv.to,1))};
     const code=S.codeFor(s,iso);
     if(code==='OFF'||code==='W') return {staff:s,kind:'off',label:'Off duty',detail:'At home — rest day on the working plan'};
-    if(!code && covered) return {staff:s,kind:'blank',label:'Not rostered',detail:'No shift on the published working plan'};
+    if(!code && covered) return {staff:s,kind:'blank',label:'At home',
+      detail:(S.planRowFor(s,iso)?'Blank cell on the working plan':'Not on the published working plan')+' — a blank cell means at home'};
     return null;
   }).filter(Boolean);
 }

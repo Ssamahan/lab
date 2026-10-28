@@ -181,8 +181,10 @@ function dutyCard(){
   const rows=S.activeStaff().map(s=>{
     let state=S.shiftState(s,iso);
     /* A guessed day off is not evidence: when no working plan covers today the
-       contract pattern cannot say someone is at home, so they read as on duty. */
-    if(state.kind==='off'&&state.source==='pattern') state={code:'D',kind:'day',label:'On day duty',tone:'teal',source:'pattern'};
+       contract pattern cannot say someone is at home, so they read as on duty. When
+       the plan does cover today it is evidence, and a blank cell on it means the
+       person is at home — never day cover. */
+    if(state.kind==='off'&&state.source==='pattern'&&!S.planCovers(iso)) state={code:'D',kind:'day',label:'On day duty',tone:'teal',source:'pattern'};
     return {staff:s,state,sh:Object.assign({kind:state.kind},dutyLabel(state,hour,isNight))};
   });
   rows.sort((a,b)=>a.sh.rank-b.sh.rank || a.staff.name.localeCompare(b.staff.name));
