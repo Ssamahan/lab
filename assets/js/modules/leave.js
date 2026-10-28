@@ -111,7 +111,7 @@ function conflicts(l){
   const min=Math.max(1,(S.settings().coverWeekdayDay||3)-1);
   const remaining=active.length-overlapping.length-1;
   if(remaining<min) return {level:'block', text:remaining+' staff would remain available ('+overlapping.length+' also away) — below the '+min+'-person minimum.'};
-  if(overlapping.length) return {level:'warn', text:overlapping.length+' colleague(s) already away in the same window: '+overlapping.map(s=>s.name.split(' ')[0]).join(', ')+'.'};
+  if(overlapping.length) return {level:'warn', text:overlapping.length+' colleague(s) already away in the same window: '+overlapping.map(s=>U.givenName(s.name)).join(', ')+'.'};
   return {level:'ok', text:'No coverage conflict detected.'};
 }
 
@@ -123,7 +123,7 @@ function kpis(){
   const unauth=(S.db().absences||[]).length;
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
    +'<div class="c3">'+UI.stat({label:'On leave today',value:today.length,icon:'plane-takeoff',formatted:'0',
-      note:today.map(l=>(S.staffById(l.staffId)||{}).name||'').map(n=>n.split(' ')[0]).filter(Boolean).join(', ')||'Nobody on leave',
+      note:today.map(l=>(S.staffById(l.staffId)||{}).name||'').map(n=>U.givenName(n)).filter(Boolean).join(', ')||'Nobody on leave',
       spark:C.spark([1,0,1,2,1,0,1,1,2,1,1,today.length],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Off duty today',value:offs.filter(o=>o.kind!=='leave').length,icon:'moon',formatted:'0',
       note:offs.filter(o=>o.kind==='off').length+' rest day · '+offs.filter(o=>o.kind==='blank').length+' not rostered',

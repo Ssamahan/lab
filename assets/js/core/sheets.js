@@ -76,9 +76,17 @@ SH._h={rect,line,text,esc};
    width across two lines (first name above surname) and never fall below the
    size the printed register uses. */
 function nameLines(name){
+  /* Given name(s) on one line, family name underneath — the Rwandan order the
+     register itself uses. Splitting at the first space printed “Jean” in bold with
+     “Paul NSENGIYUMVA” under it, which is neither his given name nor his family
+     name. */
+  if(window.LSU&&window.LSU.nameParts){
+    const p=window.LSU.nameParts(name);
+    return {main:p.given||p.surname||'', sub:p.given?p.surname:''};
+  }
   const parts=String(name||'').trim().split(/\s+/);
   if(parts.length<2) return {main:parts[0]||'', sub:''};
-  return {main:parts[0], sub:parts.slice(1).join(' ')};
+  return {main:parts.slice(0,-1).join(' '), sub:parts[parts.length-1]};
 }
 /* Bold sans capitals advance at roughly 0.70 em; 0.58 underestimates them and
    names then run into the next column, which is how the earlier sheets broke. */

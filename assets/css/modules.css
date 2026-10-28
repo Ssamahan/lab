@@ -561,6 +561,17 @@
 .plan-fit .cal th{padding:5px 2px}
 .plan-fit .cal .staff-cell{position:static;width:134px;min-width:0;padding:4px 8px;z-index:auto;background:var(--surface)}
 .plan-fit .cal .staff-cell .nm{max-width:none;font-size:10.6px;letter-spacing:-.01em}
+/* the name wraps between the given names and the family name rather than being cut
+   with an ellipsis in the middle of “Marie Claudine UWAYISABA” */
+.cal .staff-cell .nm.pn-wrap,.plan-fit .cal .staff-cell .nm.pn-wrap{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.22}
+.cal .staff-cell .nm.pn-wrap .pn-g{font-size:9.5px}
+.cal .staff-cell .nm.pn-wrap .pn-s{font-size:11px}
+.plan-fit .cal .staff-cell .nm.pn-wrap .pn-g{font-size:9px}
+.plan-fit .cal .staff-cell .nm.pn-wrap .pn-s{font-size:10.6px}
+.cal td .pn-wrap .pn-g{font-size:9.5px}
+.cal td .pn-wrap .pn-s{font-size:10.8px}
+.bal .bl .pn-g{font-size:9.5px}
+.bal .bl .pn-s{font-size:10.5px}
 .plan-fit .cal .staff-cell .rl{max-width:none;font-size:8.4px}
 .plan-fit .cal .day{min-width:0;height:27px}
 .plan-fit .shift-code{min-width:0;width:calc(100% - 3px);height:17px;padding:0;font-size:8.4px;border-radius:3px;letter-spacing:0}

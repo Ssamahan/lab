@@ -827,7 +827,36 @@ U.statusTone = (s)=>{
   const m={Positive:'rose',Negative:'teal',Pending:'amber',Done:'teal',Rejected:'rose',Received:'blue',Dispatched:'blue',Registered:'slate',Resulted:'teal',Collected:'slate','In transit':'amber'};
   return m[s]||'slate';
 };
-U.initials = name=> String(name||'?').replace(/[^A-Za-z\s]/g,'').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+/* ——— Names ————————————————————————————————————————
+   In this register a person's name is given name(s) followed by the family name:
+   “Jean Paul NSENGIYUMVA”, “Marie Claudine UWAYISABA”, “Jean de Dieu SIBOMANA”.
+   Everything before the last word belongs to the given name — one unit. “Jean” on
+   its own is not a name, and “Paul NSENGIYUMVA” is not a surname; splitting at the
+   first space made both mistakes on the roster. */
+U.nameParts = function(name){
+  const words=String(name==null?'':name).trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return {given:'', surname:'', full:'', words:[]};
+  if(words.length===1) return {given:'', surname:words[0], full:words[0], words:words};
+  return {given:words.slice(0,-1).join(' '), surname:words[words.length-1], full:words.join(' '), words:words};
+};
+/* The name a colleague is known by: the given names, whole. */
+U.givenName = function(name){ const p=U.nameParts(name); return p.given||p.surname; };
+U.surname = name=> U.nameParts(name).surname;
+/* The whole name as markup. The given names are never broken across two lines, so
+   “Jean Paul” cannot end up as “Jean” at the foot of one line and “Paul” at the top
+   of the next; the family name carries the weight. */
+U.nameHTML = function(name,o){
+  o=o||{};
+  const p=U.nameParts(name);
+  if(!p.given) return '<span class="pn'+(o.cls?' '+o.cls:'')+'"><span class="pn-s">'+U.esc(p.surname)+'</span></span>';
+  return '<span class="pn'+(o.cls?' '+o.cls:'')+'"><span class="pn-g">'+U.esc(p.given)+'</span> <span class="pn-s">'+U.esc(p.surname)+'</span></span>';
+};
+U.initials = function(name){
+  const p=U.nameParts(String(name||'?').replace(/[^A-Za-z\s]/g,' '));
+  const g=(p.given||'').split(/\s+/).filter(Boolean);
+  if(!g.length) return (p.surname||'?').slice(0,2).toUpperCase();
+  return (g[0][0]+(p.surname[0]||g[1]&&g[1][0]||'')).toUpperCase();
+};
 const AV=['#D4B76A','#8FB3D9','#7FC7B6','#D9A0A8','#B3A0D9','#C7B888','#8FC7A0','#D9BFA0'];
 /* A staff portrait, wherever one has been uploaded. Kept on the staff record and
    read by name so the same face appears on cards, lists, rosters and prints. */

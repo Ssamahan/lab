@@ -4,6 +4,35 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.53
+
+**Names are given name then family name, and the given name is one unit.**
+
+The roster split every name at the first space, so the week grid and the night row printed
+**Jean** in the dark weight with *Paul NSENGIYUMVA* faint underneath — a first name that does
+not exist and a surname that is not his. On the printed plan the same split printed “Jean”
+over “Paul NSENGIYUMVA”, and a narrow column cut **Marie Claudine UWAYISABA** off at “Marie
+Claudine UWAYIS…”.
+
+In this register a person is given name(s) followed by the family name: **Jean Paul
+NSENGIYUMVA**, **Marie Claudine UWAYISABA**, **Jean de Dieu SIBOMANA**. Everything before the
+last word is the given name — one unit, whether it is one word or three. One helper now does
+that split everywhere (`nameParts`), so:
+
+- the roster grid, the week grid, the night row and the balance card draw the given names in
+  one unbreakable span with the family name in the heavier weight beside it;
+- when a name must wrap it breaks **between** the given names and the family name, never
+  inside “Jean Paul”, and never with an ellipsis through the surname;
+- the printed monthly and weekly sheets set the given names on one line with the family name
+  under them, in the same order;
+- avatars read **JN** for Jean Paul NSENGIYUMVA, **MU** for Marie Claudine UWAYISABA — the
+  given name and the family name, not two given names;
+- chips and chart labels that used to show the first word now show the given name whole
+  (“Jean Paul”), with the full name on hover.
+
+Nothing changes at the record level: names are stored and exported exactly as they were
+entered, and the full name stays in every tooltip.
+
 ## What changed in 6.9.52
 
 **A blank cell means at home.**

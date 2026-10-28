@@ -44,7 +44,7 @@ function kpiRow(){
 
 function hero(){
   const u=LS.auth.user||{name:'Laboratory Manager'};
-  const first=u.name.split(' ')[0];
+  const first=U.givenName(u.name);
   const st=S.sampleStats();
   const comp=S.compliance();
   const today=U.fmtDateLong();

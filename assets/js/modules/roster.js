@@ -97,7 +97,7 @@ function gridView(){
   }).join('')+'</tr></thead>';
   const body=(p.staff||[]).map((s,si)=>{
     const st=S.staffByName(s.name)||{};
-    return '<tr><td class="staff-cell"><div class="nm">'+U.esc(s.name)+'</div><div class="rl">'+U.esc(st.role||'')+'</div></td>'
+    return '<tr><td class="staff-cell"><div class="nm pn-wrap" title="'+U.esc(s.name)+'">'+U.nameHTML(s.name)+'</div><div class="rl">'+U.esc(st.role||'')+'</div></td>'
      +p.dates.map((iso,di)=>{
         const c=s.codes[di]||''; const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
         const lv=S.leaveCodeFor(s.name,iso);
@@ -147,7 +147,7 @@ function balanceBody(p){
   const maxW=Math.max.apply(null,names.map(n=>f[n].weekends).concat([1]));
   return '<div class="bal"><div class="bal-head"><span></span><span>Nights</span><span>Weekend</span><span>Holiday</span></div>'
    +names.map(n=>'<div class="bal-row">'
-      +'<span class="bl" title="'+U.esc(n)+'">'+U.esc(n.split(' ')[0])+' <em>'+U.esc(n.split(' ').slice(1).join(' '))+'</em></span>'
+      +'<span class="bl" title="'+U.esc(n)+'">'+U.nameHTML(n)+'</span>'
       +'<span class="bb" data-tip="'+f[n].nights+' nights"><i style="width:'+Math.round(f[n].nights/maxN*100)+'%"></i></span><b>'+f[n].nights+'</b>'
       +'<span class="bb wk" data-tip="'+f[n].weekends+' weekend days"><i style="width:'+Math.round(f[n].weekends/maxW*100)+'%"></i></span><b>'+f[n].weekends+'</b>'
       +'<span class="bv">'+f[n].holidays+'</span>'
@@ -260,7 +260,7 @@ function weekView(){
       const breach=!!name&&!g.ok;
       const tip=danger?st.label+' — not on duty that day':breach?g.why:ov?('Override by '+(ov.by||'manager')+' · '+(ov.rule||ov.why||'')):'';
       return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(tip?' data-tip="'+U.esc(tip)+'"':'')+'>'
-        +(name?'<span class="small'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.esc(name.split(' ')[0])+' <span class="xs faint">'+U.esc(name.split(' ').slice(1).join(' '))+'</span></span>'
+        +(name?'<span class="small pn-wrap'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.nameHTML(String(name))+'</span>'
           :'<span class="xs faint">—</span>')
         +(()=>{ const covers=name?Object.keys(alloc[iso]||{}).filter(b=>alloc[iso][b]===name).length:0;
                 return covers>1?'<span class="xs mono" style="display:block;font-size:8.5px;color:var(--text-faint)">'+covers+' benches</span>':''; })()
@@ -292,7 +292,7 @@ function weekView(){
           :n.source==='plan'?'<span class="pill teal" style="font-size:8.5px;padding:1px 5px;margin-top:2px">plan</span>'
           :n.source==='pattern'?'<span class="pill slate" style="font-size:8.5px;padding:1px 5px;margin-top:2px">pattern</span>':'';
         return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+'" data-night="'+iso+'" style="cursor:pointer"'+(nm?' data-tip="'+U.esc(nm+' · '+(n.source==='plan'?'from the working plan':'set '+n.source))+'"':'')+'>'
-          +(nm?'<span class="small" style="display:block;line-height:1.3">'+U.esc(String(nm).split(' ')[0])+' <span class="xs faint">'+U.esc(String(nm).split(' ').slice(1).join(' '))+'</span></span>':'<span class="xs faint">—</span>')+tag+'</td>'; }).join('')
+          +(nm?'<span class="small pn-wrap" style="display:block;line-height:1.3">'+U.nameHTML(String(nm))+'</span>':'<span class="xs faint">—</span>')+tag+'</td>'; }).join('')
     +'</tr></tfoot></table></div>'
     +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
@@ -333,7 +333,7 @@ function postsCard(){
     return '<div class="list-row" style="padding:6px 0"><div class="lr-main">'
       +'<div class="lr-title" style="font-size:11.2px">'+U.esc(post.label)+'</div>'
       +'<div class="lr-sub">'+post.services.length+' bench'+(post.services.length===1?'':'es')+(post.reservePost?' · manager':'')+'</div></div>'
-      +(who?'<span class="pill teal">'+U.esc(who.split(' ')[0])+'</span>':'<span class="pill '+(post.reservePost?'gold':'rose')+'">open</span>')
+      +(who?'<span class="pill teal" title="'+U.esc(who)+'">'+U.esc(U.givenName(who))+'</span>':'<span class="pill '+(post.reservePost?'gold':'rose')+'">open</span>')
       +'</div>';
   }).join('');
   return UI.card({title:'Posting today',sub:postModeLabel(n),icon:'layout-grid',
@@ -1237,8 +1237,8 @@ function wireBody(){
   }
   if(view==='fairness'){
     const p=plan(); if(!p) return; const f=fairness(p);
-    C.hbars(r.querySelector('#fairNights'),{items:Object.keys(f).map(n=>({label:n.split(' ')[0],value:f[n].nights,tone:'blue'})).sort((a,b)=>b.value-a.value)});
-    C.hbars(r.querySelector('#fairWeekend'),{items:Object.keys(f).map(n=>({label:n.split(' ')[0],value:f[n].weekends,tone:'gold'})).sort((a,b)=>b.value-a.value)});
+    C.hbars(r.querySelector('#fairNights'),{items:Object.keys(f).map(n=>({label:U.givenName(n),value:f[n].nights,tone:'blue'})).sort((a,b)=>b.value-a.value)});
+    C.hbars(r.querySelector('#fairWeekend'),{items:Object.keys(f).map(n=>({label:U.givenName(n),value:f[n].weekends,tone:'gold'})).sort((a,b)=>b.value-a.value)});
   }
 }
 M.render=function(root,params){
