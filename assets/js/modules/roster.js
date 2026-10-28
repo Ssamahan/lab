@@ -28,6 +28,27 @@ function planState(p){
 }
 function monthKeyOf(){ return mk||U.monthKey(); }
 const codeOf=(p,si,di)=> (p&&p.staff[si]&&p.staff[si].codes[di])||'';
+/* Rows are read in the department's roster order — the manager, the two who hold a
+   post, the bench, and the weekend technologist last — while the index carried
+   alongside each row still points at the stored row, so an edit lands on the
+   right person whatever order the plan was stored in. */
+function rowOrder(p){
+  return (p&&p.staff||[]).map((s,si)=>({s,si})).sort((a,b)=>{
+    const A=S.staffByName(a.s.name)||{}, B=S.staffByName(b.s.name)||{};
+    return S.rosterRank(A)-S.rosterRank(B) || a.si-b.si;
+  });
+}
+/* The service requisition — the Monday request for the week's lab commodities —
+   sits against the name that signs it, which is the manager unless he is away. */
+function requisition(){
+  try{ return S.requisitionOfficer(mk||U.monthKey()); }catch(e){ return null; }
+}
+function reqBadge(name){
+  const r=requisition(); if(!r||r.name!==name) return '';
+  return '<span class="pill gold req-pill" style="font-size:9.5px;margin-top:4px;display:inline-flex;white-space:nowrap"'
+    +' data-tip="'+U.esc(r.acting?('Acting for '+r.forName+' — the service requisition is his while the manager is on leave'):'Requests the laboratory\u2019s commodities from the main pharmacy every Monday, for the whole week')+'">'
+    +UI.ic('clipboard-list',11)+(r.acting?' Service requisition · acting':' Service requisition')+'</span>';
+}
 
 function coverage(p){
   const out={};
@@ -74,6 +95,7 @@ function header(){
    +'<div class="actions">'
      +'<div class="seg" style="margin-right:4px"><button data-nav="-1" aria-label="Previous month">'+UI.ic('chevron-left',14)+'</button><button data-nav="0" style="font-family:var(--font-mono);font-size:11px;min-width:92px">'+U.esc(label)+'</button><button data-nav="1" aria-label="Next month">'+UI.ic('chevron-right',14)+'</button></div>'
      +(p&&!(p.meta&&p.meta.official)?'<button class="btn" data-publish>'+UI.ic('badge-check',15)+' Publish plan</button>':'')
+     +'<button class="btn" data-leavefill>'+UI.ic('calendar-check',15)+' Fill the leaves</button>'
      +'<button class="btn" data-generate>'+UI.ic('sparkles',15)+' Generate draft</button>'
      +'<button class="btn" data-patterns>'+UI.ic('layers',15)+' Patterns</button>'
      +'<button class="btn" data-print>'+UI.ic('printer',15)+' Print roster</button>'
@@ -95,9 +117,9 @@ function gridView(){
     const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
     return '<th class="'+(dow>=5||hol?'wkend':'')+(hol?' holiday':'')+'" '+(hol?'data-tip="'+U.esc(hol.name)+'"':'')+' style="'+(today?'color:var(--gold)':'')+'">'+U.DOW1[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
   }).join('')+'</tr></thead>';
-  const body=(p.staff||[]).map((s,si)=>{
+  const body=rowOrder(p).map(({s,si})=>{
     const st=S.staffByName(s.name)||{};
-    return '<tr><td class="staff-cell"><div class="nm pn-wrap" title="'+U.esc(s.name)+'">'+U.nameHTML(s.name)+'</div><div class="rl">'+U.esc(st.role||'')+'</div></td>'
+    return '<tr><td class="staff-cell"><div class="nm pn-wrap" title="'+U.esc(s.name)+'">'+U.nameHTML(s.name)+'</div><div class="rl">'+U.esc(st.role||'')+'</div>'+reqBadge(s.name)+'</td>'
      +p.dates.map((iso,di)=>{
         const c=s.codes[di]||''; const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
         const lv=S.leaveCodeFor(s.name,iso);
@@ -952,13 +974,79 @@ function assign(si,di,code){
     {action:'roster.assign',entity:'workingPlans',entityId:mk,detail:s.name+' · '+U.fmtDate(p.dates[di])+' → '+code});
   paint();
 }
+/* One click, a run of days: the same code written from the cell you touched
+   forward, never over a day the leave register already holds for somebody else's
+   leave. A run stops at the end of the plan. */
+function fillRun(si,di,code,n){
+  if(!LS.auth.guard('edit')) return;
+  const p=plan(); if(!p) return; const s=p.staff[si];
+  const cells=[];
+  for(let k=di;k<p.dates.length && cells.length<n;k++){
+    const iso=p.dates[k];
+    const lv=S.leaveCodeFor(s.name,iso);
+    if(lv && lv!==code){ continue; }            // somebody else's leave stays put
+    cells.push(k);
+  }
+  if(!cells.length) return UI.toast('No day here can take '+code+' — the leave register fills them',{type:'warn'});
+  S.commit(d=>{ const pl=d.workingPlans[mk].primary;
+    cells.forEach(k=>{ pl.staff[si].codes[k]=code; });
+    pl.meta.draft=true; pl.meta.edited=U.nowISO(); },
+    {action:'roster.assign.run',entity:'workingPlans',entityId:mk,
+     detail:s.name+' · '+cells.length+' × '+code+' from '+U.fmtDate(p.dates[di])});
+  paint();
+  UI.toast(code+' × '+cells.length+' · '+U.fmtDate(p.dates[di])+' onwards',{type:'ok'});
+}
+/* The annual-leave plan is the authority the working plan reads. This writes every
+   block in the register onto the cells it covers, so a month can be brought up to
+   date without deciding anything twice — a hand edit made afterwards still wins,
+   because this only runs when it is asked to. */
+function fillLeaves(){
+  if(!LS.auth.guard('edit')) return;
+  const p=plan();
+  if(!p) return UI.toast('There is no plan for '+U.monthLabel(mk||U.monthKey())+' to fill',{type:'warn'});
+  let written=0;
+  S.commit(d=>{
+    const pl=d.workingPlans[mk].primary;
+    (pl.staff||[]).forEach(row=>{
+      p.dates.forEach((iso,di)=>{
+        const lv=S.leaveCodeFor(row.name,iso);
+        if(lv && row.codes[di]!==lv){ row.codes[di]=lv; written++; }
+      });
+    });
+    pl.meta.leaveFilled=U.nowISO();
+  },{action:'roster.leave.fill',entity:'workingPlans',entityId:mk,
+     detail:'Leave register written onto the plan · '+written+' cells'});
+  paint();
+  UI.toast(written?('Leave register written onto the plan · '+written+' cells'):'The plan already shows every leave in the register',{type:written?'ok':'info'});
+}
 function shiftPicker(si,di){
   const p=plan(); if(!p) return; const s=p.staff[si]; const cur=s.codes[di];
+  /* the one-click runs: a block of days, a block of nights, and the annual-leave
+     blocks the plan book is written in — ten, fifteen, twenty, thirty */
+  const quick=[
+    ['D',2,'2 days'],['D',3,'3 days'],['N',2,'2 nights'],['N',3,'3 nights'],
+    ['AL',10,'AL · 10'],['AL',15,'AL · 15'],['AL',20,'AL · 20'],['AL',30,'AL · 30']
+  ];
   UI.modal({title:s.name,sub:U.fmtDateLong(U.parseISO(p.dates[di]))+' · current shift '+(cur||'—'),
-    body:'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">'+CODES.map(([c,l])=>'<button class="choice '+(cur===c?'on':'')+'" data-code="'+c+'"><span class="shift-code '+c+'">'+c+'</span><span class="grow"><span class="ct">'+l+'</span></span></button>').join('')+'</div>'
+    body:'<div class="row wrap gap-sm" style="margin-bottom:10px">'
+      +quick.map(([c,n,l])=>'<button class="btn xs" data-run="'+c+'" data-n="'+n+'"><span class="shift-code '+c+'" style="margin-right:5px">'+c+'</span>'+l+'</button>').join('')
+      +'</div>'
+      +'<div class="xs faint" style="margin-bottom:8px">One click writes the whole run from this day forward. Annual leave fills fifteen days at a time, so a ten, twenty or thirty-day block is a click plus an adjustment.</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">'+CODES.map(([c,l])=>'<button class="choice '+(cur===c?'on':'')+'" data-code="'+c+'"><span class="shift-code '+c+'">'+c+'</span><span class="grow"><span class="ct">'+l+'</span></span></button>').join('')+'</div>'
       +'<div class="hint" style="margin-top:12px">Assignments are validated against consecutive-night caps, leave and minimum coverage. Every change is written to the audit trail.</div>',
     foot:'<button class="btn" data-close>Close</button>',
-    onMount:(el,close)=>{ el.querySelectorAll('[data-code]').forEach(b=>b.onclick=()=>{ assign(si,di,b.dataset.code); close(); UI.toast('Shift updated · coverage recalculated',{type:'ok'}); }); }});
+    onMount:(el,close)=>{
+      el.querySelectorAll('[data-run]').forEach(b=>b.onclick=()=>{ fillRun(si,di,b.dataset.run,+b.dataset.n); close(); });
+      el.querySelectorAll('[data-code]').forEach(b=>b.onclick=()=>{
+        const code=b.dataset.code;
+        /* An annual leave is never one cell: the department takes it in blocks, so
+           tapping AL writes the next fifteen days and the block is then trimmed or
+           extended. If the plan cannot be read, this is the fallback that still
+           leaves a complete block on the sheet. */
+        if(code==='AL'){ fillRun(si,di,'AL',15); close(); UI.toast('Annual leave · 15 days filled from '+U.fmtDate(p.dates[di]),{type:'ok'}); return; }
+        assign(si,di,code); close(); UI.toast('Shift updated · coverage recalculated',{type:'ok'});
+      });
+    }});
 }
 function patternsModal(){
   const templates=[['D-D-D-D-D · OFF OFF','Standard 5-day'],['D-D-N-N-OFF','Two days, two nights'],['D-D-D-N-N-OFF-OFF','Three days, two nights'],['N-N-OFF-OFF','Two nights only'],['Wkend','Weekend day + night'],['AL-AL-AL-AL-AL','Leave block']];
@@ -1154,6 +1242,7 @@ function wireBody(){
     paint();
   });
   r.querySelectorAll('[data-generate]').forEach(b=>b.onclick=generateMonth);
+  r.querySelectorAll('[data-leavefill]').forEach(b=>b.onclick=fillLeaves);
   r.querySelectorAll('[data-publish]').forEach(b=>b.onclick=publishMonth);
   r.querySelectorAll('[data-empty-generate]').forEach(b=>b.onclick=generateMonth);
   r.querySelectorAll('[data-open-month]').forEach(b=>b.onclick=()=>{ mk=b.dataset.openMonth; paint(); });

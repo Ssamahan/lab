@@ -387,7 +387,9 @@ function generateSamples(seedDB,opts){
        no weekends, no public holidays — and never a month of his own leave.
 */
 function generatePlan(monthKey, seedDB){
-  const staff=seedDB.staff.filter(s=>s.status==='active');
+  /* the rows run in the order the department reads its roster: the manager first,
+     then the two post-holders, then the bench, and the weekend technologist last */
+  const staff=S.rosterSorted(seedDB.staff.filter(s=>s.status==='active'));
   const leaves=(seedDB.leaves||[]).filter(l=>!/declin|reject/i.test(l.status||''));
   const idOf={}; (seedDB.staff||[]).forEach(s=>{ idOf[s.name]=s.id; });
   const leaveOn=(name,iso)=>{
@@ -424,6 +426,15 @@ function generatePlan(monthKey, seedDB){
       if(Object.keys(day).length) carried[iso]=day;
     });
   }
+  /* ——— who answers for the department ————
+     While the manager is on leave somebody acts for him, and that person is then
+     the manager for every roster rule: no nights, no weekend nights, and the
+     service requisition. It is a fact of the month, not a setting. */
+  const managerRow=staff.filter(s=>s.pattern==='manager')[0]||null;
+  const managerAway=!!(managerRow && dates.some(iso=>onLeave(managerRow.name,iso)));
+  const actingRow=managerAway? (staff.filter(s=>s.actingManager&&s.status==='active')[0]||null) : null;
+  const isActing=s=>!!(actingRow&&s.name===actingRow.name);
+
   const grid={};                       // name -> one code per date (null = still to decide)
   staff.forEach(s=>{ grid[s.name]=dates.map(()=>null); });
   dates.forEach((iso,di)=>{
@@ -449,7 +460,7 @@ function generatePlan(monthKey, seedDB){
   }));
 
   const crew=staff.filter(s=>!s.weekendOnly && s.pattern!=='manager'
-    && s.nightPref!=='no' && (s.maxNights||0)>0);
+    && s.nightPref!=='no' && (s.maxNights||0)>0 && !isActing(s));
   const weekendTechnologist=staff.filter(s=>s.weekendOnly);
   /* A night counts against the ceiling of the month it falls in: the plan runs a
      week into the next month, and that week belongs to that month's count. */
@@ -507,7 +518,7 @@ function generatePlan(monthKey, seedDB){
         /* she is away: one takes the days, another the nights */
         const fri=week.filter(iso=>U.dow(iso)===4)[0];
         const friNight=fri?nights[fri]:null;
-        const free=staff.filter(s=>!s.weekendOnly && s.pattern!=='manager'
+        const free=staff.filter(s=>!s.weekendOnly && s.pattern!=='manager' && !isActing(s)
           && wkDays.every(iso=>!onLeave(s.name,iso)));
         const dayPick=free.filter(s=>crew.indexOf(s)<0 && s.name!==friNight)[0]
           || free.filter(s=>s.name!==friNight)[0] || free[0] || null;
@@ -523,6 +534,15 @@ function generatePlan(monthKey, seedDB){
         if(nightPick){
           wkDays.forEach(iso=>{ nights[iso]=nightPick.name;
             const m=iso.slice(0,7); nightCount[nightPick.name][m]=(nightCount[nightPick.name][m]||0)+1; });
+          /* ——— RBW · Rest Before Work ———
+             Nobody covered the weekend, so this person carried both weekend
+             nights on top of their week. The day that owes them is taken on the
+             Friday BEFORE the weekend, not on the Tuesday after it: Tuesday is a
+             heavy clinic day and the bench keeps every pair of hands it has for
+             Monday to Wednesday. That is the only case in which RBW is ever
+             written onto a plan — it is not a mechanical second day off after
+             every block of nights. */
+          if(fri && !nights[fri]) markRest(restRbw,nightPick.name,fri);
         }
       }
     }
@@ -594,9 +614,13 @@ function generatePlan(monthKey, seedDB){
           const dayBefore=U.addDays(block[0],-1);
           const pool=crew.filter(s=>s.name!==lastHolder && nights[dayBefore]!==s.name && canTake(s,block));
           if(size===3){
-            const thirds=pool.filter(s=>(s.maxConsecN||0)>=3 && s.threeNight)
-              .sort((a,b)=>((a.nightRank||9)-(b.nightRank||9)) || (loadOf(a,block)-loadOf(b,block)));
-            pick=thirds[0] || pool.slice().sort((a,b)=>loadOf(a,block)-loadOf(b,block))[0] || null;
+            /* a three-night block only goes to somebody whose ceiling allows it,
+               and among those it goes to whoever is carrying the fewest nights —
+               the rotation is what shares the nights out, not one name's rank */
+            const byLoad=list=>list.slice().sort((a,b)=>loadOf(a,block)-loadOf(b,block));
+            const allowed=pool.filter(s=>(s.maxConsecN||0)>=3);
+            const best=byLoad(allowed.length?allowed:pool)[0];
+            pick=best||null;
           } else {
             pick=pool.slice().sort((a,b)=>loadOf(a,block)-loadOf(b,block))[0] || null;
           }
@@ -627,8 +651,10 @@ function generatePlan(monthKey, seedDB){
       if(nights[iso]===s.name){ grid[s.name][di]='N'; return; }
       /* the day after a block is rest; the day after that is rest before work */
       const y1=dates[di-1], y2=dates[di-2];
+      /* one day of rest after a block of nights — never a second one. A second
+         day off would land on the Tuesday, the heaviest clinic day, so the rest
+         the person is owed was taken before the weekend duty (see RBW above). */
       if(y1&&nights[y1]===s.name){ grid[s.name][di]='OFF'; return; }
-      if(y2&&nights[y2]===s.name){ grid[s.name][di]='RBW'; return; }
       if((restOff[s.name]||{})[iso]){ grid[s.name][di]='OFF'; return; }
       if((restRbw[s.name]||{})[iso]){ grid[s.name][di]='RBW'; return; }
       grid[s.name][di]='D';
@@ -643,6 +669,7 @@ function generatePlan(monthKey, seedDB){
     staff:staff.map(s=>({name:s.name, id:s.id, codes:grid[s.name]})),
     meta:{date:U.todayISO(), fy:U.fyInfo(monthKey+'-01').label, period:U.monthLabel(monthKey),
       generated:true, draft:true, carriedFrom, carriedThrough,
+      actingManager:actingRow?actingRow.name:null,
       runsThrough:dates[dates.length-1],
       note:carriedFrom?('Takes over from the '+U.monthLabel(prevKey)+' plan to '+U.addDays(carriedFrom,-1)
         +'; runs through '+U.fmtDateShort(dates[dates.length-1])):('Runs through '+U.fmtDateShort(dates[dates.length-1]))}
@@ -1139,6 +1166,46 @@ function normalize(db){
       note:'FY 2026/27 — the manager\u2019s own 30-day annual leave, the next turn after Aurelie, charged to the year it is taken in.'});
     db.leaves=(db.leaves||[]).filter(l=>!(l.id==='l3'&&l.staffId==='s1'&&l.from==='2027-03-01'));
   }
+  /* v6.9.55 — the order the roster is read in, and who holds the nights.
+     The manager's row is first because he signs the plan; then the two who hold a
+     post; then the bench in the order the department calls it; the weekend
+     technologist is always the last row. Marie Claudine joins the night rotation
+     so that Dieudonné is not carrying it with Bernadette alone, Jean Paul is named
+     as the person acting for the manager, and the manager carries the weekly
+     service requisition. */
+  if(!db.meta.rosterOrderV6955){
+    db.meta.rosterOrderV6955=1;
+    const by=(id)=>db.staff.find(x=>x.id===id);
+    const order={'s1':1,'s6':2,'s9':3,'s3':4,'s5':5,'s10':6,'s11':7,'s4':900};
+    Object.keys(order).forEach(id=>{ const st=by(id); if(st) st.order=order[id]; });
+    (db.staff||[]).forEach(st=>{ if(st.weekendOnly||st.pattern==='weekendonly') st.order=900; });
+    const marie=by('s11');
+    if(marie){
+      /* two nights at a time, as the department works them — she was on the bench
+         and never on the night, which left the nights shared between two people */
+      if(!(marie.maxNights>0)){ marie.nightPref='2'; marie.maxNights=12; marie.maxConsecN=2; }
+    }
+    const jean=by('s6');
+    if(jean) jean.actingManager=true;
+    const mgr=db.staff.find(x=>x.pattern==='manager');
+    if(mgr){ mgr.requisition=true; mgr.requisitionNote=S.REQUISITION_NOTE; }
+  }
+  /* v6.9.55 — the manager's thirty days are a carry-over of what FY 2025/2026
+     never recorded: they are taken from 16 November 2026 and they run for the
+     full thirty days, so the block ends on 15 December. The days come out of the
+     year they were earned in; the dates stay where the department takes them. */
+  if(!db.meta.leaveCarryV6955){
+    db.meta.leaveCarryV6955=1;
+    const k=(db.leaves||[]).find(l=>l.id==='l18'&&l.staffId==='s1');
+    if(k){
+      Object.assign(k,{type:'AL',from:'2026-11-16',to:'2026-12-15',backOn:'2026-12-16',
+        days:30,status:'Planned',fy:'2026/2027',chargedFy:'2025/2026',autoEnd:true,
+        note:'FY 2025/2026 carry-over \u2014 the manager\u2019s thirty days, taken from 16 November 2026 to 15 December 2026.'});
+      /* one absence, one record: the two days pencilled for 8-9 December fall
+         inside this block and are part of the same thirty */
+      db.leaves=(db.leaves||[]).filter(l=>!(l.id==='l7'&&l.staffId==='s1'&&l.from>='2026-11-16'&&l.to<='2026-12-15'));
+    }
+  }
   if(!db.meta.rosterRulesV6948){
     db.meta.rosterRulesV6948=1;
     Object.keys(db.workingPlans||{}).sort().forEach(k=>{
@@ -1150,6 +1217,30 @@ function normalize(db){
       e.versions=(e.versions||[]).concat([p]);
       e.primary=built;
     });
+  }
+  /* v6.9.55 — the drafts are rebuilt under the roster rules above: the manager's
+     own thirty days now sit on his row, nobody who is acting for him takes a
+     night, the nights are shared by the four who are on the bench, and RBW only
+     appears where the weekend had no cover. November 2026 had never been planned
+     — the month the department is about to work is built here, as a draft, with
+     the previous month's last week taken over as it stands. */
+  if(!db.meta.rosterRulesV6955){
+    db.meta.rosterRulesV6955=1;
+    const rebuild=k=>{
+      const e=db.workingPlans[k]; const p=e&&e.primary;
+      if(!p||!p.meta||!p.meta.generated||p.meta.official||p.meta.transcribed) return;
+      const built=generatePlan(k,db);
+      built.meta=Object.assign({},built.meta,{label:'Draft for '+U.monthLabel(k)+
+        ' — built from the department\'s rules and the record of previous months; review before publishing'});
+      e.versions=(e.versions||[]).concat([p]);
+      e.primary=built;
+    };
+    Object.keys(db.workingPlans||{}).sort().forEach(rebuild);
+    if(!db.workingPlans['2026-11'] || !db.workingPlans['2026-11'].primary){
+      const built=generatePlan('2026-11',db);
+      built.meta=Object.assign({},built.meta,{label:'Draft for November 2026 — built from the department\'s rules, the annual-leave plan and the October plan it takes over from; review before publishing'});
+      db.workingPlans['2026-11']={primary:built,versions:[((db.workingPlans['2026-11']||{}).primary)].filter(Boolean)};
+    }
   }
   // v6.2: the benches are renamed to the unit-roster wording printed on the sheets
   // (Reception, Phlebotomy, Hematology, Biochemistry, Serology, Parasitology,
@@ -1377,7 +1468,47 @@ S.audit=function(entry){
 
 /* ——— Selectors ————————————————————————————————— */
 S.staff=()=>S.db().staff;
-S.activeStaff=()=>S.db().staff.filter(s=>s.status==='active');
+/* ——— The order the roster is read in —————————————————————
+   The manager signs the plan, so his row is first; then the two technologists who
+   hold a post; then the bench in the order the department calls it; and the weekend
+   technologist last, because her row only ever carries Saturday and Sunday. A name
+   nobody has placed yet joins at the end of the weekday staff — never above a named
+   row, never below the weekend one. */
+S.ROSTER_ORDER=['Kelvin SAMAHANI','Jean Paul NSENGIYUMVA','Dieudonne NIYIDUHABYOSE',
+  'Beatrice NGEZEKURE','Patrick ISHIMWE','Bernadette MUHAWENIMANA',
+  'Marie Claudine UWAYISABA','Aurelie YANSONEYE'];
+S.rosterRank=function(staff){
+  if(!staff) return 999;
+  if(staff.weekendOnly || staff.pattern==='weekendonly') return 900;   // always the last row
+  if(staff.order!=null && staff.order>0) return staff.order;
+  const i=S.ROSTER_ORDER.indexOf(staff.name);
+  if(i>=0) return i+1;
+  return 500;                                                          // somebody new
+};
+S.rosterSorted=function(list){
+  return (list||[]).slice().sort((a,b)=>S.rosterRank(a)-S.rosterRank(b)
+    || String(a.name||'').localeCompare(String(b.name||'')));
+};
+S.activeStaff=()=>S.rosterSorted(S.db().staff.filter(s=>s.status==='active'));
+/* ——— Who requests the lab commodities ———————————————
+   Every Monday the department sends its week's request for reagents and
+   consumables to the main pharmacy. The manager signs that request for as long as
+   he is on the premises; a month he is away for the whole of (or any part of) is
+   answered for by the person acting for him — in November 2026, Jean Paul. */
+S.requisitionOfficer=function(monthKey){
+  const mk=monthKey||U.monthKey();
+  const days=U.monthRange(mk);
+  const from=days[0], to=days[days.length-1];
+  const staff=S.activeStaff();
+  const mgr=staff.filter(s=>s.pattern==='manager')[0]||null;
+  const away=mgr&&S.leaveInForce().some(l=>l.staffId===mgr.id && !(l.to<from||l.from>to));
+  if(mgr && !away) return {name:mgr.name, id:mgr.id, acting:false, monthKey:mk};
+  const act=staff.filter(s=>s.actingManager)[0]||null;
+  if(act) return {name:act.name, id:act.id, acting:true, forName:mgr?mgr.name:null, monthKey:mk};
+  return mgr?{name:mgr.name, id:mgr.id, acting:false, monthKey:mk}:null;
+};
+/* What the requisition means, in one line, wherever it is shown. */
+S.REQUISITION_NOTE='Lab commodities are requested from the main pharmacy every Monday, for the whole week.';
 /* The test menu is the department's, not the seed's. A test can be switched off
    (kept for history, gone from every picker) or deleted outright. */
 S.allTests=()=>S.db().catalog.tests.filter(t=>!t.deleted);
@@ -1500,15 +1631,17 @@ S.leaveTypes=()=>LS_TYPES;
    entered weeks ahead and are applied as an overlay; the stored working plan is
    never rewritten (register data stays exactly as signed). */
 S.leaveInForce=()=>S.leaves().filter(l=>!/declin|reject/i.test(l.status||''));
+/* `who` is a staff record, an id or a name — the working plan only ever has the
+   name on a row, and the leave register only ever has the id. */
 S.leaveFor=function(who,iso){
-  const staff=typeof who==='string'?S.staffById(who):who;
+  const staff=typeof who==='string'?(S.staffById(who)||S.staffByName(who)):who;
   if(!staff) return null;
   return S.leaveInForce().find(l=>l.staffId===staff.id && iso>=l.from && iso<=l.to)||null;
 };
 /* Printed documents carry approved leave only — a pending request is never
    signed onto the sheet. The screen uses the broader helper above. */
 S.approvedLeaveFor=function(who,iso){
-  const staff=typeof who==='string'?S.staffById(who):who;
+  const staff=typeof who==='string'?(S.staffById(who)||S.staffByName(who)):who;
   if(!staff) return null;
   return S.leaves().find(l=>l.staffId===staff.id && /^(approved|planned)$/i.test(l.status||'Approved') && iso>=l.from && iso<=l.to)||null;
 };
@@ -1555,7 +1688,7 @@ S.leaveEntitlement=function(staff, fy){
 };
 S.leaveUsed=function(staff, fy){
   fy=fy||U.fyLabel();
-  const rows=S.leaveInForce().filter(l=>l.staffId===staff.id && S.leaveCountsAgainstEntitlement(l.type) && fyOf(l)===fy);
+  const rows=S.leaveInForce().filter(l=>l.staffId===staff.id && S.leaveCountsAgainstEntitlement(l.type) && chargedFy(l)===fy);
   const days=U.sum(rows,l=>{
     if(S.contractOf(staff)!=='contractual') return U.daysBetween(l.from,l.to)+1;
     let n=0; const d=U.parseISO(l.from), end=U.parseISO(l.to);
@@ -1624,6 +1757,11 @@ S.leaveCountsAgainstEntitlement=type=>S.leaveKind(type)==='annual' && S.leaveCod
    written in the form — that is what stops a record appearing under the wrong
    year when you toggle between them. */
 function fyOf(l){ return U.fyInfo(l.from||l.to||U.todayISO()).label; }
+/* The year a block is CHARGED to. It is the year the leave falls in — except for a
+   block that is being taken out of last year's balance, which says so on the record
+   and is charged back to the year it was earned. The dates never move; only the
+   book the days come out of does. */
+function chargedFy(l){ return l&&l.chargedFy && /^\d{4}\/\d{4}$/.test(l.chargedFy) ? l.chargedFy : fyOf(l); }
 function leaveDays(staff,l){
   if(S.contractOf(staff)!=='contractual') return U.daysBetween(l.from,l.to)+1;
   let n=0; const d=U.parseISO(l.from), end=U.parseISO(l.to);
@@ -1632,7 +1770,7 @@ function leaveDays(staff,l){
 }
 S.leaveDays=leaveDays;
 S.leaveRowsFor=function(staff,fy){
-  return S.leaveInForce().filter(l=>l.staffId===staff.id && fyOf(l)===fy)
+  return S.leaveInForce().filter(l=>l.staffId===staff.id && chargedFy(l)===fy)
     .sort((a,b)=>String(a.from).localeCompare(String(b.from)));
 };
 /* Everything the annual-leave plan book needs for one person: entitlement,
@@ -1685,7 +1823,7 @@ S.leaveBook=function(staff,fy){
    current one and the one before it. */
 S.leaveFys=function(){
   const set={}; set[U.fyLabel()]=1; set[U.fyInfo(U.addDays(U.todayISO(),-400)).label]=1;
-  S.leaves().forEach(l=>{ set[fyOf(l)]=1; });
+  S.leaves().forEach(l=>{ set[chargedFy(l)]=1; });
   return Object.keys(set).sort().reverse();
 };
 /* Authorised-leave forecast for one person, built only from their own records.

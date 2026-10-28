@@ -47,9 +47,9 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
 
   /* ── the manager's carried-over leave is where the register puts it ── */
   const kelvin=p.staff.find(r=>/Kelvin/.test(r.name));
-  const i19=p.dates.indexOf('2026-11-19');
-  ok(i19>=0,'the carry-over leave begins on 19 November');
-  ok(kelvin.codes.slice(i19).every(c=>c==='AL'),'the manager is on carried-over annual leave from the 19th to the end of the plan');
+  const i19=p.dates.indexOf('2026-11-16');
+  ok(i19>=0,'the carry-over leave begins on 16 November');
+  ok(kelvin.codes.slice(i19).every(c=>c==='AL'),'the manager is on carried-over annual leave from the 16th to the end of the plan');
   ok(kelvin.codes.slice(0,i19).every(c=>c!=='AL'),'and not a day before it');
   ok(kelvin.codes.slice(0,i19).filter(c=>c==='D').length>=10,'the manager works the bench in the weeks before his leave — never a month of his own off');
 
@@ -75,8 +75,20 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(written.every(b=>b.len>=2),'never a single night on its own'+(written.filter(b=>b.len<2).map(b=>b.name+' '+b.from).join(', ')));
   ok(written.every(b=>b.len<=3),'and never more than three in a row');
   const three=written.filter(b=>b.len===3).map(b=>b.name);
-  ok(three.every(n=>/Patrick ISHIMWE|Jean Paul NSENGIYUMVA/.test(n)),'the three-night block stays with Patrick and Jean Paul ('+[...new Set(three)].join(', ')+')');
-  ok(written.filter(b=>!/Patrick|Jean Paul/.test(b.name)).every(b=>b.len<=2),'everybody else works two at a time at most');
+  /* a three-night block goes to whoever's own ceiling allows it, and the rotation
+     shares it out — it is not reserved for one name */
+  ok(three.every(n=>((S().staffByName(n)||{}).maxConsecN||0)>=3),'a three-night block only goes to a ceiling that allows three ('+[...new Set(three)].join(', ')+')');
+  ok(written.filter(b=>((S().staffByName(b.name)||{}).maxConsecN||3)<3).every(b=>b.len<=2),'and a two-night ceiling is never stretched past two');
+  /* the weekday nights, which is the share that is being evened out — the weekend
+     technologist's two weekend nights are hers alone and are counted apart */
+  const crewCount={};
+  p.staff.filter(r=>!(S().staffByName(r.name)||{}).weekendOnly).forEach(r=>{
+    r.codes.forEach((c,i)=>{ if(c==='N' && U.dow(p.dates[i])<5) crewCount[r.name]=(crewCount[r.name]||0)+1; });
+  });
+  const shares=Object.values(crewCount).filter(n=>n>0);
+  ok(shares.length>=3,'the weekday nights are shared by three or more of the bench ('+Object.keys(crewCount).map(n=>n.split(' ')[0]+' '+crewCount[n]).join(', ')+')');
+  ok(Math.max.apply(null,shares)-Math.min.apply(null,shares)<=4,'and no one carries a wildly heavier share (spread '+(Math.max.apply(null,shares)-Math.min.apply(null,shares))+' nights)');
+  ok(!/Jean Paul/.test(Object.keys(crewCount).filter(n=>crewCount[n]>0).join(' ')),'the person acting for the manager takes no nights');
   const pat=p.staff.find(r=>/Patrick/.test(r.name)), jp=p.staff.find(r=>/Jean Paul/.test(r.name));
   ok(nights(pat)>=nights(jp),'Patrick carries at least as many nights as Jean Paul ('+nights(pat)+' vs '+nights(jp)+')');
   ok(p.staff.every(r=>nights(r)<=(S().staffByName(r.name)||{}).maxNights*2),'nobody is pushed past their own ceiling');
@@ -171,7 +183,8 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(codeAt(dayName,'2027-05-07')==='OFF','the day worker is off the Friday before');
   ok(codeAt(dayName,'2027-05-10')==='OFF','and off the Monday after');
   ok(codeAt(nightName,'2027-05-10')==='OFF','the night worker is off the Monday after');
-  ok(codeAt(nightName,'2027-05-11')==='RBW','and rests before work on the Tuesday');
+  ok(codeAt(nightName,'2027-05-07')==='RBW','the night worker rests before work — on the Friday, before the weekend duty');
+  ok(codeAt(nightName,'2027-05-11')!=='RBW' && codeAt(nightName,'2027-05-11')!=='OFF','and is on duty on the Tuesday, when the clinic is heaviest');
 
   /* ── the grid fits the page, coverage and balance below it ─────────── */
   await go('#/roster'); await tick(320);

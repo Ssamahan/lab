@@ -4,6 +4,52 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.55
+
+**The roster answers to the department, not to the generator.**
+
+*The manager's own thirty days.* Kelvin's FY 2025/26 annual leave was never on the register —
+the year before it held no leave at all, so the book had nothing to carry and silently showed
+zero. The thirty days are now recorded where they belong: **from 16 November 2026, running the
+full thirty days to 15 December**, charged back to **FY 2025/2026**, the year they were earned
+in. This year's own entitlement is untouched. A leave block can now name the year it is charged
+to, and the leave-plan form offers ten, fifteen, twenty and thirty days in one click.
+
+*The working plan reads the annual-leave plan.* The manager's row is painted AL from the 16th by
+itself, and **Fill the leaves** on the working plan writes every block in the register onto the
+cells it covers — the fallback for a month whose plan could not be read, and one click when a
+new block is entered. Hand edits made afterwards still win.
+
+*The order the roster is read in.* Kelvin first (he signs it), then Jean Paul, Dieudonné,
+Beatrice, Patrick, Bernadette, Marie Claudine, and Aurelie last — she is the weekend
+technologist, so her row only ever carries Saturday and Sunday. Rows are read in that order on
+the screen and in the stored plan, and any new name joins at the end of the bench, never above
+a named row and never below the weekend one.
+
+*November’s nights are shared.* Dieudonné was carrying the nights with Bernadette; **Marie
+Claudine now takes her share** (two at a time), and **Jean Paul takes none at all while he is
+acting for the manager** — the acting manager is the manager for every roster rule. Beatrice
+keeps the conditions set for her: days only. Three-night blocks now go to whoever's own ceiling
+allows it and whoever is carrying the fewest nights, instead of being reserved for one name.
+
+*RBW means one thing again.* **Rest Before Work** is written only where **nobody covers the
+weekend**: the person who carries both weekend nights is owed a day, and it is taken on the
+**Friday before** the weekend duty — not on the Tuesday after — so Tuesday, a heavy clinic day,
+is worked. The mechanical second day off after every block of nights is gone; the only RBW ever
+added the old way was the one Patrick should not have had.
+
+*Who requests the lab commodities.* Next to the name that signs it: **Service requisition** —
+the Monday request to the main pharmacy for the whole week's commodities. In October it sits
+against **Kelvin**; in November, while he is away, it moves to **Jean Paul** and says *acting*.
+The printed sheet carries the same mark, so the paper matches the screen.
+
+*Blocks in one click.* Tapping a cell now offers **two or three days** and **two or three
+nights** as single buttons, plus the annual-leave blocks (10 / 15 / 20 / 30). Tapping **AL**
+fills the next **fifteen** fields, so a block is a click plus an adjustment; a block of another
+kind already recorded in the register is never overwritten by it.
+
+---
+
 ## What changed in 6.9.54
 
 **An off-site repair starts with the day it left.**
