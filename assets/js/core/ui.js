@@ -176,7 +176,7 @@ UI.table=(o)=>{
    +(o.foot?'<div class="card-foot">'+o.foot+'</div>':'')
    +'</div>';
 };
-UI.audit=(a)=>'<span class="audit-mark" data-tip="'+U.esc('Created by '+a.by+' · '+U.fmtDate(a.date))+'">'+U.ic('history',9)+U.esc(a.by.split(' ')[0])+'</span>';
+UI.audit=(a)=>'<span class="audit-mark" data-tip="'+U.esc('Created by '+a.by+' · '+U.fmtDate(a.date))+'">'+U.ic('history',9)+U.esc(U.givenName(a.by))+'</span>';
 
 /* ——— Number animation for rendered pages ——————— */
 UI.animateCounts=(root)=>{

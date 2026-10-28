@@ -75,9 +75,9 @@ function kpis(){
   const exp=A.users.filter(u=>!u.twoFactor).length;
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
    +'<div class="c3">'+UI.stat({label:'Active staff',value:a.length,icon:'users',formatted:'0',note:staff().length-a.length+' archived · '+S.db().staff.filter(s=>s.weekendOnly).length+' weekend-only',spark:C.spark([7,7,8,8,9,9,9,a.length],{color:'var(--gold)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'On authorised leave',value:leave.length,icon:'plane-takeoff',formatted:'0',note:leave.length?leave.map(s=>s.name.split(' ')[0]).join(', '):'Everyone on the plan today',spark:C.spark([0,1,0,1,1,0,1,leave.length],{color:'var(--info)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'On authorised leave',value:leave.length,icon:'plane-takeoff',formatted:'0',note:leave.length?leave.map(s=>U.givenName(s.name)).join(', '):'Everyone on the plan today',spark:C.spark([0,1,0,1,1,0,1,leave.length],{color:'var(--info)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Contract mix',value:a.filter(x=>S.contractOf(x)==='statute').length,icon:'file-signature',formatted:'0',note:a.filter(x=>S.contractOf(x)==='statute').length+' under statute · '+a.filter(x=>S.contractOf(x)==='contractual').length+' contractual',spark:C.spark(a.map(x=>S.contractOf(x)==='statute'?1:0),{color:'var(--pos)'})})+'</div>'
-   +(A.can('staff')?'<div class="c3">'+UI.stat({label:'2FA not enrolled',value:exp,icon:'shield-alert',formatted:'0',note:exp?A.users.filter(u=>!u.twoFactor).map(u=>u.name.split(' ')[0]).join(', '):'Every account enrolled',spark:C.spark([4,4,3,3,2,2,1,exp],{color:'var(--amber)'})})+'</div>':'')+'</div>';
+   +(A.can('staff')?'<div class="c3">'+UI.stat({label:'2FA not enrolled',value:exp,icon:'shield-alert',formatted:'0',note:exp?A.users.filter(u=>!u.twoFactor).map(u=>U.givenName(u.name)).join(', '):'Every account enrolled',spark:C.spark([4,4,3,3,2,2,1,exp],{color:'var(--amber)'})})+'</div>':'')+'</div>';
 }
 function people(){
   return '<div class="grid-12 stagger">'+staff().map(s=>{

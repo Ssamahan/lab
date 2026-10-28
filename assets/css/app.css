@@ -173,6 +173,15 @@ button.chip:hover{border-color:var(--gold); color:var(--text-strong); background
 .hide{display:none!important}
 .spacer{flex:1}
 
+/* ——— Names ———————————————————————————————————————
+   A Rwandan name is given name(s) then family name. The given names are one unit
+   (“Jean Paul”, “Marie Claudine”) and are never broken across two lines; the family
+   name carries the weight so a column of names can be read at a glance. */
+.pn{white-space:normal}
+.pn .pn-g{white-space:nowrap; font-weight:500; color:var(--text-muted)}
+.pn .pn-s{white-space:nowrap; font-weight:700; color:inherit}
+.pn-wrap{display:block; overflow-wrap:break-word}
+
 /* ——— 5. Cards ————————————————————————————————————— */
 .card{
   position:relative; background:var(--surface); border:1px solid var(--border);
