@@ -2021,6 +2021,15 @@ S.codeFor=function(staff, iso){
   const row=(p.staff||[]).find(s=>s.id===staff.id||s.name===staff.name); if(!row) return null;
   return (row.codes&&row.codes[idx])||'';
 };
+/* Is this person's row actually on the plan for that day? A blank cell and a person
+   who is not on the plan at all both read as '' from codeFor, and they are different
+   facts: one was left off the duty, the other was never drawn into the month. */
+S.planRowFor=function(staff, iso){
+  if(!staff) return null;
+  const p=S.planForMonth(String(iso).slice(0,7)); if(!p) return null;
+  if((p.dates||[]).indexOf(iso)<0) return null;
+  return (p.staff||[]).find(s=>s.id===staff.id||s.name===staff.name)||null;
+};
 S.planCovers=function(iso){
   const p=S.planForMonth(String(iso).slice(0,7));
   return !!(p&&(p.dates||[]).indexOf(iso)>=0&&(p.staff||[]).length);
@@ -2049,6 +2058,17 @@ S.shiftState=function(who, iso){
     if(code==='OFF'||code==='W') return {code,kind:'off',label:'At home',tone:'slate',source:'plan'};
     if(code==='RBW') return {code,kind:'off',label:'Rest before work',tone:'slate',source:'plan'};
 
+  }
+  /* A blank cell in a plan that covers the day is not a missing answer — it is the
+     answer. The person is at home: the plan drew the duty and left them off it, so
+     they must not appear as day cover on the strength of their contract. Someone who
+     has no row on that plan at all is in the same position — they are not on the
+     duty that was drawn — so the plan speaks for them too. Only when no plan covers
+     the day does the contract get to speak. */
+  if(S.planCovers(iso)){
+    const listed=!!S.planRowFor(staff,iso);
+    return {code:'',kind:'off',label:'At home',tone:'slate',source:'plan',blank:!listed,
+      note:listed?'blank cell on the working plan':'not on the published working plan'};
   }
   // No plan published for that day: fall back to the contract, clearly labelled.
   const dow=U.dow(iso);

@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.51** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.52** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.51`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.52`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -207,6 +207,9 @@ register records.
 - **A carry-over is only counted when the year it came from was recorded.** Silence in a
   previous fiscal year is not thirty unused days; the manager's own leave is charged to the
   year he takes it in.
+- **A blank cell means at home.** A day the working plan leaves empty is a decision, not a
+  gap: that person is not on duty, is not in the day-cover count and is not in "on duty now".
+  The contract pattern only speaks when no plan covers the day.
 - **A phone keeps the screen.** The bottom bar is symbols only — no titles under them — it
   slides away as the page goes down and returns on the first upward flick, and the arrow in
   it lifts the whole module list. There is no hamburger in the corner.

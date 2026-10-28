@@ -4,6 +4,21 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.52
+
+**A blank cell means at home.**
+
+The working plan is the register of who is on duty. A day with an empty cell was being
+filled in from the person's contract pattern, so somebody the plan had deliberately left off
+the duty was drawn on the dashboard as **On day duty** — counted in "on duty now", counted in
+the day cover, counted in the night crew. He is at home; the plan said so by leaving him out.
+
+A blank cell on a plan that covers the day is now an answer, not a missing one: *At home*,
+source **Working plan**. A person the published plan does not list at all is in the same
+position — not on the duty that was drawn — and reads *At home* too, with the omission visible
+rather than hidden behind a guessed shift. The contract pattern speaks only when no plan covers
+the day at all, which is what it was always for. Leave, `OFF`, `W` and `RBW` read as before.
+
 ## What changed in 6.9.51
 
 **A phone gets the whole screen; PBF shows the scorecard the register holds; a visitor's
