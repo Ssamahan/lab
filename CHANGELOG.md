@@ -4,6 +4,41 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.51
+
+**A phone gets the whole screen; PBF shows the scorecard the register holds; a visitor's
+refused key now says which key was refused.**
+
+*The bottom bar.* The Kinyarwanda titles under the four icons are gone — a symbol is read
+faster than a word, and the word never fits under a thumb. Each button keeps its name in the
+tooltip and the aria-label, so a screen reader still says *Dashboard*, *Samples*, *Plan*,
+*EQA*. The bar now rides down with the page and comes back on the first upward flick, and it
+always returns at the very bottom, where the next thing a thumb wants is the next screen.
+The upper-left hamburger is removed outright — the bar already reaches the four screens it
+held, and the last symbol in the bar is an **upward arrow** that lifts the full module list
+over the page. All fifteen routes stay one press away; nothing is behind a hamburger any more.
+
+*PBF evaluation.* The screen was empty on every device. The v6.7 correction stopped the
+aggregate district rows being turned into invented question marks — correct — but it also
+left the page with nothing to show: four visits waiting for marks, an index of 0 %, no trend.
+The domain scorecard the register actually holds is evidence, so it is what the screen now
+prints: each centre's six domain percentages and its recorded index, ranked, with the row
+saying **recorded scorecard · question marks still to be entered**. The trend draws one
+observation per centre per quarter from the marks where they exist and from the recorded
+scorecard where the questions are still blank; a quarter nobody recorded stays a gap, never a
+zero. Nothing is filled in on a centre's behalf: the four confirmed visits keep empty answers
+and stay in the *awaiting marks* queue.
+
+*The visitor's read.* The 401 sentence blamed a trailing space or quote in the key. That was
+wrong — the key in `shared.js` carries neither — so it sent people looking in the wrong place.
+The message now names the project, the shape and the length of the key that was refused
+(`sb_publishable…t3NC (43 characters)`), so it can be compared with Project Settings → API keys
+in one glance. Two real fixes sit behind it: the anonymous sign-in is retried once with the key
+as the **bearer token** (both header conventions exist in the wild), and if the sign-in is still
+refused while the register itself answers a key-only GET, the visitor reads the real register
+that way and the strip says so. Settings → Data & sync gained a **visitor route** check that
+reports exactly what a phone in incognito would get.
+
 ## What changed in 6.9.50
 
 **A person who leaves keeps their leave in the book.**

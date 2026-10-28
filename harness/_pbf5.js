@@ -1,0 +1,12 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w}=await boot('#/pbf');
+ const txt=w.document.body.textContent.replace(/\s+/g,' ');
+ ok(/Quarterly index/.test(txt),'index card');
+ ok(!/No centre has a complete scorecard yet/.test(txt),'empty state gone');
+ ok(/No complete scorecard yet/.test(txt)===false,'trend not empty');
+ console.log('VISIBLE:',txt.slice(0,1400));
+ const rows=[...w.document.querySelectorAll('[data-pbf-row]')].map(e=>e.textContent.replace(/\s+/g,' ').trim());
+ rows.slice(0,9).forEach(r=>console.log('ROW:',r));
+ const trend=w.document.querySelector('#pbfTrend');
+ console.log('TREND labels:',trend&&trend.dataset.labels);
+ done();process.exit(0);})();
