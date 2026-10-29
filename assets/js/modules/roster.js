@@ -33,7 +33,12 @@ const codeOf=(p,si,di)=> (p&&p.staff[si]&&p.staff[si].codes[di])||'';
    alongside each row still points at the stored row, so an edit lands on the
    right person whatever order the plan was stored in. */
 function rowOrder(p){
-  return (p&&p.staff||[]).map((s,si)=>({s,si})).sort((a,b)=>{
+  const seen={};
+  return (p&&p.staff||[]).map((s,si)=>({s,si}))
+    /* a name is one row on the finished sheet, whatever the stored plan holds */
+    .filter(({s})=>{ const k=String(s.name||'').trim().toLowerCase();
+      if(!k||seen[k]) return false; seen[k]=1; return true; })
+    .sort((a,b)=>{
     const A=S.staffByName(a.s.name)||{}, B=S.staffByName(b.s.name)||{};
     return S.rosterRank(A)-S.rosterRank(B) || a.si-b.si;
   });
