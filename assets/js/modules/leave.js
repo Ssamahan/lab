@@ -167,7 +167,11 @@ function planBookView(){
    +'<div class="card table-card"><div class="toolbar"><div><div class="card-title">'+UI.ic('calendar-check',14,'ic')+'Annual leave plan book · FY '+currentFy()+'</div><div class="card-sub">In turn order — who is away now, then who is next, then the blocks already attended · entitlement by contract · days taken · days booked ahead</div></div></div>'
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Staff</th><th>Contract</th><th class="num">Entitlement</th><th class="num" title="Unused days carried in from the previous fiscal year">Carried in</th><th class="num">Taken</th><th class="num">On leave now</th><th class="num">Booked ahead</th><th class="num">Balance</th><th>Planned blocks</th><th></th></tr></thead><tbody>'
    +rows.map(r=>{
-      const blocks=r.annual.slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+      /* the blocks this year's row answers for: the ones dated inside it and the
+         ones charged to it — a block taken this January but paid out of last
+         year's days belongs on both rows, and each says the other year */
+      const blocks=(r.rows||[]).filter(l=>S.leaveCountsAgainstEntitlement(l.type))
+        .sort((a,b)=>String(a.from).localeCompare(String(b.from)));
       return '<tr'+(r.staff.status!=='active'?' data-exited="'+U.esc(r.staff.id)+'" style="opacity:.86"':'')+'><td><div class="row gap-sm">'+U.avatar(r.staff.name,'sm')+'<div><div class="small">'+U.esc(r.staff.name)+(r.staff.status!=='active'?' '+leftPill(r.staff):'')+'</div><div class="xs faint">'+U.esc(r.staff.role||'')+'</div></div></div></td>'
       +'<td><span class="pill '+(r.entitlement.kind==='contractual'?'blue':'teal')+'">'+U.esc(r.entitlement.label)+'</span><div class="xs faint" style="margin-top:2px">'+U.esc(r.entitlement.sponsor)+'</div></td>'
       +'<td class="num">'+r.entitlement.days+' <span class="xs faint">'+(r.entitlement.workingDays?'wd':'d')+'</span></td>'
@@ -179,14 +183,16 @@ function planBookView(){
       +'<td style="max-width:300px">'+(blocks.length? blocks.map(l=>{ const bs=blockState(l,blocks);
           /* a block taken this year but charged to the year it was earned in */
           const charged=(S.leaveChargedFy?S.leaveChargedFy(l):fyOfLeave(l));
-          const elsewhere=charged!==currentFy()?charged:null;
-          return '<button class="chip block-chip '+bs.key+'" data-editplan="'+l.id+'" style="margin:0 3px 4px 0;cursor:pointer" title="'+U.esc(bs.label+' · '+U.fmtDate(l.from)+' – '+U.fmtDate(l.to)+(elsewhere?' · days charged to FY '+elsewhere:''))+'" data-state="'+bs.key+'">'
+          const elsewhere=charged!==currentFy()?('FY '+charged):null;
+          const takenIn=fyOfLeave(l)!==currentFy()?('FY '+fyOfLeave(l)):null;
+          const note=elsewhere?('days charged to '+elsewhere):(takenIn?('taken in '+takenIn):'');
+          return '<button class="chip block-chip '+bs.key+'" data-editplan="'+l.id+'" style="margin:0 3px 4px 0;cursor:pointer" title="'+U.esc(bs.label+' · '+U.fmtDate(l.from)+' – '+U.fmtDate(l.to)+(note?' · '+note:''))+'" data-state="'+bs.key+'">'
             +U.fmtDateShort(l.from)+'–'+U.fmtDateShort(l.to)+' <span class="faint">'+S.leaveDays(r.staff,l)+'d</span>'
-            +(elsewhere?'<span class="xs faint"> · FY '+U.esc(elsewhere)+'</span>':'')
+            +(note?'<span class="xs faint"> · '+U.esc(note)+'</span>':'')
             +'<b>'+U.esc(bs.label)+'</b></button>'; }).join('') : '<span class="xs faint">No block booked</span>')+'</td>'
       +'<td><button class="icon-btn" style="width:26px;height:26px" data-newplan="'+r.staff.id+'" aria-label="Plan leave for '+U.esc(r.staff.name)+'">'+UI.ic('plus',13)+'</button></td></tr>';
    }).join('')
-   +'</tbody></table></div><div class="card-foot"><span>Entitlement follows the contract: under statute 30 calendar days, contractual 21 working days. A block is charged to the fiscal year its dates fall in — never to a label typed on it — and unused days are carried into the next year. A person who left keeps their row while they have leave charged to the year.</span><span class="mono">'+rows.length+' staff</span></div></div>'
+   +'</tbody></table></div><div class="card-foot"><span>Entitlement follows the contract: under statute 30 calendar days, contractual 21 working days. A block is charged to a fiscal year chosen for it — the year its dates fall in unless an earlier year’s days are being spent — and unused days are carried into the next year. A person who left keeps their row while they have leave charged to the year.</span><span class="mono">'+rows.length+' staff</span></div></div>'
    +'<div class="grid-12" style="margin-top:14px">'
      +'<div class="c7">'+forecastCard()+'</div>'
      +'<div class="c5">'+whoOffCard()+'</div>'
@@ -265,12 +271,12 @@ function planModal(staffId, leaveId){
   const ent=S.leaveEntitlement(who);
   const fys=U.uniq(fyList().concat([U.fyLabel(),U.fyInfo(U.addDays(U.todayISO(),-400)).label])).sort().reverse();
   UI.modal({title:l?'Edit leave plan':'Add an annual-leave plan',
-    sub:'Plan a block now, for this fiscal year or the one still being taken. The working plan is never rewritten — the block is an overlay with a date on it.',
+    sub:'Plan a block now, in this fiscal year or another one. The year it falls in is read from the dates; the year it is charged to is yours to choose, so a block taken this November can be paid out of last year’s days. The working plan is never rewritten — the block is an overlay with a date on it.',
     width:'min(640px,100%)',
     body:'<div class="form-grid">'
       +'<div class="field span2"><label>Staff member</label><select class="select" id="plStaff">'+staff.map(s=>'<option value="'+s.id+'"'+(sel===s.id?' selected':'')+'>'+U.esc(s.name)+' · '+U.esc(s.role||'')+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Leave type</label><select class="select" id="plType">'+Object.keys(TYPE).map(k=>'<option value="'+k+'"'+((l&&l.type===k)?' selected':'')+'>'+TYPE[k].label+'</option>').join('')+'</select></div>'
-      +'<div class="field"><label>Charged to fiscal year</label><select class="select" id="plFy" disabled>'+fys.map(f=>'<option value="'+f+'"'+((l?fyOfLeave(l):currentFy())===f?' selected':'')+'>FY '+f+'</option>').join('')+'</select><div class="xs faint" style="margin-top:4px">Follows the start date — a record can never sit under the wrong year.</div></div>'
+      +'<div class="field"><label>Taken in</label><input class="input mono" id="plTaken" readonly value=""><div class="xs faint" style="margin-top:4px">The year the dates fall in — read from the dates, never typed.</div></div>'
       +'<div class="field"><label>From</label><input class="input" type="date" id="plFrom" value="'+(l?l.from:U.addDays(U.todayISO(),30))+'"></div>'
       +'<div class="field"><label>Number of days</label><input class="input mono" type="number" min="1" step="1" id="plDays" value="'+((l&&l.to&&l.from)?U.daysBetween(l.from,l.to)+1:30)+'">'
         +'<div class="row wrap gap-sm" style="margin-top:6px">'+[10,15,20,30].map(n=>'<button class="btn xs" data-days="'+n+'">'+n+' days</button>').join('')+'</div>'
@@ -278,36 +284,50 @@ function planModal(staffId, leaveId){
       +'<div class="field"><label>To</label><input class="input" type="date" id="plTo" value="'+(l?l.to:U.addDays(U.todayISO(),59))+'"><div class="xs faint" style="margin-top:4px">Changing this recalculates the days.</div></div>'
       +'<div class="field"><label>Status</label><select class="select" id="plStatus">'+['Planned','Approved','Pending'].map(x=>'<option '+(l&&l.status===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Entitlement</label><input class="input" value="'+ent.days+' days · '+ent.label+'" readonly></div>'
-      +'<div class="field"><label>Charged to</label><select class="select" id="plCharge"></select><div class="xs faint" style="margin-top:4px">A block taken out of last year’s balance is charged back to the year it was earned.</div></div>'
+      +'<div class="field"><label>Charged to fiscal year</label><select class="select" id="plCharge"></select><div class="xs faint" style="margin-top:4px">Defaults to the year it falls in. Choose an earlier year to charge the block back to the year whose days it is using — a past year is listed even when nothing is left on it, so its plan can be recorded.</div></div>'
       +'<div class="field span2"><label>Note</label><input class="input" id="plNote" value="'+U.esc(l?l.note||'':'')+'" placeholder="e.g. carry-over from last FY, second installment, approval reference"></div>'
       +'</div>'
       +'<div class="hint" style="margin-top:10px" id="plSummary"></div>',
     foot:'<button class="btn" data-close>Cancel</button>'+(l?'<button class="btn danger" data-del>'+UI.ic('trash-2',15)+'Remove</button>':'')+'<button class="btn primary" data-save>'+UI.ic('check',15)+'Save plan</button>',
     onMount:(el,close)=>{
       const q=s=>el.querySelector(s);
+      let chargeTouched=!!(l&&l.chargedFy);
       const summary=()=>{
         const s=staff.find(x=>x.id===q('#plStaff').value)||who;
-        const from=q('#plFrom').value, to=q('#plTo').value, f=q('#plFy').value;
+        const from=q('#plFrom').value, to=q('#plTo').value;
         if(!from||!to||to<from){ q('#plSummary').innerHTML='Pick a start and end date — the end cannot precede the start.'; return; }
         const n=U.daysBetween(from,to)+1;
+        /* the year the dates fall in is read off the dates — a typed label can
+           never put a record under a year the person was not away in */
         const derived=U.fyInfo(from).label;
-        q('#plFy').value=derived;
-        /* the years a block can be charged to: the one it falls in, and any year
-           that still has unused days carried into this one */
-        const carryIn=S.leaveCarryOver(s,derived);
+        q('#plTaken').value='FY '+derived;
+        /* every year the register knows, plus the one the dates fall in, so a
+           block can be charged back to the year whose days it is spending —
+           including a year that is closed and has nothing left on it */
+        const years=U.uniq([derived].concat(fys)).sort().reverse();
         const charge=q('#plCharge');
-        if(charge){
-          const keep=q('#plCharge').value||(l&&l.chargedFy)||'';
-          charge.innerHTML='<option value="">The year it falls in · FY '+derived+'</option>'
-            +(carryIn&&carryIn.days?('<option value="'+carryIn.prevFy+'">FY '+carryIn.prevFy+' · carry-over ('+carryIn.days+' days unused)</option>'):'');
-          charge.value=[...charge.options].some(o=>o.value===keep)?keep:'';
-        }
-        const b=S.leaveBook(s,derived);
+        const wanted=(chargeTouched&&charge.value)||(l&&l.chargedFy)||derived;
+        charge.innerHTML=years.map(y=>{
+          const b=S.leaveBook(s,y);
+          const note=y===derived?'the year the dates fall in'
+            :(b.balance>0?b.balance+' of '+b.pool+' days still unused'
+              :'fully charged ('+b.charged+' of '+b.pool+')');
+          return '<option value="'+y+'">FY '+y+' · '+note+'</option>';
+        }).join('');
+        charge.value=years.indexOf(wanted)>=0?wanted:derived;
+        const target=charge.value||derived;
+        const b=S.leaveBook(s,target);
+        const counts=S.leaveCountsAgainstEntitlement(q('#plType').value);
+        const after=Math.max(0,b.balance-(counts?n:0));
+        const over=counts&&n>b.balance;
         const overlap=S.leaves().find(x=>x.id!==(l&&l.id)&&x.staffId===s.id&&!(x.to<from||x.from>to));
-        const after=Math.max(0,b.balance-(S.leaveCountsAgainstEntitlement(q('#plType').value)?n:0));
-        q('#plSummary').innerHTML='<b style="color:var(--text)">'+n+' day'+(n===1?'':'s')+'</b> on '+U.esc(s.name)+' · charges FY '+derived
-          +(b.carry.days?' (includes '+b.carry.days+'d carried in from '+U.esc(b.carry.prevFy)+')':'')
+        q('#plSummary').innerHTML='<b style="color:var(--text)">'+n+' day'+(n===1?'':'s')+'</b> on '+U.esc(s.name)
+          +' · taken in FY '+derived
+          +(target!==derived?' · <b style="color:var(--text)">charged to FY '+target+'</b>, the year whose days it is using'
+            :' · charged to the same year')
+          +(b.carry&&b.carry.days?' (that year carries '+b.carry.days+'d in from '+U.esc(b.carry.prevFy)+')':'')
           +' · balance after booking <b style="color:var(--text)">'+after+' of '+b.pool+'</b>.'
+          +(over?'<br><span style="color:var(--warn)">FY '+target+' has only '+b.balance+' day'+(b.balance===1?'':'s')+' left — this block is '+(n-b.balance)+' day'+(n-b.balance===1?'':'s')+' over what that year can carry.</span>':'')
           +(overlap?'<br><span style="color:var(--warn)">Overlaps an existing block ('+U.fmtDate(overlap.from)+' – '+U.fmtDate(overlap.to)+'): '+U.esc(overlap.status||'Planned')+'.</span>':'');
       };
       /* The days field drives the end date; editing the end date drives the days.
@@ -320,7 +340,10 @@ function planModal(staffId, leaveId){
       el.querySelectorAll('[data-days]').forEach(b=>b.onclick=()=>{ q('#plDays').value=b.dataset.days; setTo(); summary(); });
       q('#plFrom').addEventListener('change',()=>{ setTo(); summary(); });
       q('#plTo').addEventListener('change',()=>{ setDays(); summary(); });
-      ['#plStaff','#plFy','#plType'].forEach(s=>{ q(s).addEventListener('change',summary); q(s).addEventListener('input',summary); });
+      ['#plStaff','#plType'].forEach(s=>{ q(s).addEventListener('change',summary); q(s).addEventListener('input',summary); });
+      /* once the year is chosen by hand, changing the dates no longer pulls the
+         charge back to the year they fall in */
+      q('#plCharge').addEventListener('change',()=>{ chargeTouched=true; summary(); });
       setDays(); setTo(); summary();
       q('[data-save]').onclick=()=>{
         const id=q('#plStaff').value, from=q('#plFrom').value, to=q('#plTo').value;
