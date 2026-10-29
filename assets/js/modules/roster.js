@@ -73,6 +73,56 @@ function req(){ const s=S.settings(); return {day:s.coverWeekdayDay||3,night:s.c
 function isRest(iso){ return U.dow(iso)>=5 || !!S.holiday(iso); }
 function required(iso){ const r=req(); return isRest(iso)?{day:r.wkDay,night:r.wkNight}:{day:r.day,night:r.night}; }
 
+/* ——— rest owed after nights ————————————————————————————————
+   Every night worked is paid back with a day at home, counted from the morning
+   after the last night of a block. A repayment that lands on a weekend or a
+   public holiday is not written on the plan — the sheet stays clean — but it is
+   counted here, so the debt is visible and nobody quietly loses a rest day.
+   Read straight off the stored cells, so a plan hand-edited or transcribed shows
+   the same statement as a generated one. */
+function compOffs(p){
+  if(!p||!p.dates) return [];
+  const out=[];
+  p.staff.forEach(row=>{
+    let nights=0, written=0, withheld=0, pending=0;
+    const days=[], weekendDays=[];
+    let i=0;
+    while(i<p.dates.length){
+      const c=row.codes[i]||'';
+      if(c!=='N'&&c!=='DN'){ i++; continue; }
+      let e=i;
+      while(e<p.dates.length && ((row.codes[e]||'')==='N'||(row.codes[e]||'')==='DN')) e++;
+      const len=e-i, last=e-1;
+      nights+=len;
+      let owed=len, j=last+1;
+      while(owed>0 && j<p.dates.length){
+        const iso=p.dates[j], cj=row.codes[j]||'';
+        if(isRest(iso)){ withheld++; weekendDays.push(iso); owed--; j++; continue; }
+        if(cj==='OFF'){ written++; days.push(iso); owed--; j++; continue; }
+        break;
+      }
+      pending+=owed;
+      i=e;
+    }
+    if(nights) out.push({name:row.name, nights, owed:nights, written, withheld, pending, days, weekendDays});
+  });
+  return out.sort((a,b)=>b.owed-a.owed||a.name.localeCompare(b.name));
+}
+function compOffCard(p){
+  const rows=compOffs(p);
+  if(!rows.length) return '';
+  const tot=rows.reduce((t,r)=>({owed:t.owed+r.owed, written:t.written+r.written, withheld:t.withheld+r.withheld}),{owed:0,written:0,withheld:0});
+  return '<div style="margin-top:14px">'+UI.card({title:'Rest owed after nights',sub:'One night worked is one day at home, counted from the morning after the last night',icon:'moon',body:
+    '<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Staff</th><th>Nights worked</th><th>Offs owed</th><th>On the plan</th><th>Not written</th><th>Dates</th></tr></thead><tbody>'
+    +rows.map(r=>'<tr><td><div class="row gap-sm">'+U.avatar(r.name,'sm')+'<span class="small">'+U.esc(r.name)+'</span></div></td>'
+      +'<td class="num">'+r.nights+'</td><td class="num"><b>'+r.owed+'</b></td>'
+      +'<td class="num">'+r.written+(r.pending?'<span class="xs faint"> +'+r.pending+' later</span>':'')+'</td>'
+      +'<td class="num">'+(r.withheld?r.withheld:'—')+'</td>'
+      +'<td class="xs">'+(r.days.concat(r.weekendDays).sort().map(d=>U.fmtDateShort(d)+(r.weekendDays.indexOf(d)>=0?'<span class="faint"> (weekend)</span>':'')).join(' · ')||'—')+'</td></tr>').join('')
+    +'</tbody></table></div>'
+    +'<div class="card-foot"><span>'+tot.owed+' offs owed · '+tot.written+' written on the plan'
+      +(tot.withheld?' · '+tot.withheld+' landing on a weekend or public holiday, recorded and not written so the plan stays clean':'')+'. A night block is repaid after its last night.</span></div>'})+'</div>';
+}
 function fairness(p){
   const out={};
   (p?p.staff:[]).forEach(s=>{
@@ -164,7 +214,8 @@ function gridView(){
           +'<div class="hint" style="margin-top:10px">Each tile: date · weekday, then day staff and night staff against what the department requires. A day below the requirement is marked in red.</div>';
       }()})
      +UI.card({title:'Balance',sub:'Night · weekend · holiday load, name by name',icon:'scale',body:balanceBody(p)})
-   +'</div>';
+   +'</div>'
+   +compOffCard(p);
 }
 /* The balance card under the grid: what each name carries this month, drawn as
    two small bars and a count. An even spread is the rule; a difference is a
@@ -1236,6 +1287,8 @@ async function generateMonth(){
     d.workingPlans[key]=d.workingPlans[key]||{versions:[]};
     const cur=d.workingPlans[key].primary;
     if(cur){ d.workingPlans[key].versions=(d.workingPlans[key].versions||[]).concat([cur]); }
+    /* the leave register is the authority: written over the fresh grid, so a
+       carry-over, a sick block or a planned month always appears on the plan */
     d.workingPlans[key].primary=S.buildPlan(key);
   },{action:official?'roster.regenerate.official':'roster.generate',entity:'workingPlans',entityId:key,detail:(official?'Archived official plan and generated draft for ':'Draft generated for ')+U.monthLabel(key)});
   paint(); UI.toast('Draft generated · '+(plan()?plan().staff.length:0)+' staff · previous version archived',{type:'ok'});
@@ -1257,8 +1310,12 @@ function wireBody(){
     S.commit(d=>{ const key=mk; const days=U.monthRange(key);
       d.workingPlans[key]=d.workingPlans[key]||{versions:[]};
       const prev=d.workingPlans[key].primary; if(prev){ d.workingPlans[key].versions=(d.workingPlans[key].versions||[]).concat([prev]); }
-      d.workingPlans[key].primary={label:U.monthLabel(key),dates:days,staff:S.activeStaff().map(s=>({name:s.name,id:s.id,codes:days.map(()=>'')})),
+      const blank={label:U.monthLabel(key),dates:days,staff:S.activeStaff().map(s=>({name:s.name,id:s.id,codes:days.map(()=>'')})),
         meta:{date:U.todayISO(),fy:U.fyLabel(),period:U.monthLabel(key),generated:false,draft:true,blank:true}};
+      /* a blank month still reads the leave register: nobody is put at work through
+         leave that is already recorded */
+      S.applyLeaveToPlan(blank);
+      d.workingPlans[key].primary=blank;
     },{action:'roster.blank',entity:'workingPlans',entityId:mk,detail:'Blank month created for '+U.monthLabel(mk)});
     paint(); UI.toast('Blank month created · click any cell to assign shifts',{type:'ok'});
   });

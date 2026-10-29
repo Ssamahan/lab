@@ -69,7 +69,10 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   const own=[]; ['Patrick ISHIMWE','Dieudonne NIYIDUHABYOSE','Bernadette MUHAWENIMANA','Jeanne Claudine UWAYISABA']
     .forEach(n=>blocksOf(n).forEach(b=>{ if(b.from>=carriedLen) own.push({name:n,len:b.len,from:b.from}); }));
   ok(own.length>0,'the month writes night blocks of its own');
-  ok(own.every(b=>b.len>=2),'never a lone night ('+own.filter(b=>b.len<2).map(b=>b.name.split(' ')[0]+' '+nov.dates[b.from]).join(', ')+')');
+  /* the last day of the run begins a block that the next month's plan continues */
+  const novLast=nov.dates[nov.dates.length-1];
+  const lone=own.filter(b=>b.len<2 && nov.dates[b.from]!==novLast);
+  ok(lone.length===0,'never a lone night ('+lone.map(b=>b.name.split(' ')[0]+' '+nov.dates[b.from]).join(', ')+')');
   ok(own.every(b=>b.len<=3),'and never more than three in a row');
   ok(own.every(b=>b.len<=(S.staffByName(b.name).maxConsecN||3)),'no block runs past its holder’s own ceiling');
   ok(own.filter(b=>/Jeanne Claudine/.test(b.name)).every(b=>b.len<=2),'Jeanne Claudine works two at a time');
@@ -154,8 +157,13 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   click(doc.querySelector('[data-si="'+sj+'"][data-di="'+dj+'"]')); await tick(200);
   click(doc.querySelector('[data-code="AL"]')); await tick(320);
   const p3=S.planForMonth('2026-11');
-  const filled=p3.staff[sj].codes.slice(dj,dj+17);
-  ok(filled.filter(c=>c==='AL').length===15,'tapping AL fills fifteen fields of annual leave');
+  /* the run now stops a week past its month, so from 23 November there are fifteen
+     cells to the end of the plan: the two sick days are left alone and the other
+     thirteen are filed as annual leave, the fill stopping at the end of the run */
+  const filled=p3.staff[sj].codes.slice(dj);
+  const restCells=p3.dates.length-dj;
+  ok(restCells===15,'the run has fifteen cells from 23 November to its last day ('+restCells+')');
+  ok(filled.filter(c=>c==='AL').length===13,'tapping AL fills every remaining field as annual leave ('+filled.filter(c=>c==='AL').length+' of '+restCells+')');
   const beatrice=p3.staff[sj];
   const slDay=beatrice.codes[p3.dates.indexOf('2026-11-30')];
   ok(slDay!=='AL','a sick-leave block in the register is left alone by the annual-leave fill ('+(slDay||'blank')+')');
