@@ -386,6 +386,27 @@ function generateSamples(seedDB,opts){
      · the manager works the bench on weekdays like everybody else. No nights,
        no weekends, no public holidays — and never a month of his own leave.
 */
+/* ——— A newcomer ———— (used by the plan generator and by the screens) ————
+   Somebody's first thirty days in the department are day shifts only: they carry the
+   bench on a weekday and are exempt from the weekend rota and from nights until the
+   month of induction is over. `newcomerUntil` is the last day of that month; after it
+   they are an ordinary member of the roster. `joinDate` is the first day they can be
+   on a plan at all — before it, the sheet is hatched, not blank. */
+function newcomerUntilOf(st){
+  if(!st) return null;
+  if(st.newcomerUntil) return String(st.newcomerUntil).slice(0,10);
+  if(!st.joinDate) return null;
+  return U.addDays(String(st.joinDate).slice(0,10),29);
+}
+function isNewcomerAt(st,iso){
+  const until=newcomerUntilOf(st); if(!until||!iso) return false;
+  return iso<=until;
+}
+function joinedBy(st,iso){
+  const from=st&&st.joinDate?String(st.joinDate).slice(0,10):null;
+  return !from||!iso||iso>=from;
+}
+
 function generatePlan(monthKey, seedDB){
   /* the rows run in the order the department reads its roster: the manager first,
      then the two post-holders, then the bench, and the weekend technologist last */
@@ -489,6 +510,8 @@ function generatePlan(monthKey, seedDB){
     while(nights[d]===name && n<4){ n++; d=U.addDays(d,-1); } return n; };
   const canTake=(s,block)=>{
     if(!block.every(iso=>!onLeave(s.name,iso))) return false;
+    /* the first thirty days are dayshifts: no night inside the induction month */
+    if(block.some(iso=>isNewcomerAt(s,iso))) return false;
     const per={}; block.forEach(iso=>{ const m=iso.slice(0,7); per[m]=(per[m]||0)+1; });
     return Object.keys(per).every(m=>nightOf(s.name,m)+per[m]<=(s.maxNights||12));
   };
@@ -509,7 +532,9 @@ function generatePlan(monthKey, seedDB){
     const sun=week.filter(iso=>U.dow(iso)===6)[0];
     const wkDays=[sat,sun].filter(iso=>iso&&isOpen(iso));
     if(wkDays.length){
-      const own=weekendTechnologist.filter(s=>wkDays.every(iso=>!onLeave(s.name,iso)))[0];
+      /* a newcomer is exempt from the weekend until the month of induction is over */
+      const eligible=s=>wkDays.every(iso=>!isNewcomerAt(s,iso));
+      const own=weekendTechnologist.filter(s=>eligible(s)&&wkDays.every(iso=>!onLeave(s.name,iso)))[0];
       if(own){
         /* she takes Saturday and Sunday, day and night, on `DN` — and she is the
            only person on the roster ever given `DN` */
@@ -519,7 +544,7 @@ function generatePlan(monthKey, seedDB){
         const fri=week.filter(iso=>U.dow(iso)===4)[0];
         const friNight=fri?nights[fri]:null;
         const free=staff.filter(s=>!s.weekendOnly && s.pattern!=='manager' && !isActing(s)
-          && wkDays.every(iso=>!onLeave(s.name,iso)));
+          && eligible(s) && wkDays.every(iso=>!onLeave(s.name,iso)));
         const dayPick=free.filter(s=>crew.indexOf(s)<0 && s.name!==friNight)[0]
           || free.filter(s=>s.name!==friNight)[0] || free[0] || null;
         const nightPick=crew.filter(s=>s!==dayPick && s.name!==friNight && canTake(s,wkDays))
@@ -556,7 +581,7 @@ function generatePlan(monthKey, seedDB){
     holWk.forEach(iso=>{
       if(nights[iso]) return;
       const free=staff.filter(s=>!s.weekendOnly && (s.pattern!=='manager'||s.worksHolidays)
-        && !onLeave(s.name,iso));
+        && !isNewcomerAt(s,iso) && !onLeave(s.name,iso));
       if(!free.length) return;
       /* the rota turns one place each time, and the lightest holiday load wins:
          two rules that both push the duty onto somebody who has not had it */
@@ -640,6 +665,9 @@ function generatePlan(monthKey, seedDB){
       if(grid[s.name][di]!==null) return;               // taken over from the month before
       const lv=leaveOn(s.name,iso);
       if(lv){ grid[s.name][di]=lv; return; }
+      /* the days before somebody's first day are hatched, not blank: the sheet says
+         “not yet employed” rather than “at home” */
+      if(!joinedBy(s,iso)){ grid[s.name][di]='BE'; return; }
       if(weekend){
         /* only the people actually rostered carry a code at the weekend; every
            other weekend cell stays blank */
@@ -1251,6 +1279,59 @@ function normalize(db){
     const dieu=(db.staff||[]).find(x=>x.id==='s9');
     if(dieu){ dieu.post='Lab Safety Officer'; }
   }
+  /* v6.9.58 — Marie Claudine UWAYISABA arrived on 6 October 2026. Her record said
+     2022, which put her on the establishment for years she was not there; the date
+     is corrected and she takes her place on the October plan. Before the 6th the
+     sheet is hatched (BE — before employment), and from the 6th she works the bench
+     on dayshifts as a newcomer: no weekend, no night, until her thirty days of
+     induction are over on 4 November 2026. Nothing else on the October plan is
+     touched — every other row stays exactly as it was signed. */
+  if(!db.meta.arrivalV6958){
+    db.meta.arrivalV6958=1;
+    const marie=(db.staff||[]).find(x=>x.id==='s11');
+    if(marie){
+      marie.joinDate='2026-10-06';
+      marie.newcomerUntil=U.addDays('2026-10-06',29);      /* 4 November 2026 */
+      marie.orientationStart='2026-10-06';
+      marie.note='Joined 6 October 2026 — day shifts as a newcomer; exempt from the weekend and from nights until 4 November 2026';
+    }
+    const oct=db.workingPlans&&db.workingPlans['2026-10'];
+    const p=oct&&oct.primary;
+    if(p&&marie&&Array.isArray(p.dates)){
+      const dates=p.dates;
+      const codes=dates.map(iso=>{
+        if(iso<'2026-10-06') return 'BE';                  /* not yet employed */
+        return U.dow(iso)<5 ? 'D' : '';                    /* dayshifts; the weekend is exempt */
+      });
+      const row={name:marie.name, id:marie.id, codes};
+      if(!Array.isArray(p.staff)) p.staff=[];
+      const at=p.staff.findIndex(r=>r&&r.name===marie.name);
+      if(at>=0){
+        /* the row is already there: fill the days it does not answer for yet */
+        const cur=p.staff[at];
+        if(!Array.isArray(cur.codes)||cur.codes.length!==dates.length) cur.codes=codes;
+        else cur.codes=cur.codes.map((c,i)=>(c===''||c===null||c===undefined)?codes[i]:c);
+      } else {
+        /* her place in the roster: after Bernadette, before the weekend technologist */
+        const before=p.staff.findIndex(r=>r&&/YANSONEYE/.test(r.name));
+        if(before>=0) p.staff.splice(before,0,row); else p.staff.push(row);
+      }
+      p.meta=p.meta||{};
+      p.meta.revised=true;
+      p.meta.revisedNote='6 October 2026 — Marie Claudine UWAYISABA joins the plan; the days before her arrival are hatched.';
+    }
+    /* a draft built before her arrival learned nothing of it: rebuild the drafts
+       (never an official or a transcribed month), keeping what they replaced */
+    Object.keys(db.workingPlans||{}).forEach(k=>{
+      const e=db.workingPlans[k]; const q=e&&e.primary;
+      if(!q||!q.meta||!q.meta.generated||q.meta.official||q.meta.transcribed) return;
+      const built=generatePlan(k,db);
+      built.meta=Object.assign({},built.meta,{label:'Draft for '+U.monthLabel(k)+
+        ' — built from the department\'s rules and the record of previous months; review before publishing'});
+      e.versions=(e.versions||[]).concat([q]);
+      e.primary=built;
+    });
+  }
   if(!db.meta.rosterOrderV6955){
     db.meta.rosterOrderV6955=1;
     const by=(id)=>db.staff.find(x=>x.id===id);
@@ -1711,6 +1792,13 @@ S.leaveTypes=()=>LS_TYPES;
 S.leaveInForce=()=>S.leaves().filter(l=>!/declin|reject/i.test(l.status||''));
 /* `who` is a staff record, an id or a name — the working plan only ever has the
    name on a row, and the leave register only ever has the id. */
+/* ——— A newcomer ——————————————————————————————————————————
+   Somebody's first thirty days in the department are day shifts only: they carry the
+   bench on a weekday and are exempt from the weekend rota and from nights until the
+   month of induction is over. `newcomerUntil` is the last day of that month; after it
+   they are an ordinary member of the roster. `joinDate` is the first day they can be
+   on a plan at all — before it, the sheet is hatched, not blank. */
+S.newcomerUntil=newcomerUntilOf; S.isNewcomer=isNewcomerAt; S.joinedBy=joinedBy;
 S.leaveFor=function(who,iso){
   const staff=typeof who==='string'?(S.staffById(who)||S.staffByName(who)):who;
   if(!staff) return null;
