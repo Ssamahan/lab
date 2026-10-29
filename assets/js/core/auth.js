@@ -60,7 +60,7 @@ A.hash=sha256;
 const USERS=[
   {id:'u1', name:'Kelvin SAMAHANI', role:'Admin', username:'kelvin', passHash:'5ca8c32632e47d5798b694cf033982a0758b3f92538ac3993f5c1d08cd7b8c99', email:'rulidhlab@gmail.com', staffId:'s1', title:'Laboratory Manager', twoFactor:false},
   {id:'u2', name:'Aurelie YANSONEYE', role:'Manager', username:'aurelie', passHash:'ec4745e166d26bc36af27e6ab352c1e848eb73afded08a7b1fceb215b2ac5028', email:'aurelieyansoneye@gmail.com', staffId:'s4', title:'HIV Lab Quality Corp', twoFactor:false},
-  {id:'u3', name:'Jean Paul NSENGIYUMVA', role:'Technologist', username:'jeanpaul', passHash:'ec4745e166d26bc36af27e6ab352c1e848eb73afded08a7b1fceb215b2ac5028', email:'nsengiyuma4@gmail.com', staffId:'s6', title:'Laboratory Technician', twoFactor:true},
+  {id:'u3', name:'Jean Paul NSENGIYUMVA', role:'Technologist', username:'jeanpaul', passHash:'ec4745e166d26bc36af27e6ab352c1e848eb73afded08a7b1fceb215b2ac5028', email:'nsengiyuma4@gmail.com', staffId:'s6', title:'Lab Quality Manager', twoFactor:true},
   {id:'u4', name:'District Reviewer', role:'Viewer', username:'viewer', passHash:'d5202e6904b89534425e3e52d9173445bf493805ad2c40edddd1529d497cde18', email:'pbf@gakenke.gov.rw', staffId:null, title:'PBF assessment team', twoFactor:false},
   {id:'u5', name:'Gakenke Review Panel', role:'Reviewer', username:'reviewer', passHash:'c60d771b500d1b4f8a1c8438b0e0f8d89ee8bac756a768efd4057b7011a367d5', email:'review@gakenke.gov.rw', staffId:null, title:'District review panel', twoFactor:false}
 ];

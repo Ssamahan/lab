@@ -4,6 +4,37 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.57
+
+**The printed sheet reads like the letterhead it is.**
+
+*The ministry above the hospital.* Every export — the working plan, the weekly unit roster and
+the XLSX workbook — now opens with **MINISTRY OF HEALTH** above **RULI DISTRICT HOSPITAL**, the
+order the departmental letterhead is written in. The small print under it (department, email,
+phone) moved down a line to give the two names their own air.
+
+*Every name whole, on one line.* The label column was 560 px and the longest names —
+MUHAWENIMANA, NIYIDUHABYOSE, UWAYISABA — were set on two lines, which then collided with the
+post printed underneath. The column is now 700 px and the name is never wrapped: every name on
+the establishment fits across it at up to 34 px, and the post prints on the line beneath it, a
+step smaller and in muted ink, so the name always reads first.
+
+*The phone number beside the name.* The contact list used to put the number under the name,
+where it was squeezed to 16–20 px and could not be read off a printed sheet. It is now set on
+the **same line as the name**, at 26–30 px, with the name on the left and the number ranged
+right in each card. The columns follow the space that is actually left — two, three or four
+across — and a card never shrinks below the size a number stays legible at.
+
+*The posts, written the way the department writes them.* **Lab Technician** replaces
+“Laboratory Technician” for Patrick, Bernadette and Marie Claudine; **Beatrice stays the Lab
+Technologist** — she is the only one called that; **Jean Paul is the Lab Quality Manager**;
+**Dieudonné is the Lab Safety Officer**. The manager keeps *Laboratory Manager*, and the duty
+codes behind the posts (quality manager, safety officer) are untouched, so role-targeted
+training still finds them. The same wording is used on the screen, on the sheet, in the
+training pickers and in the sign-in title.
+
+---
+
 ## What changed in 6.9.56
 
 **One month, one row per person.**

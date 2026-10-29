@@ -197,8 +197,8 @@ function trainingDrawer(id){
    safety officer — is not a turn in the queue: it goes to the person who holds
    the post, and their name is ticked for them. */
 const AUDIENCE=[['','Everybody on the establishment'],
-  ['manager','Laboratory Manager'],['qualityManager','Laboratory Quality Manager'],
-  ['safetyOfficer','Laboratory Safety Officer']];
+  ['manager','Laboratory Manager'],['qualityManager','Lab Quality Manager'],
+  ['safetyOfficer','Lab Safety Officer']];
 function holderOf(key){ return key?S.activeStaff().find(x=>S.dutyKeyOf(x)===key):null; }
 function scheduleModal(id, opts){
   if(!LS.auth.guard('edit')) return;

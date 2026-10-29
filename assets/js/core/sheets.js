@@ -111,6 +111,25 @@ function nameBlock(x,y,w,name,o){
 }
 SH._h.nameBlock=nameBlock;
 
+/* A name and a phone number on ONE line inside a box. The contact list used to set
+   the number under the name, which pushed it to the smallest size the page allows
+   and left it unreadable on a printed sheet. The number now sits beside the name at
+   the same weight of legibility, and a name that genuinely runs long is set smaller
+   rather than wrapped — the printed register never wraps a contact either. */
+function nameAndPhone(x,y,w,name,phone,o){
+  o=o||{};
+  const pref=o.pref||32, min=o.min||19;
+  const num=String(phone||'—');
+  const numSize=Math.max(20,Math.min(o.numPref||30, pref));
+  const numW=textW(num,numSize);
+  const gap=Math.max(18,numSize*0.7);
+  const nameW=Math.max(120,w-numW-gap);
+  const size=Math.max(min,Math.min(pref, nameW/Math.max(1,String(name||'').length*ADV)));
+  return text(x,y,String(name||''),{size:size,weight:600,fill:o.fill||'#12203C'})
+    +(o.phoneRight===false?'':text(x+w,y,num,{size:numSize,weight:600,anchor:'end',fill:'#12203C',mono:true}));
+}
+SH._h.nameAndPhone=nameAndPhone;
+
 /* The rostering exceptions the department works to. They are printed on the
    sheet so nobody has to remember why a row looks the way it does. */
 const EXCEPTION_RULES=[
@@ -239,10 +258,13 @@ function letterhead(s,opts){
   g+=text(lx+ls/2,cy0+cs+40,'Ruli District Hospital',{size:26,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
 
   const mid=W/2;
-  g+=text(mid,cy0+82,(s.hospital||'Ruli District Hospital').toUpperCase(),{size:54,weight:700,anchor:'middle',fill:'#12203C',family:FONT.serif,ls:'1'});
-  g+=text(mid,cy0+122,s.dept||'Laboratory Department',{size:28,weight:600,anchor:'middle',fill:'#26303F'});
-  if(s.email) g+=text(mid,cy0+156,s.email,{size:23,anchor:'middle',fill:'#3D4759'});
-  if(s.phone) g+=text(mid,cy0+186,s.phone,{size:23,anchor:'middle',fill:'#3D4759'});
+  /* The ministry stands above the hospital on every Rwandan letterhead, and it
+     stands above it here — on the working plan, the weekly roster and the XLSX. */
+  g+=text(mid,cy0+52,'MINISTRY OF HEALTH',{size:26,weight:600,anchor:'middle',fill:'#3D4759',family:FONT.serif,ls:'3'});
+  g+=text(mid,cy0+116,(s.hospital||'Ruli District Hospital').toUpperCase(),{size:52,weight:700,anchor:'middle',fill:'#12203C',family:FONT.serif,ls:'1'});
+  g+=text(mid,cy0+152,s.dept||'Laboratory Department',{size:26,weight:600,anchor:'middle',fill:'#26303F'});
+  if(s.email) g+=text(mid,cy0+182,s.email,{size:23,anchor:'middle',fill:'#3D4759'});
+  if(s.phone) g+=text(mid,cy0+210,s.phone,{size:23,anchor:'middle',fill:'#3D4759'});
 
   g+=rect(pad,opts.rule1||272,W-pad*2,6,C.goldLine);
   return g;
@@ -268,7 +290,7 @@ SH.monthlySVG=function(plan,opts){
   const W=3200, H=1876, pad=96;
   const rows=(plan.staff||[]);
   const cols=monthCols(plan);
-  const labelW=560, gridX=pad+labelW;
+  const labelW=700, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
   const gridTop=opts.gridTop||454, bandH=42, dateH=32;
   const rowH=Math.max(54,Math.min(90,((opts.gridBottom||1040)-gridTop-bandH-dateH)/Math.max(1,rows.length)));
@@ -318,10 +340,19 @@ SH.monthlySVG=function(plan,opts){
        pharmacy — the manager, or the person acting for him while he is away */
     const req=LS.store.requisitionOfficer?LS.store.requisitionOfficer(String((plan.dates||[''])[0]).slice(0,7)):null;
     const reqLine=req&&req.name===r.name?(' · service requisition'+(req.acting?' (acting)':'')):'';
-    const sub=role+reqLine;
-    const shrink=!!sub&&rowH>=64;
-    g+=nameBlock(pad+24,y+rowH/2+(shrink?-7:(rowH>=70?0:9)),labelW-48,r.name,{pref:31,min:20});
-    if(shrink) g+=text(pad+24,y+rowH/2+19,sub,{size:18,weight:500,fill:'#5B6474'});
+    /* The name is set WHOLE on one line, and the post sits on the line beneath it.
+       Wrapping the name to two lines is what used to push the longest names into
+       their own post: the label column is 560 px and every name on the establishment
+       fits across it at the size below, so it is never broken. The post under it is
+       a step smaller and in muted ink, so the name always reads first. */
+    const roleText=(role+reqLine).replace(/^ · /,'');
+    const nameSize=Math.max(22,Math.min(34,roleText?rowH*0.42:rowH*0.50));
+    const nameBase=roleText? y+rowH/2-1 : y+rowH/2+Math.round(nameSize*0.36);
+    g+=nameBlock(pad+24,nameBase,labelW-48,r.name,{pref:nameSize,min:21});
+    if(roleText){
+      const roleSize=Math.max(15,Math.min(21,rowH*0.27));
+      g+=text(pad+24,y+rowH/2+Math.round(roleSize)+7,roleText,{size:roleSize,weight:500,fill:'#5B6474'});
+    }
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
       let code=(codes[i]||'').trim();
@@ -387,13 +418,19 @@ SH.monthlySVG=function(plan,opts){
      never opens a white gap between contacts and signatures */
   /* Cards are spread down to the signature block, as on the printed register:
      pitch fills the run, the card itself stays compact and legible. */
-  const sigTop0=1612, contactCols=3, contactRows=Math.max(1,Math.ceil(rows.length/contactCols));
+  const sigTop0=1612;
   /* the contacts must stop above the signature rule, whatever the key block above
-     them costs — the pitch is derived from the space that is actually left */
-  const contactPitch=Math.max(58,Math.min(84,(sigTop0-20-y)/contactRows));
-  const contactH=Math.min(72,contactPitch-14);
-  const contactNameSize=Math.max(18,Math.min(24,contactH*0.34));
-  const contactPhoneSize=Math.max(16,Math.min(21,contactH*0.28));
+     them costs — so the number of columns follows the space that is actually left,
+     and a card never shrinks below the size a phone number stays readable at */
+  const space=Math.max(120,sigTop0-24-y);
+  let contactCols=2, contactRows=Math.ceil(rows.length/2), contactPitch=space/contactRows;
+  [3,4].forEach(cols=>{
+    if(contactPitch>=64) return;
+    contactCols=cols; contactRows=Math.ceil(rows.length/cols); contactPitch=space/contactRows;
+  });
+  const contactH=Math.max(52,Math.min(96,contactPitch-12));
+  const contactNameSize=Math.max(22,Math.min(40,contactH*0.55));
+  const contactPhoneSize=Math.max(20,Math.min(34,contactH*0.48));
   const colWid=(W-pad*2)/contactCols;
   rows.forEach((r,i)=>{
     const col=i%contactCols, row=Math.floor(i/contactCols);
@@ -401,8 +438,8 @@ SH.monthlySVG=function(plan,opts){
     const st=LS.store.staffByName(r.name)||{};
     g+=rect(x,yy,4,contactH,C.goldLine);
     g+=rect(x+4,yy,colWid-20,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
-    g+=nameBlock(x+22,yy+contactH*0.42,colWid-56,r.name,{pref:contactNameSize,min:17});
-    g+=text(x+22,yy+contactH-11,st.phone||'—',{size:contactPhoneSize,fill:'#5B6474'});
+    g+=nameAndPhone(x+24,yy+contactH/2+Math.round(contactNameSize*0.36),colWid-64,r.name,st.phone,
+      {pref:contactNameSize,min:24,numPref:contactPhoneSize});
   });
   y+=contactRows*contactPitch+10;
 
@@ -766,6 +803,7 @@ SH.monthlyXLSX=function(plan){
   const rows=plan.staff||[];
   const nCols=cols.length+1;
   const out=[];
+  out.push({cells:[{c:0,v:'MINISTRY OF HEALTH',s:13}]});
   out.push({h:26,cells:[{c:0,v:s.hospital||'Ruli District Hospital',s:1}]});
   out.push({cells:[{c:0,v:(s.dept||'Laboratory Department')+' · Republic of Rwanda',s:13}]});
   out.push({cells:[{c:0,v:((s.email||'')+(s.phone?' · '+s.phone:'')),s:13}]});
@@ -806,13 +844,13 @@ SH.monthlyXLSX=function(plan){
     const col=i%2, row=Math.floor(i/2);
     if(col===0) out.push({cells:[]});
     const target=out[out.length-1];
-    target.cells[col]={c:col,v:r.name+' · '+(st.phone||'—'),s:12};
+    target.cells[col]={c:col,v:r.name+'  ·  '+(st.phone||'—'),s:12};
   });
   out.push({cells:[]});
   out.push({cells:[{c:0,v:'Prepared by: '+(s.prepared||''),s:3},{c:2,v:'Verified by: '+(s.verified||''),s:3},{c:4,v:'Approved by: '+(s.approved||''),s:3}]});
   out.push({cells:[{c:0,v:(s.preparedRole||'')+' · '+(s.verifiedRole||'')+' · '+(s.approvedRole||''),s:13}]});
   const widths=[30].concat(cols.map(()=>3.6));
-  const sheet=sheetXML(out,{cols:widths,freeze:8,merges:['A1:'+colName(nCols)+'1','A2:'+colName(nCols)+'2','A3:'+colName(nCols)+'3','A5:'+colName(nCols)+'5','A6:'+colName(nCols)+'6']});
+  const sheet=sheetXML(out,{cols:widths,freeze:9,merges:['A1:'+colName(nCols)+'1','A2:'+colName(nCols)+'2','A3:'+colName(nCols)+'3','A4:'+colName(nCols)+'4','A6:'+colName(nCols)+'6','A7:'+colName(nCols)+'7']});
   return workbookFile('Working Plan',sheet,STYLES);
 };
 
