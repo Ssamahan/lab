@@ -4,6 +4,60 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.61
+
+**Every night is paid back, the plan stops at the week, and the leave register is read by the
+plan itself.**
+
+Three things the department asked for, all of them about the working plan telling the truth.
+
+**Three nights, three days at home.** A block of nights is now repaid after its last night, not by
+the single day the older build wrote. Three nights finish on a Friday morning, and the Monday,
+Tuesday and Wednesday after it are days owed. The repayment is written on the plan as `OFF`, so a
+reader sees the rest without reading the ledger.
+
+**A day owed on a weekend is recorded, not written.** When the day owed falls on a Saturday, a
+Sunday or a public holiday, the cell is left blank — the weekend stays clean, which is exactly how
+the department's own paper plan reads — but the day is not lost: it is counted, and the working
+plan shows a **Rest owed after nights** card under the grid with, name by name, the nights worked,
+the days owed, the days written, the days not written and their dates. The card is read from the
+cells, so a plan transcribed or hand-edited gives the same statement as a generated one.
+
+**A plan never runs more than a week past its month.** November used to run to 13 December. The
+run now ends exactly seven days after the last day of the month it belongs to — November 2026 ends
+on 7 December — which is the overhang the department's own workbook keeps. Nothing before the
+boundary changed.
+
+**The annual-leave plan is the authority the working plan reads — including when the block belongs
+to last year.** The manager's thirty days are FY 2025/2026 carry-over taken from 16 November 2026.
+The working plan honoured them; the leave book did not show them, because the book listed only the
+blocks *charged* to the year it was displaying. The book now reads two angles and shows both:
+
+- what is **taken** in the year — the blocks whose dates fall inside it, which is what a reader
+  looking at November needs to see on the row;
+- what is **charged** to the year — the blocks whose days come out of that year's entitlement,
+  which is what the balance is counted from.
+
+So the FY 2026/2027 book lists the block, marks it *days charged to FY 2025/2026* beside the dates,
+and leaves this year's own thirty days at thirty; the FY 2025/2026 book still shows the thirty
+charged and a balance of zero. A month created from the console — generated or blank — has the
+register written over its cells, so nobody appears at work through leave that is already on the
+books.
+
+**The nights turn by the load of the whole run.** The picker was weighing a name by the nights of
+the calendar month the block fell in, so the week the plan runs into December started everybody at
+zero and the same few names picked the tail up again. It now weighs the load of the whole run
+while the monthly ceiling stays as it was, which brings the November shares back to 7 / 8 / 6.
+A night block is also never continued by the weekend technologist into the working week: her
+Monday is `OFF`, so a night handed to her there simply disappeared.
+
+Two tests were written to the older behaviour and are corrected here rather than worked around: a
+single night **on the last day of the run** is the beginning of a block the next month's plan
+continues, not a lone night; and an annual-leave fill from 23 November now has thirteen cells to
+the end of the run rather than seventeen.
+
+---
+
 ## What changed in 6.9.60
 
 **Her name is Jeanne Claudine.**

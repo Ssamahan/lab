@@ -61,11 +61,12 @@ const ROOT=path.resolve(__dirname,'..');
   await go('#/roster'); await tick(300);
   doc.querySelector('[data-view="grid"]').click(); await tick(350);
   [...doc.querySelectorAll('[data-nav]')].filter(b=>b.dataset.nav==='1')[0].click(); await tick(400);
-  const trs=[...doc.querySelectorAll('#roBody tbody tr')];
+  /* the calendar itself: the rest-owed table under it has rows of its own */
+  const trs=[...doc.querySelectorAll('#roBody table.cal tbody tr')];
   ok(trs.length===names.length,'the grid draws one row per person ('+trs.length+')');
   const cells=trs.map(tr=>tr.querySelector('.staff-cell').textContent.replace(/\s+/g,' ').trim());
   ok(new Set(cells.map(t=>t.split(' ')[0]+t.split(' ').pop())).size===trs.length,'and no row repeats a name');
-  const head=[...doc.querySelectorAll('#roBody thead th')].length-1;
+  const head=[...doc.querySelectorAll('#roBody table.cal thead th')].length-1;
   ok(head===10,'the columns are the ten days of the month, not twenty ('+head+')');
   const namesShown=cells.map(t=>t.replace(/Laboratory Manager|Laboratory Technician|Laboratory Technologist|Lab Technician|HIV Lab Quality Corp/g,'').replace(/Service requisition · acting|Service requisition/g,'').trim());
   ok(namesShown[0]==='Kelvin SAMAHANI','the manager is still the first row');

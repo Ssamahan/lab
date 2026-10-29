@@ -72,7 +72,11 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   const written=[];
   p.staff.forEach(r=>runs(r).forEach(b=>{ if(b.from>=carried) written.push({name:r.name,len:b.len,from:p.dates[b.from]}); }));
   ok(written.length>0,'the plan writes night blocks of its own');
-  ok(written.every(b=>b.len>=2),'never a single night on its own'+(written.filter(b=>b.len<2).map(b=>b.name+' '+b.from).join(', ')));
+  /* the last day of the run is a block that carries into the month after it — the
+     next plan continues it, so a single night there is a beginning, not a lone one */
+  const lastDate=p.dates[p.dates.length-1];
+  const alone=written.filter(b=>b.len<2 && b.from!==lastDate);
+  ok(alone.length===0,'never a single night on its own'+(alone.map(b=>b.name+' '+b.from).join(', ')));
   ok(written.every(b=>b.len<=3),'and never more than three in a row');
   const three=written.filter(b=>b.len===3).map(b=>b.name);
   /* a three-night block goes to whoever's own ceiling allows it, and the rotation

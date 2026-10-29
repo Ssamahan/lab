@@ -424,10 +424,12 @@ function generatePlan(monthKey, seedDB){
   const holDays={}; (seedDB.holidays||[]).forEach(h=>{ if(h.date) holDays[h.date]=h.name||'Public holiday'; });
   const isHol=iso=>!!holDays[iso];
 
-  /* ——— the span: the month, and at least a week past it ——— */
+  /* ——— the span: the month, and the first week of the next ———
+     The plan runs exactly seven days past the month it is named for — never more.
+     Running on to the following Sunday looked tidy on paper but pushed a November
+     plan into the middle of December, and the next month's own plan starts there. */
   const monthDays=U.monthRange(monthKey);
-  let end=U.addDays(monthDays[monthDays.length-1],7);
-  while(U.dow(end)!==6) end=U.addDays(end,1);         // run on to the Sunday
+  const end=U.addDays(monthDays[monthDays.length-1],7);
   const dates=[];
   for(let iso=monthKey+'-01'; iso<=end; iso=U.addDays(iso,1)) dates.push(iso);
 
@@ -515,10 +517,11 @@ function generatePlan(monthKey, seedDB){
     const per={}; block.forEach(iso=>{ const m=iso.slice(0,7); per[m]=(per[m]||0)+1; });
     return Object.keys(per).every(m=>nightOf(s.name,m)+per[m]<=(s.maxNights||12));
   };
-  const loadOf=(s,block)=>{
-    const m=(block&&block[0]||'').slice(0,7);
-    return nightOf(s.name,m);
-  };
+  /* The load a pick is weighed by is the whole run of the plan, not the calendar
+     month of the block: the plan runs a week into the next month, and counting
+     only that week would put a name who has carried nothing all month level with
+     one who has just finished a block. The ceiling stays per month, above. */
+  const loadOf=s=>dates.reduce((n,iso)=>n+(nights[iso]===s.name?1:0),0);
 
   /* ——— week by week ——— */
   const weekStarts=[]; dates.forEach((iso,i)=>{ if(U.dow(iso)===0||i===0) weekStarts.push(i); });
@@ -548,7 +551,7 @@ function generatePlan(monthKey, seedDB){
         const dayPick=free.filter(s=>crew.indexOf(s)<0 && s.name!==friNight)[0]
           || free.filter(s=>s.name!==friNight)[0] || free[0] || null;
         const nightPick=crew.filter(s=>s!==dayPick && s.name!==friNight && canTake(s,wkDays))
-          .sort((a,b)=>loadOf(a,wkDays)-loadOf(b,wkDays))[0] || null;
+          .sort((a,b)=>loadOf(a)-loadOf(b))[0] || null;
         if(dayPick){
           wkDays.forEach(iso=>{ weekendDay[iso]=dayPick.name; });
           /* the day worker is off the Friday before — the week never runs seven
@@ -630,7 +633,10 @@ function generatePlan(monthKey, seedDB){
            week, where it would quietly turn a two-night block into three */
         if(prevName && holidayNight[U.addDays(block[0],-1)]===prevName) prevName=null;
         if(prevName){
-          const p=staff.filter(s=>s.name===prevName)[0];
+          /* the block is continued by somebody who works weekday nights — the
+             weekend technologist is on `DN` at the weekend and rests on the
+             Monday, so a night handed to her there would disappear into her OFF */
+          const p=staff.filter(s=>s.name===prevName && crew.indexOf(s)>=0)[0];
           if(p && runBefore(prevName,block[0])+block.length<=3 && canTake(p,block)) pick=p;
         }
         if(!pick){
@@ -642,12 +648,12 @@ function generatePlan(monthKey, seedDB){
             /* a three-night block only goes to somebody whose ceiling allows it,
                and among those it goes to whoever is carrying the fewest nights —
                the rotation is what shares the nights out, not one name's rank */
-            const byLoad=list=>list.slice().sort((a,b)=>loadOf(a,block)-loadOf(b,block));
+            const byLoad=list=>list.slice().sort((a,b)=>loadOf(a)-loadOf(b));
             const allowed=pool.filter(s=>(s.maxConsecN||0)>=3);
             const best=byLoad(allowed.length?allowed:pool)[0];
             pick=best||null;
           } else {
-            pick=pool.slice().sort((a,b)=>loadOf(a,block)-loadOf(b,block))[0] || null;
+            pick=pool.slice().sort((a,b)=>loadOf(a)-loadOf(b))[0] || null;
           }
         }
         if(!pick) return;
@@ -657,6 +663,64 @@ function generatePlan(monthKey, seedDB){
       });
     });
   });
+
+  /* ——— every night is paid back with a day off ——————————————
+     One night worked is one day owed.
+       · a block inside the working week finishes with as many days off as it had
+         nights, starting the morning after the last night;
+       · a block over a weekend or a public holiday is settled the way the weekend
+         is always settled — the rest before it (RBW on the Friday) and the Monday
+         after it — so a two-night weekend costs the bench one weekday, not two.
+     A day owed that lands on a Saturday or Sunday is NOT written into the grid —
+     the weekend stays clean — but it is recorded on the plan in `meta.compOffs`,
+     so the debt is visible even when the cell is empty. */
+  const compOff={};                    // name -> iso -> true (written as OFF)
+  const compOffWeekend={};             // name -> iso -> true (recorded, left blank)
+  const owedTotals={};                 // name -> {owed, written, withheld, settledBefore}
+  const addOwed=(name,iso)=>{          // one day owed, written or only recorded
+    const t=owedTotals[name]=owedTotals[name]||{owed:0,written:0,withheld:0,settledBefore:0};
+    t.owed++;
+    if(U.dow(iso)>=5||isHol(iso)){
+      compOffWeekend[name]=compOffWeekend[name]||{};
+      if(!compOffWeekend[name][iso]&&!(compOff[name]&&compOff[name][iso])){ compOffWeekend[name][iso]=true; t.withheld++; }
+      return;
+    }
+    compOff[name]=compOff[name]||{};
+    if(!compOff[name][iso]&&!(compOffWeekend[name]&&compOffWeekend[name][iso])){ compOff[name][iso]=true; t.written++; }
+  };
+  staff.forEach(s=>{
+    if(s.weekendOnly) return;          // she rests Monday to Friday by definition
+    let i=0;
+    while(i<dates.length){
+      if(nights[dates[i]]!==s.name){ i++; continue; }
+      let j=i; while(j+1<dates.length && nights[dates[j+1]]===s.name) j++;
+      const from=dates[i], to=dates[j], len=j-i+1;
+      const overRest=U.dow(from)>=5||isHol(from)||U.dow(to)>=5||isHol(to);
+      if(overRest){
+        /* the Monday after is written; anything beyond that was already paid in
+           the rest taken before the weekend */
+        const mon=U.addDays(to,1);
+        if(mon<=dates[dates.length-1]&&nights[mon]!==s.name) addOwed(s.name,mon);
+        const t=owedTotals[s.name]=owedTotals[s.name]||{owed:0,written:0,withheld:0,settledBefore:0};
+        t.owed+=Math.max(0,len-1); t.settledBefore+=Math.max(0,len-1);
+      } else {
+        for(let k=1;k<=len;k++){
+          const iso=U.addDays(to,k);
+          if(iso>dates[dates.length-1]) break;
+          if(nights[iso]===s.name) continue;          // on duty: nothing to write
+          addOwed(s.name,iso);
+        }
+      }
+      i=j+1;
+    }
+  });
+  const compOffs=Object.keys(owedTotals).map(name=>{
+    const t=owedTotals[name];
+    return {name, owed:t.owed, written:t.written, withheld:t.withheld,
+      settledBefore:t.settledBefore,
+      days:Object.keys(compOff[name]||{}).sort(),
+      weekendDays:Object.keys(compOffWeekend[name]||{}).sort()};
+  }).filter(r=>r.owed>0);
 
   /* ——— the daily grid ——— */
   dates.forEach((iso,di)=>{
@@ -677,12 +741,8 @@ function generatePlan(monthKey, seedDB){
       }
       if(s.weekendOnly){ grid[s.name][di]='OFF'; return; }
       if(nights[iso]===s.name){ grid[s.name][di]='N'; return; }
-      /* the day after a block is rest; the day after that is rest before work */
-      const y1=dates[di-1], y2=dates[di-2];
-      /* one day of rest after a block of nights — never a second one. A second
-         day off would land on the Tuesday, the heaviest clinic day, so the rest
-         the person is owed was taken before the weekend duty (see RBW above). */
-      if(y1&&nights[y1]===s.name){ grid[s.name][di]='OFF'; return; }
+      /* the days a block of nights has earned, written in the working week */
+      if((compOff[s.name]||{})[iso]){ grid[s.name][di]='OFF'; return; }
       if((restOff[s.name]||{})[iso]){ grid[s.name][di]='OFF'; return; }
       if((restRbw[s.name]||{})[iso]){ grid[s.name][di]='RBW'; return; }
       grid[s.name][di]='D';
@@ -698,6 +758,10 @@ function generatePlan(monthKey, seedDB){
     meta:{date:U.todayISO(), fy:U.fyInfo(monthKey+'-01').label, period:U.monthLabel(monthKey),
       generated:true, draft:true, carriedFrom, carriedThrough,
       actingManager:actingRow?actingRow.name:null,
+      /* the days owed for nights, including the ones that fell on a weekend and
+         are therefore recorded only — the grid stays clean, the debt does not
+         disappear */
+      compOffs,
       runsThrough:dates[dates.length-1],
       note:carriedFrom?('Takes over from the '+U.monthLabel(prevKey)+' plan to '+U.addDays(carriedFrom,-1)
         +'; runs through '+U.fmtDateShort(dates[dates.length-1])):('Runs through '+U.fmtDateShort(dates[dates.length-1]))}
@@ -1976,6 +2040,21 @@ function leaveDays(staff,l){
   return n;
 }
 S.leaveDays=leaveDays;
+S.leaveChargedFy=function(l){ return chargedFy(l); };
+/* The annual-leave plan is the authority the working plan reads. This writes every
+   block in the register onto the cells it covers, on a plan that may be blank or
+   hand-edited — used when a month is created, and by the button on the roster. */
+S.applyLeaveToPlan=function(plan){
+  if(!plan||!Array.isArray(plan.dates)||!Array.isArray(plan.staff)) return 0;
+  let written=0;
+  plan.staff.forEach(row=>{
+    plan.dates.forEach((iso,di)=>{
+      const lv=S.leaveCodeFor(row.name,iso);
+      if(lv && row.codes[di]!==lv){ row.codes[di]=lv; written++; }
+    });
+  });
+  return written;
+};
 S.leaveRowsFor=function(staff,fy){
   return S.leaveInForce().filter(l=>l.staffId===staff.id && chargedFy(l)===fy)
     .sort((a,b)=>String(a.from).localeCompare(String(b.from)));
@@ -2008,19 +2087,36 @@ S.leaveCarryOver=function(staff,fy){
   const days=Math.max(0,Math.min(ent.days,ent.days-taken));
   return {prevFy:prevLabel,days,taken,entitlement:ent.days};
 };
+/* Everything the plan book needs for one person, for one fiscal year — read from
+   two angles that must not be confused:
+     · what is TAKEN in the year — the blocks whose dates fall inside it, which is
+       what a reader looking at November needs to see on the row;
+     · what is CHARGED to the year — the blocks whose days come out of that year's
+       entitlement, which is what the balance is counted from.
+   A carry-over taken in November belongs to both books: it is taken in 2026/27 and
+   charged to 2025/26. Showing only the charge hid the manager's own thirty days
+   from the year he is actually away in. */
 S.leaveBook=function(staff,fy){
   fy=fy||U.fyLabel();
   const e=S.leaveEntitlement(staff,fy);
-  const rows=S.leaveRowsFor(staff,fy);
-  const annual=rows.filter(l=>S.leaveCountsAgainstEntitlement(l.type));
+  const chargedRows=S.leaveRowsFor(staff,fy);
+  const datedRows=S.leaveInForce().filter(l=>l.staffId===staff.id && fyOf(l)===fy);
+  const byId={}; datedRows.concat(chargedRows).forEach(l=>{ byId[l.id]=l; });
+  const rows=Object.keys(byId).map(id=>byId[id])
+    .sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  const annual=datedRows.filter(l=>S.leaveCountsAgainstEntitlement(l.type))
+    .sort((a,b)=>String(a.from).localeCompare(String(b.from)));
   const taken=U.sum(annual.filter(l=>l.to<U.todayISO()),l=>leaveDays(staff,l));
   const running=U.sum(annual.filter(l=>l.from<=U.todayISO()&&l.to>=U.todayISO()),l=>leaveDays(staff,l));
   const planned=U.sum(annual.filter(l=>l.from>U.todayISO()),l=>leaveDays(staff,l));
-  const charged=U.sum(annual,l=>leaveDays(staff,l));
+  const charged=U.sum(chargedRows.filter(l=>S.leaveCountsAgainstEntitlement(l.type)),l=>leaveDays(staff,l));
+  /* a block that is taken here but charged to the year it was earned in */
+  const chargedElsewhere=annual.filter(l=>chargedFy(l)!==fy)
+    .map(l=>({id:l.id, from:l.from, to:l.to, fy:chargedFy(l), days:leaveDays(staff,l)}));
   const authorised=rows.filter(l=>S.leaveKind(l.type)==='authorised' && l.type!=='W');
   const carry=S.leaveCarryOver(staff,fy);
   const pool=e.days+carry.days;
-  return {staff, fy, entitlement:e, rows, annual,
+  return {staff, fy, entitlement:e, rows, annual, chargedRows, chargedElsewhere,
     taken, running, planned, charged, carry, pool,
     authorisedDays:U.sum(authorised,l=>leaveDays(staff,l)),
     balance:Math.max(0,pool-charged),
@@ -2174,10 +2270,20 @@ S.eqaSeries=function(program){
 };
 S.eqaPrograms=()=>U.uniq((S.db().eqa||[]).map(e=>e.program)).sort();
 
-S.buildPlan=mk=>generatePlan(mk,S.db());
+/* Every path that produces a plan goes through here, so the leave register is
+   always written over the grid it returns — a generated month, a rebuilt draft, a
+   month created from the console. */
+S.buildPlan=mk=>{ const p=generatePlan(mk,S.db()); S.applyLeaveToPlan(p); return p; };
 S.ensurePlan=function(mk){ const db=S.db(); return db.workingPlans[mk]||null; };
 S.hasPlan=mk=>!!(S.db().workingPlans[mk]&&S.db().workingPlans[mk].primary);
-S.createPlan=function(mk){ const db=S.db(); db.workingPlans[mk]={ primary:generatePlan(mk,db), versions:[] }; S.save(); return db.workingPlans[mk]; };
+S.createPlan=function(mk){
+  const db=S.db();
+  /* the register is written over the generated grid, so a month created today
+     never shows a person at work through leave that is already on the books */
+  const plan=S.buildPlan(mk);
+  db.workingPlans[mk]={ primary:plan, versions:[] };
+  S.save(); return db.workingPlans[mk];
+};
 S.planMonths=function(){ return Object.keys(S.db().workingPlans||{}).filter(k=>S.db().workingPlans[k]&&S.db().workingPlans[k].primary).sort(); };
 S.planFor=mk=>S.db().workingPlans[mk]||null;
 

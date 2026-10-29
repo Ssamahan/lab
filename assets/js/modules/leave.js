@@ -177,8 +177,12 @@ function planBookView(){
       +'<td class="num">'+r.planned+'</td>'
       +'<td class="num"><b style="color:'+(r.balance>0?'var(--pos)':(r.over?'var(--crit)':'var(--text-faint)'))+'">'+r.balance+'</b>'+(r.over?'<div class="xs" style="color:var(--crit)">+'+r.over+' over</div>':'')+'</td>'
       +'<td style="max-width:300px">'+(blocks.length? blocks.map(l=>{ const bs=blockState(l,blocks);
-          return '<button class="chip block-chip '+bs.key+'" data-editplan="'+l.id+'" style="margin:0 3px 4px 0;cursor:pointer" title="'+U.esc(bs.label+' · '+U.fmtDate(l.from)+' – '+U.fmtDate(l.to))+'" data-state="'+bs.key+'">'
+          /* a block taken this year but charged to the year it was earned in */
+          const charged=(S.leaveChargedFy?S.leaveChargedFy(l):fyOfLeave(l));
+          const elsewhere=charged!==currentFy()?charged:null;
+          return '<button class="chip block-chip '+bs.key+'" data-editplan="'+l.id+'" style="margin:0 3px 4px 0;cursor:pointer" title="'+U.esc(bs.label+' · '+U.fmtDate(l.from)+' – '+U.fmtDate(l.to)+(elsewhere?' · days charged to FY '+elsewhere:''))+'" data-state="'+bs.key+'">'
             +U.fmtDateShort(l.from)+'–'+U.fmtDateShort(l.to)+' <span class="faint">'+S.leaveDays(r.staff,l)+'d</span>'
+            +(elsewhere?'<span class="xs faint"> · FY '+U.esc(elsewhere)+'</span>':'')
             +'<b>'+U.esc(bs.label)+'</b></button>'; }).join('') : '<span class="xs faint">No block booked</span>')+'</td>'
       +'<td><button class="icon-btn" style="width:26px;height:26px" data-newplan="'+r.staff.id+'" aria-label="Plan leave for '+U.esc(r.staff.name)+'">'+UI.ic('plus',13)+'</button></td></tr>';
    }).join('')
