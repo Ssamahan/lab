@@ -4,6 +4,27 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.62
+
+**The new rules reach a console that already has a plan on it.**
+
+6.9.61 changed what the working plan does with a night block and how far a month runs, but a
+month already generated on the manager's own machine keeps the shape it was written with — it
+would still read 13 December and a single day of rest until somebody pressed *Generate draft*.
+
+Loading the console now rebuilds the drafts: every stored month that is generated and not
+officially published or transcribed is regenerated under the current rules — the span that stops
+seven days past its month, the repayment of every night block, the weekend days recorded rather
+than written. The month it replaces is kept in that month's archive of versions, its own label
+travels with the rebuild, and an official or transcribed month is never touched, so nothing that
+was signed off can move under the manager's hand.
+
+A screen-only wording change came with it: the `OFF` key on the working plan now says what the
+cell means — *At home (not on shift) · the days a night block is repaid*. The printed sheet keeps
+its short key, because a printing register is read at a glance.
+
+---
+
 ## What changed in 6.9.61
 
 **Every night is paid back, the plan stops at the week, and the leave register is read by the

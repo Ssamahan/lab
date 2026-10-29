@@ -1506,6 +1506,25 @@ function normalize(db){
       db.workingPlans['2026-11']={primary:built,versions:[((db.workingPlans['2026-11']||{}).primary)].filter(Boolean)};
     }
   }
+  /* v6.9.61 — the drafts are rebuilt under the rest and span rules: a night block is
+     repaid with as many days at home as it had nights, a day owed that falls on a
+     weekend is recorded rather than written, and no plan runs more than seven days
+     past its own month. A draft already on the machine was generated under the old
+     rules and would read 13 December and a single day of rest, so it is rebuilt —
+     the month it replaces is kept in `versions`, an official or transcribed month is
+     never touched, and a month with no plan at all is left without one. */
+  if(!db.meta.restV6961){
+    db.meta.restV6961=1;
+    Object.keys(db.workingPlans||{}).sort().forEach(k=>{
+      const e=db.workingPlans[k]; const p=e&&e.primary;
+      if(!p||!p.meta||!p.meta.generated||p.meta.official||p.meta.transcribed) return;
+      const built=generatePlan(k,db);
+      built.meta=Object.assign({},built.meta,{label:(p.meta&&p.meta.label)||('Draft for '+U.monthLabel(k)
+        +' — built from the department\'s rules and the record of previous months; review before publishing')});
+      e.versions=(e.versions||[]).concat([p]);
+      e.primary=built;
+    });
+  }
   // v6.2: the benches are renamed to the unit-roster wording printed on the sheets
   // (Reception, Phlebotomy, Hematology, Biochemistry, Serology, Parasitology,
   // TB/Molecular). Each rename only fires when the stored name is still the old

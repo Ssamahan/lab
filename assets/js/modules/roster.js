@@ -10,7 +10,7 @@ let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
    abbreviations: AL annual · ML maternal · PL paternal · SL sick · CL circumstantial ·
    AA authorised · H public holiday · WD work desertion / unauthorised absence. */
 const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],
-  ['OFF','At home (not on shift)'],['RBW','Off duty · rest before work'],['TR','Training'],
+  ['OFF','At home (not on shift) · the days a night block is repaid'],['RBW','Off duty · rest before work'],['TR','Training'],
   ['AL','AL · Annual leave'],['ML','ML · Maternal leave'],['PL','PL · Paternal leave'],
   ['SL','SL · Sick leave'],['CL','CL · Circumstantial leave'],['AA','AA · Authorised leave'],
   ['H','H · Public holiday'],['WD','WD · Work desertion (unauthorised absence)'],
