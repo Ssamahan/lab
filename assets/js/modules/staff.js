@@ -173,7 +173,7 @@ function editStaff(id){
   const s=id?staff().find(x=>x.id===id):{};
   UI.modal({title:id?'Edit staff record':'Add staff member',sub:'Records feed the roster, leave inbox and audit trail.',width:'min(660px,100%)',
     body:'<div class="form-grid"><div class="field span2"><label>Full name</label><input class="input" id="sfName" value="'+U.esc(s.name||'')+'"></div>'
-     +'<div class="field"><label>Role</label><input class="input" id="sfRole" value="'+U.esc(s.role||'Laboratory Technician')+'"></div>'
+     +'<div class="field"><label>Role</label><input class="input" id="sfRole" value="'+U.esc(s.role||'Lab Technician')+'"></div>'
      +'<div class="field"><label>Sex</label><select class="select" id="sfSex"><option '+(s.sex==='M'?'':'')+'>F</option><option '+(s.sex==='M'?'selected':'')+'>M</option></select></div>'
      +'<div class="field"><label>Phone</label><input class="input" id="sfPhone" value="'+U.esc(s.phone||'')+'"></div>'
      +'<div class="field"><label>Email</label><input class="input" id="sfEmail" value="'+U.esc(s.email||'')+'"></div>'

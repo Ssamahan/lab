@@ -1232,6 +1232,25 @@ function normalize(db){
      so that Dieudonné is not carrying it with Bernadette alone, Jean Paul is named
      as the person acting for the manager, and the manager carries the weekly
      service requisition. */
+  /* v6.9.57 — the post a person holds is the name on the sheet. The department
+     writes “Lab Technician” on the plan, not “Laboratory Technician”, and a person
+     who holds a post is titled by the post: Jean Paul is the Lab Quality Manager,
+     Dieudonné the Lab Safety Officer. Beatrice stays the Lab Technologist — she is
+     the only one the department calls that. Nothing else changes: duty codes, night
+     rules and the leave of each record are untouched. */
+  if(!db.meta.rolesV6957){
+    db.meta.rolesV6957=1;
+    const ROLE={'s3':'Lab Technologist','s5':'Lab Technician','s9':'Lab Safety Officer',
+      's10':'Lab Technician','s11':'Lab Technician'};
+    Object.keys(ROLE).forEach(id=>{
+      const st=(db.staff||[]).find(x=>x.id===id);
+      if(st) st.role=ROLE[id];
+    });
+    const jean=(db.staff||[]).find(x=>x.id==='s6');
+    if(jean){ jean.role='Lab Quality Manager'; jean.post='Lab Quality Manager'; }
+    const dieu=(db.staff||[]).find(x=>x.id==='s9');
+    if(dieu){ dieu.post='Lab Safety Officer'; }
+  }
   if(!db.meta.rosterOrderV6955){
     db.meta.rosterOrderV6955=1;
     const by=(id)=>db.staff.find(x=>x.id===id);
@@ -1671,8 +1690,8 @@ S.holiday=(iso)=>(S.db().holidays||[]).find(h=>h.date===iso);
    The laboratory manager, the laboratory quality manager and the laboratory
    safety officer hold a post. Training aimed at one of those posts is not a
    turn in the FIFO queue: the person who holds it goes. */
-S.ROLE_POSTS={manager:'Laboratory Manager',qualityManager:'Laboratory Quality Manager',
-  safetyOfficer:'Laboratory Safety Officer'};
+S.ROLE_POSTS={manager:'Laboratory Manager',qualityManager:'Lab Quality Manager',
+  safetyOfficer:'Lab Safety Officer'};
 S.postOf=function(staff){
   if(!staff) return '';
   if(staff.post) return staff.post;

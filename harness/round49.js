@@ -116,8 +116,8 @@ const mod=fs.readFileSync(path.resolve(__dirname,'..','assets/css/modules.css'),
   ok(/\.pbf-pair \.trend-grid\{grid-template-columns:minmax\(0,1fr\)\}/.test(mod),'and the trend stacks inside its half so it fits');
 
   /* ── 5 · named posts and role-targeted training ────────────────────── */
-  ok(S.postOf(S.staffById('s6'))==='Laboratory Quality Manager','Jean holds the laboratory quality post');
-  ok(S.postOf(S.staffById('s9'))==='Laboratory Safety Officer','Dieudonné holds the laboratory safety post');
+  ok(S.postOf(S.staffById('s6'))==='Lab Quality Manager','Jean holds the lab quality post');
+  ok(S.postOf(S.staffById('s9'))==='Lab Safety Officer','Dieudonné holds the lab safety post');
   ok(S.dutyKeyOf(S.staffById('s1'))==='manager','and the manager is a post in the same sense');
   await go('#/training'); await tick(350);
   const postRows=[...d.querySelectorAll('.role-post-row .lr-title')].map(e=>e.textContent.trim());
