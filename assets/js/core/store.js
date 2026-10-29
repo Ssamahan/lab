@@ -745,6 +745,43 @@ S.takeManifestId=function(testName,when,db){
   return code+stamp+manifestTail(db.meta.manifestSerial);
 };
 
+/* ——— One month, one row per person ————————————————
+   A month's plan is a roster: each member of staff is one row, each day one column.
+   Older builds could append an archived version's rows to the plan in force — which
+   put the same name on the sheet several times — and a plan that has been through
+   that repair reads as a mess. This puts a plan back into shape: the first row for a
+   name is kept (that is the row in force; the copies came after it), later duplicates
+   are dropped, and a repeated date is dropped with its column. It changes nothing
+   else — no shift is moved, no leave is touched, no name is added. */
+function tidyPlan(p){
+  if(!p||typeof p!=='object') return false;
+  let changed=false;
+  const dates=Array.isArray(p.dates)?p.dates:[];
+  const seenDate={}, cols=[];
+  dates.forEach((iso,i)=>{ if(seenDate[iso]){ changed=true; return; } seenDate[iso]=1; cols.push(i); });
+  if(cols.length!==dates.length){
+    p.dates=cols.map(i=>dates[i]);
+    (p.staff||[]).forEach(r=>{ if(Array.isArray(r.codes)) r.codes=cols.map(i=>r.codes[i]); });
+  }
+  const seenName={}, rows=[];
+  (p.staff||[]).forEach(r=>{
+    const key=String((r&&r.name)||'').trim().toLowerCase();
+    if(!key) { changed=true; return; }
+    if(Object.prototype.hasOwnProperty.call(seenName,key)){ changed=true; return; }
+    seenName[key]=1; rows.push(r);
+  });
+  if(rows.length!==(p.staff||[]).length){ p.staff=rows; changed=true; }
+  /* a row whose codes are not one per day is padded or trimmed to the columns —
+     a short row leaves cells that cannot be clicked and cannot be read */
+  (p.staff||[]).forEach(r=>{
+    if(!Array.isArray(r.codes)){ r.codes=p.dates.map(()=>''); changed=true; return; }
+    if(r.codes.length<p.dates.length){ while(r.codes.length<p.dates.length) r.codes.push(''); changed=true; }
+    else if(r.codes.length>p.dates.length){ r.codes.length=p.dates.length; changed=true; }
+  });
+  return changed;
+}
+S.tidyPlan=tidyPlan;
+
 function normalize(db){
   db.meta=db.meta||{};
   db.settings=augSettings(db.settings);
@@ -761,7 +798,26 @@ function normalize(db){
   ensureStockFields(db);
   db.samples=db.samples||[]; db.manifests=db.manifests||[]; db.trainings=db.trainings||[];
   db.trainingExpenses=db.trainingExpenses||[]; db.leaves=db.leaves||[]; db.holidays=db.holidays||[];
-  db.workingPlans=db.workingPlans||{}; db.unitRosters=db.unitRosters||{};
+  db.workingPlans=db.workingPlans||{};
+  /* v6.9.56 — every stored month is put back to one row per person, every load. The
+     repair is idempotent, so a plan that is already in shape is untouched. */
+  Object.keys(db.workingPlans).forEach(k=>{
+    const e=db.workingPlans[k]; if(!e) return;
+    if(e.primary) tidyPlan(e.primary);
+    (e.versions||[]).forEach(v=>tidyPlan(v));
+  });
+  /* two records for one person are one record: the staff list itself is de-duplicated
+     by id, which is what the plan, the leave register and the audit trail key on */
+  if(Array.isArray(db.staff)){
+    const seenStaff={}, staff=[];
+    db.staff.forEach(st=>{
+      const key=String((st&&st.id)||'');
+      if(!key){ staff.push(st); return; }
+      if(seenStaff[key]) return;
+      seenStaff[key]=1; staff.push(st);
+    });
+    if(staff.length!==db.staff.length) db.staff=staff;
+  } db.unitRosters=db.unitRosters||{};
   db.eqa=db.eqa||[]; db.staff=db.staff||[]; db.absences=db.absences||[]; db.versions=db.versions||[];
   db.services=db.services||DEFAULT_SERVICES.map(x=>Object.assign({},x));
   db.pbfVisits=db.pbfVisits||[];
@@ -857,10 +913,13 @@ function normalize(db){
     db.meta.leaveAcronymsV6946=1;
     (db.leaves||[]).forEach(l=>{ if(l.type) l.type=S.leaveCode(l.type); });
     (db.absences||[]).forEach(a=>{ if(a.type) a.type=S.leaveCode(a.type); });
+    /* Every row of every version is rewritten, but on a LIST — pushing a version's
+       rows into the plan in force was what put five copies of every name into a
+       single month. Nothing is added to a plan here; only the letters change. */
     Object.keys(db.workingPlans||{}).forEach(k=>{
       const p=db.workingPlans[k];
-      const rows=(p.primary&&p.primary.staff)||[];
-      (p.versions||[]).forEach(v=>(v.staff||[]).forEach(r=>rows.push(r)));
+      const rows=((p.primary&&p.primary.staff)||[]).concat(
+        (p.versions||[]).reduce((all,v)=>all.concat(v.staff||[]),[]));
       rows.forEach(r=>{ if(r.codes) r.codes=r.codes.map(c=>S.leaveCode(c)===c?c:(S.LEAVE_CODES.indexOf(S.leaveCode(c))>=0&&['SICK','MAT','IL','COMP','STUDY','W','UNPAID','ABS'].indexOf(c)>=0?S.leaveCode(c):c)); });
     });
   }

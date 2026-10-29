@@ -4,6 +4,28 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.56
+
+**One month, one row per person.**
+
+The working plan could end up holding the same member of staff five times over in a single
+month. The cause was a repair written in 6.9.46: to rewrite the old leave letters it collected
+*every* row of *every* archived version and pushed them into the plan in force, so a month that
+had been regenerated a few times ended up with one copy of the roster per version — each name
+repeated down the sheet, each day repeated across it.
+
+The line that appended those rows is gone; the letters are rewritten on a list, and nothing is
+added to a plan by it. Every stored month is now put back into shape on load — the first row
+for each name kept (that is the row in force), the copies dropped, a repeated date dropped with
+its column, and a row of the wrong length padded or trimmed to the days of the month. No shift
+is moved and no leave is touched by the repair, and it is safe to run on a plan that is already
+in shape: nothing changes. The staff list is de-duplicated by id in the same pass.
+
+The working plan also refuses to draw a name twice, so a plan that reaches the screen damaged
+still reads as one row per person.
+
+---
+
 ## What changed in 6.9.55
 
 **The roster answers to the department, not to the generator.**

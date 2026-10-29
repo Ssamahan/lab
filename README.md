@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.55** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.56** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.55`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.56`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -215,6 +215,9 @@ register records.
   the manager's thirty days run from 16 November 2026 and are charged back to FY 2025/2026.
 - **The working plan reads the annual-leave plan.** Leave blocks are painted on the cells
   they cover, and *Fill the leaves* writes the whole register onto the month on request.
+- **One month, one row per person.** A plan holds one row per member of staff and one column
+  per day; a stored plan that has been duplicated is repaired on load, keeping the row that is
+  in force, and the grid never draws a name twice.
 - **The roster is read in one order**: Kelvin, Jean Paul, Dieudonné, Beatrice, Patrick,
   Bernadette, Marie Claudine, Aurelie last. A new name joins at the end of the bench.
 - **The service requisition sits against the name that signs it** — the Monday request for
