@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.59** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.60** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.59`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.60`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -198,7 +198,7 @@ register records.
 - **One name a night, two or three nights in a row.** A single night is never handed out and
   a fourth never happens; a three-night block only goes to somebody whose own ceiling allows
   it, and the rotation shares it out. The nights are shared by Dieudonné, Bernadette and
-  Marie Claudine; whoever is **acting for the manager takes none**, and Beatrice stays on days.
+  Jeanne Claudine; whoever is **acting for the manager takes none**, and Beatrice stays on days.
 - **RBW is Rest Before Work, and it has one cause.** When nobody covers the weekend, the
   person who carries both weekend nights rests on the **Friday before** it, so the Tuesday
   after is worked — Monday to Wednesday keep the whole bench. It is never a mechanical second
@@ -229,7 +229,7 @@ register records.
   per day; a stored plan that has been duplicated is repaired on load, keeping the row that is
   in force, and the grid never draws a name twice.
 - **The roster is read in one order**: Kelvin, Jean Paul, Dieudonné, Beatrice, Patrick,
-  Bernadette, Marie Claudine, Aurelie last. A new name joins at the end of the bench.
+  Bernadette, Jeanne Claudine, Aurelie last. A new name joins at the end of the bench.
 - **The service requisition sits against the name that signs it** — the Monday request for
   the week's lab commodities from the main pharmacy. It moves to the acting manager while the
   manager is on leave, on the screen and on the printed sheet.

@@ -11,7 +11,7 @@ const {boot,ok,done}=require('./env');
   /* ── the split itself ─────────────────────────────────────────────── */
   const cases=[
     ['Jean Paul NSENGIYUMVA','Jean Paul','NSENGIYUMVA'],
-    ['Marie Claudine UWAYISABA','Marie Claudine','UWAYISABA'],
+    ['Jeanne Claudine UWAYISABA','Jeanne Claudine','UWAYISABA'],
     ['Jean de Dieu SIBOMANA','Jean de Dieu','SIBOMANA'],
     ['Kelvin SAMAHANI','Kelvin','SAMAHANI'],
     ['Aurelie YANSONEYE','Aurelie','YANSONEYE'],
@@ -30,7 +30,10 @@ const {boot,ok,done}=require('./env');
   /* ── initials: the given name plus the family name ─────────────────── */
   ok(U.initials('Jean Paul NSENGIYUMVA')==='JN','initials are JN, not JP',U.initials('Jean Paul NSENGIYUMVA'));
   ok(U.initials('Kelvin SAMAHANI')==='KS','initials are KS',U.initials('Kelvin SAMAHANI'));
-  ok(U.initials('Marie Claudine UWAYISABA')==='MU','initials are MU',U.initials('Marie Claudine UWAYISABA'));
+  /* first letter of the given name + the family name, the way the console has
+     always drawn it: JN for Jean Paul NSENGIYUMVA, JU for Jeanne Claudine UWAYISABA */
+  ok(U.initials('Jeanne Claudine UWAYISABA')==='JU','initials are JU',U.initials('Jeanne Claudine UWAYISABA'));
+  ok(U.initials('Jean Paul NSENGIYUMVA')==='JN','the rule is the same for Jean Paul (JN)');
   ok(U.initials('MUKAMANA')==='MU','a one-word name gives its first two letters',U.initials('MUKAMANA'));
 
   /* ── the markup keeps the given name on one line ───────────────────── */
@@ -51,7 +54,7 @@ const {boot,ok,done}=require('./env');
   const lone=cells.filter(c=>/^Jean\s*$/i.test(c.textContent.trim()));
   ok(lone.length===0,'no cell shows the bare given name “Jean”');
   const marie=cells.find(c=>/UWAYISABA/.test(c.textContent));
-  if(marie) ok(/Marie Claudine/.test(marie.textContent),'“Marie Claudine” stays whole on her row',marie.textContent.trim());
+  if(marie) ok(/Jeanne Claudine/.test(marie.textContent),'“Jeanne Claudine” stays whole on her row',marie.textContent.trim());
 
   /* every active person’s row carries the family name exactly as recorded */
   const planned=(S.planForMonth(U.monthKey())||{staff:[]}).staff.map(r=>r.name);

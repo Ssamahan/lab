@@ -45,7 +45,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
     if(role) ok(role.size<name.size,'and a step smaller, so the name reads first ('+name.size+' vs '+role.size+')');
   });
   /* the longest name sets at a size a reader can take on the wall */
-  const longest=at(/^Marie Claudine UWAYISABA$/).filter(n=>n.y>520&&n.y<1080)[0];
+  const longest=at(/^Jeanne Claudine UWAYISABA$/).filter(n=>n.y>520&&n.y<1080)[0];
   ok(longest&&longest.size>=21,'the longest name is not shrunk below legibility ('+(longest?longest.size:'—')+')');
 
   /* ── 3 · the phone sits beside the name, not under it ──────────────── */
@@ -67,7 +67,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   ok(roleOf('s3')==='Lab Technologist','Beatrice stays the Lab Technologist');
   ok(roleOf('s5')==='Lab Technician','Patrick is a Lab Technician');
   ok(roleOf('s10')==='Lab Technician','Bernadette is a Lab Technician');
-  ok(roleOf('s11')==='Lab Technician','Marie Claudine is a Lab Technician');
+  ok(roleOf('s11')==='Lab Technician','Jeanne Claudine is a Lab Technician');
   ok(roleOf('s6')==='Lab Quality Manager','Jean Paul is the Lab Quality Manager');
   ok(roleOf('s9')==='Lab Safety Officer','Dieudonné is the Lab Safety Officer');
   ok(roleOf('s1')==='Laboratory Manager','and the manager keeps his title');

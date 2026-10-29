@@ -14,9 +14,9 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   const order=S.activeStaff().map(s=>s.name);
   ok(order[0]==='Kelvin SAMAHANI','the manager is the first name on the roster');
   ok(order[order.length-1]==='Aurelie YANSONEYE','and the weekend technologist is the last');
-  ok(order.slice(1,-1).join('|')==='Jean Paul NSENGIYUMVA|Dieudonne NIYIDUHABYOSE|Beatrice NGEZEKURE|Patrick ISHIMWE|Bernadette MUHAWENIMANA|Marie Claudine UWAYISABA',
-     'between them the bench reads Jean Paul, Dieudonné, Beatrice, Patrick, Bernadette, Marie Claudine ('+order.join(', ')+')');
-  ok(S.rosterRank(S.staffByName('Aurelie YANSONEYE'))>S.rosterRank(S.staffByName('Marie Claudine UWAYISABA')),
+  ok(order.slice(1,-1).join('|')==='Jean Paul NSENGIYUMVA|Dieudonne NIYIDUHABYOSE|Beatrice NGEZEKURE|Patrick ISHIMWE|Bernadette MUHAWENIMANA|Jeanne Claudine UWAYISABA',
+     'between them the bench reads Jean Paul, Dieudonné, Beatrice, Patrick, Bernadette, Jeanne Claudine ('+order.join(', ')+')');
+  ok(S.rosterRank(S.staffByName('Aurelie YANSONEYE'))>S.rosterRank(S.staffByName('Jeanne Claudine UWAYISABA')),
      'she sorts after everybody on the bench');
   const nov=S.planForMonth('2026-11');
   ok(!!nov,'there is a November 2026 plan');
@@ -54,11 +54,11 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   ok(!nightRows.some(n=>/Jean Paul/.test(n)),'Jean Paul takes no nights while he is acting for the manager');
   ok(!nightRows.some(n=>/Beatrice/.test(n)),'Beatrice takes no nights — the conditions set for her are kept');
   ok(!nightRows.some(n=>/Kelvin/.test(n)),'and the manager himself takes none');
-  ['Dieudonne NIYIDUHABYOSE','Bernadette MUHAWENIMANA','Marie Claudine UWAYISABA'].forEach(n=>{
+  ['Dieudonne NIYIDUHABYOSE','Bernadette MUHAWENIMANA','Jeanne Claudine UWAYISABA'].forEach(n=>{
     ok((novRows[n]||[]).some(c=>c==='N'||c==='DN'),n.split(' ')[0]+' takes a share of the nights');
   });
   const countOf=name=>(novRows[name]||[]).filter(c=>c==='N'||c==='DN').length;
-  const shares=['Dieudonne NIYIDUHABYOSE','Bernadette MUHAWENIMANA','Marie Claudine UWAYISABA']
+  const shares=['Dieudonne NIYIDUHABYOSE','Bernadette MUHAWENIMANA','Jeanne Claudine UWAYISABA']
     .map(n=>countOf(n));
   ok(Math.max.apply(null,shares)-Math.min.apply(null,shares)<=3,
      'the three shares are level, so nobody is dumped on ('+shares.join(' / ')+')');
@@ -66,13 +66,13 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
     (novRows[name]||[]).forEach((c,i)=>{ if(c==='N'||c==='DN') run++; else { if(run) out.push({len:run,from:i-run}); run=0; } });
     if(run) out.push({len:run,from:novRows[name].length-run}); return out; };
   const carriedLen=nov.dates.filter(iso=>nov.meta.carriedThrough&&iso<=nov.meta.carriedThrough).length;
-  const own=[]; ['Patrick ISHIMWE','Dieudonne NIYIDUHABYOSE','Bernadette MUHAWENIMANA','Marie Claudine UWAYISABA']
+  const own=[]; ['Patrick ISHIMWE','Dieudonne NIYIDUHABYOSE','Bernadette MUHAWENIMANA','Jeanne Claudine UWAYISABA']
     .forEach(n=>blocksOf(n).forEach(b=>{ if(b.from>=carriedLen) own.push({name:n,len:b.len,from:b.from}); }));
   ok(own.length>0,'the month writes night blocks of its own');
   ok(own.every(b=>b.len>=2),'never a lone night ('+own.filter(b=>b.len<2).map(b=>b.name.split(' ')[0]+' '+nov.dates[b.from]).join(', ')+')');
   ok(own.every(b=>b.len<=3),'and never more than three in a row');
   ok(own.every(b=>b.len<=(S.staffByName(b.name).maxConsecN||3)),'no block runs past its holder’s own ceiling');
-  ok(own.filter(b=>/Marie Claudine/.test(b.name)).every(b=>b.len<=2),'Marie Claudine works two at a time');
+  ok(own.filter(b=>/Jeanne Claudine/.test(b.name)).every(b=>b.len<=2),'Jeanne Claudine works two at a time');
 
   /* ── 5 · RBW has one meaning and one place ─────────────────────────── */
   ok(!nov.staff.some(r=>r.codes.some(c=>c==='RBW')),
@@ -133,7 +133,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
 
   /* ── 8 · two or three days, two or three nights, in one click ─────── */
   const p=S.planForMonth('2026-11');
-  const si=p.staff.findIndex(r=>/Marie Claudine/.test(r.name));
+  const si=p.staff.findIndex(r=>/Jeanne Claudine/.test(r.name));
   const di=p.dates.indexOf('2026-11-10');
   ok(di>=0,'a weekday of her row is on the grid');
   click(doc.querySelector('[data-si="'+si+'"][data-di="'+di+'"]')); await tick(200);

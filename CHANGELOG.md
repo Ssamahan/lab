@@ -4,9 +4,25 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.60
+
+**Her name is Jeanne Claudine.**
+
+The register carried her as *Marie Claudine*, which was not her name. The record now reads
+**Jeanne Claudine UWAYISABA**, and the correction reaches every place the old name had reached:
+her staff record, every row of every stored month and of every archived version, the weekly unit
+rosters, the trainings she attended, and any swap asked for in her favour. The staff id is what
+joins those records, so nothing was orphaned by the change — only the words moved.
+
+The given name stays whole, as it must: *Jeanne Claudine* is one unit and *UWAYISABA* is the
+family name, so the sheet prints all three words on one line and her avatar reads **JU** — the
+first given initial and the family name, the same rule that gives Jean Paul **JN**.
+
+---
+
 ## What changed in 6.9.59
 
-**Marie Claudine's contact details.** Her record carried neither a phone number nor an email, so
+**Jeanne Claudine's contact details.** Her record carried neither a phone number nor an email, so
 the printed contact list gave her a dash. Both are on the establishment now — **0784 063 985**
 and **uwayjeanneclaudine@gmail.com** — and the number prints beside her name on the working plan
 with the rest of the department.
@@ -15,7 +31,7 @@ with the rest of the department.
 
 ## What changed in 6.9.58
 
-**Marie Claudine UWAYISABA arrives on 6 October 2026.**
+**Jeanne Claudine UWAYISABA arrives on 6 October 2026.**
 
 Her record carried a 2022 joining date, which put her on the establishment for years she was
 never there and left her off the October sheet she actually started on. The date is now
@@ -64,7 +80,7 @@ right in each card. The columns follow the space that is actually left — two, 
 across — and a card never shrinks below the size a number stays legible at.
 
 *The posts, written the way the department writes them.* **Lab Technician** replaces
-“Laboratory Technician” for Patrick, Bernadette and Marie Claudine; **Beatrice stays the Lab
+“Laboratory Technician” for Patrick, Bernadette and Jeanne Claudine; **Beatrice stays the Lab
 Technologist** — she is the only one called that; **Jean Paul is the Lab Quality Manager**;
 **Dieudonné is the Lab Safety Officer**. The manager keeps *Laboratory Manager*, and the duty
 codes behind the posts (quality manager, safety officer) are untouched, so role-targeted
@@ -112,12 +128,12 @@ cells it covers — the fallback for a month whose plan could not be read, and o
 new block is entered. Hand edits made afterwards still win.
 
 *The order the roster is read in.* Kelvin first (he signs it), then Jean Paul, Dieudonné,
-Beatrice, Patrick, Bernadette, Marie Claudine, and Aurelie last — she is the weekend
+Beatrice, Patrick, Bernadette, Jeanne Claudine, and Aurelie last — she is the weekend
 technologist, so her row only ever carries Saturday and Sunday. Rows are read in that order on
 the screen and in the stored plan, and any new name joins at the end of the bench, never above
 a named row and never below the weekend one.
 
-*November’s nights are shared.* Dieudonné was carrying the nights with Bernadette; **Marie
+*November’s nights are shared.* Dieudonné was carrying the nights with Bernadette; **Jeanne
 Claudine now takes her share** (two at a time), and **Jean Paul takes none at all while he is
 acting for the manager** — the acting manager is the manager for every roster rule. Beatrice
 keeps the conditions set for her: days only. Three-night blocks now go to whoever's own ceiling
@@ -176,11 +192,10 @@ until somebody opens its record and gives the day it left.
 The roster split every name at the first space, so the week grid and the night row printed
 **Jean** in the dark weight with *Paul NSENGIYUMVA* faint underneath — a first name that does
 not exist and a surname that is not his. On the printed plan the same split printed “Jean”
-over “Paul NSENGIYUMVA”, and a narrow column cut **Marie Claudine UWAYISABA** off at “Marie
-Claudine UWAYIS…”.
+over “Paul NSENGIYUMVA”, and a narrow column cut a long three-part name off at the first given name.
 
 In this register a person is given name(s) followed by the family name: **Jean Paul
-NSENGIYUMVA**, **Marie Claudine UWAYISABA**, **Jean de Dieu SIBOMANA**. Everything before the
+NSENGIYUMVA**, **Jeanne Claudine UWAYISABA**, **Jean de Dieu SIBOMANA**. Everything before the
 last word is the given name — one unit, whether it is one word or three. One helper now does
 that split everywhere (`nameParts`), so:
 
@@ -190,7 +205,7 @@ that split everywhere (`nameParts`), so:
   inside “Jean Paul”, and never with an ellipsis through the surname;
 - the printed monthly and weekly sheets set the given names on one line with the family name
   under them, in the same order;
-- avatars read **JN** for Jean Paul NSENGIYUMVA, **MU** for Marie Claudine UWAYISABA — the
+- avatars read **JN** for Jean Paul NSENGIYUMVA, **MU** for Jeanne Claudine UWAYISABA — the
   given name and the family name, not two given names;
 - chips and chart labels that used to show the first word now show the given name whole
   (“Jean Paul”), with the full name on hover.

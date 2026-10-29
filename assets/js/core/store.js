@@ -1215,7 +1215,7 @@ function normalize(db){
       {id:'s10',name:'Bernadette MUHAWENIMANA',sex:'Female',dob:'1995-03-14',role:'Laboratory Technician',
        phone:'0781942405',email:'',contract:'statute',pattern:'normal',nightPref:'3',maxNights:12,maxConsecN:3,
        status:'active',joinDate:'2024-02-12',exitDate:null,note:'Joins the day and night rotation across reception, phlebotomy and TB/molecular'},
-      {id:'s11',name:'Marie Claudine UWAYISABA',sex:'Female',dob:'1993-08-21',role:'Laboratory Technologist',
+      {id:'s11',name:'Jeanne Claudine UWAYISABA',sex:'Female',dob:'1993-08-21',role:'Laboratory Technologist',
        phone:'',email:'',contract:'statute',pattern:'normal',nightPref:'no',maxNights:0,maxConsecN:0,
        status:'active',joinDate:'2022-11-07',exitDate:null,note:'Bench cover for biochemistry, serology and parasitology'}
     ];
@@ -1256,7 +1256,7 @@ function normalize(db){
   /* v6.9.55 — the order the roster is read in, and who holds the nights.
      The manager's row is first because he signs the plan; then the two who hold a
      post; then the bench in the order the department calls it; the weekend
-     technologist is always the last row. Marie Claudine joins the night rotation
+     technologist is always the last row. Jeanne Claudine joins the night rotation
      so that Dieudonné is not carrying it with Bernadette alone, Jean Paul is named
      as the person acting for the manager, and the manager carries the weekly
      service requisition. */
@@ -1279,7 +1279,7 @@ function normalize(db){
     const dieu=(db.staff||[]).find(x=>x.id==='s9');
     if(dieu){ dieu.post='Lab Safety Officer'; }
   }
-  /* v6.9.58 — Marie Claudine UWAYISABA arrived on 6 October 2026. Her record said
+  /* v6.9.58 — Jeanne Claudine UWAYISABA arrived on 6 October 2026. Her record said
      2022, which put her on the establishment for years she was not there; the date
      is corrected and she takes her place on the October plan. Before the 6th the
      sheet is hatched (BE — before employment), and from the 6th she works the bench
@@ -1318,7 +1318,7 @@ function normalize(db){
       }
       p.meta=p.meta||{};
       p.meta.revised=true;
-      p.meta.revisedNote='6 October 2026 — Marie Claudine UWAYISABA joins the plan; the days before her arrival are hatched.';
+      p.meta.revisedNote='6 October 2026 — Jeanne Claudine UWAYISABA joins the plan; the days before her arrival are hatched.';
     }
     /* a draft built before her arrival learned nothing of it: rebuild the drafts
        (never an official or a transcribed month), keeping what they replaced */
@@ -1332,7 +1332,38 @@ function normalize(db){
       e.primary=built;
     });
   }
-  /* v6.9.59 — Marie Claudine's contact details. The contact list printed a dash
+  /* v6.9.60 — her name is Jeanne Claudine, not Marie Claudine. The record, every row
+     of every plan and version, the weekly unit rosters, the trainings she attended and
+     any swap asked for in her favour are rewritten once, so nothing in the register
+     still calls her by the wrong name. It is the same person throughout — the staff id
+     (s11) is what joins the records, so nothing is left orphaned. */
+  if(!db.meta.nameFixV6960){
+    db.meta.nameFixV6960=1;
+    const OLD='Marie Claudine UWAYISABA', NEW='Jeanne Claudine UWAYISABA';
+    const fix=v=>v===OLD?NEW:v;
+    (db.staff||[]).forEach(st=>{ if(st.name===OLD) st.name=NEW; });
+    const fixRows=rows=>(rows||[]).forEach(r=>{ if(r&&r.name===OLD) r.name=NEW; });
+    Object.keys(db.workingPlans||{}).forEach(k=>{
+      const e=db.workingPlans[k]; if(!e) return;
+      fixRows(e.primary&&e.primary.staff);
+      (e.versions||[]).forEach(v=>fixRows(v&&v.staff));
+    });
+    Object.keys(db.unitRosters||{}).forEach(w=>{
+      const rec=db.unitRosters[w]; if(!rec) return;
+      Object.keys(rec.assignments||{}).forEach(iso=>{
+        const day=rec.assignments[iso]||{};
+        Object.keys(day).forEach(bench=>{ day[bench]=fix(day[bench]); });
+      });
+      Object.keys(rec.night||{}).forEach(iso=>{ rec.night[iso]=fix(rec.night[iso]); });
+      Object.keys(rec.orientation||{}).forEach(name=>{
+        if(name===OLD){ rec.orientation[NEW]=rec.orientation[name]; delete rec.orientation[OLD]; }
+      });
+    });
+    (db.trainings||[]).forEach(t=>{ if(Array.isArray(t.attendees)) t.attendees=t.attendees.map(fix); });
+    (db.swaps||[]).forEach(sw=>{ sw.from=fix(sw.from); sw.to=fix(sw.to); });
+    if((db.settings||{}).prepared===OLD) db.settings.prepared=NEW;
+  }
+  /* v6.9.59 — Jeanne Claudine's contact details. The contact list printed a dash
      where a number should be, and the staff card had no way to reach her. */
   if(!db.meta.contactV6959){
     db.meta.contactV6959=1;
@@ -1645,7 +1676,7 @@ S.staff=()=>S.db().staff;
    row, never below the weekend one. */
 S.ROSTER_ORDER=['Kelvin SAMAHANI','Jean Paul NSENGIYUMVA','Dieudonne NIYIDUHABYOSE',
   'Beatrice NGEZEKURE','Patrick ISHIMWE','Bernadette MUHAWENIMANA',
-  'Marie Claudine UWAYISABA','Aurelie YANSONEYE'];
+  'Jeanne Claudine UWAYISABA','Aurelie YANSONEYE'];
 S.rosterRank=function(staff){
   if(!staff) return 999;
   if(staff.weekendOnly || staff.pattern==='weekendonly') return 900;   // always the last row
