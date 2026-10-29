@@ -126,7 +126,7 @@ const mod=fs.readFileSync(path.resolve(__dirname,'..','assets/css/modules.css'),
      'manager, quality manager and safety officer all skip the lobby');
   ok(/called by role/.test(d.querySelector('.role-posts').textContent),'and are labelled as going by role');
   const queueNames=[...d.querySelectorAll('#app .card .list-row .lr-title')].map(e=>e.textContent);
-  const queued=queueNames.filter(n=>/Beatrice|Marie Claudine|Bernadette|Patrick/.test(n));
+  const queued=queueNames.filter(n=>/Beatrice|Jeanne Claudine|Bernadette|Patrick/.test(n));
   ok(queued.length>=3,'the bench technicians are still in the queue ('+queued.length+')');
   const queueOnly=[...d.querySelectorAll('#app .card .list-row')].filter(r=>!r.closest('.role-posts'))
     .map(r=>r.querySelector('.lr-title')).filter(Boolean).map(e=>e.textContent);

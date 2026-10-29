@@ -829,7 +829,7 @@ U.statusTone = (s)=>{
 };
 /* ——— Names ————————————————————————————————————————
    In this register a person's name is given name(s) followed by the family name:
-   “Jean Paul NSENGIYUMVA”, “Marie Claudine UWAYISABA”, “Jean de Dieu SIBOMANA”.
+   “Jean Paul NSENGIYUMVA”, “Jeanne Claudine UWAYISABA”, “Jean de Dieu SIBOMANA”.
    Everything before the last word belongs to the given name — one unit. “Jean” on
    its own is not a name, and “Paul NSENGIYUMVA” is not a surname; splitting at the
    first space made both mistakes on the roster. */

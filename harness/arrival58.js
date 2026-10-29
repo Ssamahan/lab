@@ -1,4 +1,4 @@
-/* v6.9.58 — Marie Claudine UWAYISABA arrived on 6 October 2026.
+/* v6.9.58 — Jeanne Claudine UWAYISABA arrived on 6 October 2026.
    She takes her place on the October plan, the days before her arrival are hatched
    rather than blank, and from the 6th she works the bench on dayshifts as a
    newcomer: no weekend and no night until her thirty days of induction are over. */
@@ -8,7 +8,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
   const {w,errors,go}=await boot('#/roster');
   const S=w.LS.store, U=w.LSU, doc=w.document;
-  const marie=S.staffByName('Marie Claudine UWAYISABA');
+  const marie=S.staffByName('Jeanne Claudine UWAYISABA');
 
   /* ── 1 · she arrived on 6 October ───────────────────────────────────── */
   ok(!!marie,'her record is on the establishment');
@@ -82,8 +82,8 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
     .filter(m=>+m[1]>520&&+m[1]<1080).map(m=>m[2].trim()).filter(t=>names.indexOf(t)>=0);
   ok(order[0]==='Kelvin SAMAHANI','the sheet runs in roster order, manager first ('+order.slice(0,3).join(' · ')+')');
   ok(order[order.length-1]==='Aurelie YANSONEYE','and the weekend technologist last');
-  ok(order.indexOf('Marie Claudine UWAYISABA')===order.indexOf('Bernadette MUHAWENIMANA')+1,
-     'with Marie Claudine on the bench between Bernadette and Aurelie ('+order.join(' · ')+')');
+  ok(order.indexOf('Jeanne Claudine UWAYISABA')===order.indexOf('Bernadette MUHAWENIMANA')+1,
+     'with Jeanne Claudine on the bench between Bernadette and Aurelie ('+order.join(' · ')+')');
 
   /* ── 8 · nothing else on the October plan moved ────────────────────── */
   const others=['Kelvin SAMAHANI','Beatrice NGEZEKURE','Aurelie YANSONEYE','Patrick ISHIMWE',
@@ -100,6 +100,27 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   const contact=w.LS.sheets.monthlySVG(S.planForMonth('2026-10'));
   ok(contact.indexOf('0784063985')>=0,'the contact list prints her number, not a dash');
   ok(!/UWAYISABA[^<]*<\/text>[\s\S]{0,400}—/.test(contact),'and nothing reads “—” against her name');
+
+  /* ── 10 · she is Jeanne Claudine, everywhere ───────────────────────── */
+  ok(marie.name==='Jeanne Claudine UWAYISABA','her name is Jeanne Claudine UWAYISABA ('+marie.name+')');
+  ok(U.nameParts(marie.name).given==='Jeanne Claudine','her given name is “Jeanne Claudine”, whole');
+  ok(U.surname(marie.name)==='UWAYISABA','and her family name is UWAYISABA');
+  ok(U.initials(marie.name)==='JU','her avatar reads JU — first given initial and the family name');
+  const dump=JSON.stringify(S.db());
+  ok(dump.indexOf('Marie Claudine')<0,'no record in the register still calls her Marie Claudine');
+  ok(dump.indexOf('Jeanne Claudine UWAYISABA')>=0,'and the register holds her under the right name');
+  ok(S.planMonths().every(k=>!(S.planForMonth(k).staff||[]).some(r=>/^Marie /.test(r.name||''))),
+     'no stored month carries the old name on a row');
+  ok(Object.keys(S.db().workingPlans).every(k=>(S.db().workingPlans[k].versions||[])
+      .every(v=>!(v.staff||[]).some(r=>/^Marie /.test(r.name||'')))),'nor does any archived version');
+  const sheetOct=w.LS.sheets.monthlySVG(S.planForMonth('2026-10'));
+  ok(sheetOct.indexOf('Jeanne Claudine UWAYISABA')>=0,'the October sheet prints her full name');
+  ok(sheetOct.indexOf('Marie Claudine')<0,'and never the old one');
+  await go('#/roster'); await tick(320);
+  doc.querySelector('[data-view="grid"]').click(); await tick(340);
+  const herCells=[...doc.querySelectorAll('#roBody td.staff-cell')].map(td=>td.textContent.replace(/\s+/g,' '));
+  ok(herCells.some(t=>/Jeanne Claudine UWAYISABA/.test(t)),'the working plan prints her full name on her row');
+  ok(!herCells.some(t=>/^Marie /.test(t)),'with no row left under the old name');
 
   ok(errors.length===0,'no console errors during the run'+(errors.length?': '+errors.join(' | '):''));
   done('arrival58');
