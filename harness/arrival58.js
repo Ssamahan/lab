@@ -94,6 +94,13 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   ok(S.isNewcomer(S.staffByName('Kelvin SAMAHANI'),'2026-10-06')===false,'nobody else is treated as a newcomer');
   ok(S.isNewcomer(S.staffByName('Bernadette MUHAWENIMANA'),'2026-10-06')===false,'nor is Bernadette');
 
+  /* ── 9 · her contact details are on the record, and on the sheet ───── */
+  ok(marie.phone==='0784063985','her phone number is recorded ('+marie.phone+')');
+  ok(marie.email==='uwayjeanneclaudine@gmail.com','and her email address ('+marie.email+')');
+  const contact=w.LS.sheets.monthlySVG(S.planForMonth('2026-10'));
+  ok(contact.indexOf('0784063985')>=0,'the contact list prints her number, not a dash');
+  ok(!/UWAYISABA[^<]*<\/text>[\s\S]{0,400}—/.test(contact),'and nothing reads “—” against her name');
+
   ok(errors.length===0,'no console errors during the run'+(errors.length?': '+errors.join(' | '):''));
   done('arrival58');
 })().catch(e=>{ console.error(e); process.exit(1); });

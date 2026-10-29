@@ -4,6 +4,15 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.59
+
+**Marie Claudine's contact details.** Her record carried neither a phone number nor an email, so
+the printed contact list gave her a dash. Both are on the establishment now — **0784 063 985**
+and **uwayjeanneclaudine@gmail.com** — and the number prints beside her name on the working plan
+with the rest of the department.
+
+---
+
 ## What changed in 6.9.58
 
 **Marie Claudine UWAYISABA arrives on 6 October 2026.**

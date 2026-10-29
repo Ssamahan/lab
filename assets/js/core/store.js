@@ -1332,6 +1332,16 @@ function normalize(db){
       e.primary=built;
     });
   }
+  /* v6.9.59 — Marie Claudine's contact details. The contact list printed a dash
+     where a number should be, and the staff card had no way to reach her. */
+  if(!db.meta.contactV6959){
+    db.meta.contactV6959=1;
+    const marie=(db.staff||[]).find(x=>x.id==='s11');
+    if(marie){
+      marie.phone='0784063985';
+      marie.email='uwayjeanneclaudine@gmail.com';
+    }
+  }
   if(!db.meta.rosterOrderV6955){
     db.meta.rosterOrderV6955=1;
     const by=(id)=>db.staff.find(x=>x.id===id);
