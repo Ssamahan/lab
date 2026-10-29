@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.57** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.58** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.57`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.58`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -215,6 +215,11 @@ register records.
   the manager's thirty days run from 16 November 2026 and are charged back to FY 2025/2026.
 - **The working plan reads the annual-leave plan.** Leave blocks are painted on the cells
   they cover, and *Fill the leaves* writes the whole register onto the month on request.
+- **A newcomer works dayshifts for their first thirty days.** The joining date and the end of
+  induction live on the record, so the rule holds for whoever joins next: dayshifts on weekdays,
+  no weekend and no night until the month of induction is over. The days **before** somebody's
+  first day are hatched, never blank — a blank cell means at home, and it must not also mean
+  *not yet employed*.
 - **The exports read like the departmental letterhead.** Ministry of Health above Ruli District
   Hospital on the working plan, the weekly roster and the XLSX; every name whole on one line
   with the post beneath it, never wrapped into it; and the phone number on the same line as the

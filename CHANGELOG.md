@@ -4,6 +4,35 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.58
+
+**Marie Claudine UWAYISABA arrives on 6 October 2026.**
+
+Her record carried a 2022 joining date, which put her on the establishment for years she was
+never there and left her off the October sheet she actually started on. The date is now
+**6 October 2026**, and she takes her place on the October working plan — one row, between
+Bernadette and Aurelie, where the roster order puts her.
+
+**The days before her arrival are hatched.** Before the 6th her cells carry **BE — before
+employment** on the screen and a diagonal hatch on the printed sheet, so they are not read as
+"at home" and not read as an unrostered gap. The hatch prints without a letter (a letter would
+read as a shift) and its own line is in the key. Nothing else on the October plan was touched:
+every other row is exactly as it was signed, and the month is stamped *Revised — 6 October
+2026* so the change is visible on the sheet.
+
+**From the 6th she works dayshifts, as a newcomer.** The first thirty days in the department are
+dayshifts only: she carries the bench Monday to Friday and is **exempt from the weekend and
+from nights until 4 November 2026**. The rule is a property of the record — a joining date and
+a `newcomerUntil` date — so it holds for any future staff member, not just her. The November
+draft was rebuilt from the rule: no night for her before the 5th, and her two-night blocks back
+on the rota afterwards.
+
+The printed sheet now also runs in **the roster order the screen uses** (manager, the two
+post-holders, the bench, the weekend technologist last) rather than the order a month happened
+to be stored in — the sheet and the grid can no longer disagree.
+
+---
+
 ## What changed in 6.9.57
 
 **The printed sheet reads like the letterhead it is.**

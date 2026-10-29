@@ -57,14 +57,21 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||200));
   },{action:'test.off'});`);
   ok(S.shiftState(bern,today).label==='At home','an OFF cell also reads At home');
 
-  /* ── someone the plan never listed ────────────────────────────────── */
+  /* ── someone the plan never listed ──────────────────────────────────────
+     Marie Claudine is on the October plan since she arrived on the 6th, so the
+     case is made here rather than assumed: a row taken off the month must read
+     as “at home”, and say that it is a blank, not a decision. */
   const marie=S.staffByName('Marie Claudine UWAYISABA');
   if(marie){
-    const absent=!S.planRowFor(marie,today);
-    ok(absent,'she is not on the plan at all (the seed’s case)');
+    ok(!!S.planRowFor(marie,today),'she is on the October plan she joined');
+    const rowBack=JSON.stringify(S.planForMonth(mk).staff.find(r=>r.name===marie.name));
+    w.eval(`LS.store.commit(d=>{ const p=d.workingPlans['${mk}'].primary;
+      p.staff=p.staff.filter(r=>r.name!=='Marie Claudine UWAYISABA'); },{action:'test.unlisted'});`);
     const ms=S.shiftState(marie,today);
     ok(ms.kind==='off','a person the plan never listed is at home too',JSON.stringify(ms));
     ok(ms.blank===true,'and says so, so the omission can be seen',String(ms.blank));
+    w.eval(`LS.store.commit(d=>{ d.workingPlans['${mk}'].primary.staff.push(${rowBack});
+      d.workingPlans['${mk}'].primary.staff=d.workingPlans['${mk}'].primary.staff; },{action:'test.restore'});`);
   }
 
   /* ── no plan for the day: the contract may speak again ────────────── */

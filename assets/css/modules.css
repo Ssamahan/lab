@@ -155,7 +155,11 @@
 .shift-code.RBW{color:var(--text-dim); background:rgba(148,163,184,.10); border-color:var(--border)}
 .shift-code.SL{color:var(--crit); background:rgba(220,120,120,.12); border-color:rgba(220,120,120,.26)}
 .shift-code.ML,.shift-code.PL{color:var(--pos); background:var(--pos-soft); border-color:var(--pos-border)}
-.shift-code.BE{color:var(--text-faint); background:transparent; border-color:var(--border)}
+.shift-code.BE{color:var(--text-faint); background:transparent; border-color:var(--border); border-style:dashed}
+/* A day before somebody's first day is hatched, not blank: the diagonal lines say
+   "not yet employed" where an empty cell would read "at home". */
+.plan-fit td.be{background-image:repeating-linear-gradient(135deg,rgba(148,163,184,.20) 0 1px,transparent 1px 6px);
+  box-shadow:inset 0 0 0 1px rgba(148,163,184,.35); border-left:1px dashed var(--border); border-right:1px dashed var(--border)}
 .shift-code.MS,.shift-code.MC{color:#8FB8DE; background:rgba(120,160,220,.12); border-color:rgba(120,160,220,.26)}
 .shift-code.dim{opacity:.45}
 .cov-footer td{background:var(--surface-inset); height:26px; text-align:center; font-family:var(--font-mono); font-size:9.4px; color:var(--text-faint); border-bottom:none}

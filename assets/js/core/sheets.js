@@ -33,7 +33,10 @@ const CODE={
   /* The two codes the department's own paper plans have always used. */
   RBW: {bg:'#F4F1E6',   fg:'#7A6428', label:'RBW', key:'RBW — Off duty (rest before work)'},
   AA:  {bg:'#F3E9F6',   fg:'#6B3C7A', label:'AA',  key:'AA — Authorised absence'},
-  H:   {bg:'#FBECEE',   fg:'#B03A48', label:'H',   key:'H — Public holiday'}
+  H:   {bg:'#FBECEE',   fg:'#B03A48', label:'H',   key:'H — Public holiday'},
+  /* Not an absence and not a rest day: the days before somebody was employed. On the
+     sheet they are hatched rather than lettered, so a blank cell keeps its meaning. */
+  BE:  {bg:'#FFFFFF',   fg:'#A8B0BE', label:'',    key:'Hatched — before employment', hatch:true}
 };
 SH.codes=Object.keys(CODE);
 /* printed register order: shifts, rest, leave, then the rest */
@@ -288,7 +291,18 @@ SH.monthlySVG=function(plan,opts){
   opts=opts||{};
   const s=LS.store.settings();
   const W=3200, H=1876, pad=96;
-  const rows=(plan.staff||[]);
+  /* rows are read in the department's roster order — the manager, the two who hold
+     a post, the bench, and the weekend technologist last — the same order as the
+     screen, so the sheet and the grid never disagree */
+  const rows=(function(){
+    const list=(plan.staff||[]).slice();
+    const S=LS.store;
+    if(!S||!S.rosterRank) return list;
+    return list.sort((a,b)=>{
+      const A=S.staffByName(a.name)||{}, B=S.staffByName(b.name)||{};
+      return S.rosterRank(A)-S.rosterRank(B);
+    });
+  })();
   const cols=monthCols(plan);
   const labelW=700, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
@@ -367,8 +381,20 @@ SH.monthlySVG=function(plan,opts){
       const x=gridX+i*colW;
       const bg=st?st.bg:(c.weekend?C.creamBand:'#FFFFFF');
       g+=rect(x,y,colW,rowH,bg);
+      /* a hatched cell carries no letter at all — the diagonal rules are the code,
+         and a blank cell keeps its own meaning (at home) */
+      if(st && st.hatch){
+        const step=Math.max(8,Math.round(colW/6));
+        for(let dx=-rowH; dx<colW+rowH; dx+=step){
+          const x1=Math.max(x,x+dx), y1=y+rowH-Math.max(0,-dx);
+          const x2=Math.min(x+colW,x+dx+rowH), y2=y+rowH-(x2-(x+dx));
+          if(x2<=x1) continue;
+          g+=line(x1,y1,x2,y2,'#D5DAE3',1.4);
+        }
+        g+=rect(x+1.5,y+1.5,colW-3,rowH-3,'none',{stroke:'#B9C0CC',sw:1.5,dash:'7 5'});
+      }
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
-      if(st && code){
+      if(st && code && !st.hatch){
         const cSize=code.length>2?23:32;
         g+=text(x+colW/2,y+rowH/2+(code.length>2?8:10),st.label,{size:cSize,weight:700,anchor:'middle',fill:st.fg});
       }
