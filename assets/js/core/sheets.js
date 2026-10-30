@@ -346,28 +346,22 @@ SH.monthlySVG=function(plan,opts){
      a little, to the contact rows, so the sheet closes on the signature rule instead
      of on a band of white paper. */
   const KEY_ROWS=Math.ceil(SH.keyOrder.length/6);
-  /* the key block is a fifth taller than it was: 54 -> 65 */
-  const KEY_H=65, CONTACT_H=79, CONTACT_PITCH0=CONTACT_H+22;
-  const AFTER_GRID=58+30+22+28+10;          /* the two headings under the grid */
-  const SIG_ROOM=186+24;                    /* the signature block and its margin */
-  const rowH=76;
-  const avail=H-(gridTop+bandH+dateH)-rows.length*rowH;
-  /* What the compact rows leave over is spread through the key grid as air between
-     the blocks — the keys grow into the page rather than a white band opening under
-     the contacts — and the little that is left after that goes to the contact rows,
-     within limits, so nothing floats. */
-  /* the contact rows sit close to each other, as a list, not spread down the page */
-  const CONTACT_PITCH=CONTACT_H+13;
-  /* Whatever the page has left after the contacts and the signature block that
-     follows them is added to the key grid as air between the blocks: the sheet is
-     closed by the keys it has to explain, never by white paper at the foot. */
-  /* the signature rule, its three lines and the margin under them: measured, not
-     guessed, so the last line closes within a hand's width of the foot */
-  const SIG_ROOM2=46+34+26+12+26+8+30;
-  const bottomAt=kp=>gridTop+bandH+dateH+rows.length*rowH+58+30+KEY_ROWS*kp+22+34
-    +(CONTACT_PITCH-13+CONTACT_H)+SIG_ROOM2;
-  let KEY_PITCH=KEY_H+8;
-  while(KEY_PITCH<152 && bottomAt(KEY_PITCH+1)<=H-40) KEY_PITCH++;
+  const CONTACT_H=79;                       /* the contact block, three fifths of 132 */
+  /* ——— the keys and the contacts are spaced alike ———
+     A block of the same height on the same pitch, with the same 13 px of air between
+     the rows: the legend and the contact list read as two lists of one setting, and
+     neither of them is spread down the page to fill it. */
+  const KEY_H=CONTACT_H, PITCH=CONTACT_H+13;
+  const KEY_PITCH=PITCH, CONTACT_PITCH=PITCH;
+  const rowH=76;                            /* a staff row, three fifths of 126 */
+  /* What the compact lists leave over is not spread between their rows: it is set as
+     one section break under the grid and as the bottom margin of the sheet, so the
+     page closes on the signature block and its own margin, not on a band of white. */
+  const SIG_BLOCK=18+2+28+26+12+26+8;
+  const GAP0=58;
+  const bottomAt=g=>gridTop+bandH+dateH+rows.length*rowH+(GAP0+g)+30
+    +KEY_ROWS*PITCH+22+34+(2*PITCH-13+CONTACT_H)+SIG_BLOCK;
+  const slack=Math.max(0,Math.min(120,H-56-bottomAt(0)));
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
 
   /* ——— one size for the names, one size for the letters ———
@@ -512,7 +506,7 @@ SH.monthlySVG=function(plan,opts){
      repeated what the rows already say and pushed the keys and the contacts down
      the page. The register a manager signs prints the roster and its keys, not a
      second telling of the rules. */
-  let y=gridBottom+58;
+  let y=gridBottom+58+slack;
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
   y+=30;
   const keys=SH.keyOrder.map(c=>CODE[c].key);
