@@ -351,9 +351,10 @@ SH.monthlySVG=function(plan,opts){
      the legend and the contact list read as two lists of one setting: one block
      height, one pitch, the same 13 px of air between their rows. These are the
      measures the sheet was signed off at; nothing below changes them. */
-  /* the legend is set five blocks to a row, so a block has the width to set its own
-     line at the size of the names in the grid */
-  const KEY_COLS=5;
+  /* the legend is set four blocks to a row — four rows of four — so a block has the
+     width to set its own line at the size of the names in the grid, and the legend
+     reads as a square block under the grid rather than as a ragged last row */
+  const KEY_COLS=4;
   const KEY_ROWS=Math.ceil(SH.keyOrder.length/KEY_COLS);
   const CONTACT_ROWS=Math.min(2,Math.max(1,rows.length));
   const rowH=76;                            /* a staff row, three fifths of 126 */
@@ -1132,7 +1133,10 @@ SH.printSVG=function(svg,opts){
   opts=opts||{};
   const landscape=opts.landscape!==false;
   const pageW=landscape?297:210, pageH=landscape?210:297;   /* A4, millimetres */
-  const margin=opts.margin==null?6:opts.margin;
+  /* Two thirds of the 6 mm it was: on A4 landscape that takes the white band beside the
+     sheet from about 8.5 mm down to about 5.7 mm, and because the sheet is centred the
+     left and right bands are equal — the left one was the one that read as too wide. */
+  const margin=opts.margin==null?4:opts.margin;
   const availW=pageW-margin*2, availH=pageH-margin*2;
   /* ——— one sheet, one page ———
      The sheet used to be printed at `width:100%; height:auto`. Its aspect ratio

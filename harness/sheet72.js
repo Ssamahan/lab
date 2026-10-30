@@ -12,9 +12,17 @@ const {boot,ok,done}=require('./env');
     .map(m=>({x:+m[1],y:+m[2],s:+m[3],t:m[4]}));
   const boxes=[...svg.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)" fill="#F7F9FD"/g)]
     .map(m=>({x:+m[1],y:+m[2],w:+m[3],h:+m[4]}));
-  const keyBoxes=boxes.filter(b=>b.w>560&&b.w<640), cardBoxes=boxes.filter(b=>b.w>700);
+  /* the two lists are told apart by where they stand on the sheet, not by their width:
+     the legend opens under "Keys:" and the contacts under "Staff contacts:" */
+  const keysHead0=nodes.filter(n=>/^Keys:$/.test(n.t))[0];
+  const cntHead0=nodes.filter(n=>/^Staff contacts:$/.test(n.t))[0];
+  ok(!!keysHead0&&!!cntHead0,'both sections have a heading');
+  const keyBoxes=boxes.filter(b=>b.w>600&&b.y>keysHead0.y&&b.y<cntHead0.y);
+  const cardBoxes=boxes.filter(b=>b.w>600&&b.y>cntHead0.y&&b.h>=60&&b.h<=90);
+  const keyLines=nodes.filter(n=>n.y>keysHead0.y&&/ — /.test(n.t));
   const uniq=a=>[...new Set(a)].sort((x,y)=>x-y);
-  const keyY=uniq(keyBoxes.map(b=>b.y)), cardY=uniq(cardBoxes.map(b=>b.y));
+  const keyY=uniq(keyLines.map(n=>n.y)), keyX=uniq(keyLines.map(n=>Math.round(n.x)));
+  const cardY=uniq(cardBoxes.map(b=>b.y));
 
   /* ——— the rows of the grid ——— */
   const codeRows=uniq(nodes.filter(n=>/^(D|N|DN)$/.test(n.t)).map(n=>n.y));
@@ -22,7 +30,10 @@ const {boot,ok,done}=require('./env');
   ok(S.activeStaff().every(st=>nodes.some(n=>n.t===st.name&&n.y>codeRows[0]-40)),'a name for every member of staff');
 
   /* ——— the legend and the contacts: one block, one pitch ——— */
-  ok(keyY.length===Math.ceil(16/5),'the legend is '+Math.ceil(16/5)+' rows, five blocks wide ('+keyY.length+')');
+  /* ——— the legend is a square: four rows of four blocks ——— */
+  ok(keyY.length===4,'the legend is four rows ('+keyY.length+')');
+  ok(keyX.length===4,'of four blocks each ('+keyX.length+')');
+  ok(keyLines.length===16,'sixteen keys, no ragged last row ('+keyLines.length+')');
   ok(cardY.length===2,'the contacts are two rows ('+cardY.length+')');
   ok(keyBoxes.length&&cardBoxes.length,'both lists are drawn as blocks');
   const keyH=keyBoxes[0].h, cardH=cardBoxes[0].h;
@@ -32,14 +43,14 @@ const {boot,ok,done}=require('./env');
   const keyPitch=keyY[1]-keyY[0], cardPitch=cardY[1]-cardY[0];
   ok(keyPitch===cardPitch,'the two lists stand on one pitch ('+keyPitch+' vs '+cardPitch+')');
   ok(keyPitch-keyH<12,'with only a few px of air between their rows ('+(keyPitch-keyH)+')');
-  const keyText=[...new Set(nodes.filter(n=>n.y>keyY[0]-80&&/ — /.test(n.t)).map(n=>n.s))];
+  const keyText=[...new Set(keyLines.map(n=>n.s))];
   ok(keyText.length===1,'the key text is one size for every key ('+keyText.join(', ')+')');
   /* ——— one voice: the legend, the contact list and the names in the grid ——— */
   const gridNames=S.activeStaff().map(st=>nodes.filter(n=>n.t===st.name&&n.y>500&&n.y<1200)[0]).filter(Boolean);
   ok(gridNames.length===S.activeStaff().length,'every staff name is set in the grid');
   const gridSize=gridNames[0].s;
   ok(keyText[0]===gridSize,'the keys are set at the size of the staff names ('+keyText[0]+' vs '+gridSize+')');
-  const cardText=[...new Set(nodes.filter(n=>n.y>cardY[0]-10&&n.y<cardY[cardY.length-1]+70).map(n=>n.s))];
+  const cardText=[...new Set(nodes.filter(n=>n.y>cardY[0]-12&&n.y<cardY[cardY.length-1]+80).map(n=>n.s))];
   ok(cardText.length===1&&cardText[0]===gridSize,'and so are the contact names and numbers ('+cardText.join(', ')+' vs '+gridSize+')');
   /* ——— the heading of the name column is plural ——— */
   ok(nodes.some(n=>n.t==='Names'),'the name column is headed "Names"');
@@ -58,7 +69,9 @@ const {boot,ok,done}=require('./env');
   const cntHead=nodes.filter(n=>/^Staff contacts:$/.test(n.t))[0];
   const keysClose=keysHead.y-RULE-gridBottom;
   ok(keysClose<60,'the keys follow the table ('+Math.round(keysClose)+' px from the rule to the heading)');
-  const keyLead=keyY[0]-(keysHead.y+6);
+  /* measured from the top of the block, not from the baseline of the line inside it */
+  const firstKeyTop=Math.min.apply(null,keyBoxes.map(b=>b.y));
+  const keyLead=firstKeyTop-(keysHead.y+6);
   ok(keyLead<40,'and the first key row follows its own heading ('+Math.round(keyLead)+' px)');
   const lastKey=Math.max.apply(null,keyBoxes.map(b=>b.y+b.h));
   const firstCard=Math.min.apply(null,cardBoxes.map(b=>b.y));

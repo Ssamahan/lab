@@ -26,6 +26,8 @@ const {boot,ok,done}=require('./env');
   ok(sw>0&&sh>0,'a positive size ('+sw+' × '+sh+' mm)');
   ok(sh<=availH,'the height fits inside the printable box ('+sh.toFixed(2)+' ≤ '+availH+' mm)');
   ok(sw<=availW,'and so does the width ('+sw.toFixed(2)+' ≤ '+availW+' mm)');
+  ok(pm===4,'the page margin is two thirds of the 6 mm it was ('+pm+' mm)');
+  ok(availW-sw<12,'the side bands are slim on both sides — the sheet is centred ('+((availW-sw)/2).toFixed(2)+' mm each)');
   ok(availH-sh>0.1,'with a hairline to spare, so no rounding spills onto page two ('+(availH-sh).toFixed(2)+' mm)');
   /* the aspect ratio of the sheet is kept: the plan is never stretched */
   const vb=/viewBox="[\d.-]+ [\d.-]+ ([\d.]+) ([\d.]+)"/.exec(svg);
