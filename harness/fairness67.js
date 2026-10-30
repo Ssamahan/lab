@@ -24,7 +24,9 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||180));
   ok(/^UO/.test(SH.styleOf('UO').key),'the key still begins with the letters UO');
   ok(!/[()]/.test(SH.styleOf('UO').key),'and carries no bracketed explanation ('+SH.styleOf('UO').key+')');
   ok(!/worked a day due as rest/i.test(SH.styleOf('UO').key),'the paragraph about the day it earns is gone from the key');
-  const uoKey=nodes.filter(n=>/^UO/.test(n.t)&&n.y>1500)[0];
+  /* the keys sit under the grid, wherever the compact rows now put them */
+  const keysHead=nodes.filter(n=>/^Keys:$/.test(n.t))[0];
+  const uoKey=nodes.filter(n=>/^UO/.test(n.t)&&keysHead&&n.y>keysHead.y)[0];
   ok(!!uoKey,'the key prints UO');
   if(uoKey) ok(uoKey.t.length<=26,'and the words beside it are short enough for the block ("'+uoKey.t+'")');
   /* the legend on the console says the same, once */

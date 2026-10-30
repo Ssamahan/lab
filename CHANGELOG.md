@@ -4,6 +4,22 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.72
+
+**The rows of the working plan are compact, and the key blocks have grown a fifth.**
+
+A staff row is **three fifths of its old height — 126 → 76 px** — and so is a contact row
+(132 → 79 px). The grid is a register, not a poster: the name and the post under it are fitted to the
+row they have, and a post long enough to need three lines steps down (the post first, then the name)
+until the block stands inside its row instead of printing over the row beneath it. The letters in the
+grid keep their harmonised size, so a shorter row does not make them smaller.
+
+The **key blocks are a fifth taller** — 54 → 65 px, on a pitch of 62 → 73 — with their chips and their
+lettering grown to match. What the compact rows leave over is spent on air between the two contact rows
+rather than on a white band under them, so the sheet still closes on the signature rule.
+
+---
+
 ## What changed in 6.9.71
 
 **Staff contacts are two rows — four blocks to a row — with the numbers flush right, and one size throughout.**
