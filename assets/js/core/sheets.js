@@ -1131,9 +1131,29 @@ SH.weeklyXLSX=function(data){
 SH.printSVG=function(svg,opts){
   opts=opts||{};
   const landscape=opts.landscape!==false;
+  const pageW=landscape?297:210, pageH=landscape?210:297;   /* A4, millimetres */
+  const margin=opts.margin==null?6:opts.margin;
+  const availW=pageW-margin*2, availH=pageH-margin*2;
+  /* ——— one sheet, one page ———
+     The sheet used to be printed at `width:100%; height:auto`. Its aspect ratio
+     (3200:2263) is a shade wider than A4 landscape's printable box, so a sheet set to
+     the full width of the page ran a few millimetres past the foot of it — and the
+     browser answered with a second, empty page on every working plan. The sheet is now
+     fitted inside the box in BOTH directions, and the height it is given is the height
+     the paper actually has, less a hairline so a rounding of a hundredth of a
+     millimetre can never spill onto page two. */
+  const vb=/viewBox="[\d.-]+ [\d.-]+ ([\d.]+) ([\d.]+)"/.exec(svg);
+  const ar=(vb && +vb[2]>0) ? (+vb[1])/(+vb[2]) : availW/availH;
+  const SAFETY=0.4;
+  let w=availW, h=w/ar;
+  if(h>availH){ h=availH; w=h*ar; }
+  h=Math.max(1,h-SAFETY);
+  w=Math.min(w,h*ar);
   const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(opts.title||'Sheet')+'</title>'
-   +'<style>@page{size:A4 '+(landscape?'landscape':'portrait')+';margin:6mm}'
-   +'html,body{margin:0;padding:0;background:#fff}svg{width:100%;height:auto;display:block}'
+   +'<style>@page{size:A4 '+(landscape?'landscape':'portrait')+';margin:'+margin+'mm}'
+   +'html,body{margin:0;padding:0;background:#fff;height:auto}'
+   +'body{overflow:hidden}'
+   +'svg{display:block;width:'+w.toFixed(2)+'mm;height:'+h.toFixed(2)+'mm;margin:0 auto;max-width:100%}'
    +'</style></head><body>'+svg+'</body></html>';
   U.print(html);
 };

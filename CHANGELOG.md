@@ -4,6 +4,21 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.78
+
+**The working plan prints on one page again.**
+
+Every print of the working plan came with a second, empty page. The sheet was printed at
+`width:100%; height:auto`, and its aspect ratio (3200:2263) is a shade wider than A4 landscape's
+printable box — so a sheet set to the full width of the page ran about 3.5 mm past the foot of it, and
+the browser answered with a blank second page.
+
+The sheet is now fitted inside the printable box in **both** directions: it is given an explicit size in
+millimetres, taken from its own viewBox, less a hairline of safety so no rounding of a hundredth of a
+millimetre can spill onto page two. Same fix for the weekly roster, which prints through the same helper.
+
+---
+
 ## What changed in 6.9.77
 
 **Compact blocks, one type size, and a plural heading.**
