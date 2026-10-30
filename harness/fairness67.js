@@ -39,12 +39,18 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||180));
   const below=nodes.filter(n=>n.y>H-8);
   ok(below.length===0,'nothing is drawn off the foot of the page'+(below.length?' ('+below.map(n=>n.t).join(' / ')+')':''));
   /* the rows are taller than the old 90 px cap, and the letters grew with them */
-  const dayOne=at(/^2$/).filter(n=>n.y<560)[0];
+  const dayOne=at(/^7$/).filter(n=>n.y<560)[0];
   ok(!!dayOne,'the day numbers are drawn');
-  if(dayOne) ok(dayOne.size>=28,'the day numbers set bigger than they used to ('+dayOne.size+' px, was 26)');
+  /* the day numbers, the letters in the grid and the staff names are one setting */
+  const firstCode=at(/^D$/).filter(n=>n.y>600)[0];
+  if(dayOne&&firstCode) ok(Math.abs(dayOne.size-firstCode.size)<6,
+    'the day numbers match the letters in the grid ('+dayOne.size+' vs '+firstCode.size+')');
   const names=S.activeStaff().map(st=>at(new RegExp('^'+st.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$')).filter(n=>n.y>540)[0]).filter(Boolean);
   ok(names.every(n=>n.size>=22),'no name is set below 22 px ('+[...new Set(names.map(n=>n.size.toFixed(1)))].join(', ')+')');
-  ok(names.some(n=>n.size>=30),'and a name with room to spare is set large ('+Math.max.apply(null,names.map(n=>n.size).concat([0])).toFixed(1)+' px)');
+  /* the letters in the grid are no bigger than the names beside them */
+  const codeSizes=[...new Set(at(/^(D|N|DN|OFF)$/).filter(n=>n.y>600).map(n=>n.size.toFixed(1)))];
+  ok(codeSizes.length>0&&codeSizes.every(c=>+c<=Math.max.apply(null,names.map(n=>n.size))+0.5),
+    'the shift letters are set no larger than the names ('+codeSizes.join(', ')+' vs '+Math.max.apply(null,names.map(n=>n.size)).toFixed(1)+')');
   ok(names.length>=6,'a row for each member of the bench ('+names.length+')');
   /* the rows really are taller: a name and the post under it do not collide */
   const kelvin=at(/^Kelvin SAMAHANI$/)[0];

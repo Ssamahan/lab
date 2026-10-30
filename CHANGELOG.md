@@ -4,6 +4,31 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.69
+
+**The shift letters are the size of the names, the posts are the size of the key, and the contacts sit in two columns.**
+
+*The letters.* `D`, `N`, `DN`, `OFF` were set from the height of the row — up to 56 px, twice the staff
+name beside them, and they read as a poster rather than a register. They are now set at **the size of
+the staff names**, and both are set from the two columns they have to fit: the longest name on the
+establishment on one line in the label column (now 560 px, widened from 520) and the longest code
+(`ABS`) inside a day column. That is 26 px on a full establishment — one size for the names, one for
+the letters, and the day letters above them. Nothing in the grid is bigger than the name it belongs to
+any more.
+
+*The posts.* A staff title is set at **the size of the key text** — 22 px, the same voice as the key
+line under the grid — instead of a footnote size under a 34 px name. A post that is too long for the
+column wraps onto a second line before it is ever shrunk below the key, and it breaks between its parts
+(`Lab Quality Manager` / `service requisition (acting)`) rather than in the middle of one.
+
+*The contacts.* Two columns, always — a pair to a row. The block had been spread into three or four
+columns whenever the space was tight, which made each card twice as wide; the number was then printed
+against the far edge of the card, a hand's width from the name it belongs to. The number now follows
+the name after a short gap, and the cards keep their two-column pitch even when that leaves white under
+them.
+
+---
+
 ## What changed in 6.9.68
 
 **The weekly roster reads the working plan of every day in the week — and the weekend is one duty.**
