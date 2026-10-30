@@ -11,7 +11,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   const S=w.LS.store, U=w.LSU, doc=w.document;
   const svg=w.LS.sheets.monthlySVG(S.planForMonth('2026-11'));
   const nodes=[...svg.matchAll(/<text x="([-\d.]+)" y="([-\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>([^<]*)</g)]
-    .map(m=>({x:+m[1],y:+m[2],size:+m[3],t:m[4]}));
+    .map(m=>({x:+m[1],y:+m[2],size:+m[3],t:m[4],anchor:/text-anchor="end"/.test(m[0])?'end':'start'}));
   const at=(re)=>nodes.filter(n=>re.test(n.t));
   /* the body of the grid runs from the header band down to the keys; the page is
      A4 landscape (3200 × 2262) so the rows are taller than they used to be and a
@@ -69,6 +69,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
     ok(!!name && name.t===st.name,'and on the same line as the name ('+(name?name.t:'—')+' · '+phone.t+')');
     ok(phone.size>=24,'at a size that reads ('+phone.size+'px)');
     ok(phone.x-name.x>200,'set apart from the name by a real gap');
+    ok(phone.anchor==='end','and set flush to the right edge of its block');
   });
 
   /* ── 4 · the posts, written the way the department writes them ─────── */

@@ -4,6 +4,18 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.70
+
+**Staff contacts: two to a row, four rows, numbers flush right.**
+
+The contact block is 2 × 4 — two names to a row and a row for every pair, so the establishment of
+eight reads as four rows of two blocks. Nothing is spread into a third or fourth column. Inside each
+block the name is set hard left and the number hard right, on one inset shared by both columns, so
+every number in a column stands on the same vertical line: two clean edges down the whole block
+instead of a ragged line of text.
+
+---
+
 ## What changed in 6.9.69
 
 **The shift letters are the size of the names, the posts are the size of the key, and the contacts sit in two columns.**
