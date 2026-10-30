@@ -14,6 +14,8 @@ const C={
   cream:'#FDF3D7', creamBand:'#FBF2DE', white:'#FFFFFF',
   pale:'#E8EEFB', paleInk:'#2B5AC8', navyInk:'#FFFFFF', dn:'#C2D4EF',
   alInk:'#9A6F17', offInk:'#A8B0BE', ink:'#1B2433', muted:'#5B6474', faint:'#9AA3B2',
+  /* one cell colour for a day at rest, whichever code names it */
+  OFF_BG:'#FCFCFE',
   line:'#E4E8F0', nightBand:'#12203C'
 };
 SH.colors=C;
@@ -22,7 +24,7 @@ const CODE={
   D:   {bg:C.pale,      fg:C.paleInk, label:'D',   key:'D — Day 08:00–17:00'},
   N:   {bg:C.navy,      fg:'#FFFFFF', label:'N',   key:'N — Night 17:00–08:00 next day'},
   DN:  {bg:C.dn,        fg:'#101828', label:'DN',  key:'DN — Day+Night'},
-  OFF: {bg:'#FCFCFE',   fg:C.offInk,  label:'OFF', key:'OFF — At home (not on shift)'},
+  OFF: {bg:C.OFF_BG,    fg:C.offInk,  label:'OFF', key:'OFF — At home (not on shift)'},
   AL:  {bg:C.cream,     fg:C.alInk,   label:'AL',  key:'AL — Annual leave (authorised)'},
   CL:  {bg:C.cream,     fg:C.alInk,   label:'CL',  key:'CL — Authorized leave'},
   ML:  {bg:C.cream,     fg:C.alInk,   label:'ML',  key:'ML — Maternity leave'},
@@ -34,8 +36,10 @@ const CODE={
   RBW: {bg:'#F4F1E6',   fg:'#7A6428', label:'RBW', key:'RBW — Off duty (rest before work)'},
   /* A day that was due as rest and was worked instead. The manager enters it by
      hand: it is not a leave, not an absence, and it does not pay anybody's debt —
-     it names the day the department owes back. */
-  UO:  {bg:'#FBF3E2',   fg:'#8A6D1F', label:'UO',  key:'UO — Unattended off (worked a day due as rest)'},
+     it names the day the department owes back. It reads in the same grey as OFF,
+     because on the sheet the two are the same kind of day: a day at rest. Only the
+     letter tells them apart. */
+  UO:  {bg:C.OFF_BG,    fg:C.offInk,  label:'UO',  key:'UO — Unattended off (worked a day due as rest)'},
   AA:  {bg:'#F3E9F6',   fg:'#6B3C7A', label:'AA',  key:'AA — Authorised absence'},
   H:   {bg:'#FBECEE',   fg:'#B03A48', label:'H',   key:'H — Public holiday'},
   /* Not an absence and not a rest day: the days before somebody was employed. On the
@@ -47,6 +51,7 @@ SH.codes=Object.keys(CODE);
 SH.keyOrder=['D','N','DN','OFF','UO','RBW','AL','ML','SL','CL','AA','TR','W','ABS','H'].filter(c=>CODE[c]);
 SH.keyOrder=SH.keyOrder.concat(SH.codes.filter(c=>SH.keyOrder.indexOf(c)<0));
 const styleOf=c=>CODE[c]||null;
+SH.styleOf=styleOf;
 
 /* ——— Small SVG helpers ————————————————————————————— */
 const esc=s=>U.esc(String(s==null?'':s));

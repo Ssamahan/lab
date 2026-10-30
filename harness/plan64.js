@@ -110,6 +110,22 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
        st.name.split(' ')[0]+'’s post fits the column ('+Math.round(post.t.length*post.size*0.58)+' px)');
   });
 
+  /* ── 3b · UO reads in the same grey as OFF ─────────────────────────── */
+  ok(!!SH.styleOf,'the sheet exposes the colours it draws a code in');
+  const uoStyle=SH.styleOf('UO'), offStyle=SH.styleOf('OFF');
+  ok(!!uoStyle&&!!offStyle,'both codes have a style');
+  ok(uoStyle.bg===offStyle.bg,'UO is drawn on the same cell colour as OFF ('+uoStyle.bg+' vs '+offStyle.bg+')');
+  ok(uoStyle.fg===offStyle.fg,'and lettered in the same ink ('+uoStyle.fg+' vs '+offStyle.fg+')');
+  ok(uoStyle.label!==offStyle.label,'only the letter tells them apart ('+uoStyle.label+' / '+offStyle.label+')');
+  /* one cell of the month is put in UO so the sheet has one to draw */
+  const uoPlanNow=S.planForMonth(U.monthKey());
+  const uur=uoPlanNow.staff.findIndex(r=>/Bernadette/.test(r.name));
+  const uud=uoPlanNow.dates.findIndex(iso=>U.dow(iso)<5);
+  S.commit(d=>{ d.workingPlans[U.monthKey()].primary.staff[uur].codes[uud]='UO'; },{action:'test.uo.colour'});
+  const uoCellColor=(()=>{ const m=SH.monthlySVG(S.planForMonth(U.monthKey())).match(/fill="([^"]+)"[^>]*>UO</);
+    return m?m[1]:null; })();
+  ok(uoCellColor===offStyle.fg,'and the printed sheet letters UO in that grey ('+uoCellColor+')');
+
   /* ── 4 · UO counts as cover, and the sheet carries no second telling ── */
   const uoPlan=S.planForMonth(U.monthKey());
   const ri=uoPlan.staff.findIndex(r=>/Jeanne/.test(r.name));

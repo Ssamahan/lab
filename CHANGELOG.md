@@ -4,6 +4,17 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.66
+
+**UO is set in the same grey as OFF.**
+
+UO was drawn in gold to mark it as a decision somebody made by hand. On a sheet, though, a day at
+rest is a day at rest: UO and OFF now share one cell colour — `#FCFCFE` with the same grey ink — on
+the screen and on the printed sheet, and only the letter tells them apart. The key still spells out
+what UO means, and the ledger still counts it as a day that was worked.
+
+---
+
 ## What changed in 6.9.65
 
 **The signature block gets the leading its new size needs.**
