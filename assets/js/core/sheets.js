@@ -458,9 +458,12 @@ SH.monthlySVG=function(plan,opts){
     const labelSize=fitSize(label,sigW,sigSize,22);
     const nameSize=fitSize(name,sigW,sigSize,22);
     const roleSize=fitSize(role,sigW,sigSize,22);
-    g+=text(x,1652,label,{size:r2(labelSize),weight:600,fill:'#12203C'});
-    g+=text(x,1652+Math.round(sigSize*1.01),name,{size:r2(nameSize),weight:700,fill:'#12203C'});
-    g+=text(x,1652+Math.round(sigSize*1.01)+Math.round(sigSize*0.84),role,{size:r2(roleSize),fill:'#5B6474'});
+    /* at the contacts' size the three lines need the leading to go with it: a
+       34 px name sits on 39, and the role under it on 36 more */
+    const lead=Math.round(sigSize*1.14), roleLead=Math.round(sigSize*1.12);
+    g+=text(x,1646,label,{size:r2(labelSize),weight:600,fill:'#12203C'});
+    g+=text(x,1646+lead,name,{size:r2(nameSize),weight:700,fill:'#12203C'});
+    g+=text(x,1646+lead+roleLead,role,{size:r2(roleSize),fill:'#5B6474'});
   });
 
   return svgDoc(W,H,g);

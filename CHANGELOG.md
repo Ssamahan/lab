@@ -4,6 +4,17 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.65
+
+**The signature block gets the leading its new size needs.**
+
+6.9.64 set *Prepared by / Verified by / Approved by* and the roles under them at the size of the
+staff-contact names. The lines still sat where a 21 px footnote had put them, so at 34 px the name and
+the post closed on each other. The three lines are now spaced for their size — the label, the name
+under it and the post under that — and the block still closes well above the foot of the page.
+
+---
+
 ## What changed in 6.9.64
 
 **A blank tile, UO, and a sheet that gives its width back to the days.**
