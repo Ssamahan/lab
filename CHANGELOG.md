@@ -4,6 +4,20 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.79
+
+**A slimmer margin on the paper, and a legend laid four by four.**
+
+The print margin is **two thirds of what it was — 6 mm → 4 mm**, which takes the white band beside the
+sheet from about 8.8 mm to about 6 mm, the same on the left as on the right, since the sheet is centred
+in the printable box.
+
+The keys are laid **four rows of four blocks** instead of five to a row: sixteen keys, no ragged last
+row, and each block wide enough to hold its line at the size of the staff names — the keys, the contacts
+and the names in the grid are all set at 26 px.
+
+---
+
 ## What changed in 6.9.78
 
 **The working plan prints on one page again.**
