@@ -78,33 +78,35 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   /* ── 3 · the space between the names and day 1 ─────────────────────── */
   const planNow=S.buildPlan('2026-11');
   const s2=SH.monthlySVG(planNow);
-  const band=s2.match(/<rect x="96" y="454" width="([\d.]+)" height="42"/);
+  const band=s2.match(/<rect x="96" y="470" width="([\d.]+)" height="48"/);
   ok(!!band,'the staff band is drawn');
   const labelW=+band[1];
   ok(labelW<=560,'the label column gives width back to the days ('+labelW+' px, was 700)');
   ok(labelW>=480,'without becoming too narrow to set a name in');
   /* the grid starts exactly where the label column ends — no gap band */
   const gridX=96+labelW;
-  const firstDay=s2.match(new RegExp('<rect x="'+gridX+'" y="454" width="([\\d.]+)" height="42"'));
+  const firstDay=s2.match(new RegExp('<rect x="'+gridX+'" y="470" width="([\\d.]+)" height="48"'));
   ok(!!firstDay,'the first day column starts where the names end, with no white band between');
   /* every name still prints whole, on one line, at a legible size */
+  const keysM=s2.match(/<text x="[\d.]+" y="([\d.]+)"[^>]*>Keys:</);
+  const SUITE_BOT=keysM?+keysM[1]-20:1600;
   const at=(re)=>[...s2.matchAll(/<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>([^<]*)</g)]
     .map(m=>({x:+m[1],y:+m[2],size:+m[3],t:m[4]}));
   const names=at(/.*/);
   S.activeStaff().forEach(st=>{
-    const whole=names.filter(n=>n.t===st.name&&n.y>520&&n.y<1080);
+    const whole=names.filter(n=>n.t===st.name&&n.y>540&&n.y<SUITE_BOT);
     ok(whole.length===1,st.name.split(' ')[0]+'’s name is printed whole on one line'+(whole.length?'':' ('+whole.length+')'));
   });
   const longest=names.filter(n=>n.t==='Jeanne Claudine UWAYISABA')[0];
   ok(longest&&longest.size>=21,'the longest name still sets at a legible size ('+(longest?longest.size.toFixed(1):'—')+' px)');
   /* 0.76 em advance is the widest bold sans sets, so the name cannot run into Monday */
   const widest=S.activeStaff().map(st=>nameWidth(st.name,longest?longest.size:0)).sort((a,b)=>b-a)[0];
-  function nameWidth(str,size){ const hit=names.filter(n=>n.t===str&&n.y>520&&n.y<1080)[0]; return hit?str.length*hit.size*0.76:0; }
+  function nameWidth(str,size){ const hit=names.filter(n=>n.t===str&&n.y>540&&n.y<SUITE_BOT)[0]; return hit?str.length*hit.size*0.76:0; }
   ok(widest<=labelW-40,'the longest name clears the first day column ('+Math.round(widest)+' of '+(labelW-40)+' px)');
   /* the post under each name is fitted to the same column */
   S.activeStaff().forEach(st=>{
     if(!st.role) return;
-    const post=names.filter(n=>n.t.indexOf(st.role)===0&&n.y>520&&n.y<1100)[0];
+    const post=names.filter(n=>n.t.indexOf(st.role)===0&&n.y>540&&n.y<SUITE_BOT)[0];
     if(!post) return;
     ok(post.t.length*post.size*0.58<=labelW-40,
        st.name.split(' ')[0]+'’s post fits the column ('+Math.round(post.t.length*post.size*0.58)+' px)');

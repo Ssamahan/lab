@@ -4,6 +4,47 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.67
+
+**A4 landscape, the numbers as the department writes them, and a fairer rota.**
+
+*The sheet.* The working plan is drawn on A4 landscape and nothing else: the page is now 3200 × 2262
+(297 × 210 mm) instead of 3200 × 1876, so the rows take the height the paper actually has. The rows
+are up to 126 px tall instead of 90, every name is set as large as its column allows (34 px at the
+top, 22 px floor — was 42 px down to 21), the posts under them to 24 px, the day letters from 27 to
+31 and the day numbers from 26 to 30. The letter in a cell is set from the row's height but never
+wider than its own column, so `OFF` and `DN` can no longer run into the next day. The key and the
+signature block are measured from the foot of the page, so nothing is drawn off the paper.
+
+*The key.* UO reads `UO — Unattended off`. The bracketed paragraph that ran past the end of the key
+block is gone; the ledger and the tooltip still say what the day was.
+
+*The numbers.* Every telephone number on a screen or a sheet prints `07XX-XXX-XXX` — `0787-055-121`,
+not `0787055121` — through `U.fmtPhone`, which also accepts `+250…` and a bare `7…`. It is a display
+format: the register keeps the digits it stores.
+
+*The rota.* December's nights go to Dieudonné, Patrick and Jeanne Claudine; Bernadette carries none.
+That is a field on her record, `lightMonths`, not a rule buried in the generator: a month named there
+is one the plan turns to last, and only when nobody else can take the block. The November plan, which
+writes the first week of December, leaves her off that week too.
+
+The public holidays now turn around the bench from what the record already says. The nights worked
+over the three months before are read off their stored plans and weigh the next pick — the month
+being written is evened out first, and a tie goes to whoever has carried less. The arrival of a
+holiday is counted the same way, so the name who worked the last one does not get the next.
+
+A holiday falling Monday to Wednesday is never given to somebody with under six months' service
+(counted to the month from the date they joined): those go to the seniors, and the newer names take
+the Thursday and the Friday, and a weekend holiday only when nobody else is covering day and night
+that weekend. Where the bench has nobody senior free, the rule steps aside rather than leave the day
+uncovered.
+
+Rest before work (RBW) is no longer written on the Friday before a weekend when the person goes on
+leave straight after it — the leave is the rest, and the Monday off it promised was never theirs to
+take.
+
+---
+
 ## What changed in 6.9.66
 
 **UO is set in the same grey as OFF.**

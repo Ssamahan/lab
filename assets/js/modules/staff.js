@@ -91,7 +91,7 @@ function people(){
       +'<div class="row between"><span class="xs faint">Annual leave · FY '+U.esc(book.fy)+'</span><span class="mono xs">'+book.charged+' of '+book.pool+' days</span></div>'
       +UI.meter(book.pool?U.clamp(book.charged/book.pool*100,0,100):0,book.over?'rose':book.balance>5?'teal':'amber')
       +'<div class="row between" style="margin-top:7px"><span class="xs faint">Balance</span><span class="pill '+(book.balance>0?'teal':'slate')+'">'+book.balance+' days left'+(book.carry.days?' · '+book.carry.days+' carried':'')+'</span></div>'
-      +'<div class="row between" style="margin-top:9px"><span class="xs faint">'+U.esc(S.leaveEntitlement(s).label)+(s.sponsor?' · '+U.esc(s.sponsor):'')+'</span><span class="xs faint mono">'+U.esc(s.phone||'')+'</span></div>'
+      +'<div class="row between" style="margin-top:9px"><span class="xs faint">'+U.esc(S.leaveEntitlement(s).label)+(s.sponsor?' · '+U.esc(s.sponsor):'')+'</span><span class="xs faint mono">'+U.esc(U.fmtPhone(s.phone))+'</span></div>'
       +'</div></div>';
   }).join('')+'</div>'+workforce();
 }
@@ -107,9 +107,10 @@ function personDrawer(id){
   UI.drawer({title:s.name,eyebrow:'Staff record',sub:s.role+' · since '+U.fmtDate(s.joinDate||'2019-01-01'),wide:true,body:
     '<div class="row gap-lg" style="align-items:center;margin-bottom:16px"><div style="position:relative;flex:0 0 auto">'+U.avatar(s.name,'xl')
     +(A.can('edit')?'<button class="icon-btn" data-photo-upload title="Upload a profile photo" style="position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#241A06;border:2px solid var(--surface)">'+UI.ic('camera',12)+'</button>':'')+'</div>'
-    +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')+'</div>'
+    +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')
+    +((Array.isArray(s.lightMonths)&&s.lightMonths.length)?s.lightMonths.map(mk=>'<span class="pill slate" data-tip="'+U.esc(s.lightReason||'Kept off the night rota for this month')+'">off the '+U.esc(U.monthLabel?U.monthLabel(mk):mk)+' night rota</span>').join(''):'')+'</div>'
     +(shift.note?'<div class="xs faint" style="margin-top:5px">'+U.esc(shift.note)+'</div>':'')
-    +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(s.phone||'')+'</div>'
+    +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(U.fmtPhone(s.phone))+'</div>'
     +(A.can('edit')?'<div class="row gap-xs" style="margin-top:6px"><button class="btn xs" data-photo-upload>'+UI.ic('camera',11)+(s.photo?'Replace photo':'Add a photo')+'</button>'
     +(s.photo?'<button class="btn xs" data-photo-clear>'+UI.ic('x',11)+'Remove</button>':'')+'</div>':'')+'</div></div>'
     +'<div class="split-4">'+[['Joined',U.fmtDateShort(s.joinDate)],['Pattern',s.pattern||'—'],['Max nights',(s.maxNights||0)+'/mo'],['Contract',S.leaveEntitlement(s).label]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'

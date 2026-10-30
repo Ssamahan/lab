@@ -11,7 +11,7 @@ let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
    AA authorised · H public holiday · WD work desertion / unauthorised absence. */
 const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],
   ['OFF','At home (not on shift) · the days a night block is repaid'],
-  ['UO','UO · Unattended off — a rest day that was worked'],['RBW','Off duty · rest before work'],['TR','Training'],
+  ['UO','UO · Unattended off'],['RBW','Off duty · rest before work'],['TR','Training'],
   ['AL','AL · Annual leave'],['ML','ML · Maternal leave'],['PL','PL · Paternal leave'],
   ['SL','SL · Sick leave'],['CL','CL · Circumstantial leave'],['AA','AA · Authorised leave'],
   ['H','H · Public holiday'],['WD','WD · Work desertion (unauthorised absence)'],
@@ -1467,7 +1467,7 @@ M.render=function(root,params){
 M.staffDrawer=function(s){
   const last=(S.db().trainings.filter(t=>(t.attendees||[]).includes(s.id))).sort((a,b)=>String(b.start).localeCompare(String(a.start)))[0];
   return '<div class="row" style="gap:12px;margin-bottom:14px">'+U.avatar(s.name,'lg')+'<div><div class="strong">'+U.esc(s.name)+'</div><div class="xs faint">'+U.esc(s.role)+' · joined '+U.fmtDate(s.joinDate)+'</div></div></div>'
-   +'<div class="split-2">'+[['Contract',s.contract],['Pattern',s.pattern],['Max nights',s.maxNights],['Consecutive nights',s.maxConsecN],['Phone',s.phone],['Email',s.email]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11px">'+U.esc(v==null?'—':v)+'</span></div>').join('')+'</div>'
+   +'<div class="split-2">'+[['Contract',s.contract],['Pattern',s.pattern],['Max nights',s.maxNights],['Consecutive nights',s.maxConsecN],['Phone',U.fmtPhone(s.phone)],['Email',s.email]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11px">'+U.esc(v==null?'—':v)+'</span></div>').join('')+'</div>'
    +'<div class="hint" style="margin-top:12px">'+U.esc(s.note||'')+'</div>'
    +'<div class="section-head"><h2>Last training</h2></div><p class="small muted">'+(last?U.esc(last.title)+' · '+U.fmtDate(last.start):'No training recorded')+'</p>';
 };

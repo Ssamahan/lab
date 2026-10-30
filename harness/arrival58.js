@@ -78,8 +78,11 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   ok(/Hatched — before employment/.test(svg),'and the key explains the hatch');
   ok(!/>BE</.test(svg),'the hatch carries no letter — a letter would read as a shift');
   const names=S.activeStaff().map(st=>st.name);
+  /* the grid is A4-tall now, so the body runs from the header band to the keys */
+  const keysM=svg.match(/<text x="[\d.]+" y="([\d.]+)"[^>]*>Keys:</);
+  const bodyBot=keysM?+keysM[1]-20:1600;
   const order=[...svg.matchAll(/<text x="120" y="([\d.]+)"[^>]*>([^<]+)</g)]
-    .filter(m=>+m[1]>520&&+m[1]<1080).map(m=>m[2].trim()).filter(t=>names.indexOf(t)>=0);
+    .filter(m=>+m[1]>540&&+m[1]<bodyBot).map(m=>m[2].trim()).filter(t=>names.indexOf(t)>=0);
   ok(order[0]==='Kelvin SAMAHANI','the sheet runs in roster order, manager first ('+order.slice(0,3).join(' · ')+')');
   ok(order[order.length-1]==='Aurelie YANSONEYE','and the weekend technologist last');
   ok(order.indexOf('Jeanne Claudine UWAYISABA')===order.indexOf('Bernadette MUHAWENIMANA')+1,
@@ -98,7 +101,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   ok(marie.phone==='0784063985','her phone number is recorded ('+marie.phone+')');
   ok(marie.email==='uwayjeanneclaudine@gmail.com','and her email address ('+marie.email+')');
   const contact=w.LS.sheets.monthlySVG(S.planForMonth('2026-10'));
-  ok(contact.indexOf('0784063985')>=0,'the contact list prints her number, not a dash');
+  ok(contact.indexOf(U.fmtPhone('0784063985'))>=0,'the contact list prints her number, not a dash');
   ok(!/UWAYISABA[^<]*<\/text>[\s\S]{0,400}—/.test(contact),'and nothing reads “—” against her name');
 
   /* ── 10 · she is Jeanne Claudine, everywhere ───────────────────────── */

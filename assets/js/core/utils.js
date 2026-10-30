@@ -40,6 +40,19 @@ U.fmtDate = iso=>{ if(!iso) return '—'; const d=U.parseISO(String(iso).slice(0
 U.fmtDateShort = iso=>{ if(!iso) return '—'; const d=U.parseISO(String(iso).slice(0,10)); return d.getDate()+' '+M3[d.getMonth()]; };
 U.fmtDT = iso=>{ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return String(iso); return d.getDate()+' '+M3[d.getMonth()]+' · '+pad(d.getHours())+':'+pad(d.getMinutes()); };
 U.fmtTime = (d,opts)=> new Date(d||Date.now()).toLocaleTimeString('en-GB',Object.assign({hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Africa/Kigali'},opts||{}));
+/* Rwandan numbers are read 07XX-XXX-XXX. The register is typed as ten digits —
+   0787055121 — and printed in groups so a number can be read aloud across a bench.
+   Anything that is not a ten-digit mobile, or a +250 number that reduces to one, is
+   printed exactly as it was typed rather than mangled into a shape it does not have. */
+U.fmtPhone = v=>{
+  if(v==null||v==='') return '';
+  const raw=String(v).trim();
+  let d=raw.replace(/[^0-9]/g,'');
+  if(d.length===12 && d.indexOf('250')===0) d=d.slice(3);
+  if(d.length===10 && d.slice(0,2)==='07') return d.slice(0,4)+'-'+d.slice(4,7)+'-'+d.slice(7);
+  if(d.length===9 && d[0]==='7') return '0'+d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6);
+  return raw;
+};
 U.fmtDateLong = (d)=> new Date(d||Date.now()).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Africa/Kigali'});
 U.relTime = iso=>{
   if(!iso) return '—';
