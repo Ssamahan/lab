@@ -4,6 +4,23 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.77
+
+**Compact blocks, one type size, and a plural heading.**
+
+- The key blocks and the contact blocks are **three fifths of the height they stood at** — 116 → 70 px —
+  and the air between two rows comes down with them (13 → 8 px), so both lists keep their proportion and
+  one pitch.
+- **One voice under the table:** the keys and the staff contacts are set at the size of the staff names
+  in the grid. The legend is laid five blocks to a row so a block has the width to hold its own line at
+  that size, and a phone number is now measured at the advance of the mono face it is printed in — that
+  wrong measure was what shrank a number below its name beside the longest name on the establishment.
+- The name column is headed **Names**, on the sheet and in the XLSX.
+- **Republic of Rwanda** and **Ruli District Hospital** are set a step larger (26 → 31 px) so the
+  letterhead belongs to the same page as the plan.
+
+---
+
 ## What changed in 6.9.76
 
 **The keys follow the table again, and the spacing goes back to what it was signed off at.**

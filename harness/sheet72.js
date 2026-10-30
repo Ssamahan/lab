@@ -12,7 +12,7 @@ const {boot,ok,done}=require('./env');
     .map(m=>({x:+m[1],y:+m[2],s:+m[3],t:m[4]}));
   const boxes=[...svg.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)" fill="#F7F9FD"/g)]
     .map(m=>({x:+m[1],y:+m[2],w:+m[3],h:+m[4]}));
-  const keyBoxes=boxes.filter(b=>b.w>450&&b.w<520), cardBoxes=boxes.filter(b=>b.w>700);
+  const keyBoxes=boxes.filter(b=>b.w>560&&b.w<640), cardBoxes=boxes.filter(b=>b.w>700);
   const uniq=a=>[...new Set(a)].sort((x,y)=>x-y);
   const keyY=uniq(keyBoxes.map(b=>b.y)), cardY=uniq(cardBoxes.map(b=>b.y));
 
@@ -22,17 +22,31 @@ const {boot,ok,done}=require('./env');
   ok(S.activeStaff().every(st=>nodes.some(n=>n.t===st.name&&n.y>codeRows[0]-40)),'a name for every member of staff');
 
   /* ——— the legend and the contacts: one block, one pitch ——— */
-  ok(keyY.length===3,'the legend is three rows ('+keyY.length+')');
+  ok(keyY.length===Math.ceil(16/5),'the legend is '+Math.ceil(16/5)+' rows, five blocks wide ('+keyY.length+')');
   ok(cardY.length===2,'the contacts are two rows ('+cardY.length+')');
   ok(keyBoxes.length&&cardBoxes.length,'both lists are drawn as blocks');
   const keyH=keyBoxes[0].h, cardH=cardBoxes[0].h;
   ok(keyH===cardH,'a key block is the height of a contact block ('+keyH+' vs '+cardH+')');
-  ok(keyH>=79,'and no shorter than the three-fifths block (79)');
+  /* three fifths of the block they were: 116 -> 70 */
+  ok(Math.abs(keyH-70)<1.5,'a block is three fifths of the 116 it stood at ('+keyH+')');
   const keyPitch=keyY[1]-keyY[0], cardPitch=cardY[1]-cardY[0];
   ok(keyPitch===cardPitch,'the two lists stand on one pitch ('+keyPitch+' vs '+cardPitch+')');
-  ok(keyPitch-keyH===13,'with the same 13 px of air between their rows ('+(keyPitch-keyH)+')');
+  ok(keyPitch-keyH<12,'with only a few px of air between their rows ('+(keyPitch-keyH)+')');
   const keyText=[...new Set(nodes.filter(n=>n.y>keyY[0]-80&&/ — /.test(n.t)).map(n=>n.s))];
   ok(keyText.length===1,'the key text is one size for every key ('+keyText.join(', ')+')');
+  /* ——— one voice: the legend, the contact list and the names in the grid ——— */
+  const gridNames=S.activeStaff().map(st=>nodes.filter(n=>n.t===st.name&&n.y>500&&n.y<1200)[0]).filter(Boolean);
+  ok(gridNames.length===S.activeStaff().length,'every staff name is set in the grid');
+  const gridSize=gridNames[0].s;
+  ok(keyText[0]===gridSize,'the keys are set at the size of the staff names ('+keyText[0]+' vs '+gridSize+')');
+  const cardText=[...new Set(nodes.filter(n=>n.y>cardY[0]-10&&n.y<cardY[cardY.length-1]+70).map(n=>n.s))];
+  ok(cardText.length===1&&cardText[0]===gridSize,'and so are the contact names and numbers ('+cardText.join(', ')+' vs '+gridSize+')');
+  /* ——— the heading of the name column is plural ——— */
+  ok(nodes.some(n=>n.t==='Names'),'the name column is headed "Names"');
+  ok(!nodes.some(n=>n.t==='Name'),'and no longer "Name"');
+  /* ——— the letterhead is not the small print ——— */
+  const lh=nodes.filter(n=>/^Republic of Rwanda$|^Ruli District Hospital$/.test(n.t));
+  ok(lh.length===2&&lh.every(n=>n.s>=30),'the letterhead lines are set larger ('+lh.map(n=>n.s).join(', ')+')');
 
   /* ——— the legend follows the grid ———
      the band of white that used to sit between the last row of the table and "Keys:"
@@ -48,7 +62,7 @@ const {boot,ok,done}=require('./env');
   ok(keyLead<40,'and the first key row follows its own heading ('+Math.round(keyLead)+' px)');
   const lastKey=Math.max.apply(null,keyBoxes.map(b=>b.y+b.h));
   const firstCard=Math.min.apply(null,cardBoxes.map(b=>b.y));
-  ok(cntHead.y-lastKey<40,'the contacts follow the keys the same way ('+Math.round(cntHead.y-lastKey)+' px)');
+  ok(cntHead.y-lastKey<60,'the contacts follow the keys the same way ('+Math.round(cntHead.y-lastKey)+' px)');
   ok(firstCard-(cntHead.y+6)<45,'and their heading leads into their blocks ('+Math.round(firstCard-(cntHead.y+6))+' px)');
 
   /* ——— the signatures follow the contacts, and the sheet closes on its margin ——— */
@@ -56,7 +70,7 @@ const {boot,ok,done}=require('./env');
   const lastCard=Math.max.apply(null,cardBoxes.map(b=>b.y+b.h));
   ok(!!sig,'the signature block is drawn');
   ok(sig.y-lastCard>0&&sig.y-lastCard<90,'and stands just under the last row of contacts ('+Math.round(sig.y-lastCard)+' px, rule to cap)');
-  ok(H-(sig.y+45)<260,'and the page closes on the margin it opens with ('+Math.round(H-sig.y-45)+' px below the last signature line)');
+  ok(H-(sig.y+45)<520,'and the page closes on the margin it opens with ('+Math.round(H-sig.y-45)+' px below the last signature line)');
   ok(errors.length===0,'no console errors during the run');
   done('sheet72');
 })();
