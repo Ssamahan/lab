@@ -37,6 +37,9 @@ const {boot,ok,done}=require('./env');
   const cRows=[...new Set(body.filter(n=>/^[A-Z][a-z\u00e9]/.test(n.t)).map(n=>n.y))];
   ok(cRows.length===2,'the contacts are two rows ('+cRows.length+')');
   ok(Math.abs((cRows[1]-cRows[0])-92)<2,'the two rows sit close together, on a 92 px pitch ('+(cRows[1]-cRows[0])+' px)');
+  /* the keys are spaced exactly like the contacts — same block, same pitch, same air */
+  ok(keyRows[1]-keyRows[0]===cRows[1]-cRows[0],'the keys stand on the same pitch as the contacts ('+keyRows[1]-keyRows[0]+' vs '+(cRows[1]-cRows[0])+')');
+  ok(keyRows.length===3,'and the legend is three rows, not spread over the page');
   /* the list follows its own heading closely, and the signatures follow the list */
   ok(cRows[0]-cnt.y<100,'the first block follows the "Staff contacts:" heading closely ('+Math.round(cRows[0]-cnt.y)+' px)');
   const sigs=nodes.filter(n=>/^Prepared by:$/.test(n.t))[0];

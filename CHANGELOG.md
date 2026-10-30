@@ -4,6 +4,21 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.74
+
+**The keys are spaced like the contacts.**
+
+The legend is no longer spread down the page to fill it. A key block is the height of a contact
+block (79 px) and the two lists stand on the **same 92 px pitch with the same 13 px of air between
+their rows**, so the keys read as a list under the grid and the contacts as a list under their
+heading — one setting, not two.
+
+What the compact lists leave over is not turned into air between rows: it is set as a single section
+break under the grid, and the rest stands as the sheet's own bottom margin. The signature block
+still follows the last row of contacts.
+
+---
+
 ## What changed in 6.9.73
 
 **The contacts are a list again, and the signatures follow them.**
