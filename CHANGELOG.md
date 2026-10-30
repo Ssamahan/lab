@@ -4,6 +4,18 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.73
+
+**The contacts are a list again, and the signatures follow them.**
+
+The two rows of staff contacts now sit on a 92 px pitch instead of being spread down the page, and the
+list opens 34 px under its own heading instead of hanging below it. The signature block no longer waits
+at the foot of the paper: the rule is drawn 18 px under the last row of contacts, so the sheet closes on
+the names it signs. Whatever height that leaves over is given to the key grid as air between the blocks
+— the page is closed by the keys it has to explain, not by a band of white paper.
+
+---
+
 ## What changed in 6.9.72
 
 **The rows of the working plan are compact, and the key blocks have grown a fifth.**

@@ -356,10 +356,18 @@ SH.monthlySVG=function(plan,opts){
      the blocks — the keys grow into the page rather than a white band opening under
      the contacts — and the little that is left after that goes to the contact rows,
      within limits, so nothing floats. */
-  const KEY_PITCH=KEY_H+8;                 /* the blocks keep their own pitch */
-  let CONTACT_PITCH=CONTACT_PITCH0;
-  const spare=()=>avail-(AFTER_GRID+KEY_ROWS*KEY_PITCH+2*CONTACT_PITCH+SIG_ROOM);
-  while(CONTACT_PITCH<150 && spare()>2) CONTACT_PITCH++;
+  /* the contact rows sit close to each other, as a list, not spread down the page */
+  const CONTACT_PITCH=CONTACT_H+13;
+  /* Whatever the page has left after the contacts and the signature block that
+     follows them is added to the key grid as air between the blocks: the sheet is
+     closed by the keys it has to explain, never by white paper at the foot. */
+  /* the signature rule, its three lines and the margin under them: measured, not
+     guessed, so the last line closes within a hand's width of the foot */
+  const SIG_ROOM2=46+34+26+12+26+8+30;
+  const bottomAt=kp=>gridTop+bandH+dateH+rows.length*rowH+58+30+KEY_ROWS*kp+22+34
+    +(CONTACT_PITCH-13+CONTACT_H)+SIG_ROOM2;
+  let KEY_PITCH=KEY_H+8;
+  while(KEY_PITCH<152 && bottomAt(KEY_PITCH+1)<=H-40) KEY_PITCH++;
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
 
   /* ——— one size for the names, one size for the letters ———
@@ -529,14 +537,16 @@ SH.monthlySVG=function(plan,opts){
 
   /* staff contacts */
   g+=text(pad,y,'Staff contacts:',{size:26,weight:700,fill:'#12203C'});
-  y+=28;
+  y+=34;                                  /* the list follows its own heading closely */
   /* contact cards: name + number, two columns, gold left bar — measured off the
      printed register (66 px tall, 76 px pitch, 12 px inside padding) */
   /* card height fills the run down to the signature block (max 92 px) so the page
      never opens a white gap between contacts and signatures */
   /* Cards are spread down to the signature block, as on the printed register:
      pitch fills the run, the card itself stays compact and legible. */
-  const sigTop0=H-186;      /* the signature rule sits just above the foot of the page */
+  /* The signature block follows the last row of contacts rather than sitting at the
+     foot of the page: the sheet closes on the thing it signs instead of on a band of
+     white paper, and the block is never further from the list than it needs to be. */
   /* the contacts must stop above the signature rule, whatever the key block above
      them costs — so the number of columns follows the space that is actually left,
      and a card never shrinks below the size a phone number stays readable at */
@@ -547,16 +557,13 @@ SH.monthlySVG=function(plan,opts){
      standing on one line each, not as a ragged line of text. The block is made tall
      enough to fill the space between the keys and the signature rule, because white
      paper between a list and the signatures is paper wasted. */
-  const space=Math.max(120,sigTop0-24-y);
   const contactRows=Math.min(2,Math.max(1,rows.length));
   const contactCols=Math.max(1,Math.ceil(rows.length/contactRows));
   /* the block takes the run down to the signature rule: the rows are spread evenly
      over what is left, so a compact card never leaves a white band under the list */
   const contactPitch=CONTACT_PITCH;
   const contactH=CONTACT_H;
-  /* whatever the fixed pitch leaves over is shared above and below the two rows, so
-     the list sits in the middle of the run instead of hugging the keys */
-  const contactStart=y+Math.max(0,Math.min(90,(space-contactRows*contactPitch)/2));
+  const contactStart=y;
   /* One size for every contact name and one for every number — a register sets a
      column at one size, and a row of four blocks whose names are four sizes reads as
      an accident. The name size is the largest that sets the longest name of the
@@ -604,10 +611,11 @@ SH.monthlySVG=function(plan,opts){
     g+=nameAndPhone(textX,yy+contactH/2+Math.round(contactNameSize*0.36),textW_,r.name,U.fmtPhone(st.phone),
       {pref:contactNameSize,min:contactNameSize,numPref:contactPhoneSize,phoneRight:true});
   });
-  y=contactStart+contactRows*contactPitch+10;
+  const contactEnd=contactStart+contactRows*contactPitch-13+CONTACT_H;
+  y=contactEnd;
 
-  /* signatures */
-  const sigTop=sigTop0;
+  /* signatures — set just under the contacts they follow */
+  const sigTop=contactEnd+18;
   g+=rect(pad,sigTop,W-pad*2,2,'#EDE3C7');
   const sigs=[
     ['Prepared by:',s.prepared||'',s.preparedRole||'Laboratory Manager'],
@@ -630,7 +638,7 @@ SH.monthlySVG=function(plan,opts){
     /* at the contacts' size the three lines need the leading to go with it: a
        34 px name sits on 39, and the role under it on 36 more */
     const lead=Math.round(sigSize*1.14), roleLead=Math.round(sigSize*1.12);
-    const base=sigTop+34;
+    const base=sigTop+28;
     g+=text(x,base,label,{size:r2(labelSize),weight:600,fill:'#12203C'});
     g+=text(x,base+lead,name,{size:r2(nameSize),weight:700,fill:'#12203C'});
     g+=text(x,base+lead+roleLead,role,{size:r2(roleSize),fill:'#5B6474'});

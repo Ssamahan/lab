@@ -36,7 +36,15 @@ const {boot,ok,done}=require('./env');
   const body=nodes.filter(n=>n.y>cnt.y&&n.y<sigY);
   const cRows=[...new Set(body.filter(n=>/^[A-Z][a-z\u00e9]/.test(n.t)).map(n=>n.y))];
   ok(cRows.length===2,'the contacts are two rows ('+cRows.length+')');
-  ok(Math.abs((cRows[1]-cRows[0])-150)<2||(cRows[1]-cRows[0])<170,'and their block is the compact 79 px one');
+  ok(Math.abs((cRows[1]-cRows[0])-92)<2,'the two rows sit close together, on a 92 px pitch ('+(cRows[1]-cRows[0])+' px)');
+  /* the list follows its own heading closely, and the signatures follow the list */
+  ok(cRows[0]-cnt.y<100,'the first block follows the "Staff contacts:" heading closely ('+Math.round(cRows[0]-cnt.y)+' px)');
+  const sigs=nodes.filter(n=>/^Prepared by:$/.test(n.t))[0];
+  ok(!!sigs,'the signature block is drawn');
+  if(sigs){
+    ok(sigs.y-cRows[1]<160,'and stands just under the last row of contacts ('+Math.round(sigs.y-cRows[1])+' px)');
+    ok(sigs.y<2263-100,'so the sheet does not close on a band of white paper (foot at '+Math.round(sigs.y)+')');
+  }
   ok(errors.length===0,'no console errors during the run');
   done('sheet72');
 })();
