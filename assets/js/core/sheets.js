@@ -62,6 +62,35 @@ function fitSize(str,maxWidth,preferred,min){
   const byWidth=maxWidth/(len*0.58);
   return Math.max(min||10,Math.min(preferred,byWidth));
 }
+/* Break a line at its spaces so a long post can sit at the key size instead of
+   being shrunk below it. Anything that still will not fit after `maxLines` is
+   shrunk by the caller's own check. */
+function wrapLines(str,w,size,maxLines){
+  /* an entry that carries two parts — the post, then the acting for somebody — is
+     broken between the parts before it is broken inside one of them */
+  const segs=String(str||'').split(/\s+·\s+/).filter(Boolean);
+  if(segs.length>1){
+    const out=[];
+    segs.forEach(sg=>wrapLines(sg,w,size,1).forEach(l=>out.push(l)));
+    return out;
+  }
+  const words=String(str||'').trim().split(/\s+/).filter(Boolean);
+  const out=[]; let cur='';
+  const tooWide=s=>s.length*size*0.58>w;
+  words.forEach(word=>{
+    const trial=cur?cur+' '+word:word;
+    if(cur && tooWide(trial)){ out.push(cur); cur=word; }
+    else cur=trial;
+  });
+  if(cur) out.push(cur);
+  const cap=maxLines||2;
+  if(out.length>cap){
+    const rest=out.slice(cap-1).join(' ');
+    out.length=cap-1;
+    out.push(rest);
+  }
+  return out;
+}
 const r2=n=>Math.round(n*100)/100;
 function rect(x,y,w,h,fill,o){
   o=o||{};
@@ -132,17 +161,27 @@ SH._h.nameBlock=nameBlock;
    and left it unreadable on a printed sheet. The number now sits beside the name at
    the same weight of legibility, and a name that genuinely runs long is set smaller
    rather than wrapped — the printed register never wraps a contact either. */
+/* The number sits beside the name, close enough to be read as one entry. It used to
+   be set against the far edge of the card, which on a four-column contact block left
+   the number a hand's width from the name it belongs to. The name takes what it
+   needs, the number follows it after a short gap, and only a long name pushes the
+   number out. */
 function nameAndPhone(x,y,w,name,phone,o){
   o=o||{};
   const pref=o.pref||32, min=o.min||19;
   const num=String(phone||'—');
   const numSize=Math.max(20,Math.min(o.numPref||30, pref));
   const numW=textW(num,numSize);
-  const gap=Math.max(18,numSize*0.7);
-  const nameW=Math.max(120,w-numW-gap);
-  const size=Math.max(min,Math.min(pref, nameW/Math.max(1,String(name||'').length*ADV)));
+  const gap=Math.max(26,numSize*1.1);
+  /* the name may use at most three fifths of the card, so the number always keeps a
+     place beside it rather than being pushed to the edge */
+  const nameCap=Math.max(160,Math.min(w-numW-gap, w*0.62));
+  const size=Math.max(min,Math.min(pref, nameCap/Math.max(1,String(name||'').length*ADV)));
+  const nameW=textW(String(name||''),size);
   return text(x,y,String(name||''),{size:size,weight:600,fill:o.fill||'#12203C'})
-    +(o.phoneRight===false?'':text(x+w,y,num,{size:numSize,weight:600,anchor:'end',fill:'#12203C',mono:true}));
+    +(o.phoneRight===true
+      ? text(x+w,y,num,{size:numSize,weight:600,anchor:'end',fill:'#12203C',mono:true})
+      : text(x+nameW+gap,y,num,{size:numSize,weight:600,fill:'#12203C',mono:true}));
 }
 SH._h.nameAndPhone=nameAndPhone;
 
@@ -283,7 +322,7 @@ SH.monthlySVG=function(plan,opts){
      days that matter. 520 px still sets the longest name on the establishment on
      one line; the post beneath it is fitted to the column, so a long one shrinks
      rather than running into Monday. */
-  const labelW=520, gridX=pad+labelW;
+  const labelW=560, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
   const gridTop=opts.gridTop||470, bandH=48, dateH=40;
   /* Everything under the grid — the keys, the contacts and the three signatures —
@@ -295,6 +334,22 @@ SH.monthlySVG=function(plan,opts){
     Math.round((H-gridTop-bandH-dateH-lower)/Math.max(1,rows.length))));
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
 
+  /* ——— one size for the names, one size for the letters ———
+     The letters in the grid and the staff names beside them read as one setting, so
+     the sheet is a table and not a poster: the code is no larger than the name it
+     belongs to. The size is the largest that still sets the longest name of the
+     establishment on one line in the label column and the longest code (OFF, RBW,
+     ABS) inside a day column — 24 px on a full establishment, and it grows or
+     shrinks with both columns.
+     The post under a name is set at the size of the key text, not at a size of its
+     own: the two sit on the same sheet and a reader takes them as the same voice. */
+  const longestName=rows.reduce((a,r)=>String(r.name||'').length>String(a).length?String(r.name):a,'');
+  const widestCode=SH.keyOrder.map(c=>CODE[c]&&CODE[c].label).filter(Boolean)
+    .reduce((a,l)=>String(l).length>String(a).length?String(l):a,'');
+  const nameFit=(labelW-56)/Math.max(1,longestName.length*ADV);
+  const codeFit=(colW-16)/Math.max(1,widestCode.length*0.58);
+  const cellSize=Math.max(18,Math.floor(Math.min(34,nameFit,codeFit)));
+  const roleSizeAll=22;                 /* the key text size, to the pixel */
   let g='';
   g+='<rect width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
   g+=letterhead(s,{width:W,pad:pad,top:18,rule1:288});
@@ -323,15 +378,10 @@ SH.monthlySVG=function(plan,opts){
     g+=rect(x,gridTop,colW,bandH,fill);
     g+=rect(x,gridTop+bandH,colW,dateH,c.weekend?'#FBF1DA':'#F4F6FA');
     g+=rect(x,gridTop,colW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
-    g+=text(x+colW/2,gridTop+bandH/2+11,SH.dowLetter(c.dow),{size:31,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
-    g+=text(x+colW/2,gridTop+bandH+dateH/2+10,String(c.day),{size:30,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,gridTop+bandH/2+10,SH.dowLetter(c.dow),{size:cellSize+2,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
+    g+=text(x+colW/2,gridTop+bandH+dateH/2+9,String(c.day),{size:cellSize,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
   });
 
-  /* Every name is set as large as the label column allows — a short name fills the
-     row it sits in, a long one steps down to 22 px rather than wrap — and the floor
-     is high enough to read on a printed A4 sheet. */
-  const nameSizeAll=34;
-  const roleSizeAll=22;
 
   /* body */
   rows.forEach((r,ri)=>{
@@ -351,13 +401,19 @@ SH.monthlySVG=function(plan,opts){
        fits across it at the size below, so it is never broken. The post under it is
        a step smaller and in muted ink, so the name always reads first. */
     const roleText=(role+reqLine).replace(/^ · /,'');
-    const nameSize=nameSizeAll;
-    const nameBase=roleText? y+rowH/2-6 : y+rowH/2+Math.round(nameSize*0.36);
-    g+=nameBlock(pad+24,nameBase,labelW-56,r.name,{pref:nameSize,min:22});
-    if(roleText){
-      const roleSize=fitSize(roleText,labelW-56,roleSizeAll,15);
-      g+=text(pad+24,y+rowH/2+Math.round(roleSize)+12,roleText,{size:r2(roleSize),weight:500,fill:'#5B6474'});
-    }
+    const nameSize=cellSize;
+    /* the post is set at the key size — it wraps onto a second line rather than
+       shrinking below it, because a post half the size of the key beside it reads as
+       a footnote, which is not what it is */
+    const roleLines=roleText?wrapLines(roleText,labelW-56,roleSizeAll,2):[];
+    const blockH=Math.round(nameSize*1.12+(roleLines.length?6+roleLines.length*roleSizeAll*1.24:0));
+    const blockTop=y+Math.max(4,Math.round((rowH-blockH)/2));
+    const nameBase=blockTop+Math.round(nameSize*0.84);
+    g+=nameBlock(pad+24,nameBase,labelW-56,r.name,{pref:nameSize,min:Math.min(22,cellSize)});
+    roleLines.forEach((ln,li)=>{
+      g+=text(pad+24,Math.round(nameBase+6+roleSizeAll*1.02+li*roleSizeAll*1.24),ln,
+        {size:roleSizeAll,weight:500,fill:'#5B6474'});
+    });
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
       let code=(codes[i]||'').trim();
@@ -386,12 +442,12 @@ SH.monthlySVG=function(plan,opts){
       }
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       if(st && code && !st.hatch){
-        /* The letter is set from the row's own height — a taller row is a bigger
-           letter, which is the point of the taller row — but never wider than the
-           day column it sits in, so OFF and DN cannot run into the next day. */
-        const big=Math.max(32,Math.min(56,Math.round(rowH*0.46)));
-        const cSize=Math.max(15,fitSize(st.label,colW-16,big,15));
-        g+=text(x+colW/2,y+rowH/2+Math.round(cSize*0.34),st.label,{size:r2(cSize),weight:700,anchor:'middle',fill:st.fg});
+        /* The letter is set at the size of the staff names, so the grid and the names
+           read as one table. It is never wider than its own day column, which the
+           size above already guarantees; the guard stays for an unusually long code
+           somebody adds later. */
+        const cSize=Math.min(cellSize,fitSize(st.label,colW-16,cellSize,14));
+        g+=text(x+colW/2,y+rowH/2+Math.round(cSize*0.35),st.label,{size:r2(cSize),weight:700,anchor:'middle',fill:st.fg});
       }
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
@@ -441,12 +497,13 @@ SH.monthlySVG=function(plan,opts){
   /* the contacts must stop above the signature rule, whatever the key block above
      them costs — so the number of columns follows the space that is actually left,
      and a card never shrinks below the size a phone number stays readable at */
+  /* Two columns, always: a pair of contacts to a row. Spreading the list into three
+     or four columns made each card twice as wide, and the number then sat at the far
+     edge instead of beside the name it belongs to. The pitch is what changes with
+     the space — the cards stay compact and the block stops where it stops. */
   const space=Math.max(120,sigTop0-24-y);
-  let contactCols=2, contactRows=Math.ceil(rows.length/2), contactPitch=space/contactRows;
-  [3,4].forEach(cols=>{
-    if(contactPitch>=64) return;
-    contactCols=cols; contactRows=Math.ceil(rows.length/cols); contactPitch=space/contactRows;
-  });
+  const contactCols=2, contactRows=Math.ceil(rows.length/contactCols);
+  const contactPitch=Math.max(56,Math.min(112,space/contactRows));
   const contactH=Math.max(52,Math.min(96,contactPitch-12));
   const contactNameSize=Math.max(22,Math.min(40,contactH*0.55));
   const contactPhoneSize=Math.max(20,Math.min(34,contactH*0.48));

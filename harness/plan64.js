@@ -156,8 +156,9 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
     const t=textAt.filter(x=>x.t===l)[0];
     ok(!!t&&Math.abs(t.size-contactName.size)<0.5,l+' is set at that same size ('+(t?t.size.toFixed(1):'—')+')');
   });
+  /* the post under a signature, not the post under the same name in the grid */
   ['Laboratory Manager','Clinical Director','Human Resources Officer'].forEach(l=>{
-    const t=textAt.filter(x=>x.t===l)[0];
+    const t=textAt.filter(x=>x.t===l&&x.y>sigName.y-20)[0];
     ok(!!t&&Math.abs(t.size-contactName.size)<0.5,l+' too ('+(t?t.size.toFixed(1):'—')+')');
   });
 
