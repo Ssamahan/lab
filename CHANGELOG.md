@@ -4,6 +4,44 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.68
+
+**The weekly roster reads the working plan of every day in the week — and the weekend is one duty.**
+
+*The plan was read through one month.* The weekly roster took its shift codes from the plan of
+whichever month was selected above it, so the week of 26 October 2026 — Monday to Friday in October,
+Saturday and Sunday in November — read both days from October and found nothing on the weekend. The
+console then fell back to the contract pattern, which is how a name the plan has at home appeared on a
+Sunday. Every day is now read from its own month's plan: the week covers both months, the grid and the
+printed sheet say which plans were read, and the New Year week (28 Dec – 3 Jan) does the same.
+
+*A newcomer is never invented into the weekend.* Jeanne Claudine arrived on 6 October. The plan leaves
+her off Saturday 31 October and Sunday 1 November, so the roster now shows her nowhere near them.
+
+*The weekend is one duty, not seven benches.* A Saturday, a Sunday and a public holiday are worked by
+whoever the plan puts on the day, over the whole unit. Auto-allocate used to skip the weekend columns
+and leave seven empty benches per day, then report them as empty slots. It now clears its own weekend
+cells (a by-hand allocation there is kept and counted), the columns are marked **unit duty**, and the
+empty-slot count ignores them. Clicking a weekend bench explains the rule instead of opening the
+allocator.
+
+*A day duty row, from the plan.* The grid and the printed week now carry **Day duty**, above the night
+row: numbered on weekdays, named on the weekend, so the Sunday duty is visible in one place.
+
+*Auto-allocate fills every bench.* It filled the posts it knew and then left whatever remained empty —
+Parasitology and TB/Molecular went unfilled on a four-person day. Every bench now gets a name, the
+person on duty who may work it and is carrying the fewest benches already, and anything left open is
+named in the message rather than counted as a silent skip.
+
+*Auto nights never writes over the plan.* The night row is the plan's. Auto nights now proposes names
+only for the days the plan leaves without one; when the plan names every night of the week, it says so
+and writes nothing.
+
+*A name is enough.* `S.shiftState` accepts the name printed on the plan as well as the record id, so a
+caller reading the sheet can no longer get "unknown" for somebody who is plainly on duty.
+
+---
+
 ## What changed in 6.9.67
 
 **A4 landscape, the numbers as the department writes them, and a fairer rota.**

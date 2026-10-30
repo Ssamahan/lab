@@ -331,6 +331,28 @@ function shiftWeek(delta){
 }
 function allocationOf(start){ const w=S.db().unitRosters&&S.db().unitRosters[start]; return (w&&w.assignments)||{}; }
 
+/* ——— what the working plan says about a day ————————————————————————————
+   The weekly roster reads the working plan of the day's own month, one day at a
+   time. A week that turns the month — the week of 26 October runs into
+   1 November — therefore reads both plans instead of taking the whole week from
+   whichever month happened to be selected above, and it never takes the plan of
+   the selected month for a day that belongs to the next one. */
+function holidayAt(iso){ return ((S.db().holidays)||[]).find(h=>h.date===iso)||null; }
+/* Saturday, Sunday, and a public holiday: the unit runs as one duty, not seven
+   benches. U.dow counts Monday as 0, so Saturday is 5 and Sunday 6. */
+function weekendish(iso){ return U.dow(iso)>=5 || !!holidayAt(iso); }
+function weekendLabel(iso){ const h=holidayAt(iso); return h?(h.name||'Public holiday'):(U.dow(iso)===5?'Saturday':'Sunday'); }
+/* everyone the plan puts on the day, and the one it puts on the night */
+function dayDutyOf(iso){ return S.onDuty(iso).filter(x=>x.kind==='day'||x.kind==='daynight').map(x=>x.staff.name); }
+function dayOnly(iso){ return S.onDuty(iso).filter(x=>x.kind==='day').map(x=>x.staff.name); }
+function nightOf(iso){ return S.onDuty(iso).filter(x=>x.kind==='night'||x.kind==='daynight').map(x=>x.staff.name); }
+function planMonthsOf(dates){ return U.uniq(dates.map(d=>String(d).slice(0,7))); }
+function planMonthLabel(dates){
+  const ms=planMonthsOf(dates).filter(m=>S.planForMonth(m));
+  if(!ms.length) return 'no working plan for this week';
+  return ms.map(m=>U.monthLabel(m)).join(' + ');
+}
+
 /* the sheet is authored at 3200 px wide — let it shrink to the card on phones */
 function fitSVG(svg){ return svg.replace('<svg ','<svg style="max-width:100%;height:auto;display:block" ',1); }
 /* The sheet is a 3200 px drawing with a few thousand nodes. It used to be built
@@ -360,9 +382,19 @@ function weekView(){
   const orientMap=wRec.orientation||{};
   const ctxOf=iso=>dutyContext(iso);
   const statusOf=(iso,name)=>{ const st=S.staffByName(name); return st?S.shiftState(st,iso):null; };
-  const unstaffed=dates.reduce((a,iso)=>a+svcs.filter(sv=>!cellStaff(iso,sv.name)).length,0);
+  /* the weekend and a public holiday are one duty for the whole unit, so an empty
+     bench there is not an empty slot — it is the rule */
+  const unstaffed=dates.filter(iso=>!weekendish(iso))
+    .reduce((a,iso)=>a+svcs.filter(sv=>!cellStaff(iso,sv.name)).length,0);
   const conflicts=[], breaches=[];
-  dates.forEach(iso=>svcs.forEach(sv=>{ const n=cellStaff(iso,sv.name); if(!n) return; const st=statusOf(iso,n);
+  /* A Saturday, a Sunday and a public holiday carry one duty, not seven benches.
+     Whoever the plan puts on the day works the unit whole, so a bench allocation
+     written there is cleared by Auto-allocate and reported until it is. */
+  const weekendCells=[];
+  dates.forEach(iso=>svcs.forEach(sv=>{
+    const n=cellStaff(iso,sv.name); if(!n) return;
+    if(weekendish(iso)){ weekendCells.push({iso,svc:sv.name,staff:n}); return; }
+    const st=statusOf(iso,n);
     if(st && (st.kind==='off'||st.kind==='leave'||st.kind==='exited')) conflicts.push({iso,svc:sv.name,staff:n,state:st});
     /* a hard block, or the reserve on a busy plan, without a recorded override
        is a rule breach — not a preference */
@@ -377,8 +409,10 @@ function weekView(){
     if(!g.ok) breaches.push({iso,svc:sv.name,staff:n,why:g.why});
   }));
   const head='<thead><tr><th class="staff-cell" style="z-index:4">Service</th>'+dates.map(iso=>{
-    const dow=U.dow(iso), today=iso===U.todayISO();
-    return '<th class="'+(dow>=5?'wkend':'')+'" style="'+(today?'color:var(--gold)':'')+'">'+U.DOWL[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
+    const dow=U.dow(iso), today=iso===U.todayISO(), we=weekendish(iso);
+    return '<th class="'+(we?'wkend':'')+'" style="'+(today?'color:var(--gold)':'')+'" title="'+U.esc(we?weekendLabel(iso)+' — one duty for the whole unit':U.fmtDate(iso))+'">'+U.DOWL[dow]
+      +'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div>'
+      +(weekendish(iso)?'<div style="font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold)">'+U.esc(holidayAt(iso)?'holiday':'unit duty')+'</div>':'')+'</th>';
   }).join('')+'</tr></thead>';
   const body=svcs.map(sv=>'<tr><td class="staff-cell"><div class="nm">'+U.esc(sv.name)+'</div><div class="rl mono">'+U.esc(sv.code)+' · min '+sv.min+'</div></td>'
     +dates.map(iso=>{
@@ -388,6 +422,13 @@ function weekView(){
          cell. Here a name is all the roster needs; a conflict is shown by colour. */
       const ov=(overrides[iso]||{})[sv.name];
       const ctx=ctxOf(iso);
+      if(weekendish(iso)){
+        /* the weekend column carries no benches: the day duty is named once, under
+           the grid, and the whole unit is theirs for the day */
+        return '<td class="day wkend" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'
+          +' data-tip="'+U.esc(weekendLabel(iso)+' — one duty for the whole unit. The day is named under the grid, on the plan."')+'">'
+          +(name?'<span class="xs" style="color:var(--gold)">'+U.esc(U.surname(name)||name)+'</span>':'<span class="xs faint">·</span>')+'</td>';
+      }
       let g=name?gate(ctx.rules[name],sv.name,{alone:ctx.alone,override:!!ov}):{ok:true};
       if(g.ok&&name&&!ov){
         const r=ctx.rules[name];
@@ -415,6 +456,7 @@ function weekView(){
     +'<div class="row gap-sm"><span class="pill '+(conflicts.length?'amber':'teal')+'">'+conflicts.length+' allocation conflict'+(conflicts.length===1?'':'s')+'</span>'
     +'<span class="pill '+(breaches.length?'rose':'teal')+'">'+breaches.length+' rule '+(breaches.length===1?'breach':'breaches')+'</span>'
     +'<span class="pill '+(unstaffed?'rose':'teal')+'">'+unstaffed+' empty slots</span>'
+    +(weekendCells.length?'<span class="pill amber" data-tip="A weekend or a public holiday is one duty, not seven benches. Auto-allocate clears them.">'+weekendCells.length+' weekend cell'+(weekendCells.length===1?'':'s')+' to clear</span>':'')
     +'<button class="btn sm" data-auto-week>'+UI.ic('wand-sparkles',13)+' Auto-allocate</button>'
     +'<button class="btn sm" data-auto-nights>'+UI.ic('moon',13)+' Auto nights</button>'
     +'<button class="btn sm" data-print-week>'+UI.ic('printer',13)+' Print week</button>'
@@ -423,7 +465,20 @@ function weekView(){
     +'<button class="btn sm" data-week-xlsx>'+UI.ic('table-2',13)+' XLSX</button>'
     +'<button class="btn sm primary" data-week-sheet>'+UI.ic('file-down',13)+' Sheet</button></div></div>'
     +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal"><thead>'+head.slice(7)+'<tbody>'+body+'</tbody>'
-    +'<tfoot><tr class="night-row"><td class="staff-cell"><div class="nm">Night</div><div class="rl">17:00–08:00</div></td>'
+    +'<tfoot>'
+    +'<tr><td class="staff-cell"><div class="nm">Day duty</div><div class="rl">08:00–17:00 · from the plan</div></td>'
+    +dates.map(iso=>{
+        const who=dayDutyOf(iso), we=weekendish(iso);
+        const tip=who.length?(we?weekendLabel(iso)+' — day duty':'On duty in the day')+' · '+who.join(' · '):(S.planCovers(iso)?'Nobody on the day in the working plan':'No working plan covers this day');
+        /* on a weekday the names are already in the grid; on the weekend this row is
+           the only place the duty is named, so it carries the names themselves */
+        const inner=we
+          ? (who.length?who.map(n=>'<span class="small pn-wrap" style="display:block;line-height:1.3">'+U.nameHTML(String(n))+'</span>').join('')
+             :'<span class="xs faint">—</span>')
+          : (who.length?'<span class="xs faint">'+who.length+' on duty</span>':'<span class="xs faint">—</span>');
+        return '<td class="day '+(we?'wkend':'')+'" style="'+(we?'background:var(--cream-50, #FBF3E2)':'')+'" data-tip="'+U.esc(tip)+'">'+inner+'</td>';
+      }).join('')+'</tr>'
+    +'<tr class="night-row"><td class="staff-cell"><div class="nm">Night</div><div class="rl">17:00–08:00</div></td>'
     +dates.map(iso=>{ const n=S.nightCover(iso); const nm=n.name||'';
         const tag=n.source==='manual'?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">by hand</span>'
           :n.source==='plan'?'<span class="pill teal" style="font-size:8.5px;padding:1px 5px;margin-top:2px">plan</span>'
@@ -431,7 +486,7 @@ function weekView(){
         return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+'" data-night="'+iso+'" style="cursor:pointer"'+(nm?' data-tip="'+U.esc(nm+' · '+(n.source==='plan'?'from the working plan':'set '+n.source))+'"':'')+'>'
           +(nm?'<span class="small pn-wrap" style="display:block;line-height:1.3">'+U.nameHTML(String(nm))+'</span>':'<span class="xs faint">—</span>')+tag+'</td>'; }).join('')
     +'</tr></tfoot></table></div>'
-    +'<div class="card-foot"><span>Click any cell to allocate a staff member · '+svcs.length+' services · '+(p?'shift codes from '+U.monthLabel(mk):'no working plan for this month')+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
+    +'<div class="card-foot"><span>Click any weekday cell to allocate a staff member · '+svcs.length+' services · plan read: '+U.esc(planMonthLabel(dates))+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
       +UI.card({title:'Weekly allocation',sub:'Services covered per staff member',icon:'users',body:Object.keys(load).length?Object.keys(load).sort((a,b)=>load[b]-load[a]).map(n=>'<div style="margin-bottom:8px"><div class="row between"><span class="xs truncate">'+U.esc(n)+'</span><span class="mono xs faint">'+load[n]+'</span></div>'+UI.meter(load[n]/maxLoad*100,'teal')+'</div>').join(''):'<p class="xs faint">No allocations this week.</p>'})
       +postsCard()
@@ -624,6 +679,12 @@ function serviceModal(id){
 }
 function servicePicker(iso,svc){
   if(!LS.auth.guard('edit')) return;
+  /* Saturday, Sunday and a public holiday carry one duty for the whole unit: the
+     bench grid is not filled there, and the day is named under it. */
+  if(weekendish(iso)){
+    UI.toast(weekendLabel(iso)+' is one duty for the whole unit — the day is named on the Day duty row, from the working plan. Benches are rostered on weekdays.',{type:'warn',duration:6000});
+    return;
+  }
   const start=weekStart(); const w=S.db().unitRosters&&S.db().unitRosters[start];
   const ovr=(w&&w.overrides&&w.overrides[iso])||{};
   const st=S.staffByName((allocationOf(start)[iso]||{})[svc]||'');
@@ -635,7 +696,14 @@ function servicePicker(iso,svc){
   const whyBlocked=s=>{
     if(!reserveAllowed(rules[s.name]||{},planCount)) return 'reserve · plan has '+planCount+' staff (limit '+(rules[s.name].reserveMax)+')';
     const g=gate(rules[s.name],svc,{alone});
-    return g.ok?'':g.why;
+    if(!g.ok) return g.why;
+    /* the working plan is the authority: a person the plan has at home, on leave or
+       on nights that day is not on the day roster, and putting them on a bench is a
+       documented exception — never a silent one */
+    const st=S.shiftState(s,iso);
+    if(st.kind!=='day'&&st.kind!=='daynight')
+      return s.name+' is '+(st.label||'not on duty').toLowerCase()+' that day according to the working plan';
+    return '';
   };
   const opt=(s,sel)=>{
     const why=whyBlocked(s);
@@ -847,13 +915,30 @@ function autoAllocate(){
   if(!LS.auth.guard('edit')) return;
   const start=weekStart(), dates=S.weekDates(start), mkOf=String(start).slice(0,7);
   const rules=benchPlan();
-  let posts=0, servicesFilled=0, skipped=0, reservePosts=0, cleared=0, split=0;
+  let posts=0, servicesFilled=0, skipped=0, reservePosts=0, cleared=0, split=0, weekendCleared=0, weekendKept=0;
+  const openNames=[];
   S.commit(d=>{
     d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
     const w=d.unitRosters[start];
     w.overrides=w.overrides||{}; w.auto=w.auto||{};
     const altTally={};
     dates.forEach(iso=>{
+      /* ——— a Saturday, a Sunday or a public holiday ———
+         The plan carries one duty for the whole unit, so the service grid is left
+         blank: whoever the plan puts on the day works the unit, and the day is
+         named under the grid and on the printed week. An allocation written here by
+         an earlier pass is withdrawn; one written by hand is kept and counted, so
+         the manager can see what he set himself. */
+      if(weekendish(iso)){
+        const day=w.assignments[iso]||{};
+        const prev=w.auto[iso]||{};
+        Object.keys(day).forEach(b=>{
+          if(prev[b]===day[b]&&!(w.overrides[iso]||{})[b]){ delete day[b]; weekendCleared++; }
+          else weekendKept++;
+        });
+        w.auto[iso]={};
+        return;
+      }
       const {duty,core,alone}=dutyContext(iso);
       const n=core.length;                                   /* never counts the manager */
       const groups=postGroupsFor(n);
@@ -962,6 +1047,25 @@ function autoAllocate(){
         const who=day[bench]; if(!who||ovr[bench]) return;
         if(reserveOf(who)&&n>postModel().reserveMax){ delete day[bench]; delete w.auto[iso][bench]; cleared++; }
       });
+      /* ——— every bench gets a name ———
+         One person may hold more than one bench: with four people on duty and seven
+         services, the department covers the services by sharing them, not by leaving
+         five empty. Each open bench goes to the person on duty who may work it and
+         is carrying the fewest benches already; only a bench nobody on duty is
+         allowed to work is left open, and then it is named in the message rather
+         than counted as a silent skip. */
+      const benchCount={};
+      Object.keys(day).forEach(b=>{ const n=day[b]; if(n) benchCount[n]=(benchCount[n]||0)+1; });
+      S.services().forEach(sv=>{
+        if(placedOn(sv.name)) return;
+        const cand=duty.filter(x=>mayBeOnPlan(x)&&gateFor(x.name,sv.name).ok)
+          .sort((a,b)=>(benchCount[a.name]||0)-(benchCount[b.name]||0)
+            ||rankFor(a.name,[sv.name])-rankFor(b.name,[sv.name])
+            ||String(a.name).localeCompare(String(b.name)));
+        const who=cand[0];
+        if(who){ write(sv.name,who); benchCount[who.name]=(benchCount[who.name]||0)+1; servicesFilled++; }
+        else openNames.push(sv.name+' · '+U.DOWL[U.dow(iso)]+' '+U.parseISO(iso).getDate());
+      });
       skipped+=S.services().filter(sv=>!placedOn(sv.name)).length;
     });
   },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,
@@ -971,8 +1075,10 @@ function autoAllocate(){
   if(split) bits.push(split+' post'+(split===1?'':'s')+' combining two benches');
   if(reservePosts) bits.push('manager on '+reservePosts+' post'+(reservePosts===1?'':'s'));
   if(cleared) bits.push(cleared+' auto slot'+(cleared===1?'':'s')+' withdrawn by a bench rule');
-  if(skipped) bits.push(skipped+' left open (no one may work that bench)');
-  UI.toast(bits.join(' · '),{type:'ok',duration:5200});
+  if(weekendCleared) bits.push(weekendCleared+' weekend cell'+(weekendCleared===1?'':'s')+' cleared — the unit runs as one duty there');
+  if(weekendKept) bits.push(weekendKept+' weekend cell'+(weekendKept===1?'':'s')+' kept from a by-hand allocation');
+  if(skipped) bits.push(skipped+' left open: '+U.uniq(openNames).join(', '));
+  UI.toast(bits.join(' · '),{type:skipped?'warn':'ok',duration:skipped?7000:5200});
 }
 /* ——— Nights ——————————————————————————————————————————————
    The night week has three owners, not seven:
@@ -1012,8 +1118,21 @@ function nightsThisMonth(name, mkOf){
 function nightPlanFor(start){
   const dates=S.weekDates(start), mkOf=String(start).slice(0,7);
   const out={}, notes=[];
+  /* ——— the working plan speaks first ———
+     The plan is the authority on who is on nights. Auto nights therefore proposes
+     names only for the days the plan leaves without one; a day the plan has already
+     named is left exactly as the plan wrote it, and nobody is moved off a night by a
+     click. */
+  const fromPlan={};
+  dates.forEach(iso=>{ const n=S.nightCover(iso);
+    if(n.source==='plan'&&n.name) fromPlan[iso]=n.name; });
+  const open=dates.filter(iso=>!fromPlan[iso]);
+  if(!open.length) return {map:{}, fromPlan, notes:['The working plan already names every night this week']};
+  const planNote=Object.keys(fromPlan).length?'the plan already took '+Object.keys(fromPlan).length+': '+U.uniq(Object.values(fromPlan)).join(', '):'';
   const week=Math.floor(U.parseISO(start)/86400000/7);
-  const monWed=dates.slice(0,3), thuFri=dates.slice(3,5), weekend=dates.slice(5,7);
+  const monWed=dates.slice(0,3).filter(iso=>open.indexOf(iso)>=0);
+  const thuFri=dates.slice(3,5).filter(iso=>open.indexOf(iso)>=0);
+  const weekend=dates.slice(5,7).filter(iso=>open.indexOf(iso)>=0);
   const pool=nightEligible(dates).filter(st=>(st.maxConsecN||0)>=2)
     .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
   /* A three-night block is earned: only staff flagged for it, Patrick ahead of
@@ -1023,35 +1142,42 @@ function nightPlanFor(start){
     .sort((a,b)=>(a.nightRank||9)-(b.nightRank||9));
   const capOk=(st,days)=>nightsThisMonth(st.name,mkOf)+days<=st.maxNights;
   const threePick=three.length?(three.length>1&&week%3===2?three[1]:three[0]):null;
-  if(threePick&&capOk(threePick,3)){ monWed.forEach(iso=>{ out[iso]=threePick.name; }); notes.push('Mon–Wed · '+threePick.name); }
-  else if(pool.length){ const alt=pool.find(st=>st!==threePick&&capOk(st,3))||pool[0]; monWed.forEach(iso=>{ out[iso]=alt.name; }); notes.push('Mon–Wed · '+alt.name+' (three-night cover unavailable)'); }
+  if(monWed.length&&threePick&&capOk(threePick,3)){ monWed.forEach(iso=>{ out[iso]=threePick.name; }); notes.push('Mon–Wed · '+threePick.name); }
+  else if(monWed.length&&pool.length){ const alt=pool.find(st=>st!==threePick&&capOk(st,3))||pool[0]; monWed.forEach(iso=>{ out[iso]=alt.name; }); notes.push('Mon–Wed · '+alt.name+' (three-night cover unavailable)'); }
   /* two nights, Thu–Fri — a different person */
   const twoPick=pool.find(st=>st!==threePick && st.name!==out[monWed[0]] && capOk(st,2));
-  if(twoPick){ thuFri.forEach(iso=>{ out[iso]=twoPick.name; }); notes.push('Thu–Fri · '+twoPick.name); }
-  else notes.push('Thu–Fri · nobody free');
+  if(twoPick&&thuFri.length){ thuFri.forEach(iso=>{ out[iso]=twoPick.name; }); notes.push('Thu–Fri · '+twoPick.name); }
+  else if(thuFri.length) notes.push('Thu–Fri · nobody free');
   /* the weekend, day + night */
-  const wk=weekendOwner(weekend);
+  const wk=weekend.length?weekendOwner(weekend):null;
   if(wk){ weekend.forEach(iso=>{ out[iso]=wk.name; }); notes.push('Sat–Sun (day + night) · '+wk.name); }
   else {
     /* she is away: the two-night person takes the weekend nights rather than leaving them open */
     const spare=pool.filter(st=>capOk(st,2));
-    if(spare.length){ weekend.forEach(iso=>{ out[iso]=spare[0].name; }); notes.push('Sat–Sun · '+spare[0].name+' (weekend technologist away)'); }
-    else notes.push('Sat–Sun · nobody free');
+    if(spare.length&&weekend.length){ weekend.forEach(iso=>{ out[iso]=spare[0].name; }); notes.push('Sat–Sun · '+spare[0].name+' (weekend technologist away)'); }
+    else if(weekend.length) notes.push('Sat–Sun · nobody free');
   }
-  return {map:out, notes};
+  if(planNote) notes.unshift(planNote);
+  return {map:out, fromPlan, open, notes};
 }
 function autoNights(){
   if(!LS.auth.guard('edit')) return;
   const start=weekStart();
   const {map, notes}=nightPlanFor(start);
+  if(!Object.keys(map).length){
+    /* every night of the week is already on the working plan: nothing to propose,
+       and nothing is written over the plan */
+    UI.toast('The working plan already names every night this week — '+notes.join(' · ')+'. Use the night row to change one by hand.',{type:'info',duration:6200});
+    return;
+  }
   S.commit(d=>{
     d.unitRosters=d.unitRosters||{}; if(!d.unitRosters[start]) d.unitRosters[start]={weekStart:start,assignments:{}};
     const w=d.unitRosters[start]; w.night=w.night||{};
     S.weekDates(start).forEach(iso=>{ if(map[iso]) w.night[iso]=map[iso]; });
   },{action:'roster.night.auto',entity:'unitRosters',entityId:start,
-     detail:'Night cover planned: '+notes.join(' · ')});
+     detail:'Night cover planned for the days the plan leaves open: '+notes.join(' · ')});
   paint();
-  UI.toast('Nights planned · '+notes.join(' · '),{type:'ok',duration:5600});
+  UI.toast('Nights planned for the days the plan leaves open · '+notes.join(' · '),{type:'ok',duration:6200});
 }
 function printWeek(){
   SH.printSVG(SH.weeklySVG(weekData()),{title:'Weekly unit roster — week of '+U.fmtDateShort(weekStart())});
@@ -1258,9 +1384,7 @@ async function exportSheet(fmt,svg,filename){
   }catch(e){ UI.toast('Export failed · '+(e&&e.message||e),{type:'err',duration:7000}); }
 }
 function openWeekSheet(){
-  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
-  const night={}; dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
-  const data={weekStart:start,dates,services:svcs,alloc,night};
+  const data=weekData();
   const svg=SH.weeklySVG(data);
   const filename='unit-roster-'+start;
   UI.modal({title:'Weekly unit roster — week of '+U.fmtDateShort(start),sub:'Allocated units, weekend shading and the night shift row, on one A4 landscape page.',width:'min(1180px,96vw)',
@@ -1289,10 +1413,12 @@ async function exportWeek(fmt,svg,filename,data){
   }catch(e){ UI.toast('Export failed · '+(e&&e.message||e),{type:'err',duration:7000}); }
 }
 function weekData(){
-  const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={};
+  const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={}, day={}, weekend={};
   dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
+  dates.forEach(iso=>{ const d=dayDutyOf(iso); if(d.length) day[iso]=d; if(weekendish(iso)) weekend[iso]=weekendLabel(iso); });
   const wRec=(S.db().unitRosters||{})[start]||{};
-  return {weekStart:start,dates,services:S.services(),alloc,night,overrides:wRec.overrides||{},orientation:wRec.orientation||{}};
+  return {weekStart:start,dates,services:S.services(),alloc,night,dayDuty:day,weekend,
+    overrides:wRec.overrides||{},orientation:wRec.orientation||{},planLabel:planMonthLabel(dates)};
 }
 /* Kept as the one call the sheet builders use; the plan does the deciding. */
 function onDutyName(iso){ return S.nightCover(iso).name||''; }
@@ -1391,11 +1517,7 @@ function wireBody(){
   r.querySelectorAll('[data-auto-nights]').forEach(b=>b.onclick=autoNights);
   r.querySelectorAll('[data-print-week]').forEach(b=>b.onclick=printWeek);
   r.querySelectorAll('[data-week-sheet]').forEach(b=>b.onclick=openWeekSheet);
-  const wkSvg=function(){ const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start), night={};
-    dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
-    const wRec=(S.db().unitRosters||{})[start]||{};
-    const data={weekStart:start,dates,services:svcs,alloc,night,overrides:wRec.overrides||{},orientation:wRec.orientation||{}};
-    return {start,dates,data,svg:SH.weeklySVG(data)}; };
+  const wkSvg=function(){ const data=weekData(); return {start:data.weekStart,dates:data.dates,data,svg:SH.weeklySVG(data)}; };
   r.querySelectorAll('[data-week-png]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('png',o.svg,'unit-roster-'+o.start,o.data); });
   r.querySelectorAll('[data-week-pdf]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('pdf',o.svg,'unit-roster-'+o.start,o.data); });
   r.querySelectorAll('[data-week-xlsx]').forEach(b=>b.onclick=()=>{ const o=wkSvg(); exportWeek('xlsx',o.svg,'unit-roster-'+o.start,o.data); });

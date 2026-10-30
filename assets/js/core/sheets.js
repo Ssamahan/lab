@@ -504,15 +504,20 @@ SH.weeklySVG=function(data,opts){
   const dates=data.dates||[];
   const alloc=data.alloc||{};
   const night=data.night||{};
+  /* The weekly sheet reads the working plan as well as the allocation: the day duty
+     named by the plan sits in its own row, and a Saturday, a Sunday or a public
+     holiday prints as the one duty it is rather than as seven empty benches. */
+  const dayDuty=data.dayDuty||{};
+  const weekend=data.weekend||{};
   const labelW=560, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,dates.length);
-  const headH=48, dateH=36, rowH=92, nightH=80;
+  const headH=48, dateH=36, rowH=92, dayH=80, nightH=80;
   const top=446;
   /* A recorded override is part of the record, so the signed sheet prints it. */
   const overrides=overrideLines(data.overrides||{}, alloc);
   const orient=orientationLines(data.orientation||{}, alloc);
   const noteH=(overrides.length?overrides.length*29+60:0)+(orient.length?orient.length*29+58:0);
-  const H=top+headH+dateH+rowH*services.length+nightH+noteH+150;
+  const H=top+headH+dateH+rowH*services.length+dayH+nightH+noteH+150;
 
   let g='';
   g+='<rect width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
@@ -530,14 +535,15 @@ SH.weeklySVG=function(data,opts){
   g+=text(pad+24,top+headH+dateH/2+9,'Date',{size:27,weight:700,fill:'#12203C'});
   g+=rect(pad,top+headH,labelW,dateH,'none',{stroke:C.line,sw:1});
   g+=rect(pad,top,labelW,headH+dateH,'none',{stroke:C.line,sw:1});
+  const isWeekend=iso=>!!weekend[iso]||U.dow(iso)>=5;
   dates.forEach((iso,i)=>{
-    const d=U.parseISO(iso), we=d.getDay()===0||d.getDay()===6;
+    const we=isWeekend(iso);
     const x=gridX+i*colW;
     g+=rect(x,top,colW,headH,we?C.creamBand:'#FFFFFF');
     g+=rect(x,top+headH,colW,dateH,we?'#F7E9C9':'#F4F6FA');
     g+=rect(x,top,colW,headH+dateH,'none',{stroke:C.line,sw:1});
-    g+=text(x+colW/2,top+headH/2+10,U.DOWL[(d.getDay()+6)%7],{size:28,weight:700,anchor:'middle',fill:we?C.alInk:'#12203C'});
-    g+=text(x+colW/2,top+headH+dateH/2+9,String(d.getDate()),{size:26,weight:600,anchor:'middle',fill:we?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,top+headH/2+10,U.DOWL[U.dow(iso)],{size:28,weight:700,anchor:'middle',fill:we?C.alInk:'#12203C'});
+    g+=text(x+colW/2,top+headH+dateH/2+9,String(U.parseISO(iso).getDate()),{size:26,weight:600,anchor:'middle',fill:we?C.alInk:'#12203C',mono:true});
   });
 
   services.forEach((sv,ri)=>{
@@ -545,11 +551,11 @@ SH.weeklySVG=function(data,opts){
     g+=rect(pad,y,labelW,rowH,'#FFFFFF');
     g+=text(pad+24,y+rowH/2+10,sv.name,{size:fitSize(sv.name,labelW-44,30,20),weight:600,fill:'#12203C'});
     dates.forEach((iso,i)=>{
-      const d=U.parseISO(iso), we=d.getDay()===0||d.getDay()===6;
+      const we=isWeekend(iso);
       const x=gridX+i*colW;
       g+=rect(x,y,colW,rowH,we?C.creamBand:'#FFFFFF');
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
-      const who=(alloc[iso]&&alloc[iso][sv.name])||'';
+      const who=we?'':((alloc[iso]&&alloc[iso][sv.name])||'');
         if(who){
         const ov=(data.overrides&&data.overrides[iso]&&data.overrides[iso][sv.name]);
         g+=nameBlock(x+colW/2,y+rowH/2-(ov?9:0), colW-20, who, {pref:34,min:19,anchor:'middle'});
@@ -562,7 +568,32 @@ SH.weeklySVG=function(data,opts){
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
   });
 
-  const ny=top+headH+dateH+services.length*rowH;
+  /* ——— the day duty, from the working plan ——— */
+  const dy=top+headH+dateH+services.length*rowH;
+  g+=rect(pad,dy,labelW,dayH,'#FFFFFF');
+  g+=text(pad+24,dy+dayH/2-2,'Day duty',{size:28,weight:700,fill:'#12203C'});
+  g+=text(pad+24,dy+dayH/2+24,'08:00–17:00 · from the plan',{size:17,fill:'#5B6474'});
+  dates.forEach((iso,i)=>{
+    const x=gridX+i*colW, we=isWeekend(iso);
+    g+=rect(x,dy,colW,dayH,we?C.creamBand:'#FFFFFF');
+    g+=rect(x,dy,colW,dayH,'none',{stroke:C.line,sw:1});
+    const names=dayDuty[iso]||[];
+    const tag=weekend[iso]||'';
+    if(we&&tag) g+=text(x+colW/2,dy+22,String(tag).toUpperCase().slice(0,16),{size:13,weight:700,anchor:'middle',fill:C.alInk});
+    /* the weekend names the duty itself; a weekday already has the names in the grid */
+    if(we&&names.length){
+      const txt=names.length>2?names.length+' on duty':names.join(' · ');
+      g+=nameBlock(x+colW/2,dy+dayH/2+16,colW-18,txt,{pref:24,min:14,anchor:'middle'});
+    } else if(!we&&names.length){
+      g+=text(x+colW/2,dy+dayH/2+8,names.length+' on duty',{size:20,anchor:'middle',fill:'#5B6474'});
+    } else {
+      g+=text(x+colW/2,dy+dayH/2+8,'—',{size:22,anchor:'middle',fill:'#98A2B3'});
+    }
+  });
+  g+=rect(pad,dy,labelW,dayH,'none',{stroke:C.line,sw:1});
+  g+=rect(pad,dy,W-pad*2,2,C.goldLine);
+
+  const ny=dy+dayH;
   g+=rect(pad,ny,labelW,nightH,C.nightBand);
   g+=text(pad+24,ny+nightH/2+10,'Night Shift',{size:28,weight:700,fill:'#E9D9A7'});
   dates.forEach((iso,i)=>{
@@ -587,7 +618,7 @@ SH.weeklySVG=function(data,opts){
     orient.forEach((ln,i)=>{ g+=text(pad,noteY+i*29,ln,{size:19,fill:'#3D4759'}); });
   }
 
-  g+=text(W/2,H-60,'Week of '+U.fmtDateShort(data.weekStart)+' · Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day · Generated '+U.todayISO(),{size:24,anchor:'middle',fill:'#3D4759'});
+  g+=text(W/2,H-60,'Week of '+U.fmtDateShort(data.weekStart)+' · Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day · plan: '+(data.planLabel||'working plan')+' · Generated '+U.todayISO(),{size:23,anchor:'middle',fill:'#3D4759'});
   return svgDoc(W,H,g);
 };
 
