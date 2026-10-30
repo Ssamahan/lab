@@ -339,10 +339,27 @@ SH.monthlySVG=function(plan,opts){
   /* Everything under the grid — the keys, the contacts and the three signatures —
      is measured first, and the rows take what is left: so a month with eight rows
      gets tall, readable rows instead of a short grid and a page of white. */
-  const KEY_ROWS=Math.ceil(SH.keyOrder.length/6), KEY_PITCH=62;
-  const lower=72+KEY_ROWS*KEY_PITCH+96+Math.ceil(rows.length/3)*96+150;
-  const rowH=Math.max(64,Math.min(opts.rowH||126,
-    Math.round((H-gridTop-bandH-dateH-lower)/Math.max(1,rows.length))));
+  /* The staff rows are three fifths of their old height (126 -> 76) and so are the
+     contacts (132 -> 79); the key blocks are a fifth taller than they were (54 -> 65).
+     The page is compact on purpose. What height the three-fifths rows leave over is
+     given to the key blocks first — that is the growth this asks for — and only then,
+     a little, to the contact rows, so the sheet closes on the signature rule instead
+     of on a band of white paper. */
+  const KEY_ROWS=Math.ceil(SH.keyOrder.length/6);
+  /* the key block is a fifth taller than it was: 54 -> 65 */
+  const KEY_H=65, CONTACT_H=79, CONTACT_PITCH0=CONTACT_H+22;
+  const AFTER_GRID=58+30+22+28+10;          /* the two headings under the grid */
+  const SIG_ROOM=186+24;                    /* the signature block and its margin */
+  const rowH=76;
+  const avail=H-(gridTop+bandH+dateH)-rows.length*rowH;
+  /* What the compact rows leave over is spread through the key grid as air between
+     the blocks — the keys grow into the page rather than a white band opening under
+     the contacts — and the little that is left after that goes to the contact rows,
+     within limits, so nothing floats. */
+  const KEY_PITCH=KEY_H+8;                 /* the blocks keep their own pitch */
+  let CONTACT_PITCH=CONTACT_PITCH0;
+  const spare=()=>avail-(AFTER_GRID+KEY_ROWS*KEY_PITCH+2*CONTACT_PITCH+SIG_ROOM);
+  while(CONTACT_PITCH<150 && spare()>2) CONTACT_PITCH++;
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
 
   /* ——— one size for the names, one size for the letters ———
@@ -412,18 +429,26 @@ SH.monthlySVG=function(plan,opts){
        fits across it at the size below, so it is never broken. The post under it is
        a step smaller and in muted ink, so the name always reads first. */
     const roleText=(role+reqLine).replace(/^ · /,'');
-    const nameSize=cellSize;
-    /* the post is set at the key size — it wraps onto a second line rather than
-       shrinking below it, because a post half the size of the key beside it reads as
-       a footnote, which is not what it is */
-    const roleLines=roleText?wrapLines(roleText,labelW-56,roleSizeAll,2):[];
-    const blockH=Math.round(nameSize*1.12+(roleLines.length?6+roleLines.length*roleSizeAll*1.24:0));
-    const blockTop=y+Math.max(4,Math.round((rowH-blockH)/2));
+    /* The post sits under the name at the size of the key text, and the pair is
+       fitted to the row they have: a row of 76 px carries a name and its post, and a
+       post long enough to need a third line steps down — first the post, then the
+       name — until the block stands inside its row instead of printing over the row
+       beneath it. */
+    let nameSize=cellSize, roleSize=roleSizeAll;
+    const layoutRow=()=>{
+      const lines=roleText?wrapLines(roleText,labelW-56,roleSize,3):[];
+      const h=Math.round(nameSize*1.12+(lines.length?6+lines.length*roleSize*1.22:0));
+      return {lines,h};
+    };
+    let L=layoutRow();
+    while(L.h>rowH-8 && roleSize>15){ roleSize-=1; L=layoutRow(); }
+    while(L.h>rowH-6 && nameSize>18){ nameSize-=1; L=layoutRow(); }
+    const blockTop=y+Math.max(3,Math.round((rowH-L.h)/2));
     const nameBase=blockTop+Math.round(nameSize*0.84);
-    g+=nameBlock(pad+24,nameBase,labelW-56,r.name,{pref:nameSize,min:Math.min(22,cellSize)});
-    roleLines.forEach((ln,li)=>{
-      g+=text(pad+24,Math.round(nameBase+6+roleSizeAll*1.02+li*roleSizeAll*1.24),ln,
-        {size:roleSizeAll,weight:500,fill:'#5B6474'});
+    g+=nameBlock(pad+24,nameBase,labelW-56,r.name,{pref:nameSize,min:Math.min(18,nameSize)});
+    L.lines.forEach((ln,li)=>{
+      g+=text(pad+24,Math.round(nameBase+5+roleSize*0.98+li*roleSize*1.22),ln,
+        {size:r2(roleSize),weight:500,fill:'#5B6474'});
     });
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
@@ -483,17 +508,24 @@ SH.monthlySVG=function(plan,opts){
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
   y+=30;
   const keys=SH.keyOrder.map(c=>CODE[c].key);
-  const keyCols=6, keyW=(W-pad*2)/keyCols, keyH=54;
+  const keyCols=6, keyW=(W-pad*2)/keyCols, keyH=KEY_H;
   keys.forEach((k,i)=>{
     const col=i%keyCols, row=Math.floor(i/keyCols);
-    const x=pad+col*keyW, yy=y+row*(keyH+8);
+    const x=pad+col*keyW, yy=y+row*KEY_PITCH;
     g+=rect(x,yy,keyW-14,keyH,'#F7F9FD',{rx:6,stroke:'#E3E8F1',sw:1});
     const code=k.split(' ')[0];
     const st=styleOf(code)||{bg:'#EEF1F7',fg:C.ink};
-    g+=rect(x+12,yy+15,26,26,st.bg,{rx:4,stroke:'#DCE2EC',sw:1});
-    g+=text(x+50,yy+35,k,{size:22,fill:'#26303F'});
+    /* the chip and the lettering grow with the block, so a taller key is a key that
+       reads, not the same small print sitting in a bigger box. One size for every key,
+       as before — only the size itself has moved up a fifth. */
+    /* one size for every key: the largest that sets the longest key line inside the
+       block, so the taller block shows one setting and never a row of mixed sizes */
+    const chip=28, keyTextSize=22;
+    g+=rect(x+12,yy+(keyH-chip)/2,chip,chip,st.bg,{rx:4,stroke:'#DCE2EC',sw:1});
+    g+=text(x+12+chip+12,yy+keyH/2+Math.round(keyTextSize*0.35),k,
+      {size:r2(Math.min(keyTextSize,fitSize(k,keyW-chip-46,keyTextSize,15))),fill:'#26303F'});
   });
-  y+=Math.ceil(keys.length/keyCols)*(keyH+8)+22;
+  y+=Math.ceil(keys.length/keyCols)*KEY_PITCH+22;
 
   /* staff contacts */
   g+=text(pad,y,'Staff contacts:',{size:26,weight:700,fill:'#12203C'});
@@ -518,8 +550,13 @@ SH.monthlySVG=function(plan,opts){
   const space=Math.max(120,sigTop0-24-y);
   const contactRows=Math.min(2,Math.max(1,rows.length));
   const contactCols=Math.max(1,Math.ceil(rows.length/contactRows));
-  const contactPitch=Math.min(168,Math.max(56,space/contactRows));
-  const contactH=Math.max(52,Math.min(132,contactPitch-14));
+  /* the block takes the run down to the signature rule: the rows are spread evenly
+     over what is left, so a compact card never leaves a white band under the list */
+  const contactPitch=CONTACT_PITCH;
+  const contactH=CONTACT_H;
+  /* whatever the fixed pitch leaves over is shared above and below the two rows, so
+     the list sits in the middle of the run instead of hugging the keys */
+  const contactStart=y+Math.max(0,Math.min(90,(space-contactRows*contactPitch)/2));
   /* One size for every contact name and one for every number — a register sets a
      column at one size, and a row of four blocks whose names are four sizes reads as
      an accident. The name size is the largest that sets the longest name of the
@@ -556,7 +593,7 @@ SH.monthlySVG=function(plan,opts){
   const cardInset=20;
   rows.forEach((r,i)=>{
     const col=i%contactCols, row=Math.floor(i/contactCols);
-    const x=pad+col*colWid, yy=y+row*contactPitch+(contactPitch-contactH)/2;
+    const x=pad+col*colWid, yy=contactStart+row*contactPitch+(contactPitch-contactH)/2;
     const st=LS.store.staffByName(r.name)||{};
     const cardX=x+4, cardW=colWid-20;              /* the gold bar is 4 px, then the block */
     g+=rect(x,yy,4,contactH,C.goldLine);
@@ -567,7 +604,7 @@ SH.monthlySVG=function(plan,opts){
     g+=nameAndPhone(textX,yy+contactH/2+Math.round(contactNameSize*0.36),textW_,r.name,U.fmtPhone(st.phone),
       {pref:contactNameSize,min:contactNameSize,numPref:contactPhoneSize,phoneRight:true});
   });
-  y+=contactRows*contactPitch+10;
+  y=contactStart+contactRows*contactPitch+10;
 
   /* signatures */
   const sigTop=sigTop0;
