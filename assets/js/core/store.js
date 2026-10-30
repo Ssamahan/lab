@@ -2526,6 +2526,7 @@ S.shiftState=function(who, iso){
     if(code==='BE') return {code,kind:'off',label:'Before employment',tone:'slate',source:'plan'};
     if(code==='MS') return {code,kind:'training',label:'Mentorship — outbreaks surveillance and HIV service delivery',tone:'gold',source:'plan'};
     if(code==='OFF'||code==='W') return {code,kind:'off',label:'At home',tone:'slate',source:'plan'};
+    if(code==='UO') return {code,kind:'worked',label:'Worked a day due as rest (unattended off)',tone:'gold',source:'plan'};
     if(code==='RBW') return {code,kind:'off',label:'Rest before work',tone:'slate',source:'plan'};
 
   }
