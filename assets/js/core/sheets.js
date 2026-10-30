@@ -172,9 +172,15 @@ function nameAndPhone(x,y,w,name,phone,o){
   const num=String(phone||'—');
   const nameStr=String(name||'');
   const numMax=Math.max(18,Math.min(o.numPref||30, pref));
-  const gapAt=nz=>Math.max(20,Math.round(nz*0.9));
+  /* the gap between a name and its number is a space, not a column: it must never be
+     what pushes the pair below the size the names in the grid are set at */
+  const gapAt=nz=>Math.max(16,Math.round(nz*0.62));
+  /* a phone number is set in the mono face, whose digits advance at 0.60 em — measuring
+     it at the bold-sans advance overstates it by a quarter and shrinks the number for a
+     long name that would have fitted beside it at the same size */
+  const NUMADV=0.62;
   const layout=nz=>{
-    const numW=textW(num,nz), gap=gapAt(nz);
+    const numW=num.length*nz*NUMADV, gap=gapAt(nz);
     const avail=Math.max(60,w-numW-gap);
     const size=Math.min(pref, avail/Math.max(1,nameStr.length*ADV));
     /* a hair of tolerance: the layout is solved to the edge, and a float that comes
@@ -184,7 +190,7 @@ function nameAndPhone(x,y,w,name,phone,o){
   let L=layout(numMax);
   /* the number gives way first, down to 18 px; only if it still will not sit beside
      the name does the name step below its preferred size */
-  if(!L.fits) L=layout(Math.max(16,Math.min(numMax,(w-textW(nameStr,Math.min(pref,18))-gapAt(18))/Math.max(1,num.length*0.60))));
+  if(!L.fits) L=layout(Math.max(16,Math.min(numMax,(w-textW(nameStr,Math.min(pref,18))-gapAt(18))/Math.max(1,num.length*NUMADV))));
   if(!L.fits&&L.nameW>0){
     L.size=Math.max(10,(w-L.numW-L.gap)/Math.max(1,nameStr.length*ADV));
     L.nameW=textW(nameStr,L.size);
@@ -272,12 +278,12 @@ function letterhead(s,opts){
   let g='';
   if(crest) g+='<image x="'+cx0+'" y="'+cy0+'" width="'+cs+'" height="'+cs+'" href="'+esc(crest)+'" preserveAspectRatio="xMidYMid meet"/>';
   else g+=crestMark(cx0,cy0,cs);
-  g+=text(cx0+cs/2,cy0+cs+40,'Republic of Rwanda',{size:26,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
+  g+=text(cx0+cs/2,cy0+cs+40,'Republic of Rwanda',{size:31,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
 
   const lx=W-pad-70-cs*0.95, ly=cy0+10, ls=cs*0.95;
   if(logo) g+='<image x="'+lx+'" y="'+ly+'" width="'+ls+'" height="'+ls+'" href="'+esc(logo)+'" preserveAspectRatio="xMidYMid meet"/>';
   else g+=logoMark(lx,ly,ls);
-  g+=text(lx+ls/2,cy0+cs+40,'Ruli District Hospital',{size:26,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
+  g+=text(lx+ls/2,cy0+cs+40,'Ruli District Hospital',{size:31,weight:600,anchor:'middle',fill:C.ink,family:FONT.serif});
 
   const mid=W/2;
   /* The ministry stands above the hospital on every Rwandan letterhead, and it
@@ -345,7 +351,10 @@ SH.monthlySVG=function(plan,opts){
      the legend and the contact list read as two lists of one setting: one block
      height, one pitch, the same 13 px of air between their rows. These are the
      measures the sheet was signed off at; nothing below changes them. */
-  const KEY_ROWS=Math.ceil(SH.keyOrder.length/6);
+  /* the legend is set five blocks to a row, so a block has the width to set its own
+     line at the size of the names in the grid */
+  const KEY_COLS=5;
+  const KEY_ROWS=Math.ceil(SH.keyOrder.length/KEY_COLS);
   const CONTACT_ROWS=Math.min(2,Math.max(1,rows.length));
   const rowH=76;                            /* a staff row, three fifths of 126 */
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
@@ -362,14 +371,11 @@ SH.monthlySVG=function(plan,opts){
      What the compact rows leave over after the legend has been brought up to the grid
      goes there — equally to the keys and to the contacts — so the page keeps the
      spacing it was signed off at and still closes on its own bottom margin. */
-  const footAt=b=>{
-    const pitch=b+13;
-    return gridBottom+GRID_GAP+30+KEY_ROWS*pitch-13
-      +22+34+CONTACT_ROWS*pitch-13+SIG_GAP+SIG_BLOCK;
-  };
-  let CONTACT_H=79;
-  while(CONTACT_H<116 && footAt(CONTACT_H+1)<=H-96) CONTACT_H++;
-  const PITCH=CONTACT_H+13;                 /* 13 px of air between the rows of a list */
+  /* The legend blocks and the contact blocks are three fifths of the height they
+     stood at: 116 -> 70. The air between two rows comes down with them, by the same
+     three fifths, so the two lists keep their proportion and their pitch. */
+  const CONTACT_H=70, AIR=8;
+  const PITCH=CONTACT_H+AIR;
   const KEY_H=CONTACT_H, KEY_PITCH=PITCH, CONTACT_PITCH=PITCH;
   /* ——— one size for the names, one size for the letters ———
      The letters in the grid and the staff names beside them read as one setting, so
@@ -407,7 +413,7 @@ SH.monthlySVG=function(plan,opts){
   g+=rect(pad,gridTop,labelW,bandH,C.band);
   g+=text(pad+24,gridTop+bandH/2+11,'STAFF',{size:31,weight:700,fill:'#FFFFFF',ls:'1'});
   g+=rect(pad,gridTop+bandH,labelW,dateH,'#FFFFFF');
-  g+=text(pad+24,gridTop+bandH+dateH/2+10,'Name',{size:28,weight:600,fill:'#3D4759'});
+  g+=text(pad+24,gridTop+bandH+dateH/2+10,'Names',{size:28,weight:600,fill:'#3D4759'});
   g+=rect(pad,gridTop,labelW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
   cols.forEach((c,i)=>{
     const x=gridX+i*colW;
@@ -517,12 +523,13 @@ SH.monthlySVG=function(plan,opts){
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
   const keysTop=y+30;                       /* heading baseline -> the first key row */
   const keys=SH.keyOrder.map(c=>CODE[c].key);
-  const keyCols=6, keyW=(W-pad*2)/keyCols, keyH=KEY_H;
-  /* ONE size for every key, as on a printed legend: the largest at which the longest
-     key line still sets inside its block, so a taller block is bigger type and not the
-     same small print sitting in a taller box — and never a row of mixed sizes. */
-  const keyText=Math.round(Math.min(keyH*0.30,
-    Math.min.apply(null,keys.map(k=>fitSize(k,keyW-Math.round(keyH*0.35)-46,64,15)))));
+  const keyCols=KEY_COLS, keyW=(W-pad*2)/keyCols, keyH=KEY_H;
+  /* ONE size for every key — the size of the staff names in the table above. A legend
+     is read against the grid it explains, so it is set in the same voice; the size only
+     comes down if the longest key line would not sit inside its block at that size. */
+  const keyChip=24;
+  const keyText=Math.floor(Math.min(cellSize,
+    Math.min.apply(null,keys.map(k=>fitSize(k,keyW-keyChip-46,cellSize,15)))));
   keys.forEach((k,i)=>{
     const col=i%keyCols, row=Math.floor(i/keyCols);
     const x=pad+col*keyW, yy=keysTop+row*KEY_PITCH;
@@ -534,15 +541,16 @@ SH.monthlySVG=function(plan,opts){
        as before — only the size itself has moved up a fifth. */
     /* one size for every key: the largest that sets the longest key line inside the
        block, so the taller block shows one setting and never a row of mixed sizes */
-    const chip=Math.round(keyH*0.35), keyTextSize=keyText;
+    const chip=keyChip, keyTextSize=keyText;
     g+=rect(x+12,yy+(keyH-chip)/2,chip,chip,st.bg,{rx:4,stroke:'#DCE2EC',sw:1});
+    /* one size for every key, solved once above: never a row of mixed sizes */
     g+=text(x+12+chip+12,yy+keyH/2+Math.round(keyTextSize*0.35),k,
-      {size:r2(Math.min(keyTextSize,fitSize(k,keyW-chip-46,keyTextSize,15))),fill:'#26303F'});
+      {size:r2(keyTextSize),fill:'#26303F'});
   });
   const keysBottom=keysTop+(KEY_ROWS-1)*KEY_PITCH+KEY_H;
 
   /* staff contacts */
-  y=keysBottom+22;
+  y=keysBottom+42;                          /* clear of the last key block, as before */
   g+=text(pad,y,'Staff contacts:',{size:26,weight:700,fill:'#12203C'});
   const contactTop=y+34;
   /* contact cards: name + number, two columns, gold left bar — measured off the
@@ -578,8 +586,11 @@ SH.monthlySVG=function(plan,opts){
      first if a block is tight. */
   const phoneOf=r=>U.fmtPhone((LS.store.staffByName(r.name)||{}).phone);
   const colWid=(W-pad*2)/contactCols;
-  const cardW=(W-pad*2)/contactCols-20;
-  const runW=cardW-20*2;
+  /* the block, less the air between two columns and one inset at each edge: the run
+     the name and the number are solved inside */
+  const cardW=colWid-6;
+  const cardInset=8;
+  const runW=cardW-cardInset*2;
   const numWidest=rows.reduce((a,r)=>Math.max(a,textW(phoneOf(r)||'—',1)),0);
   const nameLongest=rows.reduce((a,r)=>Math.max(a,String(r.name||'').length),1);
   /* The number never goes below 24 px — it is what the contact list is for — and the
@@ -591,25 +602,29 @@ SH.monthlySVG=function(plan,opts){
      number set larger than itself, and a column of them reads as uneven typesetting.
      The size is the largest at which the longest name of the establishment still sits
      beside the longest number inside a block. */
+  /* Solved at the size the names in the grid are set at, and only given up if the pair
+     genuinely cannot sit in one block. The advance used here is the one the row itself
+     measures with; the block shrinks the name again if a single long one still runs. */
   const pairSize=()=>{
-    let s0=Math.min(38,contactH*0.42,30);
+    let s0=Math.min(38,contactH*0.62,cellSize);
     while(s0>16){
-      const gap=Math.max(20,Math.round(s0*0.9));
-      if((nameLongest+numLen)*s0*ADV+gap<=runW) return s0;
+      const gap=Math.max(18,Math.round(s0*0.8));
+      if((nameLongest+numLen)*s0*0.62+gap<=runW) return s0;
       s0-=0.5;
     }
     return 16;
   };
-  const contactNameSize=Math.max(16,Math.round(pairSize()*10)/10);
+  /* The same size as the names in the grid above: a contact list is read against the
+     plan, so it is set in the plan's own voice — never larger, never a separate scale. */
+  const contactNameSize=Math.max(16,Math.min(cellSize,Math.round(pairSize()*10)/10));
   const contactPhoneSize=contactNameSize;
   /* one inset for both edges, so the numbers of every column sit on the same
-     vertical lines, right through the block */
-  const cardInset=20;
+     vertical lines, right through the block — set above, where the run is solved */
   rows.forEach((r,i)=>{
     const col=i%contactCols, row=Math.floor(i/contactCols);
     const x=pad+col*colWid, yy=contactStart+row*contactPitch+(contactPitch-contactH)/2;
     const st=LS.store.staffByName(r.name)||{};
-    const cardX=x+4, cardW=colWid-20;              /* the gold bar is 4 px, then the block */
+    const cardX=x+4, cardW=colWid-10;              /* the gold bar is 4 px, then the block */
     g+=rect(x,yy,4,contactH,C.goldLine);
     g+=rect(cardX,yy,cardW,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
     /* the text run stops an inset short of the block's right edge: the name starts
@@ -1033,7 +1048,7 @@ SH.monthlyXLSX=function(plan){
   const band=[{c:0,v:'STAFF',s:2}];
   cols.forEach(col=>band.push({c:col.i+1,v:SH.dowLetter(col.dow),s:col.weekend?10:2}));
   out.push({h:20,cells:band});
-  const dateRow=[{c:0,v:'Name',s:3}];
+  const dateRow=[{c:0,v:'Names',s:3}];
   cols.forEach(col=>dateRow.push({c:col.i+1,v:col.day,s:col.weekend?10:4}));
   out.push({h:18,cells:dateRow});
   rows.forEach(r=>{
