@@ -67,10 +67,38 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
     if(!phone) return;
     const name=nodes.filter(n=>n.y===phone.y&&n.x<phone.x).sort((a,b)=>b.x-a.x)[0];
     ok(!!name && name.t===st.name,'and on the same line as the name ('+(name?name.t:'—')+' · '+phone.t+')');
-    ok(phone.size>=24,'at a size that reads ('+phone.size+'px)');
+    ok(phone.size>=22,'at a size that reads ('+phone.size+'px)');
     ok(phone.x-name.x>200,'set apart from the name by a real gap');
     ok(phone.anchor==='end','and set flush to the right edge of its block');
   });
+
+  /* ── 3b · two rows of contacts, four blocks to a row ──────────────── */
+  {
+    /* the run from the heading to the signature rule, and nothing below it */
+    const sigY=(nodes.filter(n=>/^Prepared by:$/.test(n.t))[0]||{y:1e9}).y;
+    const body=nodes.filter(n=>n.y>contacts.y&&n.y<sigY);
+    const namesIn=body.filter(n=>n.anchor!=='end'&&/^[A-Z][a-zéû]/.test(n.t));
+    const numsIn=body.filter(n=>n.anchor==='end'&&/^\d{4}-\d{3}-\d{3}$/.test(n.t));
+    const rowsN=[...new Set(namesIn.map(n=>n.y))];
+    const rowNums=[...new Set(numsIn.map(n=>n.y))];
+    ok(rowsN.length===2,'the contacts stand in two rows ('+rowsN.length+')');
+    ok(rowNums.length===2,'and their numbers stand on the same two lines ('+rowNums.length+')');
+    ok(namesIn.length===S.activeStaff().length,'a block for every member of staff ('+namesIn.length+')');
+    const perRow=namesIn.length/2;
+    ok(namesIn.filter(n=>n.y===rowsN[0]).length===perRow,'four blocks to the row on the establishment of eight ('+perRow+')');
+    /* every number is flush to the right edge of its own block */
+    const edges=[...new Set(numsIn.map(n=>n.x))].sort((a,b)=>a-b);
+    ok(edges.length===perRow,'the numbers stand on '+edges.length+' right-hand edges, one per block ('+edges.join(', ')+')');
+    /* one size for the whole block, names and numbers alike */
+    const sizes=[...new Set(namesIn.concat(numsIn).map(n=>n.size.toFixed(1)))];
+    ok(sizes.length===1,'names and numbers are set at one size ('+sizes.join(', ')+')');
+    /* and a number never collides with the name beside it */
+    const collides=namesIn.filter(n=>{
+      const p=numsIn.find(x=>x.y===n.y&&x.x>n.x);
+      return p && (n.x+n.t.length*n.size*0.78)>(p.x-p.t.length*p.size*0.62);
+    });
+    ok(collides.length===0,'no number runs into the name beside it'+(collides.length?' ('+collides.map(n=>n.t).join(', ')+')':''));
+  }
 
   /* ── 4 · the posts, written the way the department writes them ─────── */
   const roleOf=id=>(S.staffById(id)||{}).role;

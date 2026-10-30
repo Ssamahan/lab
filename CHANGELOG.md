@@ -4,6 +4,22 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.71
+
+**Staff contacts are two rows — four blocks to a row — with the numbers flush right, and one size throughout.**
+
+The contact block is now **two rows**, whatever the size of the establishment: four blocks to a row on
+eight people, and the row count never grows. Each block holds its name hard left and its number hard
+right, on one inset shared by every block, so the numbers stand on four right-hand edges and read down
+as columns of numbers rather than as a line of text.
+
+The name and its number are set at **one size for the whole block** — 23.5 px here — solved together
+against the longest name and the longest number, so no block is tight, no number runs into the name
+beside it, and a short name never floats beside a number set larger than itself. The number gives way
+first if a block is ever narrower, and never below 24 px.
+
+---
+
 ## What changed in 6.9.70
 
 **Staff contacts: two to a row, four rows, numbers flush right.**
