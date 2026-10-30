@@ -10,7 +10,8 @@ let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
    abbreviations: AL annual · ML maternal · PL paternal · SL sick · CL circumstantial ·
    AA authorised · H public holiday · WD work desertion / unauthorised absence. */
 const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],
-  ['OFF','At home (not on shift) · the days a night block is repaid'],['RBW','Off duty · rest before work'],['TR','Training'],
+  ['OFF','At home (not on shift) · the days a night block is repaid'],
+  ['UO','UO · Unattended off — a rest day that was worked'],['RBW','Off duty · rest before work'],['TR','Training'],
   ['AL','AL · Annual leave'],['ML','ML · Maternal leave'],['PL','PL · Paternal leave'],
   ['SL','SL · Sick leave'],['CL','CL · Circumstantial leave'],['AA','AA · Authorised leave'],
   ['H','H · Public holiday'],['WD','WD · Work desertion (unauthorised absence)'],
@@ -59,7 +60,9 @@ function coverage(p){
   const out={};
   (p?p.dates:[]).forEach((iso,di)=>{
     let day=0,night=0;
-    (p.staff||[]).forEach((s,si)=>{ const c=s.codes[di]; if(c==='D'||c==='DN') day++; if(c==='N'||c==='DN') night++; });
+    /* UO is a rest day that was worked, so the person is on the bench that day
+       and the day cover must say so — it is a code, not an absence */
+    (p.staff||[]).forEach((s,si)=>{ const c=s.codes[di]; if(c==='D'||c==='DN'||c==='UO') day++; if(c==='N'||c==='DN') night++; });
     out[iso]={day,night};
   });
   return out;
@@ -182,7 +185,11 @@ function fairness(p){
       if(c==='N'||c==='DN') nights += c==='DN'?2:1;
       if(dow>=5 && ['D','N','DN'].includes(c)) weekends++;
       if(S.holiday(iso) && ['D','N','DN'].includes(c)) holidays++;
-      if(c==='D'||c==='DN') days++;
+      /* a rest day that was worked counts as a day on the bench, and as a weekend
+         or a holiday when that is the day it fell on */
+      if(dow>=5 && c==='UO') weekends++;
+      if(S.holiday(iso) && c==='UO') holidays++;
+      if(c==='D'||c==='DN'||c==='UO') days++;
       if(S.isLeaveCode(c)) leave++;
     });
     out[s.name]={nights,weekends,holidays,days,leave};
@@ -231,7 +238,7 @@ function gridView(){
         const show=lv&&!(S.isLeaveCode(c)||c==='TR')?lv:c;
         /* a hatched cell is a day before the person was employed — it is not a rest day
            and it is not blank space, so the diagonal hatch says so at a glance */
-        const cls=['day',dow>=5?'wkend':'',today?'today':'',hol?'holiday':'',c==='OFF'?'off':'',c==='BE'?'be':''].filter(Boolean).join(' ');
+        const cls=['day',dow>=5?'wkend':'',today?'today':'',hol?'holiday':'',c==='OFF'?'off':'',c==='UO'?'uo':'',c==='BE'?'be':''].filter(Boolean).join(' ');
         return '<td class="'+cls+'" data-cell="'+si+'-'+di+'" data-si="'+si+'" data-di="'+di+'" '+(c?'draggable="true"':'')+(lv?' data-tip="Approved leave — the stored plan is unchanged"':'')+(c==='BE'?' data-tip="Before employment — joined later this month"':'')+'><span class="shift-code '+show+'" style="pointer-events:none'+(lv?'':';')+'">'+U.esc(show||'·')+'</span>'
           +(lv?'<i style="position:absolute;inset:2px;border:1px dashed var(--gold);border-radius:4px;pointer-events:none"></i>':'')+'</td>';
      }).join('')+'</tr>';
@@ -1079,7 +1086,8 @@ function assign(si,di,code){
   if(!LS.auth.guard('edit')) return;
   const p=plan(); if(!p) return; const s=p.staff[si];
   S.commit(d=>{ const pl=d.workingPlans[mk].primary; pl.staff[si].codes[di]=code; pl.meta.draft=true; pl.meta.edited=U.nowISO(); },
-    {action:'roster.assign',entity:'workingPlans',entityId:mk,detail:s.name+' · '+U.fmtDate(p.dates[di])+' → '+code});
+    {action:'roster.assign',entity:'workingPlans',entityId:mk,
+     detail:s.name+' · '+U.fmtDate(p.dates[di])+' → '+(code||'blank')});
   paint();
 }
 /* One click, a run of days: the same code written from the cell you touched
@@ -1140,7 +1148,10 @@ function shiftPicker(si,di){
       +quick.map(([c,n,l])=>'<button class="btn xs" data-run="'+c+'" data-n="'+n+'"><span class="shift-code '+c+'" style="margin-right:5px">'+c+'</span>'+l+'</button>').join('')
       +'</div>'
       +'<div class="xs faint" style="margin-bottom:8px">One click writes the whole run from this day forward. Annual leave fills fifteen days at a time, so a ten, twenty or thirty-day block is a click plus an adjustment.</div>'
-      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">'+CODES.map(([c,l])=>'<button class="choice '+(cur===c?'on':'')+'" data-code="'+c+'"><span class="shift-code '+c+'">'+c+'</span><span class="grow"><span class="ct">'+l+'</span></span></button>').join('')+'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">'
+        +'<button class="choice '+(cur?'':'on')+'" data-code=""><span class="shift-code" style="color:var(--text-faint);background:transparent;border-color:var(--border)">·</span><span class="grow"><span class="ct">Blank · at home, nothing written</span></span></button>'
+        +CODES.map(([c,l])=>'<button class="choice '+(cur===c?'on':'')+'" data-code="'+c+'"><span class="shift-code '+c+'">'+c+'</span><span class="grow"><span class="ct">'+l+'</span></span></button>').join('')+'</div>'
+      +'<div class="hint" style="margin-top:10px">A blank cell says the person is at home and leaves the square clean — use it to take a name off a weekend without writing anything that is not a rest day.</div>'
       +'<div class="hint" style="margin-top:12px">Assignments are validated against consecutive-night caps, leave and minimum coverage. Every change is written to the audit trail.</div>',
     foot:'<button class="btn" data-close>Close</button>',
     onMount:(el,close)=>{
@@ -1152,6 +1163,7 @@ function shiftPicker(si,di){
            extended. If the plan cannot be read, this is the fallback that still
            leaves a complete block on the sheet. */
         if(code==='AL'){ fillRun(si,di,'AL',15); close(); UI.toast('Annual leave · 15 days filled from '+U.fmtDate(p.dates[di]),{type:'ok'}); return; }
+        if(!code){ assign(si,di,''); close(); UI.toast('Cell cleared · at home, nothing written',{type:'ok'}); return; }
         assign(si,di,code); close(); UI.toast('Shift updated · coverage recalculated',{type:'ok'});
       });
     }});
@@ -1173,7 +1185,9 @@ function patternsModal(){
         S.commit(d=>{
           const pl=d.workingPlans[mk].primary; if(!pl) return;
           pl.staff.forEach(s=>{ if(who!=='__all'&&s.name!==who) return;
-            s.codes=s.codes.map((c,i)=>{ if(S.isLeaveCode(c)||c==='TR') return c; return codes[i%codes.length]; });
+            /* a pattern never paints over a leave, a training or a day recorded as
+               an unattended off — those are decisions somebody made */
+            s.codes=s.codes.map((c,i)=>{ if(S.isLeaveCode(c)||c==='TR'||c==='UO') return c; return codes[i%codes.length]; });
           });
           pl.meta.generated=false; pl.meta.pattern=tpl;
         },{action:'roster.pattern',entity:'workingPlans',entityId:mk,detail:'Applied pattern '+tpl+' to '+(who==='__all'?'entire unit':who)});

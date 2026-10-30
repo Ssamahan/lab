@@ -32,6 +32,10 @@ const CODE={
   ABS: {bg:'#FBECEE',   fg:'#B03A48', label:'ABS', key:'ABS — Unexcused absence (recorded)'},
   /* The two codes the department's own paper plans have always used. */
   RBW: {bg:'#F4F1E6',   fg:'#7A6428', label:'RBW', key:'RBW — Off duty (rest before work)'},
+  /* A day that was due as rest and was worked instead. The manager enters it by
+     hand: it is not a leave, not an absence, and it does not pay anybody's debt —
+     it names the day the department owes back. */
+  UO:  {bg:'#FBF3E2',   fg:'#8A6D1F', label:'UO',  key:'UO — Unattended off (worked a day due as rest)'},
   AA:  {bg:'#F3E9F6',   fg:'#6B3C7A', label:'AA',  key:'AA — Authorised absence'},
   H:   {bg:'#FBECEE',   fg:'#B03A48', label:'H',   key:'H — Public holiday'},
   /* Not an absence and not a rest day: the days before somebody was employed. On the
@@ -40,7 +44,7 @@ const CODE={
 };
 SH.codes=Object.keys(CODE);
 /* printed register order: shifts, rest, leave, then the rest */
-SH.keyOrder=['D','N','DN','OFF','RBW','AL','ML','SL','CL','AA','TR','W','ABS','H'].filter(c=>CODE[c]);
+SH.keyOrder=['D','N','DN','OFF','UO','RBW','AL','ML','SL','CL','AA','TR','W','ABS','H'].filter(c=>CODE[c]);
 SH.keyOrder=SH.keyOrder.concat(SH.codes.filter(c=>SH.keyOrder.indexOf(c)<0));
 const styleOf=c=>CODE[c]||null;
 
@@ -73,7 +77,7 @@ function text(x,y,str,o){
 }
 SH._h={rect,line,text,esc};
 
-/* ——— Names and the staff exceptions that must be visible on the sheet ————— */
+/* ——— Names ——————————————————————————————————————————————— */
 /* Printed sheets were set at 21–27 px on a 3200 px page, which lands near 6 pt
    when printed: too small to read on a ward wall. Names now use the full cell
    width across two lines (first name above surname) and never fall below the
@@ -102,7 +106,11 @@ function nameBlock(x,y,w,name,o){
   const pref=o.pref||32, min=o.min||21, fill=o.fill||'#12203C', weight=o.weight||600;
   const full=String(name||'');
   const n=nameLines(full);
-  if(!n.sub || textW(full,pref)<=w){
+  /* One line first: shrunk towards `min` before the name is ever broken, because a
+     name printed on one line is what the register reads and the label column is
+     only as wide as the longest name needs. Two lines remain for a name that will
+     not fit even at `min`. */
+  if(!n.sub || textW(full,min)<=w || textW(full,pref)<=w){
     const size=Math.max(min,Math.min(pref, w/Math.max(1,String(full).length*ADV)));
     return text(x,y,full,{size:size,weight:weight,fill:fill,anchor:o.anchor});
   }
@@ -133,27 +141,6 @@ function nameAndPhone(x,y,w,name,phone,o){
 }
 SH._h.nameAndPhone=nameAndPhone;
 
-/* The rostering exceptions the department works to. They are printed on the
-   sheet so nobody has to remember why a row looks the way it does. */
-const EXCEPTION_RULES=[
-  {test:n=>/no weekends\/holidays\/nights|no nights, weekends/i.test(n), text:'Laboratory Manager — no nights, weekends or public holidays'},
-  {test:n=>/Reception mostly/i.test(n), text:'Reception first; Parasitology at most 2 days a month; never Phlebotomy or TB'},
-  {test:n=>/Weekend-only/i.test(n), text:'Weekend-only — Saturday and Sunday, day plus night; rests Monday to Friday'},
-  {test:n=>/3 consecutive nights/i.test(n), text:'Night lead — the only row that may run 3 consecutive nights, at least 3 sessions a month'}
-];
-function staffExceptions(names){
-  const out=[], seen={};
-  (names||[]).forEach(name=>{
-    const st=(window.LS.store.staffByName&&window.LS.store.staffByName(name))||{};
-    const note=String(st.note||'');
-    const rule=EXCEPTION_RULES.find(r=>r.test(note));
-    if(!rule) return;
-    const key=rule.text; if(seen[key]) { seen[key]+=1; return; }
-    seen[key]=1; out.push({name:name, text:rule.text});
-  });
-  return out;
-}
-SH.staffExceptions=staffExceptions;
 /* "Beatrice NGEZEKURE · week 1 — phlebotomy, then reception" */
 function orientationLines(map, alloc){
   const seen={}, out=[];
@@ -183,29 +170,6 @@ function overrideLines(map, alloc){
   });
   return out;
 }
-/* The annotations, wrapped to the page width. Long exception text used to run
-   off the sheet, so it is broken into lines that actually fit. */
-function wrapText(str,width,size){
-  const max=Math.max(20,Math.floor(width/(size*0.52)));
-  const words=String(str).split(/\s+/); const lines=[]; let cur='';
-  words.forEach(w=>{ if((cur+' '+w).trim().length>max){ if(cur) lines.push(cur); cur=w; } else cur=(cur?cur+' ':'')+w; });
-  if(cur) lines.push(cur);
-  return lines;
-}
-function exceptionLines(list,width,size){
-  if(!list.length) return [];
-  const joined=list.map(e=>e.name+' — '+e.text).join('   ·   ');
-  return wrapText(joined,width,size||20);
-}
-function drawExceptions(x,y,width,list,o){
-  o=o||{}; const size=o.size||21, pitch=o.pitch||30;
-  const lines=exceptionLines(list,width,size);
-  if(!lines.length) return '';
-  let out=text(x,y,o.label||'Rostering exceptions:',{size:size+2,weight:700,fill:'#12203C'});
-  lines.forEach((ln,i)=>{ out+=text(x,y+(i+1)*pitch,ln,{size:size,fill:'#5B6474'}); });
-  return out;
-}
-
 /* ——— Letterhead (crest · titles · logo) ——————————————————— */
 function crestMark(x,y,size){
   // Stylised Rwandan seal — replaced automatically when Settings · crest is set.
@@ -304,7 +268,13 @@ SH.monthlySVG=function(plan,opts){
     });
   })();
   const cols=monthCols(plan);
-  const labelW=700, gridX=pad+labelW;
+  /* The names sit over 560 px and the day columns take everything else: the
+     register was drawn with a 700 px label column, which left a band of white
+     between the last letter of a name and the first of the month and squeezed the
+     days that matter. 520 px still sets the longest name on the establishment on
+     one line; the post beneath it is fitted to the column, so a long one shrinks
+     rather than running into Monday. */
+  const labelW=520, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
   const gridTop=opts.gridTop||454, bandH=42, dateH=32;
   const rowH=Math.max(54,Math.min(90,((opts.gridBottom||1040)-gridTop-bandH-dateH)/Math.max(1,rows.length)));
@@ -364,8 +334,8 @@ SH.monthlySVG=function(plan,opts){
     const nameBase=roleText? y+rowH/2-1 : y+rowH/2+Math.round(nameSize*0.36);
     g+=nameBlock(pad+24,nameBase,labelW-48,r.name,{pref:nameSize,min:21});
     if(roleText){
-      const roleSize=Math.max(15,Math.min(21,rowH*0.27));
-      g+=text(pad+24,y+rowH/2+Math.round(roleSize)+7,roleText,{size:roleSize,weight:500,fill:'#5B6474'});
+      const roleSize=fitSize(roleText,labelW-48,Math.max(15,Math.min(21,rowH*0.27)),12);
+      g+=text(pad+24,y+rowH/2+Math.round(roleSize)+7,roleText,{size:r2(roleSize),weight:500,fill:'#5B6474'});
     }
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
@@ -412,14 +382,12 @@ SH.monthlySVG=function(plan,opts){
   g+=rect(gridX,gridTop,colW*cols.length,gridBottom-gridTop,'none',{stroke:'#C9CFDA',sw:1});
   g+=rect(pad,gridBottom+18,W-pad*2,4,C.goldLine);
 
-  /* rostering exceptions — printed, not remembered */
-  const exceptions=staffExceptions(rows.map(r=>r.name));
+  /* The keys follow the grid directly. The sheet used to open with a band of
+     rostering notes — who may not work nights, who rests at the weekend — which
+     repeated what the rows already say and pushed the keys and the contacts down
+     the page. The register a manager signs prints the roster and its keys, not a
+     second telling of the rules. */
   let y=gridBottom+58;
-  if(exceptions.length){
-    const block=drawExceptions(pad,gridBottom+52,W-pad*2,exceptions,{size:21,pitch:29});
-    g+=block;
-    y+=exceptionLines(exceptions,W-pad*2,21).length*29+34;
-  }
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
   y+=30;
   const keys=SH.keyOrder.map(c=>CODE[c].key);
@@ -477,11 +445,22 @@ SH.monthlySVG=function(plan,opts){
     ['Verified by:',s.verified||'',s.verifiedRole||'Clinical Director'],
     ['Approved by:',s.approved||'',s.approvedRole||'Human Resources Officer']
   ];
+  /* The three signatures are set at the size of the names in the staff contacts
+     above them, not at a footnote size: the block is what makes the sheet a
+     document, and it was printed smaller than the register it signs. The three
+     lines are fitted to the column so a long name or post can never run into the
+     next signature. */
+  const sigW=(W-pad*2)/3-40;
+  const sigSize=Math.max(24,contactNameSize);
   sigs.forEach(([label,name,role],i)=>{
     const x=pad+i*((W-pad*2)/3);
-    g+=text(x,1656,label,{size:21,weight:600,fill:'#12203C'});
-    g+=text(x,1688,name,{size:23,weight:700,fill:'#12203C'});
-    g+=text(x,1718,role,{size:19,fill:'#5B6474'});
+    /* one size for the whole block, the size of the names above it */
+    const labelSize=fitSize(label,sigW,sigSize,22);
+    const nameSize=fitSize(name,sigW,sigSize,22);
+    const roleSize=fitSize(role,sigW,sigSize,22);
+    g+=text(x,1652,label,{size:r2(labelSize),weight:600,fill:'#12203C'});
+    g+=text(x,1652+Math.round(sigSize*1.01),name,{size:r2(nameSize),weight:700,fill:'#12203C'});
+    g+=text(x,1652+Math.round(sigSize*1.01)+Math.round(sigSize*0.84),role,{size:r2(roleSize),fill:'#5B6474'});
   });
 
   return svgDoc(W,H,g);
@@ -500,12 +479,10 @@ SH.weeklySVG=function(data,opts){
   const colW=(W-pad*2-labelW)/Math.max(1,dates.length);
   const headH=48, dateH=36, rowH=92, nightH=80;
   const top=446;
-  const exceptions=staffExceptions([].concat(...dates.map(iso=>Object.values(alloc[iso]||{}))).concat(Object.values(night)));
   /* A recorded override is part of the record, so the signed sheet prints it. */
   const overrides=overrideLines(data.overrides||{}, alloc);
   const orient=orientationLines(data.orientation||{}, alloc);
-  const noteLines=exceptionLines(exceptions,W-pad*2,21).length;
-  const noteH=(exceptions.length?noteLines*29+76:0)+(overrides.length?overrides.length*29+60:0)+(orient.length?orient.length*29+58:0);
+  const noteH=(overrides.length?overrides.length*29+60:0)+(orient.length?orient.length*29+58:0);
   const H=top+headH+dateH+rowH*services.length+nightH+noteH+150;
 
   let g='';
@@ -569,10 +546,6 @@ SH.weeklySVG=function(data,opts){
   g+=rect(pad,ny+nightH,W-pad*2,3,C.goldLine);
 
   let noteY=ny+nightH+44;
-  if(exceptions.length){
-    g+=drawExceptions(pad,noteY,W-pad*2,exceptions,{size:21,pitch:29});
-    noteY+=exceptionLines(exceptions,W-pad*2,21).length*29+36;
-  }
   if(overrides.length){
     g+=text(pad,noteY,'Recorded overrides — bench rule lifted for one cell',{size:19,weight:700,fill:'#8A2B33'});
     noteY+=26;

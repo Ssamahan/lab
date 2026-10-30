@@ -153,6 +153,9 @@
 .shift-code.H{color:var(--gold-bright); background:rgba(201,168,76,.10); border-color:rgba(201,168,76,.24)}
 .shift-code.WD{color:var(--crit); background:rgba(220,120,120,.14); border-color:rgba(220,120,120,.30)}
 .shift-code.RBW{color:var(--text-dim); background:rgba(148,163,184,.10); border-color:var(--border)}
+/* a rest day that was worked: warm, not grey — it is a day the department owes back */
+.shift-code.UO{color:var(--gold-bright); background:rgba(201,168,76,.13); border-color:rgba(201,168,76,.30)}
+.plan-fit .cal td.uo{background:rgba(201,168,76,.07)}
 .shift-code.SL{color:var(--crit); background:rgba(220,120,120,.12); border-color:rgba(220,120,120,.26)}
 .shift-code.ML,.shift-code.PL{color:var(--pos); background:var(--pos-soft); border-color:var(--pos-border)}
 .shift-code.BE{color:var(--text-faint); background:transparent; border-color:var(--border); border-style:dashed}

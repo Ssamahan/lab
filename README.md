@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.63** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.64** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -111,7 +111,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.63`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.64`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -205,6 +205,10 @@ register records.
   day off after a block of nights.
 - **The weekend carries one on the days and one on the nights** — and only the weekend
   technologist ever works day + night. Every other weekend cell is blank.
+- **A cell can be left blank on purpose.** The shift picker's blank tile clears a cell back to
+  "at home, nothing written" — the way to take a name off a weekend without inventing an OFF.
+- **UO is an unattended off**: a rest day that was worked. It is entered by hand, is neither
+  leave nor an absence, and names a day the department owes back.
 - **Each month takes its first week over from the month before** and runs a week past its
   own end, so the plan is written ahead of the monthly reports.
 - **A public holiday is rostered as a weekend** — one on the days, one on the nights, the
