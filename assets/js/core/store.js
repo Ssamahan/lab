@@ -2615,7 +2615,9 @@ S.planCovers=function(iso){
 /* One vocabulary for "where is this person today" — used by dashboard, roster, staff. */
 S.shiftState=function(who, iso){
   iso=iso||U.todayISO();
-  const staff=typeof who==='string'?S.staffById(who):who;
+  /* a console passes an id, a roster passes the name printed on the plan: both are
+     the same person, so both find the record */
+  const staff=typeof who==='string'?(S.staffById(who)||S.staffByName(who)):who;
   const blank={code:'',kind:'unknown',label:'Unknown',tone:'slate',source:'none'};
   if(!staff) return blank;
   if(staff.status!=='active') return {code:'',kind:'exited',label:'Exited',tone:'slate',source:'record',
