@@ -4,6 +4,24 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.75
+
+**One gap, used four times, and no band of white under the grid.**
+
+The sheet had a 58 px break under the grid, then a 30 px heading, then a 22 px list break, then a
+34 px heading again — four different gaps, and the first of them a band of white. There is now **one
+gap, used four times**: the rule under the grid to *Keys:*, *Keys:* to its blocks, the last key block
+to *Staff contacts:*, and that heading to the contacts. The same air, measured on the paper rather than
+on the alphabet — a heading sits on a baseline, so its cap height and descender are part of the gap a
+reader sees.
+
+The space the compact rows free is **spent on the blocks first** — a key block and a contact block are
+now the height of a list row (79 → 104 px on a full establishment) — and only what is left goes to the
+gap. Both lists stay on one pitch with the same 13 px of air between their rows, and the contact blocks
+now start where the pitch says they do instead of being nudged down inside their row.
+
+---
+
 ## What changed in 6.9.74
 
 **The keys are spaced like the contacts.**
