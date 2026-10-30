@@ -161,27 +161,38 @@ SH._h.nameBlock=nameBlock;
    and left it unreadable on a printed sheet. The number now sits beside the name at
    the same weight of legibility, and a name that genuinely runs long is set smaller
    rather than wrapped — the printed register never wraps a contact either. */
-/* The number sits beside the name, close enough to be read as one entry. It used to
-   be set against the far edge of the card, which on a four-column contact block left
-   the number a hand's width from the name it belongs to. The name takes what it
-   needs, the number follows it after a short gap, and only a long name pushes the
-   number out. */
+/* The name is set hard left inside its block and the number hard right, on the same
+   run: the block then reads down as a column of names and a column of numbers, which
+   is what makes a contact list easy to scan. The two are sized against the run
+   together, so a long name and a long number can never run into each other — the
+   number gives way first, then the name, rather than one printing over the other. */
 function nameAndPhone(x,y,w,name,phone,o){
   o=o||{};
-  const pref=o.pref||32, min=o.min||19;
+  const pref=o.pref||32;
   const num=String(phone||'—');
-  const numSize=Math.max(20,Math.min(o.numPref||30, pref));
-  const numW=textW(num,numSize);
-  const gap=Math.max(26,numSize*1.1);
-  /* the name may use at most three fifths of the card, so the number always keeps a
-     place beside it rather than being pushed to the edge */
-  const nameCap=Math.max(160,Math.min(w-numW-gap, w*0.62));
-  const size=Math.max(min,Math.min(pref, nameCap/Math.max(1,String(name||'').length*ADV)));
-  const nameW=textW(String(name||''),size);
-  return text(x,y,String(name||''),{size:size,weight:600,fill:o.fill||'#12203C'})
+  const nameStr=String(name||'');
+  const numMax=Math.max(18,Math.min(o.numPref||30, pref));
+  const gapAt=nz=>Math.max(20,Math.round(nz*0.9));
+  const layout=nz=>{
+    const numW=textW(num,nz), gap=gapAt(nz);
+    const avail=Math.max(60,w-numW-gap);
+    const size=Math.min(pref, avail/Math.max(1,nameStr.length*ADV));
+    /* a hair of tolerance: the layout is solved to the edge, and a float that comes
+       back one thousandth of a pixel over must not send the block down a size */
+    return {nz,numW,gap,size,nameW:textW(nameStr,size),fits:textW(nameStr,size)+gap+numW<=w+1};
+  };
+  let L=layout(numMax);
+  /* the number gives way first, down to 18 px; only if it still will not sit beside
+     the name does the name step below its preferred size */
+  if(!L.fits) L=layout(Math.max(16,Math.min(numMax,(w-textW(nameStr,Math.min(pref,18))-gapAt(18))/Math.max(1,num.length*0.60))));
+  if(!L.fits&&L.nameW>0){
+    L.size=Math.max(10,(w-L.numW-L.gap)/Math.max(1,nameStr.length*ADV));
+    L.nameW=textW(nameStr,L.size);
+  }
+  return text(x,y,nameStr,{size:r2(L.size),weight:600,fill:o.fill||'#12203C'})
     +(o.phoneRight===true
-      ? text(x+w,y,num,{size:numSize,weight:600,anchor:'end',fill:'#12203C',mono:true})
-      : text(x+nameW+gap,y,num,{size:numSize,weight:600,fill:'#12203C',mono:true}));
+      ? text(x+w,y,num,{size:r2(Math.min(L.nz,numMax)),weight:600,anchor:'end',fill:'#12203C',mono:true})
+      : text(x+L.nameW+L.gap,y,num,{size:r2(Math.min(L.nz,numMax)),weight:600,fill:'#12203C',mono:true}));
 }
 SH._h.nameAndPhone=nameAndPhone;
 
@@ -497,22 +508,52 @@ SH.monthlySVG=function(plan,opts){
   /* the contacts must stop above the signature rule, whatever the key block above
      them costs — so the number of columns follows the space that is actually left,
      and a card never shrinks below the size a phone number stays readable at */
-  /* ——— contacts: two to a row, four rows ———
-     Two columns of blocks, a pair of names to each row and a row for every four
-     names: the establishment of eight reads as 2 × 4 and nothing is spread into a
-     third or a fourth column. The name is set hard left inside its block and the
-     number hard right, so every number in a column stands on one line — the block
-     reads as a table of numbers, not as a ragged line of text. */
+  /* ——— contacts: two rows ———
+     Two rows, however many names there are: four blocks to a row on an establishment
+     of eight, and the row count never grows. A block keeps its name hard left and its
+     number hard right, so a row of four blocks still reads as four columns of numbers
+     standing on one line each, not as a ragged line of text. The block is made tall
+     enough to fill the space between the keys and the signature rule, because white
+     paper between a list and the signatures is paper wasted. */
   const space=Math.max(120,sigTop0-24-y);
-  const contactCols=2, contactRows=Math.ceil(rows.length/contactCols);
-  const contactPitch=Math.max(56,Math.min(112,space/contactRows));
-  const contactH=Math.max(52,Math.min(96,contactPitch-12));
-  const contactNameSize=Math.max(22,Math.min(40,contactH*0.55));
-  const contactPhoneSize=Math.max(20,Math.min(34,contactH*0.48));
+  const contactRows=Math.min(2,Math.max(1,rows.length));
+  const contactCols=Math.max(1,Math.ceil(rows.length/contactRows));
+  const contactPitch=Math.min(168,Math.max(56,space/contactRows));
+  const contactH=Math.max(52,Math.min(132,contactPitch-14));
+  /* One size for every contact name and one for every number — a register sets a
+     column at one size, and a row of four blocks whose names are four sizes reads as
+     an accident. The name size is the largest that sets the longest name of the
+     establishment beside its number in the narrowest block, and the number gives way
+     first if a block is tight. */
+  const phoneOf=r=>U.fmtPhone((LS.store.staffByName(r.name)||{}).phone);
   const colWid=(W-pad*2)/contactCols;
-  /* one inset for both edges, so the numbers of both columns sit on the same two
+  const cardW=(W-pad*2)/contactCols-20;
+  const runW=cardW-20*2;
+  const numWidest=rows.reduce((a,r)=>Math.max(a,textW(phoneOf(r)||'—',1)),0);
+  const nameLongest=rows.reduce((a,r)=>Math.max(a,String(r.name||'').length),1);
+  /* The number never goes below 24 px — it is what the contact list is for — and the
+     name takes what the rest of the run gives it. The two are solved together for the
+     longest name of the establishment, so every block is set at the same pair of
+     sizes and no block is left tight. */
+  const numLen=rows.reduce((a,r)=>Math.max(a,String(phoneOf(r)||'—').length),1);
+  /* Name and number are set at ONE size: a short name would otherwise float beside a
+     number set larger than itself, and a column of them reads as uneven typesetting.
+     The size is the largest at which the longest name of the establishment still sits
+     beside the longest number inside a block. */
+  const pairSize=()=>{
+    let s0=Math.min(38,contactH*0.42,30);
+    while(s0>16){
+      const gap=Math.max(20,Math.round(s0*0.9));
+      if((nameLongest+numLen)*s0*ADV+gap<=runW) return s0;
+      s0-=0.5;
+    }
+    return 16;
+  };
+  const contactNameSize=Math.max(16,Math.round(pairSize()*10)/10);
+  const contactPhoneSize=contactNameSize;
+  /* one inset for both edges, so the numbers of every column sit on the same
      vertical lines, right through the block */
-  const cardInset=22;
+  const cardInset=20;
   rows.forEach((r,i)=>{
     const col=i%contactCols, row=Math.floor(i/contactCols);
     const x=pad+col*colWid, yy=y+row*contactPitch+(contactPitch-contactH)/2;
@@ -524,7 +565,7 @@ SH.monthlySVG=function(plan,opts){
        at the left inset, the number ends at the right one */
     const textX=cardX+cardInset, textW_=cardW-cardInset*2;
     g+=nameAndPhone(textX,yy+contactH/2+Math.round(contactNameSize*0.36),textW_,r.name,U.fmtPhone(st.phone),
-      {pref:contactNameSize,min:24,numPref:contactPhoneSize,phoneRight:true});
+      {pref:contactNameSize,min:contactNameSize,numPref:contactPhoneSize,phoneRight:true});
   });
   y+=contactRows*contactPitch+10;
 
