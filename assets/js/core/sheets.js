@@ -497,10 +497,12 @@ SH.monthlySVG=function(plan,opts){
   /* the contacts must stop above the signature rule, whatever the key block above
      them costs — so the number of columns follows the space that is actually left,
      and a card never shrinks below the size a phone number stays readable at */
-  /* Two columns, always: a pair of contacts to a row. Spreading the list into three
-     or four columns made each card twice as wide, and the number then sat at the far
-     edge instead of beside the name it belongs to. The pitch is what changes with
-     the space — the cards stay compact and the block stops where it stops. */
+  /* ——— contacts: two to a row, four rows ———
+     Two columns of blocks, a pair of names to each row and a row for every four
+     names: the establishment of eight reads as 2 × 4 and nothing is spread into a
+     third or a fourth column. The name is set hard left inside its block and the
+     number hard right, so every number in a column stands on one line — the block
+     reads as a table of numbers, not as a ragged line of text. */
   const space=Math.max(120,sigTop0-24-y);
   const contactCols=2, contactRows=Math.ceil(rows.length/contactCols);
   const contactPitch=Math.max(56,Math.min(112,space/contactRows));
@@ -508,14 +510,21 @@ SH.monthlySVG=function(plan,opts){
   const contactNameSize=Math.max(22,Math.min(40,contactH*0.55));
   const contactPhoneSize=Math.max(20,Math.min(34,contactH*0.48));
   const colWid=(W-pad*2)/contactCols;
+  /* one inset for both edges, so the numbers of both columns sit on the same two
+     vertical lines, right through the block */
+  const cardInset=22;
   rows.forEach((r,i)=>{
     const col=i%contactCols, row=Math.floor(i/contactCols);
     const x=pad+col*colWid, yy=y+row*contactPitch+(contactPitch-contactH)/2;
     const st=LS.store.staffByName(r.name)||{};
+    const cardX=x+4, cardW=colWid-20;              /* the gold bar is 4 px, then the block */
     g+=rect(x,yy,4,contactH,C.goldLine);
-    g+=rect(x+4,yy,colWid-20,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
-    g+=nameAndPhone(x+24,yy+contactH/2+Math.round(contactNameSize*0.36),colWid-64,r.name,U.fmtPhone(st.phone),
-      {pref:contactNameSize,min:24,numPref:contactPhoneSize});
+    g+=rect(cardX,yy,cardW,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
+    /* the text run stops an inset short of the block's right edge: the name starts
+       at the left inset, the number ends at the right one */
+    const textX=cardX+cardInset, textW_=cardW-cardInset*2;
+    g+=nameAndPhone(textX,yy+contactH/2+Math.round(contactNameSize*0.36),textW_,r.name,U.fmtPhone(st.phone),
+      {pref:contactNameSize,min:24,numPref:contactPhoneSize,phoneRight:true});
   });
   y+=contactRows*contactPitch+10;
 
