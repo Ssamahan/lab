@@ -39,7 +39,7 @@ const CODE={
      it names the day the department owes back. It reads in the same grey as OFF,
      because on the sheet the two are the same kind of day: a day at rest. Only the
      letter tells them apart. */
-  UO:  {bg:C.OFF_BG,    fg:C.offInk,  label:'UO',  key:'UO — Unattended off (worked a day due as rest)'},
+  UO:  {bg:C.OFF_BG,    fg:C.offInk,  label:'UO',  key:'UO — Unattended off'},
   AA:  {bg:'#F3E9F6',   fg:'#6B3C7A', label:'AA',  key:'AA — Authorised absence'},
   H:   {bg:'#FBECEE',   fg:'#B03A48', label:'H',   key:'H — Public holiday'},
   /* Not an absence and not a rest day: the days before somebody was employed. On the
@@ -236,7 +236,7 @@ function letterhead(s,opts){
   g+=text(mid,cy0+116,(s.hospital||'Ruli District Hospital').toUpperCase(),{size:52,weight:700,anchor:'middle',fill:'#12203C',family:FONT.serif,ls:'1'});
   g+=text(mid,cy0+152,s.dept||'Laboratory Department',{size:26,weight:600,anchor:'middle',fill:'#26303F'});
   if(s.email) g+=text(mid,cy0+182,s.email,{size:23,anchor:'middle',fill:'#3D4759'});
-  if(s.phone) g+=text(mid,cy0+210,s.phone,{size:23,anchor:'middle',fill:'#3D4759'});
+  if(s.phone) g+=text(mid,cy0+210,U.fmtPhone(s.phone),{size:23,anchor:'middle',fill:'#3D4759'});
 
   g+=rect(pad,opts.rule1||272,W-pad*2,6,C.goldLine);
   return g;
@@ -259,7 +259,11 @@ SH.dowLetter=d=>DOWLTR[d];
 SH.monthlySVG=function(plan,opts){
   opts=opts||{};
   const s=LS.store.settings();
-  const W=3200, H=1876, pad=96;
+  /* A4 landscape is 297 × 210 mm. At 3200 px across, the true height of the page
+     is 2262 px — the sheet was drawn on 1876 px, so a third of the paper was left
+     white at the foot while the rows, the day letters and the codes were set small
+     enough to fit the short page. The grid now uses the height the paper has. */
+  const W=3200, H=Math.round(W*210/297), pad=96;
   /* rows are read in the department's roster order — the manager, the two who hold
      a post, the bench, and the weekend technologist last — the same order as the
      screen, so the sheet and the grid never disagree */
@@ -281,8 +285,14 @@ SH.monthlySVG=function(plan,opts){
      rather than running into Monday. */
   const labelW=520, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
-  const gridTop=opts.gridTop||454, bandH=42, dateH=32;
-  const rowH=Math.max(54,Math.min(90,((opts.gridBottom||1040)-gridTop-bandH-dateH)/Math.max(1,rows.length)));
+  const gridTop=opts.gridTop||470, bandH=48, dateH=40;
+  /* Everything under the grid — the keys, the contacts and the three signatures —
+     is measured first, and the rows take what is left: so a month with eight rows
+     gets tall, readable rows instead of a short grid and a page of white. */
+  const KEY_ROWS=Math.ceil(SH.keyOrder.length/6), KEY_PITCH=62;
+  const lower=72+KEY_ROWS*KEY_PITCH+96+Math.ceil(rows.length/3)*96+150;
+  const rowH=Math.max(64,Math.min(opts.rowH||126,
+    Math.round((H-gridTop-bandH-dateH-lower)/Math.max(1,rows.length))));
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
 
   let g='';
@@ -303,9 +313,9 @@ SH.monthlySVG=function(plan,opts){
 
   /* header bands */
   g+=rect(pad,gridTop,labelW,bandH,C.band);
-  g+=text(pad+24,gridTop+bandH/2+9,'STAFF',{size:27,weight:700,fill:'#FFFFFF',ls:'1'});
+  g+=text(pad+24,gridTop+bandH/2+11,'STAFF',{size:31,weight:700,fill:'#FFFFFF',ls:'1'});
   g+=rect(pad,gridTop+bandH,labelW,dateH,'#FFFFFF');
-  g+=text(pad+24,gridTop+bandH+dateH/2+9,'Name',{size:25,weight:600,fill:'#3D4759'});
+  g+=text(pad+24,gridTop+bandH+dateH/2+10,'Name',{size:28,weight:600,fill:'#3D4759'});
   g+=rect(pad,gridTop,labelW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
   cols.forEach((c,i)=>{
     const x=gridX+i*colW;
@@ -313,9 +323,15 @@ SH.monthlySVG=function(plan,opts){
     g+=rect(x,gridTop,colW,bandH,fill);
     g+=rect(x,gridTop+bandH,colW,dateH,c.weekend?'#FBF1DA':'#F4F6FA');
     g+=rect(x,gridTop,colW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
-    g+=text(x+colW/2,gridTop+bandH/2+9,SH.dowLetter(c.dow),{size:27,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
-    g+=text(x+colW/2,gridTop+bandH+dateH/2+9,String(c.day),{size:26,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,gridTop+bandH/2+11,SH.dowLetter(c.dow),{size:31,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
+    g+=text(x+colW/2,gridTop+bandH+dateH/2+10,String(c.day),{size:30,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
   });
+
+  /* Every name is set as large as the label column allows — a short name fills the
+     row it sits in, a long one steps down to 22 px rather than wrap — and the floor
+     is high enough to read on a printed A4 sheet. */
+  const nameSizeAll=34;
+  const roleSizeAll=22;
 
   /* body */
   rows.forEach((r,ri)=>{
@@ -335,12 +351,12 @@ SH.monthlySVG=function(plan,opts){
        fits across it at the size below, so it is never broken. The post under it is
        a step smaller and in muted ink, so the name always reads first. */
     const roleText=(role+reqLine).replace(/^ · /,'');
-    const nameSize=Math.max(22,Math.min(34,roleText?rowH*0.42:rowH*0.50));
-    const nameBase=roleText? y+rowH/2-1 : y+rowH/2+Math.round(nameSize*0.36);
-    g+=nameBlock(pad+24,nameBase,labelW-48,r.name,{pref:nameSize,min:21});
+    const nameSize=nameSizeAll;
+    const nameBase=roleText? y+rowH/2-6 : y+rowH/2+Math.round(nameSize*0.36);
+    g+=nameBlock(pad+24,nameBase,labelW-56,r.name,{pref:nameSize,min:22});
     if(roleText){
-      const roleSize=fitSize(roleText,labelW-48,Math.max(15,Math.min(21,rowH*0.27)),12);
-      g+=text(pad+24,y+rowH/2+Math.round(roleSize)+7,roleText,{size:r2(roleSize),weight:500,fill:'#5B6474'});
+      const roleSize=fitSize(roleText,labelW-56,roleSizeAll,15);
+      g+=text(pad+24,y+rowH/2+Math.round(roleSize)+12,roleText,{size:r2(roleSize),weight:500,fill:'#5B6474'});
     }
     const codes=r.codes||[];
     cols.forEach((c,i)=>{
@@ -370,8 +386,12 @@ SH.monthlySVG=function(plan,opts){
       }
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       if(st && code && !st.hatch){
-        const cSize=code.length>2?23:32;
-        g+=text(x+colW/2,y+rowH/2+(code.length>2?8:10),st.label,{size:cSize,weight:700,anchor:'middle',fill:st.fg});
+        /* The letter is set from the row's own height — a taller row is a bigger
+           letter, which is the point of the taller row — but never wider than the
+           day column it sits in, so OFF and DN cannot run into the next day. */
+        const big=Math.max(32,Math.min(56,Math.round(rowH*0.46)));
+        const cSize=Math.max(15,fitSize(st.label,colW-16,big,15));
+        g+=text(x+colW/2,y+rowH/2+Math.round(cSize*0.34),st.label,{size:r2(cSize),weight:700,anchor:'middle',fill:st.fg});
       }
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
@@ -417,7 +437,7 @@ SH.monthlySVG=function(plan,opts){
      never opens a white gap between contacts and signatures */
   /* Cards are spread down to the signature block, as on the printed register:
      pitch fills the run, the card itself stays compact and legible. */
-  const sigTop0=1612;
+  const sigTop0=H-186;      /* the signature rule sits just above the foot of the page */
   /* the contacts must stop above the signature rule, whatever the key block above
      them costs — so the number of columns follows the space that is actually left,
      and a card never shrinks below the size a phone number stays readable at */
@@ -437,13 +457,13 @@ SH.monthlySVG=function(plan,opts){
     const st=LS.store.staffByName(r.name)||{};
     g+=rect(x,yy,4,contactH,C.goldLine);
     g+=rect(x+4,yy,colWid-20,contactH,'#F7F9FD',{stroke:'#E3E8F1',sw:1});
-    g+=nameAndPhone(x+24,yy+contactH/2+Math.round(contactNameSize*0.36),colWid-64,r.name,st.phone,
+    g+=nameAndPhone(x+24,yy+contactH/2+Math.round(contactNameSize*0.36),colWid-64,r.name,U.fmtPhone(st.phone),
       {pref:contactNameSize,min:24,numPref:contactPhoneSize});
   });
   y+=contactRows*contactPitch+10;
 
   /* signatures */
-  const sigTop=1612;
+  const sigTop=sigTop0;
   g+=rect(pad,sigTop,W-pad*2,2,'#EDE3C7');
   const sigs=[
     ['Prepared by:',s.prepared||'',s.preparedRole||'Laboratory Manager'],
@@ -466,9 +486,10 @@ SH.monthlySVG=function(plan,opts){
     /* at the contacts' size the three lines need the leading to go with it: a
        34 px name sits on 39, and the role under it on 36 more */
     const lead=Math.round(sigSize*1.14), roleLead=Math.round(sigSize*1.12);
-    g+=text(x,1646,label,{size:r2(labelSize),weight:600,fill:'#12203C'});
-    g+=text(x,1646+lead,name,{size:r2(nameSize),weight:700,fill:'#12203C'});
-    g+=text(x,1646+lead+roleLead,role,{size:r2(roleSize),fill:'#5B6474'});
+    const base=sigTop+34;
+    g+=text(x,base,label,{size:r2(labelSize),weight:600,fill:'#12203C'});
+    g+=text(x,base+lead,name,{size:r2(nameSize),weight:700,fill:'#12203C'});
+    g+=text(x,base+lead+roleLead,role,{size:r2(roleSize),fill:'#5B6474'});
   });
 
   return svgDoc(W,H,g);
@@ -813,7 +834,7 @@ SH.monthlyXLSX=function(plan){
   out.push({cells:[{c:0,v:'MINISTRY OF HEALTH',s:13}]});
   out.push({h:26,cells:[{c:0,v:s.hospital||'Ruli District Hospital',s:1}]});
   out.push({cells:[{c:0,v:(s.dept||'Laboratory Department')+' · Republic of Rwanda',s:13}]});
-  out.push({cells:[{c:0,v:((s.email||'')+(s.phone?' · '+s.phone:'')),s:13}]});
+  out.push({cells:[{c:0,v:((s.email||'')+(s.phone?' · '+U.fmtPhone(s.phone):'')),s:13}]});
   out.push({cells:[]});
   out.push({h:22,cells:[{c:0,v:'Working Plan — '+((plan.meta&&plan.meta.period)||plan.label||''),s:1}]});
   out.push({cells:[{c:0,v:'Date: '+((plan.meta&&plan.meta.date)||'')+'    FY: '+((plan.meta&&plan.meta.fy)||''),s:13}]});
@@ -851,7 +872,7 @@ SH.monthlyXLSX=function(plan){
     const col=i%2, row=Math.floor(i/2);
     if(col===0) out.push({cells:[]});
     const target=out[out.length-1];
-    target.cells[col]={c:col,v:r.name+'  ·  '+(st.phone||'—'),s:12};
+    target.cells[col]={c:col,v:r.name+'  ·  '+(U.fmtPhone(st.phone)||'—'),s:12};
   });
   out.push({cells:[]});
   out.push({cells:[{c:0,v:'Prepared by: '+(s.prepared||''),s:3},{c:2,v:'Verified by: '+(s.verified||''),s:3},{c:4,v:'Approved by: '+(s.approved||''),s:3}]});

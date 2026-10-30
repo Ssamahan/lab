@@ -13,6 +13,12 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   const nodes=[...svg.matchAll(/<text x="([-\d.]+)" y="([-\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>([^<]*)</g)]
     .map(m=>({x:+m[1],y:+m[2],size:+m[3],t:m[4]}));
   const at=(re)=>nodes.filter(n=>re.test(n.t));
+  /* the body of the grid runs from the header band down to the keys; the page is
+     A4 landscape (3200 × 2262) so the rows are taller than they used to be and a
+     fixed band would stop before the last of them */
+  const keysNode=at(/^Keys:$/)[0];
+  const bodyTop=520, bodyBottom=keysNode?keysNode.y-20:1600;
+  const inBody=n=>n.y>bodyTop&&n.y<bodyBottom;
 
   /* ── 1 · the ministry stands above the hospital ─────────────────────── */
   const min=at(/^MINISTRY OF HEALTH$/)[0];
@@ -35,17 +41,18 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   });
   /* the body rows: name on one line, the post on the next, never on top of it */
   S.activeStaff().forEach(st=>{
-    const name=at(new RegExp('^'+st.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$'))
-      .filter(n=>n.y>520&&n.y<1080)[0];
+    const name=at(new RegExp('^'+st.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$')).filter(inBody)[0];
     if(!name) return ok(false,st.name+' has a body row');
     const role=at(new RegExp('^'+String(st.role||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')))
-      .filter(n=>Math.abs(n.x-name.x)<2 && n.y>name.y && n.y-name.y<40).sort((a,b)=>a.y-b.y)[0];
+      /* the post sits on the next line of a row that is now A4-tall, so the gap is
+         measured against the row rather than against a fixed 40 px */
+      .filter(n=>Math.abs(n.x-name.x)<2 && n.y>name.y && n.y-name.y<70).sort((a,b)=>a.y-b.y)[0];
     ok(!!role,st.name.split(' ')[0]+'’s post is printed with the row ('+(role?role.t:'—')+')');
     if(role) ok(role.y>name.y,st.name.split(' ')[0]+'’s post sits below the name, not over it ('+name.y.toFixed(0)+' → '+role.y.toFixed(0)+')');
     if(role) ok(role.size<name.size,'and a step smaller, so the name reads first ('+name.size+' vs '+role.size+')');
   });
   /* the longest name sets at a size a reader can take on the wall */
-  const longest=at(/^Jeanne Claudine UWAYISABA$/).filter(n=>n.y>520&&n.y<1080)[0];
+  const longest=at(/^Jeanne Claudine UWAYISABA$/).filter(inBody)[0];
   ok(longest&&longest.size>=21,'the longest name is not shrunk below legibility ('+(longest?longest.size:'—')+')');
 
   /* ── 3 · the phone sits beside the name, not under it ──────────────── */
@@ -53,7 +60,9 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   ok(!!contacts,'the sheet keeps its staff contact list');
   S.activeStaff().forEach(st=>{
     if(!st.phone) return;
-    const phone=at(new RegExp('^'+st.phone+'$'))[0];
+    /* the letterhead carries the department's own number, which is the manager's;
+       the contact card is the one under the "Staff contacts" heading */
+    const phone=at(new RegExp('^'+U.fmtPhone(st.phone)+'$')).filter(n=>n.y>contacts.y)[0];
     ok(!!phone,'the number for '+st.name.split(' ')[0]+' is on the sheet');
     if(!phone) return;
     const name=nodes.filter(n=>n.y===phone.y&&n.x<phone.x).sort((a,b)=>b.x-a.x)[0];

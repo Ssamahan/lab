@@ -507,9 +507,53 @@ function generatePlan(monthKey, seedDB){
         if(c==='D'||c==='N'||c==='DN') holCount[r.name]=(holCount[r.name]||0)+1; });
     });
   }
+  /* ——— what the months before already gave everybody ————————————————
+     Fairness is not a question about one month. A name who carried eight nights in
+     September, eight in October and eight in November is not level with one who
+     carried four, and a plan that weighs only its own run hands the December nights
+     to the same person again. The three months before are read off their stored
+     plans — nights, and the holiday duties — and the pick is weighed by that plus
+     whatever the current run has given. A month with no stored plan contributes
+     nothing, so the count is never invented. */
+  const histNights={}, histHols={};
+  staff.forEach(s=>{ histNights[s.name]=0; histHols[s.name]=0; });
+  const seenDay={};
+  const histKeys=[]; { let k=prevKey;
+    for(let i=0;i<3;i++){ histKeys.push(k); k=U.monthKey(U.addDays(k+'-01',-1)); } }
+  histKeys.forEach(k=>{
+    const e=seedDB.workingPlans&&seedDB.workingPlans[k];
+    const p=e&&e.primary;
+    if(!p||!Array.isArray(p.dates)) return;
+    p.dates.forEach((iso,di)=>{
+      if(seenDay[iso]) return;
+      seenDay[iso]=1;
+      (p.staff||[]).forEach(r=>{
+        const c=(r.codes||[])[di];
+        /* the month just gone counts double: it is the one a reader remembers, and
+           the one whose nights the next plan should visibly pay back */
+        const mult=(k===prevKey)?2:1;
+        if(c==='N'||c==='DN') histNights[r.name]=(histNights[r.name]||0)+mult;
+        if(isHol(iso)&&(c==='D'||c==='N'||c==='DN')) histHols[r.name]=(histHols[r.name]||0)+1;
+      });
+    });
+  });
+  /* the holiday rota starts from the record, not from zero at every month */
+  staff.forEach(s=>{ holCount[s.name]=(holCount[s.name]||0)+((histHols[s.name]||0)); });
+
   const markRest=(box,name,iso)=>{ (box[name]=box[name]||{})[iso]=true; };
   const runBefore=(name,iso)=>{ let n=0, d=U.addDays(iso,-1);
     while(nights[d]===name && n<4){ n++; d=U.addDays(d,-1); } return n; };
+  /* Six months of employment, counted to the month: the holidays that fall early in
+     the week go to somebody who has been in the department long enough to work them
+     unsupervised, and the newer names take the Thursday, the Friday and the weekend
+     duty instead. */
+  const monthsServed=(s,iso)=>{
+    const j=String((s&&s.joinDate)||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(j)) return 999;
+    const a=U.parseISO(j), b=U.parseISO(String(iso).slice(0,10));
+    return (b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());
+  };
+  const isSenior=(s,iso)=>monthsServed(s,iso)>=6;
   const canTake=(s,block)=>{
     if(!block.every(iso=>!onLeave(s.name,iso))) return false;
     /* the first thirty days are dayshifts: no night inside the induction month */
@@ -521,7 +565,26 @@ function generatePlan(monthKey, seedDB){
      month of the block: the plan runs a week into the next month, and counting
      only that week would put a name who has carried nothing all month level with
      one who has just finished a block. The ceiling stays per month, above. */
-  const loadOf=s=>dates.reduce((n,iso)=>n+(nights[iso]===s.name?1:0),0);
+  const runLoadOf=s=>dates.reduce((n,iso)=>n+(nights[iso]===s.name?1:0),0);
+  /* ——— the names a month goes easiest on ————————————————————————————
+     A month can be marked, on the person's own record, as one they are not to be
+     put on the nights for. The plan then picks everybody else first and turns to
+     them only when nobody else can take the block, which is the least the rules
+     allow while every night still has a name against it. It is a record field, so
+     it can be set, changed or cleared on the staff card, and any cell can still be
+     repainted by hand afterwards. */
+  const lightMonths=s=>(s&&Array.isArray(s.lightMonths))?s.lightMonths:[];
+  /* the test is made on the day the block falls on, not on the month the plan is
+     named for: a November plan writes the first week of December, and a name kept
+     off December's nights must not be given one there either */
+  const isLight=(s,iso)=>{ const m=lightMonths(s);
+    return m.indexOf(String(iso||monthKey).slice(0,7))>=0 || m.indexOf(monthKey)>=0; };
+  /* The month being written is evened out first; where two names stand level in it,
+     the one who has carried fewer nights over the months before takes the block. So
+     the month stays balanced to a night or two, and month after month the work
+     walks round the bench instead of settling on the same two names. */
+  const loadAt=(s,iso)=>runLoadOf(s)*100+(histNights[s.name]||0)+(isLight(s,iso)?100000:0);
+  const loadOf=s=>loadAt(s,dates[0]);
 
   /* ——— week by week ——— */
   const weekStarts=[]; dates.forEach((iso,i)=>{ if(U.dow(iso)===0||i===0) weekStarts.push(i); });
@@ -537,6 +600,10 @@ function generatePlan(monthKey, seedDB){
     if(wkDays.length){
       /* a newcomer is exempt from the weekend until the month of induction is over */
       const eligible=s=>wkDays.every(iso=>!isNewcomerAt(s,iso));
+      /* where the weekend technologist is away and the bench has nobody free for the
+         nights, the newest names are asked rather than leaving the weekend open —
+         the department runs day and night at the weekend, and an uncovered night is
+         worse than a newcomer on it */
       const own=weekendTechnologist.filter(s=>eligible(s)&&wkDays.every(iso=>!onLeave(s.name,iso)))[0];
       if(own){
         /* she takes Saturday and Sunday, day and night, on `DN` — and she is the
@@ -550,7 +617,12 @@ function generatePlan(monthKey, seedDB){
           && eligible(s) && wkDays.every(iso=>!onLeave(s.name,iso)));
         const dayPick=free.filter(s=>crew.indexOf(s)<0 && s.name!==friNight)[0]
           || free.filter(s=>s.name!==friNight)[0] || free[0] || null;
-        const nightPick=crew.filter(s=>s!==dayPick && s.name!==friNight && canTake(s,wkDays))
+        const nightPool=crew.filter(s=>s!==dayPick && s.name!==friNight && canTake(s,wkDays));
+        const nightPick=(nightPool.length?nightPool:
+          /* nobody on the normal night rota can take the weekend: ask the rest of the
+             bench, newcomers included, so the two nights are covered */
+          staff.filter(s=>s!==dayPick && s.name!==friNight && !s.weekendOnly && s.pattern!=='manager'
+            && wkDays.every(iso=>!onLeave(s.name,iso)) && canTake(s,wkDays)))
           .sort((a,b)=>loadOf(a)-loadOf(b))[0] || null;
         if(dayPick){
           wkDays.forEach(iso=>{ weekendDay[iso]=dayPick.name; });
@@ -570,7 +642,11 @@ function generatePlan(monthKey, seedDB){
              Monday to Wednesday. That is the only case in which RBW is ever
              written onto a plan — it is not a mechanical second day off after
              every block of nights. */
-          if(fri && !nights[fri]) markRest(restRbw,nightPick.name,fri);
+          /* A name who goes on leave straight after the weekend does not need the
+             rest — the leave is the rest, and writing RBW on the Friday would
+             promise a Monday off that the leave register has already spoken for */
+          const monAfter=U.addDays(wkDays[wkDays.length-1],1);
+          if(fri && !nights[fri] && !onLeave(nightPick.name,monAfter)) markRest(restRbw,nightPick.name,fri);
         }
       }
     }
@@ -583,8 +659,23 @@ function generatePlan(monthKey, seedDB){
     const holWk=week.filter(iso=>isHol(iso) && isOpen(iso) && U.dow(iso)<5);
     holWk.forEach(iso=>{
       if(nights[iso]) return;
-      const free=staff.filter(s=>!s.weekendOnly && (s.pattern!=='manager'||s.worksHolidays)
+      /* A holiday early in the week — Monday to Wednesday — is a working day of the
+         hardest kind, so it goes to somebody who has served six months or more; the
+         newer names take the Thursday, the Friday and the weekend duties. Where the
+         bench has nobody senior free, the rule steps aside rather than leave the day
+         uncovered. */
+      /* U.dow counts Monday as 0, so the early half of the week is 0, 1 and 2 */
+      const early=U.dow(iso)<=2;
+      const eligibleFor=list=>{
+        const senior=list.filter(s=>isSenior(s,iso));
+        return (early&&senior.length)?senior:list;
+      };
+      const bench=staff.filter(s=>!s.weekendOnly && (s.pattern!=='manager'||s.worksHolidays)
         && !isNewcomerAt(s,iso) && !onLeave(s.name,iso));
+      /* a month a name is being kept off the nights for keeps them off the holiday
+         duty too, and only comes into it when nobody else is left */
+      const lightFree=bench.filter(s=>!isLight(s,iso));
+      const free=eligibleFor((lightFree.length?lightFree:bench));
       if(!free.length) return;
       /* the rota turns one place each time, and the lightest holiday load wins:
          two rules that both push the duty onto somebody who has not had it */
@@ -648,12 +739,12 @@ function generatePlan(monthKey, seedDB){
             /* a three-night block only goes to somebody whose ceiling allows it,
                and among those it goes to whoever is carrying the fewest nights —
                the rotation is what shares the nights out, not one name's rank */
-            const byLoad=list=>list.slice().sort((a,b)=>loadOf(a)-loadOf(b));
+            const byLoad=list=>list.slice().sort((a,b)=>loadAt(a,block[0])-loadAt(b,block[0]));
             const allowed=pool.filter(s=>(s.maxConsecN||0)>=3);
             const best=byLoad(allowed.length?allowed:pool)[0];
             pick=best||null;
           } else {
-            pick=pool.slice().sort((a,b)=>loadOf(a)-loadOf(b))[0] || null;
+            pick=pool.slice().sort((a,b)=>loadAt(a,block[0])-loadAt(b,block[0]))[0] || null;
           }
         }
         if(!pick) return;
@@ -1342,6 +1433,22 @@ function normalize(db){
     if(jean){ jean.role='Lab Quality Manager'; jean.post='Lab Quality Manager'; }
     const dieu=(db.staff||[]).find(x=>x.id==='s9');
     if(dieu){ dieu.post='Lab Safety Officer'; }
+  }
+  /* v6.9.67 — December goes easiest on Bernadette. Her record carries December
+     2026 as a month she is not put on the nights for, so the December draft gives
+     the night blocks to Dieudonné, Patrick and Jeanne Claudine and turns to her
+     only if none of them can take one. It is a field on her record, not a rule
+     buried in the generator: it can be changed on the staff card, and any cell on
+     the plan can still be repainted by hand. */
+  if(!db.meta.lightMonthsV6967){
+    db.meta.lightMonthsV6967=1;
+    const b=(db.staff||[]).find(x=>x.id==='s10');
+    if(b){
+      const have=Array.isArray(b.lightMonths)?b.lightMonths:[];
+      if(have.indexOf('2026-12')<0) have.push('2026-12');
+      b.lightMonths=have;
+      b.lightReason='December 2026 — as few nights as the bench allows';
+    }
   }
   /* v6.9.58 — Jeanne Claudine UWAYISABA arrived on 6 October 2026. Her record said
      2022, which put her on the establishment for years she was not there; the date
