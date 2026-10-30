@@ -4,6 +4,22 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.76
+
+**The keys follow the table again, and the spacing goes back to what it was signed off at.**
+
+6.9.75 spread one gap through the whole lower half of the sheet to fix a band of white — and moved the
+contacts and the keys with it. That is undone. The gaps are the ones the sheet had when it was approved:
+22 px before a heading, 30 px from *Keys:* to the key blocks, 34 px from *Staff contacts:* to the
+contacts, 18 px to the signature rule — and the key and contact blocks are again the block the sheet was
+signed off with, on one pitch, with 13 px of air between their rows.
+
+The single fault is fixed on its own: **the keys now open right under the grid.** The band of white
+between the last row of the table and *Keys:* is gone — the heading sits 22 px under the gold rule
+instead of 58 px plus a heading's worth of paper.
+
+---
+
 ## What changed in 6.9.75
 
 **One gap, used four times, and no band of white under the grid.**

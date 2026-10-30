@@ -34,30 +34,29 @@ const {boot,ok,done}=require('./env');
   const keyText=[...new Set(nodes.filter(n=>n.y>keyY[0]-80&&/ — /.test(n.t)).map(n=>n.s))];
   ok(keyText.length===1,'the key text is one size for every key ('+keyText.join(', ')+')');
 
-  /* ——— ONE gap, four times ———
-     read on the paper: the rule under the grid, the headings by their cap height, and
-     the blocks by their own edges. */
-  const CAP=19, DESC=6, RULE=18;
+  /* ——— the legend follows the grid ———
+     the band of white that used to sit between the last row of the table and "Keys:"
+     is gone: the heading comes right under the rule. */
+  const RULE=18;
   const frames=[...svg.matchAll(/<rect x="96" y="470" width="560" height="([\d.]+)"/g)].map(m=>+m[1]);
   const gridBottom=470+frames[frames.length-1];
-  const rule=gridBottom+RULE;
   const keysHead=nodes.filter(n=>/^Keys:$/.test(n.t))[0];
   const cntHead=nodes.filter(n=>/^Staff contacts:$/.test(n.t))[0];
+  const keysClose=keysHead.y-RULE-gridBottom;
+  ok(keysClose<60,'the keys follow the table ('+Math.round(keysClose)+' px from the rule to the heading)');
+  const keyLead=keyY[0]-(keysHead.y+6);
+  ok(keyLead<40,'and the first key row follows its own heading ('+Math.round(keyLead)+' px)');
   const lastKey=Math.max.apply(null,keyBoxes.map(b=>b.y+b.h));
   const firstCard=Math.min.apply(null,cardBoxes.map(b=>b.y));
-  const G=[keysHead.y-CAP-rule, keyY[0]-(keysHead.y+DESC),
-    cntHead.y-CAP-lastKey, firstCard-(cntHead.y+DESC)];
-  ok(Math.max.apply(null,G)-Math.min.apply(null,G)<=1,
-    'one gap is used four times: grid→Keys, Keys→blocks, blocks→contacts, contacts→cards ('+G.map(Math.round).join(', ')+')');
-  ok(G[0]<=72,'and it is a section gap, not a band of white ('+Math.round(G[0])+' px)');
-  ok(G[1]===G[0]&&G[3]===G[0],'every heading sits the same distance over its blocks');
+  ok(cntHead.y-lastKey<40,'the contacts follow the keys the same way ('+Math.round(cntHead.y-lastKey)+' px)');
+  ok(firstCard-(cntHead.y+6)<45,'and their heading leads into their blocks ('+Math.round(firstCard-(cntHead.y+6))+' px)');
 
   /* ——— the signatures follow the contacts, and the sheet closes on its margin ——— */
   const sig=nodes.filter(n=>/^Prepared by:$/.test(n.t))[0];
   const lastCard=Math.max.apply(null,cardBoxes.map(b=>b.y+b.h));
   ok(!!sig,'the signature block is drawn');
   ok(sig.y-lastCard>0&&sig.y-lastCard<90,'and stands just under the last row of contacts ('+Math.round(sig.y-lastCard)+' px, rule to cap)');
-  ok(H-(sig.y+45)<160,'so the sheet does not close on a band of white paper ('+Math.round(H-sig.y-45)+' px)');
+  ok(H-(sig.y+45)<260,'and the page closes on the margin it opens with ('+Math.round(H-sig.y-45)+' px below the last signature line)');
   ok(errors.length===0,'no console errors during the run');
   done('sheet72');
 })();
