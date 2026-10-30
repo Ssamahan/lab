@@ -341,42 +341,36 @@ SH.monthlySVG=function(plan,opts){
      gets tall, readable rows instead of a short grid and a page of white. */
   /* ——— the measures of the sheet ———
      The staff rows are three fifths of what they were (126 -> 76) and so are the
-     contact blocks (132 -> 79); the key blocks are the height of a contact block, so
-     the legend and the contact list read as two lists of one setting, on one pitch,
-     with the same 13 px of air between their rows. */
+     contact blocks (132 -> 79). The key blocks are the height of a contact block, so
+     the legend and the contact list read as two lists of one setting: one block
+     height, one pitch, the same 13 px of air between their rows. These are the
+     measures the sheet was signed off at; nothing below changes them. */
   const KEY_ROWS=Math.ceil(SH.keyOrder.length/6);
   const CONTACT_ROWS=Math.min(2,Math.max(1,rows.length));
   const rowH=76;                            /* a staff row, three fifths of 126 */
-
-  /* ——— one gap, used four times ———
-     Between the rule under the grid and the first heading, between that heading and
-     its blocks, between the last key block and the next heading, and between that
-     heading and the contacts. The same air, four times: read one gap and you know the
-     sheet. It is measured on the paper rather than on the alphabet — a heading sits on
-     a baseline, so its cap height and descender are part of the gap a reader sees. */
-  const RULE=18, CAP=19, DESC=6, SIG_GAP=36;
-  const SIG_BLOCK=18+2+28+26+12+26+8;      /* the signature block: rule, label, name, post */
   const gridBottom=gridTop+bandH+dateH+rowH*rows.length;
-
-  /* measured from the blocks themselves, so a change of spacing or of block height
-     moves the foot of the sheet by exactly that much */
-  const footAt=(b,gap)=>{
+  /* The one thing that was wrong: the keys did not follow the table — a band of white
+     sat between the last row of the grid and the heading. The legend now follows the
+     grid, and the rest of the sheet keeps the spacing it was signed off at: 22 px
+     before a heading, 30 px below it to the keys, 34 px below it to the contacts. */
+  const RULE=18;                            /* the gold rule under the grid */
+  const GRID_GAP=RULE+4+22+19;              /* rule, 22 px of air, the heading's cap height */
+  const SIG_GAP=18;
+  const SIG_BLOCK=18+2+28+26+12+26+8;      /* the signature block: rule, label, name, post */
+  /* The block and the pitch are never pulled apart: the air between two rows stays at
+     13 px, and a list that must take more of the page takes it by growing its blocks.
+     What the compact rows leave over after the legend has been brought up to the grid
+     goes there — equally to the keys and to the contacts — so the page keeps the
+     spacing it was signed off at and still closes on its own bottom margin. */
+  const footAt=b=>{
     const pitch=b+13;
-    const lead=CAP+DESC+gap;               /* heading baseline, then its blocks */
-    const keysBottom=gridBottom+RULE+lead+lead+(KEY_ROWS-1)*pitch+b;
-    const contactsTop=keysBottom+lead;
-    return contactsTop+(CONTACT_ROWS-1)*pitch+b+SIG_GAP+SIG_BLOCK;
+    return gridBottom+GRID_GAP+30+KEY_ROWS*pitch-13
+      +22+34+CONTACT_ROWS*pitch-13+SIG_GAP+SIG_BLOCK;
   };
-  const budget=H-96;                       /* the sheet keeps the page margin at its foot */
-  /* The blocks grow first — a taller block reads, an airy gap does not — and only what
-     is left over goes to the gap, within the range in which the sections still read as
-     one set rather than as a page of white. */
-  let CONTACT_H=79, GAP=44;
-  for(let b=79;b<=104;b++) for(let gp=44;gp<=64;gp++)
-    if(footAt(b,gp)<=budget){ CONTACT_H=b; GAP=gp; }
-  const SEC=GAP, HEAD=GAP;
-  const KEY_H=CONTACT_H, PITCH=CONTACT_H+13;
-  const KEY_PITCH=PITCH, CONTACT_PITCH=PITCH;
+  let CONTACT_H=79;
+  while(CONTACT_H<116 && footAt(CONTACT_H+1)<=H-96) CONTACT_H++;
+  const PITCH=CONTACT_H+13;                 /* 13 px of air between the rows of a list */
+  const KEY_H=CONTACT_H, KEY_PITCH=PITCH, CONTACT_PITCH=PITCH;
   /* ——— one size for the names, one size for the letters ———
      The letters in the grid and the staff names beside them read as one setting, so
      the sheet is a table and not a poster: the code is no larger than the name it
@@ -519,9 +513,9 @@ SH.monthlySVG=function(plan,opts){
      repeated what the rows already say and pushed the keys and the contacts down
      the page. The register a manager signs prints the roster and its keys, not a
      second telling of the rules. */
-  let y=gridBottom+RULE+SEC+CAP;
+  let y=gridBottom+GRID_GAP;
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
-  const keysTop=y+DESC+HEAD;
+  const keysTop=y+30;                       /* heading baseline -> the first key row */
   const keys=SH.keyOrder.map(c=>CODE[c].key);
   const keyCols=6, keyW=(W-pad*2)/keyCols, keyH=KEY_H;
   /* ONE size for every key, as on a printed legend: the largest at which the longest
@@ -547,10 +541,10 @@ SH.monthlySVG=function(plan,opts){
   });
   const keysBottom=keysTop+(KEY_ROWS-1)*KEY_PITCH+KEY_H;
 
-  /* staff contacts — the same SEC and HEAD as the keys under the grid */
-  y=keysBottom+SEC+CAP;
+  /* staff contacts */
+  y=keysBottom+22;
   g+=text(pad,y,'Staff contacts:',{size:26,weight:700,fill:'#12203C'});
-  const contactTop=y+DESC+HEAD;
+  const contactTop=y+34;
   /* contact cards: name + number, two columns, gold left bar — measured off the
      printed register (66 px tall, 76 px pitch, 12 px inside padding) */
   /* card height fills the run down to the signature block (max 92 px) so the page
@@ -613,9 +607,7 @@ SH.monthlySVG=function(plan,opts){
   const cardInset=20;
   rows.forEach((r,i)=>{
     const col=i%contactCols, row=Math.floor(i/contactCols);
-    /* the block starts where the pitch says it does: no per-row centring, so the
-       contacts sit in step with the keys above them */
-    const x=pad+col*colWid, yy=contactStart+row*contactPitch;
+    const x=pad+col*colWid, yy=contactStart+row*contactPitch+(contactPitch-contactH)/2;
     const st=LS.store.staffByName(r.name)||{};
     const cardX=x+4, cardW=colWid-20;              /* the gold bar is 4 px, then the block */
     g+=rect(x,yy,4,contactH,C.goldLine);
