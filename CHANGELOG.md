@@ -4,6 +4,34 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.81
+
+**The turnaround target belongs to the examination, and it is saved when the test is added.**
+
+A target was being typed per sample, so two blood cultures registered a week apart could carry 4 days and
+7 days for no reason other than who typed them. The standard now lives on the examination: blood culture
+**7 days**, TB culture **21**, HIV recency viral load, measles & rubella, monkeypox and polio PCR **5**,
+hepatitis **7**, and every viral haemorrhagic fever — Marburg, Ebola, Lassa, Rift Valley, Yellow Fever,
+Crimean-Congo — **3**. Anything not named in the table falls back to 3.
+
+- **Settings → Test menu** is where the figure is set: one number beside each examination and one *Save TAT*.
+  Saving writes it onto the catalogue test and re-reads every sample carrying that test, so the register
+  follows at once. The menu says what the numbers mean.
+- **Registering a sample**: the test step states the target as the tests are chosen — "Target TAT 7 days —
+  saved with the sample, from the test" — with each examination's own days listed beside it. The routing
+  card repeats the figure. Nothing is typed anywhere.
+- **Several tests on one sample** take the longest of them: a specimen is not on time until the last
+  examination is back.
+- **A deliberate figure on one record** (the record editor) is remembered as an override and is never
+  overwritten by a later change to the standard. The record's own panel says whether the number came from
+  the test, from the longest of several, or was set by hand.
+- The old per-sample settings shadows (blood culture 4, hepatitis 7 by name, a blanket default) are removed
+  on load and every existing sample is re-read from the test it carries.
+
+Fixed with it: a sample whose examinations were stored as a list was being measured against the whole
+list treated as one name, which is how a blood culture could read 3 days. Reading the examinations
+uniformly is now shared by the migration, the re-apply and the record panel.
+
 ## What changed in 6.9.80
 
 **No scorecard for a centre nobody visited, and nothing on the public page a visitor has no business knowing.**
