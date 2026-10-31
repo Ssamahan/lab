@@ -68,6 +68,27 @@ function kpis(){
    +'<div class="c3">'+UI.stat({label:'Certified',value:certified,icon:'award',formatted:'0',note:'Sessions that issued certificates',spark:C.spark([1,2,4,5,7,9,10,12,13,14],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'FIFO wait (max)',value:Math.min(Math.max.apply(null,waiting),999),unit:'days',icon:'hourglass',formatted:'0',note:'Longest since last training',spark:C.spark(waiting.slice(0,10),{color:'var(--amber)'})})+'</div></div>';
 }
+/* A session that has been booked but not yet attended. Somebody whose next turn is
+   already in the diary is not due another one, so they stand at the foot of the
+   queue until the session is over — which is why the manager, booked for a session
+   on Monday, is last on the list rather than somewhere in the middle of it. */
+const bookedFor=id=>S.db().trainings
+  .filter(t=>(t.attendees||[]).includes(id) && countsForFifo(t) && String(t.start)>U.todayISO())
+  .sort((a,b)=>String(a.start).localeCompare(String(b.start)))[0]||null;
+/* Two people who went to the same session are level on days served, so the earlier
+   history separates them: the number of days each of them had waited to reach that
+   shared session. The one with the fewer days goes first — they were served sooner
+   last time, so the next turn is owed to them. */
+function previousGap(s, last){
+  if(!last) return null;
+  const before=S.db().trainings.filter(t=>(t.attendees||[]).includes(s.id) && countsForFifo(t)
+    && String(t.start)<String(last.start))
+    .sort((a,b)=>String(b.start).localeCompare(String(a.start)))[0];
+  const from=before?(before.end||before.start):(s.joinDate||null);
+  if(!from) return null;
+  return Math.max(0,U.daysBetween(from,last.start));
+}
+const sessionKey=t=>t?String(t.start)+'|'+String(t.title||''):'';
 function fifoView(){
   const all=S.activeStaff().map(s=>{ const last=lastNameTraining(s.id); const days=waitingDays(s);
     const all=allTrainingOf(s.id);
@@ -78,33 +99,34 @@ function fifoView(){
       :isInHouse(lastAny)?'held at Ruli DH — does not count'
       :trainingDays(lastAny)<=2?'only '+trainingDays(lastAny)+' day'+(trainingDays(lastAny)===1?'':'s')+' — does not count'
       :null;
-    return {s,last,days,all,lastAny,why,count:all.length,counted:all.filter(countsForFifo).length}; })
-    .sort((a,b)=>b.days-a.days);
-  /* A post held by name — laboratory manager, laboratory quality manager,
-     laboratory safety officer — is not a turn in the queue. Training aimed at one
-     of those posts goes to the person who holds it, so they are shown above the
-     queue and never wait behind the bench rota for it. */
-  const posts=all.filter(x=>S.isRolePost(x.s));
-  const staff=all.filter(x=>!S.isRolePost(x.s));
-  const nextName=staff.length?staff[0].s.name:'';
-  const postRow=x=>'<div class="list-row role-post-row">'+U.avatar(x.s.name,'sm')
-    +'<div class="lr-main"><div class="lr-title">'+U.esc(x.s.name)+'</div>'
-    +'<div class="lr-sub">'+U.esc(S.postOf(x.s))+' · never waits in the queue for training aimed at the post</div></div>'
-    +'<span class="pill gold">called by role</span></div>';
+    return {s,last,days,all,lastAny,why,count:all.length,
+      counted:all.filter(countsForFifo).length,booked:bookedFor(s.id),gap:previousGap(s,last)}; })
+    .sort((a,b)=>{
+      if(!!a.booked!==!!b.booked) return a.booked?1:-1;
+      if(b.days!==a.days) return b.days-a.days;
+      if(sessionKey(a.last)===sessionKey(b.last)){
+        const ga=a.gap==null?1e9:a.gap, gb=b.gap==null?1e9:b.gap;
+        if(ga!==gb) return ga-gb;
+      }
+      return String(a.s.name).localeCompare(String(b.s.name));
+    });
+  const nextName=all.length?all[0].s.name:'';
   return '<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Longest wait first · days served waiting, counted from the day they returned',icon:'git-branch',
       tools:'<button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
-      body:(posts.length?'<div class="role-posts">'+posts.map(postRow).join('')+'</div><div class="thread" style="margin:10px 0"></div>':'')
-        +'<div style="display:flex;flex-direction:column;gap:2px">'+staff.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
+      body:'<div class="xs faint" style="margin:0 0 8px">Everyone active stands in one queue, whichever post they hold — a post only decides who is <b>called by name</b> when a session is aimed at it, not who waits. Read from the history: a training of three days or more, held away from Ruli DH, is a turn served.</div>'
+        +'<div style="display:flex;flex-direction:column;gap:2px">'+all.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
         const isNext=i===0;
         return '<div class="list-row'+(isNext?' fifo-next':'')+'">'
         +'<div style="width:24px;font-family:var(--font-mono);font-size:10px;color:'+(isNext?'var(--gold)':'var(--text-faint)')+'">'+(i+1)+'</div>'
         +U.avatar(x.s.name,isNext?'sm fifo-ring':'sm')
-        +'<div class="lr-main"><div class="lr-title">'+U.esc(x.s.name)+(isNext?' <span class="pill gold" style="font-size:8.5px;padding:1px 6px">next</span>':'')+'</div>'
-        +'<div class="lr-sub">'+U.esc(x.s.role)+' · '+x.count+' session'+(x.count===1?'':'s')+' · '+x.counted+' counted</div>'
+        +'<div class="lr-main"><div class="lr-title">'+U.esc(x.s.name)+(isNext?' <span class="pill gold" style="font-size:8.5px;padding:1px 6px">next</span>':'')
+        +(S.isRolePost(x.s)?' <span class="pill gold" style="font-size:8.5px;padding:1px 6px" title="'+U.esc(S.postOf(x.s))+' — a session aimed at this post is called to them by name">post</span>':'')
+        +(x.booked?' <span class="pill teal" style="font-size:8.5px;padding:1px 6px" title="'+U.esc(x.booked.title)+'">booked '+U.fmtDate(x.booked.start)+'</span>':'')+'</div>'
+        +'<div class="lr-sub">'+U.esc(S.postOf(x.s)||x.s.role)+' · '+x.count+' session'+(x.count===1?'':'s')+' · '+x.counted+' counted</div>'
         +(x.why?'<div class="xs" style="color:var(--warn);margin-top:2px">last: '+U.esc(x.why)+'</div>':'')+'</div>'
         +'<div style="width:96px"><div class="meter '+(x.days>365?'rose':x.days>240?'amber':'teal')+'"><i style="width:'+Math.min(100,pct)+'%"></i></div><div class="xs faint" style="margin-top:3px">'+(x.last?'returned '+U.fmtDate(x.last.end||x.last.start):(x.s.joinDate?'since '+U.fmtDate(x.s.joinDate):'never'))+'</div></div>'
         +'<span class="mono xs" style="width:56px;text-align:right;color:'+(x.days>365?'var(--crit)':'var(--text-muted)')+'">'+(x.days>=999?'—':x.days+'d')+'</span></div>'; }).join('')+'</div>',
-      foot:'<span>Only a training held away from Ruli DH, of <b>3 days or more</b>, serves a turn · days are counted from the day the person returned</span><span class="mono">'+(nextName?'next: '+U.esc(nextName):staff.length+' staff')+'</span>'})+'</div>'
+      foot:'<span>Only a training held away from Ruli DH, of <b>3 days or more</b>, serves a turn · counted from the day the person returned · who is already booked for one is last</span><span class="mono">'+(nextName?'next: '+U.esc(nextName):all.length+' staff')+'</span>'})+'</div>'
    +'<div class="c5"><div class="col" style="gap:14px">'
      +UI.card({title:'Training by year',sub:'Sessions recorded, year by year',icon:'chart-bar',tools:'<a class="more" href="#/training?tab=history" style="color:var(--gold)">History '+UI.ic('arrow-right',12)+'</a>',body:'<div id="trYears"></div>'})
      +UI.card({title:'Upcoming & planned',sub:'Scheduled competency activity',icon:'calendar-days',body:(function(){

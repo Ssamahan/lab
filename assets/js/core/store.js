@@ -1440,7 +1440,7 @@ function normalize(db){
     const extra=[
       {id:'s10',name:'Bernadette MUHAWENIMANA',sex:'Female',dob:'1995-03-14',role:'Laboratory Technician',
        phone:'0781942405',email:'',contract:'statute',pattern:'normal',nightPref:'3',maxNights:12,maxConsecN:3,
-       status:'active',joinDate:'2024-02-12',exitDate:null,note:'Joins the day and night rotation across reception, phlebotomy and TB/molecular'},
+       status:'active',joinDate:'2026-09-14',exitDate:null,note:'Joins the day and night rotation across reception, phlebotomy and TB/molecular'},
       {id:'s11',name:'Jeanne Claudine UWAYISABA',sex:'Female',dob:'1993-08-21',role:'Laboratory Technologist',
        phone:'',email:'',contract:'statute',pattern:'normal',nightPref:'no',maxNights:0,maxConsecN:0,
        status:'active',joinDate:'2022-11-07',exitDate:null,note:'Bench cover for biochemistry, serology and parasitology'}
@@ -1504,6 +1504,29 @@ function normalize(db){
     if(jean){ jean.role='Lab Quality Manager'; jean.post='Lab Quality Manager'; }
     const dieu=(db.staff||[]).find(x=>x.id==='s9');
     if(dieu){ dieu.post='Lab Safety Officer'; }
+  }
+  /* v6.9.81 — two facts on the record were wrong, and the training queue read them.
+     Bernadette joined on 14 September 2026, not February 2024. And the session
+     Aurelie and Beatrice attended on 20–24 July 2026 was held in Musanze, not at
+     Ruli DH — Ruli DH is in-house, so the queue had quietly refused to count it and
+     left the pair at the front on their 2025 dates while colleagues who had
+     genuinely waited fell behind them. The leave-planner fragment of that same
+     session (24–25 July, no location, the same two people) is folded into it: one
+     attendance, one turn. Each fix is guarded by the exact old value, so a register
+     that already holds the truth — a synced one, for instance — is left alone. */
+  if(!db.meta.trainingTruth81){
+    db.meta.trainingTruth81=1;
+    const bern=(db.staff||[]).find(x=>x.id==='s10');
+    if(bern && bern.joinDate==='2024-02-12') bern.joinDate='2026-09-14';
+    const july=(db.trainings||[]).find(t=>t.id==='tr0');
+    if(july && /^ruli(\s*dh)?$/i.test(String(july.location||'').trim())){
+      july.location='Musanze District';
+      if(/^ruli/i.test(String(july.organizer||'').trim())) july.organizer='RBC';
+    }
+    db.trainings=(db.trainings||[]).filter(t=>!(t.id==='trry96hq'
+      && !String(t.location||'').trim()
+      && String(t.start)==='2026-07-24'
+      && (t.attendees||[]).slice().sort().join(',')==='s3,s4'));
   }
   /* v6.9.67 — December goes easiest on Bernadette. Her record carries December
      2026 as a month she is not put on the nights for, so the December draft gives

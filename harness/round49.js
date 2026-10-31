@@ -120,18 +120,18 @@ const mod=fs.readFileSync(path.resolve(__dirname,'..','assets/css/modules.css'),
   ok(S.postOf(S.staffById('s9'))==='Lab Safety Officer','Dieudonné holds the lab safety post');
   ok(S.dutyKeyOf(S.staffById('s1'))==='manager','and the manager is a post in the same sense');
   await go('#/training'); await tick(350);
-  const postRows=[...d.querySelectorAll('.role-post-row .lr-title')].map(e=>e.textContent.trim());
-  ok(postRows.length===3,'the three posts are called out above the queue ('+postRows.map(n=>n.split(' ')[0]).join(', ')+')');
-  ok(postRows.some(n=>/Jean Paul/.test(n))&&postRows.some(n=>/Dieudonne/.test(n))&&postRows.some(n=>/SAMAHANI/.test(n)),
-     'manager, quality manager and safety officer all skip the lobby');
-  ok(/called by role/.test(d.querySelector('.role-posts').textContent),'and are labelled as going by role');
+  /* v6.9.82 — the post holders stand in the same queue as everyone else; a post
+     decides who is called by name when a session is aimed at it, not who waits. */
+  const withPostPill=[...d.querySelectorAll('#app .card .list-row')]
+    .filter(r=>[...r.querySelectorAll('.pill')].some(p=>p.textContent.trim()==='post'))
+    .map(r=>r.querySelector('.lr-title').textContent.replace(/\s+/g,' ').trim());
+  ok(withPostPill.length===3,'the three post holders are marked in the queue ('+withPostPill.map(n=>n.split(' ')[0]).join(', ')+')',withPostPill.join(' | '));
+  ok(withPostPill.some(n=>/Jean Paul/.test(n))&&withPostPill.some(n=>/Dieudonne/.test(n))&&withPostPill.some(n=>/SAMAHANI/.test(n)),
+     'manager, quality manager and safety officer all stand in the one queue');
+  ok(!d.querySelector('.role-posts'),'nobody is held out above the queue any more');
   const queueNames=[...d.querySelectorAll('#app .card .list-row .lr-title')].map(e=>e.textContent);
   const queued=queueNames.filter(n=>/Beatrice|Jeanne Claudine|Bernadette|Patrick/.test(n));
-  ok(queued.length>=3,'the bench technicians are still in the queue ('+queued.length+')');
-  const queueOnly=[...d.querySelectorAll('#app .card .list-row')].filter(r=>!r.closest('.role-posts'))
-    .map(r=>r.querySelector('.lr-title')).filter(Boolean).map(e=>e.textContent);
-  ok(!queueOnly.some(n=>/Jean Paul/.test(n)),'the quality manager does not wait in the queue');
-  ok(!queueOnly.some(n=>/SAMAHANI/.test(n)),'and neither does the manager');
+  ok(queued.length===4,'the bench technicians are in the queue ('+queued.length+')');
   /* the schedule form carries the audience */
   w.eval("LS.modules.training && null");
   const srcTr=fs.readFileSync(path.resolve(__dirname,'..','assets/js/modules/training.js'),'utf8');
