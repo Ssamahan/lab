@@ -95,7 +95,16 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   ok(oct.staff.find(r=>r.name==='Kelvin SAMAHANI').codes.filter(c=>c==='D').length>=10,
      'and the manager still works the bench as the signed plan says');
   ok(S.isNewcomer(S.staffByName('Kelvin SAMAHANI'),'2026-10-06')===false,'nobody else is treated as a newcomer');
-  ok(S.isNewcomer(S.staffByName('Bernadette MUHAWENIMANA'),'2026-10-06')===false,'nor is Bernadette');
+  /* v6.9.82 — Bernadette joined on 14 September 2026, so the first thirty days run
+     to 13 October: on the 6th she is still a newcomer, and out of it by the 14th —
+     which is why the signed October sheet gives her no night before the 15th. */
+  ok(S.isNewcomer(S.staffByName('Bernadette MUHAWENIMANA'),'2026-10-06')===true,
+     'Bernadette, who joined on 14 September, is inside her first thirty days on the 6th');
+  ok(S.isNewcomer(S.staffByName('Bernadette MUHAWENIMANA'),'2026-10-14')===false,
+     'and past her induction from the 14th');
+  const bernNights=(oct.staff.find(r=>r.name==='Bernadette MUHAWENIMANA')||{codes:[]});
+  ok(!bernNights.codes.slice(0,14).some(c=>c==='N'),
+     'the signed sheet gives her no night during those thirty days');
 
   /* ── 9 · her contact details are on the record, and on the sheet ───── */
   ok(marie.phone==='0784063985','her phone number is recorded ('+marie.phone+')');

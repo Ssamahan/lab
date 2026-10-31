@@ -4,6 +4,44 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.82
+
+**The training queue reads the history, and the history had two mistakes in it.**
+
+Aurelie and Beatrice attended the weekly skills training on **20–24 July 2026**. It was recorded at *Ruli DH*,
+and a session held at Ruli DH is in-house, so it never served a turn: the queue went on counting their wait
+from 2025 and kept them at the front while colleagues who had genuinely waited longer stood behind them. The
+session was held in **Musanze**; the record now says so, and both of them count from 24 July. A second,
+overlapping record of the same session (24–25 July, no location, the same two people, from the leave planner)
+is folded into it — one attendance, one turn.
+
+Bernadette's record said she joined in February 2024. She joined on **14 September 2026**, so her wait is
+counted from that day, and her first thirty days in the department run to 13 October — which is exactly why
+the signed October sheet puts her on nights from the 15th and not before. The staff card, the roster rules
+and the queue all read the same date.
+
+Both corrections are guarded by the exact old value: a register that already holds the truth — a synced one,
+for instance — is left untouched, and each is applied once.
+
+The queue itself:
+
+- **One list.** The three post holders (laboratory manager, quality manager, safety officer) are no longer
+  parked above the queue. A post decides who is **called by name** when a session is aimed at it, not who
+  waits — so everyone active stands in the same queue, carrying a small *post* marker.
+- **Read from the history.** Days served waiting are counted from the day a person returned from their last
+  training of three days or more held away from Ruli DH; a person who has never been trained waits from the
+  day they joined.
+- **Two people from one session** are level on days, so the earlier history separates them: the one who had
+  waited *fewer* days to reach that shared session goes first. Aurelie (332 days to reach the July session)
+  therefore stands ahead of Beatrice (360).
+- **Already booked, therefore last.** Somebody with a session still ahead of them is not due another one, so
+  they stand at the foot of the list until it is over, marked with the date. The manager, booked for Monday,
+  is last on the list rather than fourth on it.
+
+The order now reads, from the top: Jean Paul 505d · Patrick 421d · Dieudonné 414d · Kelvin 358d ·
+Aurelie 99d · Beatrice 99d · Bernadette 47d · Jeanne Claudine 25d — Aurelie and Beatrice followed by
+Bernadette and Jeanne Claudine, as the history says they should be.
+
 ## What changed in 6.9.81
 
 **The turnaround target belongs to the examination, and it is saved when the test is added.**
