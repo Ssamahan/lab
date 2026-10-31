@@ -350,8 +350,6 @@ function centreState(name){
   return {key:'due',label:'Not yet visited',detail:'no supervision recorded this quarter',pill:'blue',schedule:null};
 }
 function statusLine(r){
-  if(r.recorded) return (r.assessor&&!/district pbf team/i.test(r.assessor)?r.assessor:'District PBF team')
-    +' · recorded scorecard · question marks still to be entered';
   const st=r.state||{key:'due',label:'Not yet visited',detail:''};
   if(st.key==='visited') return (r.assessor||'District PBF team')+' · '+U.fmtDate(r.submitted);
   return st.label+' · '+st.detail;
@@ -363,7 +361,6 @@ function statusLine(r){
 const isPbfCentre=name=>!/^\s*ruli\s*dh\b/i.test(String(name||''));
 function pbfCentres(){
   return U.uniq(S.db().catalog.healthCenters.map(h=>h.name)
-    .concat((S.db().pbf||[]).map(r=>r.name))
     .concat((S.db().pbfVisits||[]).map(v=>v.hcName))).filter(isPbfCentre);
 }
 function list(){
@@ -371,27 +368,14 @@ function list(){
   return names.map((name,i)=>{
     const vs=visitsFor(name);
     const state=centreState(name);
-    const legacy=(S.db().pbf||[]).find(r=>r.name===name);
-    /* The register may hold a scorecard that was recorded at domain level — six
-       percentages and an index, the way the district's own sheet carries it —
-       before the questions were broken out. That record is evidence and it is
-       what the screen shows; it is labelled as recorded, and the visit that is
-       waiting for question-level marks is still listed underneath. Nothing is
-       filled in on the centre's behalf. */
+    /* A centre has a mark only when a visit carries one. There is no second source:
+       a generated or half-entered scorecard is never shown in the place of a visit
+       the assessor actually made. */
     const complete=vs.find(v=>scorecardOf(v).complete);
-    if(!complete && legacy && legacy.scores && Object.keys(legacy.scores).length){
-      const scores={};
-      domains().forEach(d=>{ const v=legacy.scores[d.key]; if(v!=null) scores[d.key]=v; });
-      const vals=Object.keys(scores).map(k=>scores[k]);
-      const recTotal=legacy.total!=null?Math.round(legacy.total):(vals.length?Math.round(U.avg(vals)):null);
-      return {id:legacy.id||('hc-'+i), name, scores, dm:null, marks:null,
-        prior:legacy.prior==null?null:legacy.prior, submitted:legacy.submitted||null,
-        assessor:legacy.assessor||'', quarter:legacy.quarter||'Q1', fy:legacy.fy||U.fyLabel(),
-        visit:null, visits:vs.length, recorded:true, recordedTotal:recTotal, state};
-    }
     if(!vs.length){
-      return {id:(legacy&&legacy.id)||('hc-'+i),name,scores:{},prior:null,submitted:null,assessor:'',visits:0,state};
+      return {id:'hc-'+i,name,scores:{},prior:null,submitted:null,assessor:'',visits:0,state};
     }
+    void complete;
     const latest=vs[0];
     const prev=vs.slice(1).find(v=>scorecardOf(v).complete);
     const marks=visitMarks(latest);
@@ -408,8 +392,6 @@ function total(row){
   if(!row) return null;
   if(row.marks) return row.marks.complete?row.marks.pct:null;
   if(row.answers) return visitMarks(row).pct;
-  /* a scorecard recorded at domain level carries its own index */
-  if(row.recordedTotal!=null) return row.recordedTotal;
   return null;
 }
 /* ——— Bands ————————————————————————————————
@@ -492,7 +474,7 @@ function hero(){
       :'<span class="chip slate">'+UI.ic('check-check',12)+'every visit scored</span>'),
     body:(rows.length?'<div class="pbf-strip" data-chart-model="'+model+'">'+rows.map((r,i)=>{
       const t=total(r), d=delta(r)||0;
-      return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'%'+(r.marks?' · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks':' · recorded scorecard')+'">'
+      return '<div class="pbf-col" data-pbf="'+r.id+'" title="'+U.esc(r.name)+' · '+t+'%'+(r.marks?' · '+fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks':' · no marks yet')+'">'
         +'<div class="pbf-pct idx-text '+bandOf(t)+'">'+t+'<span>%</span></div>'
         /* a pixel height inside a fixed plot band: a percentage of an auto-height
            column would collapse the bar and leave the label outside the strip */
@@ -541,7 +523,7 @@ function table(){
    +'<div class="seg">'+[['total','Score'],['delta','Momentum'],['name','Name']].map(([k,l])=>'<button class="'+(sort===k?'on':'')+'" data-sort="'+k+'">'+l+'</button>').join('')+'</div></div>'
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+liveDomains().map(d=>'<th class="num" title="'+U.esc(d.label)+'">'+U.esc(d.label.split(' ')[0])+'<span class="xs faint" style="display:block;font-weight:400">'+w[d.key]+'% weight</span></th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th><th></th></tr></thead>'
    +'<tbody id="pbfBody">'+rowsHTML()+'</tbody></table></div>'
-   +'<div class="card-foot"><span>Draft indices — subject to district verification. A row that is <b>recorded</b> carries the domain scorecard the register holds; its question-level marks are still to be entered.</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
+   +'<div class="card-foot"><span>A centre carries an index only when a recorded visit has every question marked. Nothing is estimated or carried over from an earlier sheet.</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
 }
 function matrix(){
   const rows=list().slice().sort((a,b)=>{ const ta=total(a), tb=total(b); if(ta==null&&tb==null) return a.name.localeCompare(b.name); if(ta==null) return 1; if(tb==null) return -1; return tb-ta; });
@@ -642,31 +624,32 @@ function normaliseAssessors(){
 }
 function ensureSeeded(){
   const db=S.db();
-  /* One-time: the seeded plan and the four confirmed visits carried a placeholder
+  /* One-time: the seeded plan and the confirmed visits carried a placeholder
      assessor (“District PBF team”). There is a real person behind it — whoever is
      signed in — so the compliance figures start from a name the district knows. */
   if(db.meta&&!db.meta.pbfAssessor692){ db.meta.pbfAssessor692=true; normaliseAssessors(); try{ S.save(); }catch(e){} }
-  if(db.meta&&db.meta.pbfRealV67){ ensureSchedule(); return; }
-  db.meta.pbfRealV67=true; db.meta.pbfVisitsSeeded=true;
-  const legacy=db.pbf||[];
-  const manual=(db.pbfVisits||[]).filter(v=>!v.seeded);
-  const kept=manual.slice();
-  BASELINE_VISITED.forEach(name=>{
-    if(kept.some(v=>v.hcName===name)) return;
-    const old=legacy.find(r=>r.name===name)||{};
-    kept.push({id:U.uid('pbfv'),hcName:name,quarter:old.quarter||'Q1',fy:old.fy||U.fyLabel(),
-      date:old.submitted||'',assessor:(old.assessor&&!/district pbf team/i.test(old.assessor))?old.assessor:((LS.auth.user&&LS.auth.user.name)||'Kelvin'),answers:{},
-      note:'Supervision visit recorded — question marks still to be entered',pending:true});
-  });
+  /* The four supervision visits the district confirmed are written once, and the
+     test is the register itself — is the centre there or not — rather than a flag
+     set before the write. A flag set first loses the write when two renders race,
+     which is how a fresh device ended up with no visits at all. */
+  const known=(db.pbfVisits||[]).map(v=>v.hcName);
+  const missing=BASELINE_VISITED.filter(n=>known.indexOf(n)<0);
+  if(!missing.length){ ensureSchedule(); return; }
+  const me=(LS.auth.user&&LS.auth.user.name)||'Kelvin';
   S.commit(d=>{
-    d.pbfVisits=kept;
-    d.pbfSchedule=(d.pbfSchedule||[]).filter(sc=>!sc.seeded);
-    kept.forEach(v=>{ if(!(d.pbfSchedule||[]).some(x=>x.hcName===v.hcName&&x.quarter===v.quarter))
-      d.pbfSchedule.push({id:U.uid('pbfs'),hcName:v.hcName,quarter:v.quarter,fy:v.fy,plannedDate:v.date,status:'visited',visitId:v.id,visitedAt:v.date,assessor:v.assessor}); });
-    d.meta.pbfScheduleSeeded=true;
-  },{action:'pbf.baseline',entity:'pbf',detail:'Question-level marks reset · '+kept.length+' recorded visits, '+(U.uniq((db.catalog.healthCenters||[]).map(h=>h.name)).length-kept.length)+' centres not yet visited'});
+    d.pbfVisits=d.pbfVisits||[];
+    d.pbfSchedule=d.pbfSchedule||[];
+    BASELINE_VISITED.forEach(name=>{
+      if(d.pbfVisits.some(v=>v.hcName===name)) return;
+      const v={id:U.uid('pbfv'),hcName:name,quarter:'Q1',fy:U.fyLabel(),date:'',assessor:me,answers:{},
+        note:'Supervision visit recorded — question marks still to be entered',pending:true,confirmed:true};
+      d.pbfVisits.push(v);
+      if(!d.pbfSchedule.some(x=>x.hcName===name&&x.quarter===v.quarter))
+        d.pbfSchedule.push({id:U.uid('pbfs'),hcName:name,quarter:v.quarter,fy:v.fy,plannedDate:'',status:'visited',visitId:v.id,visitedAt:'',assessor:me});
+    });
+    d.meta.pbfRealV67=true; d.meta.pbfVisitsSeeded=true; d.meta.pbfScheduleSeeded=true;
+  },{action:'pbf.baseline',entity:'pbf',detail:'Question-level marks reset · '+BASELINE_VISITED.length+' recorded visits, '+(pbfCentres().length-BASELINE_VISITED.length)+' centres not yet visited'});
   ensureSchedule();
-  normaliseAssessors();
 }
 /* Planned supervision is entered by the user; nothing is scheduled on their behalf. */
 function ensureSchedule(){
@@ -1294,15 +1277,6 @@ function observations(){
     const k=qKey(v); seen[v.hcName+'|'+k]=1;
     const dom={}; liveDomains().forEach(d=>{ dom[d.key]=domainMarksFor(v,d.key).pct; });
     out.push({key:k,pct:m.pct,dom,hc:v.hcName,date:v.date});
-  });
-  (S.db().pbf||[]).forEach(r=>{
-    if(!r.scores) return;
-    const k=qKey(r); if(seen[r.name+'|'+k]) return;
-    const dom={}, vals=[];
-    Object.keys(r.scores).forEach(x=>{ if(r.scores[x]!=null){ dom[x]=r.scores[x]; vals.push(r.scores[x]); } });
-    if(!vals.length) return;
-    out.push({key:k, pct:r.total!=null?Math.round(r.total):Math.round(U.avg(vals)),
-      dom, hc:r.name, date:r.submitted});
   });
   return out;
 }

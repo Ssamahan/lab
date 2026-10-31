@@ -4,6 +4,29 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.80
+
+**No scorecard for a centre nobody visited, and nothing on the public page a visitor has no business knowing.**
+
+The PBF module was seeding a scorecard for **every** health centre from a random number generator, and the
+table fell back to those rows whenever a centre had no visit — so Rushashi and Muyongwe, never visited,
+carried a plausible index and a "recorded scorecard" label. That source is gone: the generator is removed,
+the rows it left on existing devices are purged at load, and the fallback is deleted. A centre now carries
+a mark only from a visit an assessor actually recorded; until every question on that visit is marked it
+reads **Visited · marks pending**, and a centre with no visit reads **Not yet visited**. The four visits
+the district confirmed (Coko, Minazi, Rwankuba, Muhondo) stay as visits with their marks still to be
+entered, and the one-time seeding that writes them is now idempotent, so a fresh device keeps them.
+
+The public page claimed **nine health centres**: Ruli DH had been added to the centre list so samples could
+originate there, and it was counted with the eight. Ruli DH is the hospital that receives and refers — it
+is not a centre in the network — so the page now counts eight, and its list of centres leaves Ruli DH out.
+
+The public page no longer names the modules a visitor cannot open. It used to say *everything except
+Training Revenue, Settings and Data & sync*, and the visitor strip repeated it. Both now describe the view
+the visitor is in, not the rooms behind the wall.
+
+---
+
 ## What changed in 6.9.79
 
 **A slimmer margin on the paper, and a legend laid four by four.**

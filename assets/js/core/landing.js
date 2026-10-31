@@ -33,7 +33,11 @@ function fill(){
   try{ db=LS.store.db(); set=LS.store.settings(); }catch(e){}
   if(db){
     const staff=(db.staff||[]).filter(s=>s.status==='active');
-    const centres=(db.catalog&&db.catalog.healthCenters)||[];
+    /* Ruli DH is the hospital that receives the samples and does the referring — it is
+       not one of the health centres in the network, and counting it made the public
+       page claim nine when there are eight. */
+    const centres=((db.catalog&&db.catalog.healthCenters)||[])
+      .filter(c=>!/^\s*ruli\s*dh\b/i.test(String((c&&c.name)||'')));
     const tests=(db.catalog&&db.catalog.tests)||[];
     if(staff.length) put('[data-land-staff]',String(staff.length));
     if(centres.length) put('[data-land-centres]',String(centres.length));

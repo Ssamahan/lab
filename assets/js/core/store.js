@@ -112,26 +112,20 @@ function buildEquipment(){
     mk('eq8','ZEISS Primo Star','Binocular Microscope','Microbiology','operational',99.9,'2027-03-11','PS-4410','ZEISS')
   ];
 }
-function buildPBF(){
-  const hcs=['Ruli HC','Coko HC','Nyange HC','Minazi HC','Rushashi HC','Muyongwe HC','Rwankuba HC','Muhondo HC'];
-  const domains=[
-    {k:'quality', label:'Quality management', weight:20},
-    {k:'tat', label:'Turnaround & referral', weight:20},
-    {k:'stock', label:'Commodity security', weight:15},
-    {k:'data', label:'Data quality & reporting', weight:15},
-    {k:'hr', label:'Staffing & competency', weight:15},
-    {k:'infra', label:'Infrastructure & safety', weight:15}
-  ];
-  const r=U.rng('pbf-2026');
-  return hcs.map((name,i)=>{
-    const base=68+Math.round(r()*24);
-    const scores={};
-    domains.forEach(d=>{ scores[d.k]=U.clamp(base+Math.round((r()-0.5)*22),42,100); });
-    const total=Math.round(domains.reduce((a,d)=>a+scores[d.k]*d.weight/100,0));
-    return {id:'pbf'+i, name, district:'Gakenke', quarter:'Q1', fy:'2026/2027', scores, total,
-      prior: U.clamp(total-Math.round((r()-0.4)*9),40,100), status:'draft', assessor:'District PBF team',
-      submitted: U.addDays('2026-10-02', i%5), note:''};
-  });
+/* ——— PBF rows that were invented, not recorded ————————————
+   The old builder wrote `pbf0 … pbf7`, assessor "District PBF team", status
+   "draft" and no note. Anything matching that fingerprint was generated, and is
+   removed once; a row a person typed in never matches it. */
+function dropInventedPbf(db){
+  const rows=db.pbf||[];
+  if(!rows.length) return;
+  const invented=r=>/^pbf\d+$/.test(String(r.id||'')) && !r.manual &&
+    ((r.assessor||'')==='District PBF team' || r.generated===true);
+  const keep=rows.filter(r=>!invented(r));
+  if(keep.length!==rows.length){
+    db.pbf=keep;
+    try{ db.meta=db.meta||{}; db.meta.pbfInventedPurged=true; }catch(e){}
+  }
 }
 function buildSOPs(){
   const docs=[
@@ -1007,7 +1001,14 @@ function normalize(db){
   db.audit=db.audit||[]; db.notifRead=db.notifRead||[]; db.notifications=db.notifications||[];
   db.suppliers=db.suppliers||buildSuppliers();
   db.equipment=db.equipment||buildEquipment();
-  db.pbf=db.pbf||buildPBF();
+  /* ——— PBF marks are never generated ———
+     This console used to seed a scorecard for every health centre from a random
+     number generator, so centres nobody had visited carried a plausible-looking
+     index (Rushashi and Muyongwe among them). Those rows were never evidence and
+     they are dropped here. A centre enters the PBF index only from a visit the
+     assessor actually recorded. */
+  db.pbf=db.pbf||[];
+  dropInventedPbf(db);
   db.sops=db.sops||buildSOPs();
   db.incidents=db.incidents||buildIncidents();
   db.checklist=db.checklist||buildChecklist();

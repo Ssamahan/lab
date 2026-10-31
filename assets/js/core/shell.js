@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.79';
+const APP_VERSION='6.9.80';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -119,8 +119,9 @@ SH.build=function(){
 };
 
 /* ——— Visitor view —————————————————————————
-   A visitor reads the whole register except Training Revenue, Settings and the
-   Data & sync tab. The strip says so once, and offers the two ways out. */
+   A visitor reads the register and may export what they read. The strip names the
+   view they are in, not the modules they do not have — a visitor is never told what
+   sits behind the wall, only that this is the wall. */
 function paintVisitorBar(){
   const bar=document.getElementById('visitorBar'); if(!bar) return;
   const on=!!(LS.auth.isVisitor&&LS.auth.isVisitor());
@@ -262,7 +263,7 @@ SH.route=async function(opts){
   if(r.permission && !LS.auth.can(r.permission)){
     const visitor=!!(LS.auth.isVisitor&&LS.auth.isVisitor());
     page.innerHTML='<div class="page"><div class="card pad" style="max-width:560px;margin:6vh auto">'+UI.empty({art:'lock',title:'Restricted module',
-      body:visitor?'A visitor may read the whole register except Training Revenue, Settings and Data & sync. Sign in to open '+r.title+'.'
+      body:visitor?'This area is not open to the visitor view. Sign in with your own account to open '+r.title+'.'
         :'Your role ('+LS.auth.user.role+') does not have access to '+r.title+'. The Lab Manager can grant access in Security Center.',
       action:visitor?'<button class="btn" data-go="dash">'+U.ic('arrow-left',15)+' Back to Command Center</button><button class="btn primary" data-visitor-signin>'+U.ic('key-round',15)+' Sign in</button>'
         :'<button class="btn" data-go="dash">'+U.ic('arrow-left',15)+' Back to Command Center</button>'})+'</div></div>';
