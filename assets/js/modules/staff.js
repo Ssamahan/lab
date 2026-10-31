@@ -220,6 +220,7 @@ function testMenuCard(){
       +'<span class="grow"></span><span class="pill slate mono" id="testSel">0 selected</span>'
       +'<button class="btn xs danger" data-del-tests disabled>'+UI.ic('trash-2',12)+'Delete selected</button>'
       +'<button class="btn xs" data-save-tat>'+UI.ic('check',12)+'Save TAT</button></div>'
+      +'<div class="xs" style="margin-top:8px;padding:7px 9px;background:var(--surface-inset);border-radius:8px;color:var(--text-muted)">The figure beside each examination is its <b>target turnaround in days</b>. It belongs to the examination, not to a sample, so every sample carrying it inherits the same target — blood culture <b class="mono">7</b>, a viral haemorrhagic fever <b class="mono">3</b>, TB culture <b class="mono">21</b>. Change it here once and the register follows.</div>'
       +Object.keys(groups).map(cat=>'<div style="margin-top:9px"><div class="eyebrow">'+U.esc(cat)+' · '+groups[cat].length+'</div>'
         +groups[cat].map(t=>'<div class="list-row" style="padding:5px 0">'
           +'<input type="checkbox" data-test-sel="'+t.id+'" style="accent-color:var(--gold);margin-right:7px">'
@@ -231,7 +232,7 @@ function testMenuCard(){
         +'</div>').join('')+'</div>').join('')
       +(!all.length?'<p class="xs faint" style="margin:0">No examinations on the menu yet.</p>':'')
       +'<div class="xs faint" style="margin-top:9px;border-top:1px solid var(--border);padding-top:7px">“On menu” means the examination is confirmed and appears in the sample wizard and every picker. Switching it off keeps it out of the way without losing history; deleting removes it from the catalogue altogether — samples already registered keep the name they were recorded with.</div>',
-    foot:'<span>Turnaround targets are set per examination here too.</span><span class="mono">'+activeCount+' active · '+all.length+' total</span>'});
+    foot:'<span>Saving writes the targets here and re-reads them on every sample carrying the test.</span><span class="mono">'+activeCount+' active · '+all.length+' total</span>'});
 }
 function deleteTests(ids){
   if(!ids.length) return;
@@ -561,7 +562,23 @@ function wire(){
   });
   const addTest=r.querySelector('[data-add-test]'); if(addTest) addTest.onclick=addTestModal;
   refreshTestSel();
-  const st=r.querySelector('[data-save-tat]'); if(st) st.onclick=()=>{ S.commit(d=>{ d.settings.tat=d.settings.tat||{}; r.querySelectorAll('[data-tat]').forEach(i=>{ d.settings.tat[i.dataset.tat]=Math.max(1,+i.value||1); }); },{action:'settings.tat',entity:'settings',detail:'TAT targets updated'}); UI.toast('Turnaround targets saved',{type:'ok'}); };
+  /* A target belongs to the examination, so it is saved on the examination — one
+     rule read by the wizard, the register, the complaint views and the district
+     report alike. Saving here also re-reads the target on every sample that carries
+     the test, unless that sample was given its own figure by hand. */
+  const st=r.querySelector('[data-save-tat]'); if(st) st.onclick=()=>{
+    let changed=0;
+    S.commit(d=>{
+      r.querySelectorAll('[data-tat]').forEach(i=>{
+        const t=(d.catalog.tests||[]).find(x=>x.name===i.dataset.tat); if(!t) return;
+        const v=Math.max(1,Math.min(60,+i.value||1));
+        if(t.tat!==v){ t.tat=v; changed++; }
+        t.tatManual=true;                    /* a typed figure is never overwritten by a standard */
+      });
+      S.reapplyTAT();
+    },{action:'settings.tat',entity:'catalog',detail:'Turnover targets updated on '+changed+' examination'+(changed===1?'':'s')});
+    UI.toast(changed?'Target saved on '+changed+' examination'+(changed===1?'':'s'):'Targets already up to date',{type:'ok'});
+  };
   r.querySelectorAll('[data-set-theme]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ d.settings.theme=b.dataset.setTheme; d.meta.themeChosen=true; },{action:'settings.theme',entity:'settings',detail:'Theme '+b.dataset.setTheme}); LS.shell.build(); paint(); });
   r.querySelectorAll('[data-set-density]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ d.settings.density=b.dataset.setDensity; },{action:'settings.density',entity:'settings',detail:'Density '+b.dataset.setDensity}); LS.shell.build(); paint(); });
   const lg=r.querySelector('#setLang'); if(lg) lg.onchange=()=>{ LS.i18n.set(lg.value); LS.shell.build(); paint(); UI.toast('Language updated',{type:'ok'}); };

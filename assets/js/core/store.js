@@ -299,10 +299,55 @@ function buildLoginHistory(){
   return Array.from({length:9},(_,i)=>({id:'lh'+i, ts:new Date(now-1000*60*60*(i*7+2)).toISOString(), device:i%3===0?'Safari · iPhone':'Chrome · Windows', ok:i!==6, where:'Ruli DH'}));
 }
 
-/* ——— Sample telemetry ————————————————————————————— */
+/* ——— Target turnaround —————————————————————————————
+   A referral target is a property of the examination, not of the sample: a blood
+   culture is given seven days wherever it is sent, a viral haemorrhagic fever three,
+   and so on. The standard is written once here and travels with every sample that
+   carries the test, so nobody has to type a number at the bench — and two samples of
+   the same examination can never disagree about how long they are allowed.
+
+   The department's standards:
+     · blood culture                7 days
+     · viral haemorrhagic fever     3 days  (Marburg, Rift Valley, Yellow Fever)
+     · outbreak PCR (measles, pox)  5 days
+     · HIV recency viral load       5 days
+     · hepatitis                    7 days
+     · TB culture                  21 days
+   The table is the default. A per-test value saved in Settings → Test menu wins, and
+   a sample that was given its own figure by hand keeps it. */
+const TAT_VHF=['Marburg','PCR Rift Valley','PCR Yellow Fever','Ebola','Lassa','Crimean-Congo'];
+const TAT_STANDARD={
+  'Blood Culture':7,
+  'TB Culture':21,
+  'HIV Recency Viral Load':5,
+  'Measles & Rubella PCR':5,
+  'MonkeyPox PCR':5,
+  'PCR Polio Virus':5,
+  'Hepatitis (HEP)':7
+};
+TAT_VHF.forEach(n=>{ TAT_STANDARD[n]=3; });
+const TAT_STANDARD_DEFAULT=3;
+function standardTAT(test){
+  const n=String(test||'');
+  if(TAT_STANDARD[n]!=null) return TAT_STANDARD[n];
+  if(TAT_VHF.some(v=>n.toLowerCase().indexOf(v.toLowerCase())>=0)) return 3;
+  return null;
+}
+/* The examinations on a record. Older rows keep them as one string, newer rows as
+   a list, and some rows only have `test` — read all three the same way, or a blood
+   culture ends up judged as if its name were the whole manifest. */
+function testNamesOf(x){
+  if(!x) return [];
+  if(Array.isArray(x.tests)) return x.tests.filter(Boolean);
+  if(x.tests) return String(x.tests).split(' · ').filter(Boolean);
+  return x.test?[x.test]:[];
+}
 function sampleTAT(test, settings, catalog){
   const t=(settings.tat||{})[test]; if(t) return t;
-  const cat=((catalog||(DB&&DB.catalog)||{}).tests||[]).find(x=>x.name===test); return cat? cat.tat : 3;
+  const cat=((catalog||(DB&&DB.catalog)||{}).tests||[]).find(x=>x.name===test);
+  if(cat && cat.tat!=null) return cat.tat;
+  const std=standardTAT(test); if(std!=null) return std;
+  return TAT_STANDARD_DEFAULT;
 }
 function generateSamples(seedDB,opts){
   opts=opts||{};
@@ -1313,6 +1358,31 @@ function normalize(db){
     if(!s.resultedAt && s.resultDate) s.resultedAt=new Date(String(s.resultDate).length>10?s.resultDate:s.resultDate+'T17:00:00').toISOString();
     if(s.resultedAt && !s.resultDate) s.resultDate=String(s.resultedAt).slice(0,10);
   });
+  /* v6.9.81 — a target is a property of the examination.
+     The catalogue carried whatever the wizard needed at the time (a blood culture at
+     four days) and a second table in settings shadowed it. Both are corrected here
+     once: the catalogue takes the department's standard, the seeded shadows are
+     dropped, and every sample re-reads its target from the test menu. A value a person
+     has since typed in Settings → Test menu, or on one sample by hand, is kept. */
+  if(!db.meta.tatStandard80){
+    db.meta.tatStandard80=1;
+    const seeded={'Blood Culture':4,'TB Culture':21,'HIV Recency Viral Load':5,'Hepatitis (HEP)':7,'default':3};
+    db.settings.tat=db.settings.tat||{};
+    Object.keys(seeded).forEach(k=>{ if(db.settings.tat[k]===seeded[k]) delete db.settings.tat[k]; });
+    (db.catalog.tests||[]).forEach(t=>{
+      if(t.tatManual) return;
+      const std=standardTAT(t.name);
+      if(std!=null) t.tat=std;
+    });
+    (db.samples||[]).forEach(x=>{
+      if(!x || x.tatManual) return;
+      const names=testNamesOf(x);
+      const t=sampleTAT(x.test,db.settings);
+      const target=names.length?names.reduce((a,n)=>Math.max(a,sampleTAT(n,db.settings)),0):t;
+      x.tatTargetDays=target||t;
+    });
+  }
+
   // v6.5: the console no longer invents referred samples. Anything the previous
   // build generated from health centres (source 'telemetry') is removed, so the
   // register shows only the samples Ruli DH actually referred to NRL, CHUK and
@@ -2014,6 +2084,31 @@ S.postOf=function(staff){
 S.dutyKeyOf=function(staff){ return (staff&&(staff.duty||(staff.pattern==='manager'?'manager':'')))||''; };
 S.isRolePost=function(staff){ return !!S.dutyKeyOf(staff); };
 S.tatTarget=test=>sampleTAT(test,S.db().settings);
+S.testNamesOf=testNamesOf;
+S.standardTAT=standardTAT;
+/* The target a sample carries: the longest of the tests on it. One sample can hold
+   several examinations, and it is not on time until the slowest of them is back. */
+S.tatTargetForTests=function(names){
+  const list=(names||[]).filter(Boolean);
+  if(!list.length) return null;
+  return list.reduce((a,n)=>Math.max(a,S.tatTarget(n)),0)||null;
+};
+/* Every sample re-reads its target from the test menu. A sample that a person gave
+   its own figure keeps it (`tatManual`). */
+S.reapplyTAT=function(){
+  const db=S.db();
+  let touched=0;
+  (db.samples||[]).forEach(s=>{
+    if(!s || s.tatManual) return;
+    const names=testNamesOf(s);
+    const t=S.tatTargetForTests(names.length?names:[s.test]);
+    if(t!=null && s.tatTargetDays!==t){ s.tatTargetDays=t; touched++; }
+  });
+  /* Writes immediately, so the new figures survive a reload even when a caller
+     reaches for this outside a commit. */
+  if(touched) S.save();
+  return touched;
+};
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;

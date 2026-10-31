@@ -325,7 +325,7 @@ function openSample(id){
      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
        +[['Patient',U.ptName(s)==='—'&&U.canSeeNames()
             ?'<button class="btn xs" data-name-add>'+UI.ic('plus',11)+' Record a name</button>'
-            :U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Received at reception',s.receivedAt?U.fmtDT(s.receivedAt):'not yet received'],['TAT clock',t.awaitingReception?'not started — starts at reception':(t.startFrom==='reception'?'from the reception stamp':'from collection — this record has no reception stamp')],['Target TAT',s.tatTargetDays+' days']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px"'+(k==='Patient'?' id="ptCell"':'')+'>'+(k==='Patient'?v:U.esc(v))+'</div></div>').join('')
+            :U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Received at reception',s.receivedAt?U.fmtDT(s.receivedAt):'not yet received'],['TAT clock',t.awaitingReception?'not started — starts at reception':(t.startFrom==='reception'?'from the reception stamp':'from collection — this record has no reception stamp')],['Target TAT',(s.tatTargetDays!=null?s.tatTargetDays:S.tatTarget(s.test))+' days'+(s.tatManual?' · set by hand':(S.testNamesOf(s).length>1?' · longest of the '+S.testNamesOf(s).length+' tests on it':' · from '+s.test))]].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px"'+(k==='Patient'?' id="ptCell"':'')+'>'+(k==='Patient'?v:U.esc(v))+'</div></div>').join('')
      +'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('timer',14,'ic')+'Turnaround</div><div class="card-sub">'+(s.resultedAt?'Completed in '+Math.round(t.elapsedH)+'h of a '+Math.round(t.targetH)+'h target':'Due '+U.fmtDate(U.isoLocal(t.dueAt)))+'</div></div>'
      +'<span class="pill '+(t.breached?'rose':t.ratio>.8?'amber':'teal')+'">'+(t.breached?'Breached':t.ratio>.8?'At risk':'On track')+'</span></div>'
@@ -478,7 +478,7 @@ function editSample(id){
       +'<div class="field"><label>Sent / dispatched on</label><input class="input" type="date" id="edSent" value="'+U.esc(String(s.sentDate||'').slice(0,10))+'"></div>'
       +'<div class="field"><label>Transporter / courier</label><input class="input" id="edTrans" value="'+U.esc(s.transporter||'')+'"></div>'
       +'<div class="field"><label>Status</label><select class="select" id="edStatus">'+opts(statuses,s.status||'Registered')+'</select></div>'
-      +'<div class="field"><label>Target TAT (days)</label><input class="input mono" type="number" min="0" step="1" id="edTat" value="'+(s.tatTargetDays!=null?s.tatTargetDays:'')+'"></div>'
+      +'<div class="field"><label>Target TAT (days) · from the test</label><input class="input mono" type="number" min="0" step="1" id="edTat" value="'+(s.tatTargetDays!=null?s.tatTargetDays:S.tatTarget(s.test))+'"><div class="xs faint" style="margin-top:4px">Set by the test — <span class="mono">'+U.esc(s.test)+'</span> is '+S.tatTarget(s.test)+' days. Change it only for one sample, and say why in the notes; the standard itself is set in Settings → Test menu.</div></div>'
       +'<div class="field"><label>Result value</label><input class="input mono" id="edVal" value="'+U.esc(s.resultValue||'')+'" placeholder="Leave blank to keep unreleased"></div>'
       +'<div class="field span2"><label>Notes</label><textarea class="textarea" id="edNotes" rows="2">'+U.esc(s.notes||'')+'</textarea></div>'
       +'</div><div class="hint" style="margin-top:8px">TAT is counted from the reception date and time, not from collection. Editing any date re-computes TAT and the 12-month throughput view immediately. Nothing is deleted — the previous values stay in the audit log.</div>',
@@ -497,8 +497,12 @@ function editSample(id){
           receivedAt:g('#edRecv')?(g('#edRecv')+'T'+(g('#edRecvT')||'09:00')):null,
           status:g('#edStatus'), resultValue:g('#edVal').trim()||null, notes:g('#edNotes').trim()
         };
+        /* The target follows the test unless a person overrides it on this one
+           record — and an override is remembered as an override, so a later change
+           to the standard does not quietly overwrite a deliberate figure. */
+        const derived=S.tatTarget(changes.test);
         const tatRaw=parseFloat(g('#edTat'));
-        if(!isNaN(tatRaw)) changes.tatTargetDays=tatRaw;
+        if(!isNaN(tatRaw)){ changes.tatTargetDays=tatRaw; if(tatRaw!==derived) changes.tatManual=true; }
         const t=S.db().catalog.tests.find(x=>x.name===changes.test);
         changes.testCode=t?t.code:s.testCode; changes.cat=t?t.cat:s.cat;
         if(changes.collectionDate) changes.collectionAt=changes.collectionDate+'T'+(String(s.collectionAt||'T09:00:00').slice(11)||'09:00:00');
@@ -784,6 +788,23 @@ function newWizard(){
   const now=new Date();
   const state={step:1,patient:{name:'',pid:'',sex:'Female',dob:'',age:''},tests:[],priority:'Routine',origin:'Ruli DH',hospital:hospitals[0],transporter:'',notes:'',sampleId:'',
     recvDate:U.todayISO(), recvTime:String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')};
+  /* What the target will be, stated before the sample is created. The number comes
+     from the test itself — blood culture seven days, a viral haemorrhagic fever three
+     — so the person registering never types it and two samples of one examination
+     never disagree. Several tests on one sample: the longest of them. */
+  const chosenTests=()=>state.tests.map(id=>tests.find(t=>t.id===id)).filter(Boolean);
+  const wizardTargetLine=()=>{
+    const list=chosenTests();
+    if(!list.length) return '<div class="xs faint" style="margin-top:8px">Pick a test and its target turnaround appears here — the target is saved with the sample.</div>';
+    const target=S.tatTargetForTests(list.map(t=>t.name));
+    return '<div class="xs" style="margin-top:8px;color:var(--text-muted)">Target TAT <b class="mono">'+target+' days</b> — saved with the sample, from the test'+(list.length>1?' — the longest of the '+list.length+' examinations on this sample':'')+'.</div>';
+  };
+  const selectionTargets=()=>{
+    const list=chosenTests();
+    if(!list.length) return '';
+    return '<div class="row gap-sm" style="margin-top:6px;flex-wrap:wrap">'+list.map(t=>
+      '<span class="pill slate mono" style="font-size:9.5px">'+U.esc(t.code||'')+' · '+S.tatTarget(t.name)+'d</span>').join('')+'</div>';
+  };
   /* The preview must read like the real thing: test code, month, next number. */
   const firstTestName=()=>{ const t=tests.find(x=>x.id===state.tests[0]); return t?t.name:''; };
   const previewId=()=>S.sampleId(firstTestName()||(tests[0]&&tests[0].name),U.todayISO());
@@ -802,8 +823,9 @@ function newWizard(){
     if(state.step===2) return '<div class="wizard-step">'
       +'<div class="field" style="margin-bottom:10px"><label>Search test menu</label><div class="searchbox">'+UI.ic('search',14)+'<input class="input" id="wTestSearch" placeholder="Blood culture, TB culture, viral load…"></div></div>'
       +'<div id="wTestList" style="max-height:300px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px">'
-      +tests.map(t=>'<button class="choice '+(state.tests.includes(t.id)?'on':'')+'" data-test="'+t.id+'" data-name="'+U.esc(t.name.toLowerCase())+'"><span class="cmark">'+UI.ic('check',9)+'</span><span class="grow"><span class="ct">'+U.esc(t.name)+'</span><span class="cs" style="display:block">'+U.esc(t.cat)+' · TAT '+t.tat+'d · '+U.esc(t.code)+'</span></span></button>').join('')
+      +tests.map(t=>'<button class="choice '+(state.tests.includes(t.id)?'on':'')+'" data-test="'+t.id+'" data-name="'+U.esc(t.name.toLowerCase())+'"><span class="cmark">'+UI.ic('check',9)+'</span><span class="grow"><span class="ct">'+U.esc(t.name)+'</span><span class="cs" style="display:block">'+U.esc(t.cat)+' · TAT '+S.tatTarget(t.name)+'d · '+U.esc(t.code)+'</span></span></button>').join('')
       +'</div><div class="row between" style="margin-top:10px"><span class="hint" id="wTestCount">'+state.tests.length+' selected</span><span class="hint">Barcode generated on save</span></div>'
+      +'<div id="wTarget">'+wizardTargetLine()+selectionTargets()+'</div>'
       +'<div class="hint" id="wRoutine" style="display:none;margin-top:6px">Blood culture carries <b>Cytology</b> and <b>Gram Stain</b> as routine — the manifest lists them first.</div></div>';
     return '<div class="wizard-step">'
       +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:12px"><div class="row between"><div><div class="eyebrow">Auto-generated sample ID</div><div class="mono" style="font-size:14px;color:var(--text-strong);margin-top:3px">'+previewId()+'</div></div>'+UI.barcode(previewId())+'</div></div>'
@@ -814,7 +836,8 @@ function newWizard(){
       +'<div class="field"><label>Received at reception · date</label><input class="input mono" type="date" id="wRecv" value="'+U.esc(state.recvDate)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">TAT starts here. Clear it if the specimen has not arrived yet.</div></div>'
       +'<div class="field"><label>Received at reception · time</label><input class="input mono" type="time" id="wRecvT" value="'+U.esc(state.recvTime)+'"></div>'
       +'<div class="field span2"><label>Notes for receiving laboratory</label><textarea class="textarea" id="wNote" placeholder="Triple packaging, cold chain, clinical context…">'+U.esc(state.notes)+'</textarea></div></div>'
-      +'<div class="card pad" style="margin-top:12px;background:rgba(201,168,76,.05);border-color:var(--border-gold)"><div class="row gap-sm"><span class="pill gold">'+state.tests.length+' test'+(state.tests.length===1?'':'s')+'</span><span class="pill '+ (state.priority==='STAT'?'rose':'slate')+'">'+U.esc(state.priority)+'</span><span class="pill slate">'+U.esc(state.origin)+' → '+U.esc(state.hospital)+'</span></div></div>';
+      +'<div class="card pad" style="margin-top:12px;background:rgba(201,168,76,.05);border-color:var(--border-gold)"><div class="row gap-sm" style="flex-wrap:wrap"><span class="pill gold">'+state.tests.length+' test'+(state.tests.length===1?'':'s')+'</span><span class="pill '+ (state.priority==='STAT'?'rose':'slate')+'">'+U.esc(state.priority)+'</span><span class="pill slate">'+U.esc(state.origin)+' → '+U.esc(state.hospital)+'</span></div>'
+      +wizardTargetLine()+selectionTargets()+'</div>';
   };
   const m=UI.modal({title:'Register a referred sample',sub:'Three steps · keyboard navigable · Enter advances, Esc closes.',width:'min(620px,100%)',
     body:'<div class="row between" style="margin-bottom:14px"><div class="step-dots"><span class="step-dot on"></span><span class="step-dot"></span><span class="step-dot"></span></div><span class="xs faint" id="wStepLbl">Step 1 of 3 · Patient</span></div><div id="wBody">'+stepHTML()+'</div>',
@@ -866,6 +889,9 @@ function newWizard(){
               b.classList.toggle('routine',!!auto);
             });
             body.querySelector('#wTestCount').textContent=state.tests.length+' selected'+(on?' · Cytology and Gram Stain added as routine':'');
+            /* the target is stated as the tests are chosen, never typed */
+            const tgt=body.querySelector('#wTarget');
+            if(tgt) tgt.innerHTML=wizardTargetLine()+selectionTargets();
           };
           body.querySelectorAll('[data-test]').forEach(b=>b.onclick=()=>{
             const id=b.dataset.test; const t=tests.find(x=>x.id===id); if(!t) return;
@@ -904,7 +930,11 @@ function newWizard(){
                the TAT clock starts at that stamp. */
             receivedAt:state.recvDate?(state.recvDate+'T'+(state.recvTime||'09:00')):null,
             resultedAt:null,status:state.recvDate?'Received':'Registered',
-            priority:state.priority,tatTargetDays:Math.max.apply(null,testObjs.map(t=>t.tat)),notes:state.notes,transporter:state.transporter,
+            priority:state.priority,
+            /* The target is saved WITH the sample, from the tests it carries — it is a
+               property of the examination, not something a clerk types. Several tests:
+               the longest of them, because the sample is not back until the last one is. */
+            tatTargetDays:S.tatTargetForTests(testObjs.map(t=>t.name)),notes:state.notes,transporter:state.transporter,
             collector:LS.auth.user.name,source:'register',manifestId:null,tests:ordered};
           /* The ID is taken inside the commit, from the test chosen and this month. */
           let sid='', drawn=null;
