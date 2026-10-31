@@ -59,17 +59,19 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(items.slice(0,4).every(b=>/^(Dashboard|Samples|Plan|EQA)$/.test(b.getAttribute('aria-label'))),
     'the bar covers the dashboard, samples, the plan and EQA');
 
-  /* ── PBF: the recorded scorecard is on the screen ───────────────────── */
+  /* ── PBF: a centre carries a mark only from a visit that was made ─────
+     v6.9.80 — the screen used to print a generated scorecard for every centre, so
+     centres nobody had visited showed a plausible index. Now a centre with no
+     visit says so, and no percentage is printed anywhere for it. */
   w.LS.ui && w.LS.ui.closeAll && w.LS.ui.closeAll();
   await go('#/pbf');
-  const text=doc.body.textContent.replace(/\s+/g,' ');
-  ok(!/No centre has a complete scorecard yet/.test(text),'the index is not empty any more');
   const rows=[...doc.querySelectorAll('[data-pbf-row]')];
   ok(rows.length>=8,'every health centre has a row',rows.length);
-  ok(rows.every(r=>/recorded scorecard/.test(r.textContent)),'a row says where its numbers come from');
-  ok(rows.some(r=>/%/.test(r.textContent)),'the recorded index is printed');
+  ok(rows.every(r=>!/recorded scorecard/i.test(r.textContent)),'no row claims a scorecard nobody entered');
+  ok(rows.every(r=>/not yet visited|marks pending/i.test(r.textContent)),'every row says where it stands');
+  ok(!rows.some(r=>/\d{2}%/.test(r.textContent)),'and no index is printed before a scorecard exists');
   const trend=doc.querySelector('#pbfTrend');
-  ok(!!trend,'the trend line has a quarter to draw',!!trend);
+  ok(!trend||/No centre has a complete scorecard/i.test(trend.textContent||''),'the trend card says there is nothing to draw yet');
 
   /* nothing was invented: the visit marks are still blank */
   const db=w.LS.store.db();
