@@ -4,6 +4,34 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.88
+
+**The blood bank was only ever October.**
+
+Section VIII of the return — the eight blood groups with opening, requested, received, used, expired and
+returned — is not a list of examinations. It is its own block, and the workbook reader only ever looked for
+examination lines. So every past month loaded with its examinations and **no blood supply at all**: the
+blood-transfusion chart drew one point, and the month-by-month table showed 0 packs used for months that had
+plenty.
+
+- **The block is now read for every month**: `A-`, `A+`, `AB-`, `AB+`, `B+`, `B-`, `O+`, `O-` (and
+  `A positive` / `O neg` spellings) are matched wherever they sit on the row, with the six figures that
+  follow them. The group with nothing moving is read as zeros, not skipped; the printed **Sum** row is
+  checked and never counted twice; and an examination sharing that row is still read at the same time.
+- **The figures travel with the month** into the return's blood table, so the closing balance
+  (opening + received − used − expired − returned) is worked out per group per month, as before.
+- **A month without section VIII is a gap, not a zero.** The month table now shows `—` for packs where the
+  sheet carried no blood block, the chart leaves a gap rather than dropping to zero, and the card names the
+  months concerned: *“No blood-supply block for Oct 24 — load the workbook again and section VIII comes in
+  with it.”*
+
+**Reload the workbook once** (Analysis & history → Load the workbook → same file): loading merges into the
+months already on file, so the examinations stay exactly as they are and the blood supply is added.
+
+Verified — **30 suites, 1,626 checks** — including six groups read off a sheet whose blood block shares its
+rows with the examination blocks, the sum row ignored, the zeros kept, the totals reconciling
+(6 opening · 54 received · 51 used · 9 left), and the gap shown rather than drawn as zero.
+
 ## What changed in 6.9.87
 
 **The history is something you walk through, not a page you read once.**

@@ -188,10 +188,51 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   ok(om.unmatched.length===2,'and both are handed back, with their figures',JSON.stringify(om.unmatched));
   ok(om.unmatched[0].label==='TC/DC (total/differential)'&&om.unmatched[0].nums[0]===12,'the label and the figures survive the trip');
 
+  /* ── 3d · section VIII, the blood bank, on the same rows ───────────── */
+  const bloodRows=[
+    at([[0,'VIII. Blood Supply Group Type'],[9,'Present at the beginning'],[19,'Present at the end']]),
+    at([[0,'A-'],[1,0],[2,0],[3,0],[4,0],[5,0],[6,0],[7,0]]),
+    at([[0,'A+'],[1,2],[2,2],[3,2],[4,2],[5,0],[6,0],[7,2],[9,'6.4 Full Blood Count'],[16,900]]),
+    at([[0,'AB+'],[1,0],[2,3],[3,3],[4,3],[5,0],[6,0],[7,0]]),
+    at([[0,'B+'],[1,2],[2,25],[3,25],[4,24],[5,0],[6,0],[7,3]]),
+    at([[0,'O+'],[1,2],[2,22],[3,22],[4,20],[5,0],[6,0],[7,4]]),
+    at([[0,'O-'],[1,0],[2,2],[3,2],[4,2],[5,0],[6,0],[7,0]]),
+    at([[0,'Sum'],[1,6],[2,54],[3,54],[4,51],[5,0],[6,0],[7,9]])
+  ];
+  const bm=R.matchSheet(bloodRows);
+  ok(Object.keys(bm.blood).length===6,'six blood groups on the sheet are read — not just the ones the exam block sits beside ('+Object.keys(bm.blood).length+')');
+  ok(bm.blood['A+']&&bm.blood['A+'].open===2&&bm.blood['A+'].recv===2&&bm.blood['A+'].used===2,
+     'the A+ group carries opening, received and used',JSON.stringify(bm.blood['A+']));
+  ok(bm.blood['B+'].used===24&&bm.blood['B+'].returned===0,'and B+ its own figures');
+  ok(bm.blood['O+']&&bm.blood['O+'].used===20,'O+ transfused 20');
+  ok(bm.blood['A-']&&bm.blood['A-'].open===0,'a group with nothing moving is still read, as zeros');
+  ok(!bm.blood['Sum'],'the printed sum row is not stored as a group');
+  ok(bm.bloodDetail.length===6,'and the preview can list each group');
+  ok(bm.values.x64&&bm.values.x64.total===900,'the examination sharing that row is read at the same time');
+  ok(bm.unmatched.length===0,'no blood row is offered as unplaceable');
+
   /* ── 4 · months loaded become a history ────────────────────────────── */
   S.reportImportMonth('2024-09',R.matchSheet(SEP24).values,{meta:{source:'District workbook · sheet “Sep 2024”'}});
   S.reportImportMonth('2024-10',R.matchSheet(OCT24).values,{meta:{source:'District workbook · sheet “Oct 2024”'}});
   ok(S.reportMonths().length===3,'three months are on file now',S.reportMonths().join(', '));
+  /* the blood bank travels with the month */
+  S.reportImportMonth('2024-09',{},{blood:bm.blood});
+  const bsum=S.reportSummary('2024-09').bloodTotals;
+  ok(bsum.open===6&&bsum.recv===54&&bsum.used===51&&bsum.end===9,
+     'and September 2024\u2019s blood supply is stored exactly as read — 6 opening, 54 received, 51 used, 9 left',JSON.stringify(bsum));
+  ok(S.reportSummary('2024-09').blood['O+'].end===4,'the closing balance of O+ is worked out from its own figures');
+  /* a month with no blood block is a gap, not a month of zero packs */
+  ok(S.reportSeries().find(m=>m.key==='2024-09').bloodKnown===true,'a month with section VIII is marked as having a blood bank');
+  ok(S.reportSeries().find(m=>m.key==='2024-10').bloodKnown===false,'and a month loaded without one is marked as a gap');
+  ok(S.reportSeries().find(m=>m.key==='2026-10').bloodKnown===true,'October 2026, on file since the first release, still has its blood bank');
+
+  /* the blood bank through the months, with the gap kept as a gap */
+  await go('#/reports'); await tick(350);
+  click(page.querySelector('.rep-tab[data-tab="analysis"]')); await tick(400);
+  ok(!!page.querySelector('#repBloodTrend svg'),'the blood bank is charted across the months');
+  const bloodFoot=[].slice.call(page.querySelectorAll('.card')).find(c=>/blood bank over time/i.test(c.textContent));
+  ok(bloodFoot&&/No blood-supply block for Oct 24/.test(bloodFoot.textContent),
+     'and the card names the month that has none, rather than drawing a zero',bloodFoot&&bloodFoot.textContent.replace(/\s+/g,' ').slice(0,160));
   ok(S.reportMonths().indexOf('2024-10')>=0,'and October 2024 is one of them — the month named in the request');
   const a24=S.reportSummary('2024-10');
   ok(a24.meta.source.indexOf('Oct 2024')>0,'the month carries where it came from',a24.meta.source);
