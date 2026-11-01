@@ -120,7 +120,8 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   /* ── 3 · the rows laid onto the form ───────────────────────────────── */
   const m=R.matchSheet(o24);
   ok(m.matched===5,'every examination on the pasted sheet finds its line ('+m.matched+' of 5)');
-  ok(m.skipped===1,'the section heading is ignored rather than read as a test',m.skipped);
+  ok(m.unmatched.length===0,'nothing in that sheet is left unplaced',JSON.stringify(m.unmatched));
+  ok(m.detail.every(x=>x.label!=='LABORATORY'),'the section heading is ignored rather than read as a test');
   const fbc=S.reportLines().find(l=>/full blood count/i.test(l.label));
   const mal=S.reportLines().find(l=>/blood smears plasmodium/i.test(l.label)&&l.mode==='pn2');
   const amp=S.reportLines().find(l=>/^amylase/i.test(l.label));
@@ -136,6 +137,56 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   const junk=R.matchSheet([['Not an examination we run',5,6]]);
   ok(junk.matched===0&&Object.keys(junk.values).length===0,'a row that matches nothing records nothing');
   ok(R.parsePasted('Full Blood Count\t1180\n').matched===1,'a sheet can also be pasted from Excel — the shorter name the district writes still finds the line');
+
+  /* ── 3b · the district's own layout: numbered labels, blocks side by side ── */
+  const at=pairs=>{ const r=[]; pairs.forEach(p2=>{ r[p2[0]]=p2[1]; }); return r; };
+  const real=[
+    at([[0,'A) Report Identification'],[4,'5. Year'],[5,'2026/2027']]),
+    at([[0,'1. Service Name'],[1,'Laboratory'],[4,'6. Month'],[5,'October'],[9,'1. Blood Smears Plasmodium'],[15,2],[16,86],[17,51],[18,37],[24,'4.1 Sugar'],[27,11],[28,24]]),
+    at([[9,'1.1 Blood Smears Plasmodium Falciparum'],[15,2],[17,0],[18,2]]),
+    at([[9,'2. Rapid Diagnostic Tests for Malaria'],[15,'NA']]),
+    at([[9,'3. Stool Samples Total'],[15,268]]),
+    at([[9,'of which']]),
+    at([[9,'3.1 Ascaris'],[15,0],[16,0],[17,0]]),
+    at([[9,'5.1 Vaginal Swab']]),
+    at([[9,'5.1.a Fresh'],[15,8],[16,59]]),
+    at([[9,'5.1.b Gram'],[15,8],[16,59]]),
+    at([[9,'5.1.c of which Gram - Diplo'],[15,0]]),
+    at([[9,'5.2 Urethral Swab']]),
+    at([[9,'5.1.a Fresh'],[15,0],[16,0]]),
+    at([[9,'5.3 Urine']]),
+    at([[9,'5.1.a Fresh'],[15,6],[16,529]]),
+    at([[9,'5.1.b Gram'],[15,6],[16,529]]),
+    at([[9,'6.4 Full Blood Count'],[16,1364],[19,'B+'],[20,2],[21,25],[22,25],[23,24],[24,0],[25,0],[26,3]]),
+    at([[9,'6.8 Amylase'],[16,41]]),
+    at([[33,'Urea'],[36,0],[37,929],[38,929]]),
+    at([[0,'2. Catchment Area Population'],[1,'115,897']])
+  ];
+  const rm=R.matchSheet(real);
+  ok(rm.matched>=8,'a sheet whose labels carry the form\u2019s numbering is read ('+rm.matched+' lines)');
+  ok(rm.values.m1&&rm.values.m1.pos===2&&rm.values.m1.neg===86&&rm.values.m1.a0===51&&rm.values.m1.a1===37,
+     '“1. Blood Smears Plasmodium” finds line 1 with its positives, negatives and age split',JSON.stringify(rm.values.m1));
+  ok(rm.values.m11&&rm.values.m11.pos===2,'and its falciparum breakdown finds 1.1');
+  ok(rm.values.s1&&rm.values.s1.total===268,'“3. Stool Samples Total” is the 268 samples');
+  ok(rm.values.u41&&rm.values.u41.pos===11&&rm.values.u41.neg===24,'“4.1 Sugar” lands on the urine sugar row');
+  ok(rm.values.x64&&rm.values.x64.total===1364,
+     'the full blood count takes 1,364 and not the blood-bank column further along the same row',JSON.stringify(rm.values.x64));
+  ok(rm.values.x68&&rm.values.x68.total===41,'amylase is 41');
+  ok(rm.values.b51a&&rm.values.b51a.pos===8&&rm.values.b51a.neg===59,'the vaginal swab keeps 8 of 59');
+  ok(rm.values.b53a&&rm.values.b53a.pos===6&&rm.values.b53a.neg===529,
+     'and the urine block\u2019s copy of “5.1.a Fresh” is read against its own heading — 6 of 529, not dropped',JSON.stringify(rm.values.b53a));
+  ok(rm.values.oUrea&&rm.values.oUrea.neg===929,'“Urea” carries 929');
+  ok(!rm.values.r1,'and “2. Catchment Area Population” is never taken for line 2, the malaria rapid test');
+  ok(R.monthFromName('Oct 26')==='2026-10','the sheet\u2019s name gives its month');
+  ok(R.monthFromRows(real)==='2026-10',
+     'and when the name says nothing, the sheet\u2019s own “6. Month | October” and “5. Year | 2026/2027” do');
+
+  /* ── 3c · the rows that cannot be placed are kept, not dropped ─────── */
+  const odd=[[ 'TC/DC (total/differential)', 12, 40 ],[ 'Prothrombin time (INR)', 7, 21 ]];
+  const om=R.matchSheet(odd);
+  ok(om.matched===0,'two rows of wording the form does not use match nothing');
+  ok(om.unmatched.length===2,'and both are handed back, with their figures',JSON.stringify(om.unmatched));
+  ok(om.unmatched[0].label==='TC/DC (total/differential)'&&om.unmatched[0].nums[0]===12,'the label and the figures survive the trip');
 
   /* ── 4 · months loaded become a history ────────────────────────────── */
   S.reportImportMonth('2024-09',R.matchSheet(SEP24).values,{meta:{source:'District workbook · sheet “Sep 2024”'}});
@@ -219,6 +270,24 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   click(row2024); await tick(350);
   ok(page.querySelector('#repMonth').value==='2024-10','clicking October 2024 opens that month\u2019s return',page.querySelector('#repMonth').value);
   ok(/Oct 2024/.test(page.querySelector('#repMonth option:checked').textContent),'and the page says so');
+
+  /* ── 9b · a row that found no line is placed by hand, once ─────────── */
+  const sel0=page.querySelector('#repMonth'); sel0.value='2024-10'; sel0.dispatchEvent(new w.Event('change')); await tick(350);
+  S.reportStashUnmatched('2024-10',[{label:'TC/DC (total/differential)',nums:[12,40]}]);
+  click(page.querySelector('.rep-tab[data-tab="analysis"]')); await tick(350);
+  ok(!!page.querySelector('[data-map-rows]'),'a row with figures but no line is shown on the page, not dropped');
+  click(page.querySelector('[data-map-rows]')); await tick(250);
+  const place=d.querySelector('[data-place="0"]');
+  ok(!!place,'the mapping screen lists it against every line of the form');
+  ok(place.options.length>40,'with the whole form to choose from ('+place.options.length+' lines)');
+  place.value='oClotting';
+  const savePlace=d.querySelector('[data-save]'); click(savePlace); await tick(500);
+  ok(S.reportMonth('2024-10').values.oClotting&&S.reportMonth('2024-10').values.oClotting.pos===12,
+     'the figures land on the line chosen — 12 positives',JSON.stringify(S.reportMonth('2024-10').values.oClotting));
+  ok(S.reportUnmatched('2024-10').length===0,'and the row leaves the unplaced list');
+  ok(!page.querySelector('[data-map-rows]'),'the warning disappears from the page');
+  ok(R.matchSheet([['TC/DC (total/differential)',12,40]]).matched===1,
+     'the wording is remembered: the same row in next month\u2019s sheet places itself');
 
   /* ── 10 · the numbers are the district's, not the app's ───────────── */
   const before=JSON.stringify(S.reportMonth('2024-10').values);

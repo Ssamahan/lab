@@ -2585,6 +2585,54 @@ S.reportImportMonth=function(key, values, extra){
      detail:'Monthly return loaded for '+key+' · '+Object.keys(vals).length+' examinations'});
   return true;
 };
+/* A wording the reader has already matched by hand is remembered, so the same row in
+   next month’s sheet is placed without asking again. */
+const reportNorm=x=>String(x==null?'':x).toLowerCase().replace(/[^a-z0-9]+/g,'');
+S.reportAliases=function(){ const r=S.db().reporting||{}; return r.aliases||{}; };
+/* Rows that carried figures but matched no line are kept, not dropped: they are the
+   one place a month can be short, and the mapping screen works from this list. */
+S.reportUnmatched=function(key){ const r=S.db().reporting||{}; return ((r.unmatched||{})[key])||[]; };
+S.reportStashUnmatched=function(key,rows){
+  const list=(rows||[]).slice(0,400);
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    db.reporting.unmatched=db.reporting.unmatched||{};
+    if(list.length) db.reporting.unmatched[key]=list; else delete db.reporting.unmatched[key];
+  },{action:'report.unmatched',entity:'reporting',entityId:key,
+     detail:list.length+' rows on the sheet matched no line of the form'});
+};
+/* Place rows by hand: the figures go into the month, and the wording is remembered as
+   an alias of that line for every month that follows. */
+S.reportPlaceRows=function(key,places){
+  const list=(places||[]).filter(p=>p&&p.lineId&&p.label);
+  if(!list.length) return 0;
+  const lines=S.reportLines();
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
+    m.values=m.values||{};
+    db.reporting.aliases=db.reporting.aliases||{};
+    list.forEach(p=>{
+      const line=lines.find(l=>l.id===p.lineId); if(!line) return;
+      const nums=(p.nums||[]).map(n=>Math.max(0,Math.round(+n||0)));
+      const v={};
+      if(line.mode==='quant') v.total=nums[nums.length-1]||0;
+      else if(line.mode==='posage3'){ v.pos=nums[0]||0; v.a0=nums[1]||0; v.a1=nums[2]||0; v.a2=nums[3]||0; }
+      else if(line.mode==='pn2'){ v.pos=nums[0]||0; v.neg=nums[1]||0; v.a0=nums[2]||0; v.a1=nums[3]||0; }
+      else { v.pos=nums[0]||0; v.neg=nums[1]||0; }
+      const clean={};
+      Object.keys(v).forEach(f=>{ if(v[f]) clean[f]=v[f]; });
+      if(Object.keys(clean).length) m.values[p.lineId]=Object.assign({},m.values[p.lineId]||{},clean);
+      db.reporting.aliases[reportNorm(p.label)]=p.lineId;
+    });
+    const left=((db.reporting.unmatched||{})[key]||[]).filter(r=>!list.some(p=>p.label===r.label));
+    db.reporting.unmatched=db.reporting.unmatched||{};
+    if(left.length) db.reporting.unmatched[key]=left; else delete db.reporting.unmatched[key];
+    m.touchedAt=U.nowISO();
+  },{action:'report.map',entity:'reporting',entityId:key,
+     detail:list.length+' rows of the sheet placed by hand'});
+  return list.length;
+};
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;
