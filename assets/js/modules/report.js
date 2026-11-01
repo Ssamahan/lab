@@ -107,7 +107,7 @@ function tableCard(sm){
 function bloodCard(sm){
   const bt=sm.bloodTotals;
   const usage=bt.recv?Math.round(bt.used/bt.recv*100):0;
-  return UI.card({title:'Blood supply',sub:'Section VIII · packs by group type, opening balance to closing balance',icon:'droplets',cls:'rep-blood',
+  return UI.card({title:'Blood supply',sub:'Section VIII · packs by group type, opening balance to closing balance',icon:'droplet',cls:'rep-blood',
     tools:'<span class="pill '+(usage>=90?'teal':usage>=60?'gold':'amber')+'">'+usage+'% of what arrived was transfused</span>',
     body:'<div class="rep-scroll"><table class="rep-table rep-blood-t"><thead><tr>'
       +'<th class="rep-th-exam">Group type</th>'
@@ -137,7 +137,7 @@ function identCard(sm){
     return '<div class="rep-id"><label>'+U.esc(label)+'</label>'
       +'<input class="input mono" data-meta="'+k+'" value="'+U.esc(v===''?def:v)+'" placeholder="'+U.esc(def)+'"'+(canEdit()?'':' readonly')+'></div>';
   };
-  return UI.card({title:'Identification',sub:'Section II · what the district needs to file the return',icon:'file-badge',cls:'rep-ident',
+  return UI.card({title:'Identification',sub:'Section II · what the district needs to file the return',icon:'file-text',cls:'rep-ident',
     body:'<div class="rep-id-grid">'+rows.map(r=>field(r[1],r[0],r[2])).join('')+'</div>'
       +(m.source?'<div class="xs faint" style="margin-top:8px">'+U.esc(m.source)+'</div>':''),
     foot:'<span>Sent to Gakenke District · HMIS section IX (laboratory) and VIII (blood supply)</span>'
@@ -159,9 +159,9 @@ function kpis(sm){
       note:t.examinations+' examinations on the form · '+t.entered+' carried a figure',spark:C.spark(trend.length?trend:[t.tests],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Positive results',value:t.qualPositives,icon:'activity',formatted:'0',
       note:rate+'% of the '+U.fmtNum(t.qualTests)+' qualitative tests',spark:C.spark([rate,rate],{color:'var(--rose-400)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Most requested',value:top?top.figure:0,icon:'bar-chart-3',formatted:'0',
+   +'<div class="c3">'+UI.stat({label:'Most requested',value:top?top.figure:0,icon:'chart-bar',formatted:'0',
       note:top?top.label.split(' ').slice(1).join(' '):'—',spark:C.spark([1,1],{color:'var(--teal-400)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Blood packs used',value:bt.used,icon:'droplets',formatted:'0',
+   +'<div class="c3">'+UI.stat({label:'Blood packs used',value:bt.used,icon:'droplet',formatted:'0',
       note:bt.recv+' received · '+wastage+'% lost or returned',spark:C.spark([bt.open,bt.recv,bt.used,bt.end],{color:'var(--rose-500)'})})+'</div>'
    +'</div>';
 }
@@ -174,17 +174,17 @@ function analysis(sm){
   const secs=sm.sections.filter(s=>s.total>0);
   const bt=sm.bloodTotals;
   return '<div class="grid-12" style="gap:14px">'
-   +'<div class="c6">'+UI.card({title:'Top 10 requested examinations',sub:'By the number of tests carried out this month',icon:'bar-chart-3',
+   +'<div class="c6">'+UI.card({title:'Top 10 requested examinations',sub:'By the number of tests carried out this month',icon:'chart-bar',
       body:'<div id="repTop"></div>',
       foot:'<span>Full list on the return above</span><span class="mono">'+U.fmtNum(sm.totals.tests)+' tests</span>'})+'</div>'
    +'<div class="c6">'+UI.card({title:'Top positive tests',sub:'Qualitative examinations, by the number that came back positive',icon:'activity',
       body:'<div id="repPos"></div>',
       foot:'<span>Percentages are of the tests of that examination, not of the month</span><span class="mono">'+U.fmtNum(sm.totals.qualPositives)+' positives</span>'})+'</div>'
-   +'<div class="c6">'+UI.card({title:'Least requested examinations',sub:'The tests that ran fewest times — the ones to look at before ordering habits change',icon:'trending-down',
+   +'<div class="c6">'+UI.card({title:'Least requested examinations',sub:'The tests that ran fewest times — the ones to look at before ordering habits change',icon:'chart-pie',
       body:'<div id="repLeast"></div>',
       foot:'<span>'+(quiet.length?quiet.length+' examinations were not requested at all this month':'Every examination was used at least once')+'</span>'
         +(quiet.length?'<span class="rep-quiet">'+quiet.slice(0,6).map(r=>U.esc(r.line.label)).join(' · ')+(quiet.length>6?' …':'')+'</span>':'')})+'</div>'
-   +'<div class="c6">'+UI.card({title:'Blood transfusion',sub:'Packs by group type · received, transfused, closing balance',icon:'droplets',
+   +'<div class="c6">'+UI.card({title:'Blood transfusion',sub:'Packs by group type · received, transfused, closing balance',icon:'droplet',
       body:'<div class="rep-blood-an"><div class="rep-blood-bars">'+S.REPORT_GROUPS.map(g=>{
           const row=sm.blood[g]; const max=Math.max.apply(null,S.REPORT_GROUPS.map(x=>Math.max(sm.blood[x].recv,sm.blood[x].used)).concat([1]));
           return '<div class="rep-bb"><span class="rep-bb-g">'+U.esc(g)+'</span>'
@@ -321,7 +321,7 @@ function head(sm){
    +'<div class="sub">The laboratory\u2019s HMIS return to Gakenke District — the form the district receives, the analysis behind it, and an export laid out like the paper sheet.</div></div>'
    +'<div class="actions">'
      +'<div class="rep-month"><label class="xs faint">Return for</label><select class="select mono" id="repMonth">'+opts+'</select></div>'
-     +'<button class="btn" data-new-month>'+UI.ic('calendar-plus',15)+'New month</button>'
+     +'<button class="btn" data-new-month>'+UI.ic('calendar-days',15)+'New month</button>'
      +'<button class="btn primary" data-export>'+UI.ic('download',15)+'Export the return</button>'
    +'</div></div>'
    +'<div class="rep-strip">'+status

@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.83';
+const APP_VERSION='6.9.84';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -32,6 +32,9 @@ const ROUTES={
 };
 const GROUPS=['Operations','People','Scheduling','Quality','Admin'];
 SH.ROUTES=ROUTES;
+/* The build this page is running — read by the update watch in boot.js so a tab
+   left open can say, by name, when a newer one is live. */
+SH.version=()=>APP_VERSION;
 const loaded={};
 
 /* ——— Route parsing ——————————————————————— */

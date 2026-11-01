@@ -169,7 +169,32 @@ const css=fs.readFileSync(path.join(root,'assets/css/modules.css'),'utf8');
      'the export dialogue previews the first page before choosing a format');
   ok(/audit\(\{action:'export\.report/.test(srcSh),'an export is written to the audit trail');
 
-  /* ── 10 · the house look ───────────────────────────────────────────── */
+  /* ── 10 · it can be found, and it says who may sign in ─────────────── */
+  await go('#/dash'); await tick(320);
+  ok(!!page.querySelector('[data-hero-report]'),'the Command Center carries a Monthly report button');
+  ok(w.LS.shell.version()==='6.9.84','the shell knows the build it is running',w.LS.shell.version());
+  ok(/watchVersion/.test(fs.readFileSync(path.join(root,'assets/js/core/boot.js'),'utf8')),
+     'and a tab left open is told when a newer build is live');
+  ok(/'reports'/.test(fs.readFileSync(path.join(root,'sw.js'),'utf8').split('const MODULES')[1].split(']')[0]),
+     'the module is precached, so the return opens offline too');
+
+  /* the registry must not invent an access role for a person who has no account */
+  await go('#/staff'); await tick(400);
+  const cards=[...page.querySelectorAll('[data-person]')];
+  ok(cards.length>=8,'the staff registry lists the department ('+cards.length+')');
+  const withJob=(re)=>{ const c=cards.find(x=>re.test(x.querySelector('.card-sub').textContent)); return c||null; };
+  const patrick=withJob(/Lab Technician/);
+  ok(patrick&&patrick.querySelector('.card-sub').textContent==='Lab Technician','the job title is the job title');
+  ok(patrick&&/no account/.test(patrick.textContent),'and a person with no login says so, instead of being given a role');
+  ok(cards.filter(c=>/Technologist<\/span>/.test(c.innerHTML)).length===1,
+     'only the one person who really holds a Technologist account is badged that way',
+     cards.filter(c=>/Technologist<\/span>/.test(c.innerHTML)).map(c=>c.querySelector('.card-title').textContent).join(', '));
+  const kelvin=cards.find(c=>/Kelvin/.test(c.querySelector('.card-title').textContent));
+  ok(/Admin/.test(kelvin.textContent),'the admin account is still badged Admin');
+  ok(/accessBadge/.test(fs.readFileSync(path.join(root,'assets/js/modules/staff.js'),'utf8')),
+     'the badge is drawn from the account, never from the job title');
+
+  /* ── 11 · the house look ───────────────────────────────────────────── */
   ok(/\.rep-sec-head\{/.test(css)&&/\.rep-table\{/.test(css),'the form has its own print-like styling on screen');
   ok(/\.rep-in:focus\{/.test(css),'a cell shows the gold focus ring of the rest of the console');
   ok(/@media \(max-width:900px\)[\s\S]*\.rep-in\{width:46px\}/.test(css),'and it stays usable on a phone');

@@ -10,13 +10,21 @@ let rootEl=null, tab='people';
 function staff(){ return S.db().staff; }
 function active(){ return staff().filter(s=>s.status==='active'); }
 function roleTone(r){ return /admin/i.test(r)?'gold':/manager/i.test(r)?'teal':/tech/i.test(r)?'blue':'slate'; }
-function roleFor(s){
-  const u=A.users.find(x=>x.staffId===s.id);
-  if(u) return u.role;
-  if(/admin/i.test(s.role)) return 'Admin';
-  if(/manager|in-?charge|quality/i.test(s.role)) return 'Manager';
-  if(/tech/i.test(s.role)) return 'Technologist';
-  return 'Read-only';
+/* ——— Who can sign in, and as what ——————————————————————————————
+   `s.role` is the job a person does; it is read straight from the register and is
+   never inferred here. Separately, a person may hold a SIGN-IN ACCOUNT, and an
+   account has an access role. Those are two different things, and this used to
+   blur them: any job title containing “technician” or “technologist” was shown
+   under a “Technologist” badge, so the registry read as though the whole bench had
+   been put on a system role — including the people who have no account at all.
+   The badge now reports an access role only where an account exists; otherwise it
+   says plainly that there is none, and the job title stays the job title. */
+function accountOf(s){ return A.users.find(x=>x.staffId===s.id)||null; }
+function roleFor(s){ const u=accountOf(s); return u?u.role:''; }
+function accessBadge(s){
+  const u=accountOf(s);
+  if(u) return UI.roleBadge(u.role);
+  return '<span class="pill slate" title="No sign-in account — a roster record, not a login">no account</span>';
 }
 /* On authorised leave today — annual leave, sick leave, maternity or any other
    approved leave type. Nobody is described as absent without an unexcused record. */
@@ -86,7 +94,7 @@ function people(){
     return '<div class="c4"><div class="card hover pad" data-person="'+s.id+'" style="cursor:pointer">'
       +'<div class="row gap-sm" style="align-items:flex-start;margin-bottom:10px">'+U.avatar(s.name,'lg')
       +'<div style="min-width:0"><div class="card-title truncate">'+U.esc(s.name)+'</div><div class="card-sub truncate">'+U.esc(s.role)+'</div>'
-      +'<div class="row gap-xs wrap" style="margin-top:5px">'+UI.roleBadge(roleFor(s))+'<span class="pill '+shift.tone+'"><span class="dot '+((shift.kind==='day'||shift.kind==='night'||shift.kind==='daynight')?'live':'')+'"></span>'+U.esc(shift.label)+'</span>'+(s.status!=='active'?'<span class="pill slate">'+UI.ic('log-out',9)+' archived</span>':'')+'</div></div></div>'
+      +'<div class="row gap-xs wrap" style="margin-top:5px">'+accessBadge(s)+'<span class="pill '+shift.tone+'"><span class="dot '+((shift.kind==='day'||shift.kind==='night'||shift.kind==='daynight')?'live':'')+'"></span>'+U.esc(shift.label)+'</span>'+(s.status!=='active'?'<span class="pill slate">'+UI.ic('log-out',9)+' archived</span>':'')+'</div></div></div>'
       +'<div class="thread" style="margin:10px 0"></div>'
       +'<div class="row between"><span class="xs faint">Annual leave · FY '+U.esc(book.fy)+'</span><span class="mono xs">'+book.charged+' of '+book.pool+' days</span></div>'
       +UI.meter(book.pool?U.clamp(book.charged/book.pool*100,0,100):0,book.over?'rose':book.balance>5?'teal':'amber')
@@ -107,7 +115,7 @@ function personDrawer(id){
   UI.drawer({title:s.name,eyebrow:'Staff record',sub:s.role+' · since '+U.fmtDate(s.joinDate||'2019-01-01'),wide:true,body:
     '<div class="row gap-lg" style="align-items:center;margin-bottom:16px"><div style="position:relative;flex:0 0 auto">'+U.avatar(s.name,'xl')
     +(A.can('edit')?'<button class="icon-btn" data-photo-upload title="Upload a profile photo" style="position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#241A06;border:2px solid var(--surface)">'+UI.ic('camera',12)+'</button>':'')+'</div>'
-    +'<div><div class="row gap-xs wrap">'+UI.roleBadge(roleFor(s))+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')
+    +'<div><div class="row gap-xs wrap">'+accessBadge(s)+'<span class="pill '+(s.status==='active'?'teal':'slate')+'">'+U.esc(s.status)+'</span><span class="pill '+shift.tone+'">'+U.esc(shift.label)+'</span>'+(s.weekendOnly?'<span class="pill blue">weekend only</span>':'')
     +((Array.isArray(s.lightMonths)&&s.lightMonths.length)?s.lightMonths.map(mk=>'<span class="pill slate" data-tip="'+U.esc(s.lightReason||'Kept off the night rota for this month')+'">off the '+U.esc(U.monthLabel?U.monthLabel(mk):mk)+' night rota</span>').join(''):'')+'</div>'
     +(shift.note?'<div class="xs faint" style="margin-top:5px">'+U.esc(shift.note)+'</div>':'')
     +'<div class="small muted" style="margin-top:8px">'+U.esc(s.email||'')+' · '+U.esc(U.fmtPhone(s.phone))+'</div>'
