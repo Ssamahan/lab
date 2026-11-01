@@ -254,11 +254,11 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   const opts=[].slice.call(page.querySelectorAll('#repMonth option')).map(o=>o.value);
   ok(opts.indexOf('2024-10')>=0,'October 2024 is in the month picker — the month named in the request',opts.join(','));
   const sel=page.querySelector('#repMonth'); sel.value='2024-10'; sel.dispatchEvent(new w.Event('change')); await tick(350);
-  ok(/Oct 2024/.test(page.querySelector('.rep-cmp').textContent),
-     'choosing it puts the page on October 2024');
+  ok(page.querySelector('.rep-cmp').textContent.indexOf('Sep 2024')>0,
+     'choosing it puts the page on October 2024, compared with September 2024');
   const tabs2=[].slice.call(page.querySelectorAll('.rep-tab'));
   click(tabs2[1]); await tick(300);
-  ok(/Oct 2024/.test(page.querySelector('.rep-cmp').textContent),'and the comparison is made for that month');
+  ok(page.querySelector('.rep-tl-chip.on').textContent.indexOf('Oct 24')===0,'and the strip marks that month');
   ok(/Sep 2024/.test(page.querySelector('.rep-cmp').textContent),'against the month before it — September 2024');
   ok(!!page.querySelector('#repTestTrend svg')||/rep-trend-single/.test(page.innerHTML),'one examination is charted across the months');
   ok(!!page.querySelector('#repSecTrend'),'and the sections are charted month by month');
@@ -321,6 +321,47 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   ok(S.reportMonths().length===3,'the months are on file after loading from the workbook',S.reportMonths().join(','));
   ok(/Oct 2024/.test(S.reportMonth('2024-10').meta.source||''),'and each month remembers the sheet it came from',S.reportMonth('2024-10').meta.source);
   ok(page.querySelectorAll('.rep-cmp-card').length===3,'the page lands on the analysis it just filled in');
+
+  /* ── 13 · winding the record back ──────────────────────────────────── */
+  const del=S.reportDeltaSeries();
+  ok(del.length===3,'every month on file carries its movement');
+  const sep=del.find(x=>x.key==='2024-09'), oct24=del.find(x=>x.key==='2024-10'), oct26=del.find(x=>x.key==='2026-10');
+  ok(sep.change===null&&sep.pct===null,'the earliest month has nothing before it — no zero is invented');
+  ok(oct24.change===oct24.tests-sep.tests,'the change is the difference between the two months',oct24.change);
+  ok(oct24.pct===Math.round((oct24.tests-sep.tests)/sep.tests*1000)/10,'and the percentage is that difference over the month before',oct24.pct);
+  ok(oct26.change===null,'October 2026 has no September 2026 on file, so it has no movement — a gap, not a drop to nothing');
+  ok(S.reportAcrossYears('2024-10').map(x=>x.key).join(',')==='2024-10,2026-10','both Octobers on file are found together');
+  ok(S.reportAcrossYears('2024-09').map(x=>x.key).join(',')==='2024-09','and the helper lists the same month across the years that exist');
+
+  click(page.querySelector('.rep-tab[data-tab="analysis"]')); await tick(400);
+  ok(page.querySelectorAll('[data-tl]').length===3,'the months are a strip you can walk along ('+page.querySelectorAll('[data-tl]').length+')');
+  ok(!!page.querySelector('.rep-tl-chip.on'),'the month being read is marked on the strip');
+  ok(!!page.querySelector('#repDelta svg'),'the movement of every month is charted');
+  ok(page.querySelectorAll('#repDelta [data-key]').length===3,'each bar is a month you can go back to');
+  ok(!!page.querySelector('#repPositivity svg'),'positivity is charted through the months');
+  ok(!!page.querySelector('#repBloodTrend svg'),'and so is the blood bank');
+  ok(page.querySelector('#repDelta [data-key="2024-09"]')!==null,'September 2024 has its own bar');
+  page.querySelector('#repDelta [data-key="2024-09"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(400);
+  ok(page.querySelector('#repMonth').value==='2024-09','clicking a bar winds the page back to that month',page.querySelector('#repMonth').value);
+  ok(/Sep 2024 in full/.test(page.querySelectorAll('.rep-analysis-head h2')[0].textContent),'and the whole page follows — the rankings are that month\u2019s');
+  page.querySelector('[data-tl="2024-10"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await tick(400);
+  ok(page.querySelector('.rep-tl-chip.on').textContent.indexOf('Oct 24')===0,'a chip on the strip does the same');
+  const cmpText=page.querySelector('.rep-cmp').textContent;
+  ok(/tests/.test(cmpText)&&/positives/.test(cmpText),'the comparison reads tests and positives, not just a headline');
+  ok(new RegExp('[+-]'+Math.abs(oct24.change).toLocaleString().replace(/,/g,'')).test(cmpText.replace(/\s+/g,' '))||cmpText.indexOf(String(Math.abs(oct24.change)))>0,
+     'it states the count it moved by ('+oct24.change+')');
+  ok(cmpText.indexOf(String(oct24.pct)+'%')>0,'and the percentage of that change ('+oct24.pct+'%)');
+  ok(page.querySelectorAll('.rep-cmp-line').length>=2,'the comparison is broken into metrics, line by line');
+  d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+  await tick(400);
+  ok(page.querySelector('#repMonth').value==='2026-10','→ walks forward a month',page.querySelector('#repMonth').value);
+  d.body.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));
+  await tick(400);
+  ok(page.querySelector('#repMonth').value==='2024-10','← walks back again',page.querySelector('#repMonth').value);
+  ok(typeof w.LS.charts.delta==='function','the diverging chart is part of the chart set');
+  ok(/\.rep-tl\{/.test(css)&&/\.rep-cmp-line\{/.test(css),'the strip and the comparison rows are styled');
 
   done('history85');
 })();

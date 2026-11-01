@@ -799,3 +799,37 @@
 .rep-imp-sep{margin-top:8px;padding:5px 9px;font-size:10.4px;letter-spacing:.05em;text-transform:uppercase;
   color:var(--warn,var(--gold));border-top:1px solid var(--line)}
 .rep-miss{color:var(--text-dim);font-style:italic}
+
+/* ——— Walking the record ——————————————————————————————— */
+.rep-tl{display:flex;align-items:center;gap:6px;margin-top:14px}
+.rep-tl-nav{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--text-dim);cursor:pointer}
+.rep-tl-nav:hover:not(:disabled){color:var(--gold);border-color:var(--gold-dim)}
+.rep-tl-nav:disabled{opacity:.35;cursor:default}
+.rep-tl-track{flex:1;display:flex;gap:5px;overflow-x:auto;padding:2px 1px 4px;scrollbar-width:thin;scroll-behavior:smooth}
+.rep-tl-chip{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 10px;cursor:pointer;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);min-width:82px;transition:border-color .16s,background .16s}
+.rep-tl-chip:hover{border-color:var(--gold-dim);background:var(--surface-2)}
+.rep-tl-chip.on{border-color:var(--gold);background:linear-gradient(180deg,rgba(201,169,97,.10),rgba(201,169,97,.03));box-shadow:0 0 0 1px var(--gold-dim) inset}
+.rep-tl-m{font-size:10.6px;font-weight:600;color:var(--text-dim);letter-spacing:.01em;white-space:nowrap}
+.rep-tl-chip.on .rep-tl-m{color:var(--gold)}
+.rep-tl-v{font-size:12.2px;color:var(--text-strong);font-variant-numeric:tabular-nums}
+.rep-tl-d{font-size:9.6px;font-weight:600;font-variant-numeric:tabular-nums}
+.rep-tl-d.up{color:var(--pos)} .rep-tl-d.down{color:var(--crit)} .rep-tl-d.flat{color:var(--text-faint)}
+.rep-tl-note{display:flex;gap:12px;align-items:baseline;justify-content:space-between;margin-top:2px;font-size:10.8px;color:var(--text-dim)}
+@keyframes repIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.rep-panel{animation:repIn .26s var(--ease,ease)}
+.rep-cmp-line{display:grid;grid-template-columns:66px 1fr auto auto;align-items:baseline;gap:8px;
+  padding:3px 0;border-top:1px solid var(--line);font-size:11px;color:var(--text)}
+.rep-cmp-line:first-of-type{border-top:0}
+.rep-cmp-k{color:var(--text-dim);font-size:10.6px}
+.rep-cmp-d{font-size:10.4px;font-weight:600;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.rep-cmp-d.up{color:var(--pos)} .rep-cmp-d.down{color:var(--crit)} .rep-cmp-d.flat{color:var(--text-faint)}
+.rep-cmp-years{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.rep-cmp-years>div{flex:1;min-width:70px;padding:5px 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2)}
+.rep-cmp-years>div.on{border-color:var(--gold);background:rgba(201,169,97,.08)}
+.rep-cmp-years b{display:block;font-size:12.4px;color:var(--text-strong)}
+.chart-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:10.4px;color:var(--text-dim)}
+.chart-legend span{display:inline-flex;align-items:center;gap:5px}
+.chart-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.chart-legend i.ring{background:none;border:2px solid var(--gold);border-radius:2px}

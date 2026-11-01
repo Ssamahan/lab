@@ -2563,6 +2563,30 @@ S.reportRollup=function(){
   const fyOf=k=>{ const y=+String(k).slice(0,4), m=+String(k).slice(5,7); return m>=7?(y+'/'+(y+1)):((y-1)+'/'+y); };
   return {years:group(m=>String(m.year)), fy:group(m=>fyOf(m.key))};
 };
+/* The change from one month to the month before it, for every month on file — the
+   shape of the year, not just one step of it. A month with no predecessor has no
+   change, which is why the first entry carries null rather than a zero. */
+S.reportDeltaSeries=function(){
+  const all=S.reportSeries();
+  const pct=(now,then)=>(then==null||then===0)?null:Math.round((now-then)/then*1000)/10;
+  return all.map((m,i)=>{
+    const prev=(function(){
+      const back=new Date(Date.UTC(m.year,m.month-2,1));
+      const k=back.getUTCFullYear()+'-'+String(back.getUTCMonth()+1).padStart(2,'0');
+      return all.find(x=>x.key===k)||null;
+    })();
+    return {key:m.key,label:m.label,tests:m.tests,prevKey:prev?prev.key:null,prev:prev?prev.tests:null,
+      change:prev?m.tests-prev.tests:null,pct:pct(m.tests,prev?prev.tests:null),
+      positives:m.positives,positivesChange:prev?m.positives-prev.positives:null,
+      positivity:prev&&prev.qualTests?Math.round((m.positives/m.qualTests-prev.positives/prev.qualTests)*1000)/10:null};
+  });
+};
+/* The same calendar month across every year on file — October 2024, October 2025,
+   October 2026 — which is the year-over-year question asked of one month. */
+S.reportAcrossYears=function(key){
+  const m=+String(key).slice(5,7);
+  return S.reportSeries().filter(x=>x.month===m);
+};
 /* Bulk load of one month — used by the import screen and by anything else that has
    a month of figures in hand. */
 S.reportImportMonth=function(key, values, extra){

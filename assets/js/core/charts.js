@@ -267,6 +267,61 @@ C.dual=function(el,cfg){
    +pts.map(p=>'<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="2.4" fill="var(--pos)"/>').join('')+xl+'</svg></div>';
 };
 
+/* ——— Diverging bars — the month against the month before ———
+   One bar per month, up for a rise and down for a fall, on a shared zero line, so the
+   shape of a year of change is read at a glance. The month being looked at is marked,
+   and the figures are printed from the data — never drawn to look plausible. */
+C.delta=function(el,cfg){
+  if(!el) return;
+  const items=(cfg.items||[]);
+  if(!items.length){ el.innerHTML='<div class="chart-empty">No months to compare yet</div>'; return; }
+  const W=760, H=cfg.height||210, pad={l:46,r:14,t:22,b:34};
+  const vals=items.map(i=>i.value==null?0:i.value);
+  const top=Math.max.apply(null,vals.concat([0])), bot=Math.min.apply(null,vals.concat([0]));
+  const span=(top-bot)||1;
+  const Y=v=>pad.t+(top-v)/span*(H-pad.t-pad.b);
+  const n=items.length, slot=(W-pad.l-pad.r)/n, bw=Math.max(3,Math.min(26,slot*0.56));
+  let grid='';
+  const zero=Y(0);
+  [top,top/2,0,bot/2,bot].forEach((v,i)=>{
+    if(!isFinite(v)) return;
+    const y=Y(v);
+    if(i===2) return;
+    grid+='<line class="grid" x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'"/>'
+      +'<text x="'+(pad.l-7)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end">'+(v>0?'+':'')+U.fmtNum(Math.round(v))+'</text>';
+  });
+  const bars=items.map((it,i)=>{
+    const v=it.value;
+    const x=pad.l+i*slot+(slot-bw)/2;
+    if(v==null) return '<rect x="'+x.toFixed(1)+'" y="'+(zero-1).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="2" rx="1" fill="var(--line-strong,var(--line))"'
+      +(it.key?' data-key="'+U.esc(it.key)+'" style="cursor:pointer"':'')+' data-tip="'+U.esc(it.label+': no month before it')+'"/>';
+    const y=v>=0?Y(v):zero, h=Math.max(1.5,Math.abs(Y(v)-zero));
+    const cur=it.current;
+    const fill=v>=0?(cur?'var(--teal-400)':'rgba(63,211,182,.55)'):(cur?'var(--rose-400)':'rgba(227,114,124,.5)');
+    return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" fill="'+fill+'"'
+      +(cur?' stroke="var(--gold)" stroke-width="1.4"':'')
+      +(it.key?' data-key="'+U.esc(it.key)+'" style="cursor:pointer"':'')
+      +' data-tip="'+U.esc(it.label+' · '+(it.prev!=null?U.fmtNum(it.prev)+' → ':'')+U.fmtNum(it.tests)+(v>=0?' · +':' · ')+U.fmtNum(v)+(it.pct!=null?' ('+(v>=0?'+':'')+it.pct+'%)':''))+'"/>';
+  }).join('');
+  let xl='';
+  const step=Math.ceil(n/9);
+  items.forEach((it,i)=>{
+    if(!(i%step===0||i===n-1||it.current)) return;
+    const x=pad.l+i*slot+slot/2;
+    xl+='<text x="'+x.toFixed(1)+'" y="'+(H-12)+'" text-anchor="middle"'+(it.current?' style="fill:var(--gold);font-weight:600"':'')+'>'+U.esc(it.label)+'</text>';
+  });
+  el.innerHTML='<div class="chart-wrap"><svg class="chart-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+    +'<defs><linearGradient id="'+gradId(cfg.id||'dl')+'" x1="0" y1="0" x2="0" y2="1">'
+    +'<stop offset="0%" stop-color="var(--teal-400)" stop-opacity=".12"/><stop offset="100%" stop-color="var(--rose-400)" stop-opacity=".12"/></linearGradient></defs>'
+    +'<rect x="'+pad.l+'" y="'+pad.t+'" width="'+(W-pad.l-pad.r)+'" height="'+(H-pad.t-pad.b)+'" fill="url(#'+gradId(cfg.id||'dl')+')" opacity=".5"/>'
+    +grid+bars
+    +'<line x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+zero.toFixed(1)+'" y2="'+zero.toFixed(1)+'" stroke="var(--text-faint)" stroke-width="1"/>'
+    +xl+'</svg></div>'
+    +'<div class="chart-legend"><span><i style="background:var(--teal-400)"></i>more than the month before</span>'
+    +'<span><i style="background:var(--rose-400)"></i>fewer</span>'
+    +'<span><i class="ring"></i>the month you are reading</span></div>';
+};
+
 /* ——— Tiny inline bar set ————————————————— */
 C.barsInline=(values,tone)=>{
   const max=Math.max.apply(null,values.concat([1]));
