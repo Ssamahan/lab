@@ -4,6 +4,28 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.84
+
+**Monthly Reports can be found — and the registry stops inventing access roles.**
+
+Two things were wrong, and only one of them was in the code.
+
+- **The monthly report was deployed but a tab that was already open never saw it.** Code is fetched
+  network-first, so a reload always gets the new build — but a page left open on a phone keeps running the
+  JavaScript it loaded, and a module added later simply is not in it. The console now asks the deployed page
+  once, a few seconds after load and again whenever the tab comes back into view, what version it is serving;
+  if it disagrees with the build in memory it says so by name — *“A newer build (v6.9.84) is live — this tab
+  is running v6.9.83”* — with a button that reloads. The report is also on the Command Center as a third hero
+  button, not only in the rail, and it is precached by the service worker so it opens offline like the rest.
+- **The staff registry was labelling jobs as system roles.** Beside every name sat a badge reading
+  *Technologist* for anybody whose job title contained “technician” or “technologist” — so the whole bench
+  appeared to have been put on a Technologist account, including the five who have no account at all. That
+  badge was derived from the job title, not read from anywhere: **no role was invented and no record was
+  changed.** The badge now reports an access role only when the person really holds an account, and otherwise
+  says **no account**. Kelvin (Admin), Aurelie (Manager) and Jean Paul (Technologist) are the only three
+  people with a login; everyone else's title — Lab Technician, Lab Technologist, HIV Lab Quality Corp — is
+  their job, exactly as the register keeps it.
+
 ## What changed in 6.9.83
 
 **A Monthly Reports module — the district HMIS return, the analysis behind it, and an export that looks like

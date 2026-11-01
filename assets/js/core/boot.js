@@ -107,4 +107,31 @@ window.addEventListener('load',()=>{
     if(st) st.textContent='Local register ready';
   },1200);
 });
+/* ——— Is a newer build live? ————————————————————————————————
+   A tab that is left open — a phone that was never closed — keeps running the
+   JavaScript it loaded, so a module added in a later build simply is not there and
+   the rail looks as though it never changed. The deployed page is asked once for
+   its version a few seconds after load, and again whenever the tab comes back into
+   view; if it disagrees with the build in memory the reader is told, by name, and
+   given the reload rather than having to guess. */
+(function watchVersion(){
+  if(!navigator.onLine) return;
+  const mine=LS.shell&&LS.shell.version?LS.shell.version():null;
+  let asked=false;
+  const check=async()=>{
+    if(asked||document.hidden) return;
+    asked=true;
+    try{
+      const res=await fetch('index.html?build='+Date.now(),{cache:'no-store'});
+      if(!res.ok) return;
+      const txt=await res.text();
+      const m=/v(\d+\.\d+\.\d+)/.exec(txt);
+      if(!m||!mine||m[1]===mine) return;
+      LS.ui.toast('A newer build (v'+m[1]+') is live — this tab is running v'+mine+'. Reload to see it.',{type:'info',duration:15000,
+        actions:[{label:'Reload now',onClick:()=>location.reload()}]});
+    }catch(e){}
+  };
+  setTimeout(check,4000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ asked=false; setTimeout(check,1500); } });
+})();
 })();

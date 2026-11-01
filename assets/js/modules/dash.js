@@ -57,6 +57,7 @@ function hero(){
     +'<div class="hero-actions">'
       +'<button class="btn primary magnetic" data-hero-register>'+U.ic('flask-conical',16)+' Register sample</button>'
       +'<button class="btn magnetic" data-hero-manifest>'+U.ic('clipboard-list',16)+' Build manifest</button>'
+      +'<button class="btn magnetic" data-hero-report>'+U.ic('file-text',16)+' Monthly report</button>'
     +'</div>'
    +'</div>'
    +'<div class="hero-side">'
@@ -373,6 +374,9 @@ M.render=function(root,params){
   // hero actions
   root.querySelector('[data-hero-register]').onclick=()=>{ location.hash='#/samples?new=1'; };
   root.querySelector('[data-hero-manifest]').onclick=()=>{ location.hash='#/samples?manifest=1'; };
+  /* the monthly return is one press from the Command Center, not only from the rail */
+  const hr=root.querySelector('[data-hero-report]');
+  if(hr) hr.onclick=()=>{ location.hash='#/reports'; };
   // onboarding actions
   U.$$('[data-ob]',root).forEach(b=>b.onclick=()=>{
     S.commit(d=>{ d.settings.onboarding[b.dataset.ob]=true; },{action:'onboarding.step',entity:'settings',detail:'Completed setup step: '+b.dataset.ob});
