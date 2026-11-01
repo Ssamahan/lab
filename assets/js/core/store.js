@@ -2292,6 +2292,30 @@ const REPORT_LINES=(function(){
   /* 9 · outbreak & surveillance */
   [['xMpox','M-Pox','MonkeyPox PCR'],['xMeasles','Measles / Rubella','Measles & Rubella PCR']]
     .forEach(x=>{ const l=L(x[0],'',x[1],'outbreak','pn',1); if(x[2]) l.alias=[x[2]]; out.push(l); });
+  /* The district\u2019s sheet does not always use the form\u2019s own wording. These are the
+     names a month of their workbook is known to use for the same examination, so a
+     sheet read back in lands on the right line instead of creating a second one. */
+  const SAY={
+    x64:['Full Blood Count','FBC','NFS','FBC/NFS','NFS (FBC)','Hemogramme'],
+    x65:['ALAT','ALT','GPT','SGPT','Transaminases ALAT'],
+    x66:['Creatinine','Creatinine serum','Serum creatinine'],
+    x67:['Blood Glucose','Blood sugar','Glycemia','Glycemie','Random blood sugar','Fasting blood sugar'],
+    x68:['Amylase','Serum amylase'],
+    x63:['ESR','VS','Vitesse de sedimentation'],
+    x62:['HIV','HIV final','HIV test'],
+    x61:['RPR','VDRL','Syphilis'],
+    x612:['HBV','HBsAg','Hepatitis B'], x613:['HCV','Hepatitis C'],
+    x611:['CRAG','CrAg','Cryptococcal antigen'],
+    m1:['Malaria smears','Malaria smear','Blood smear for malaria','Blood smears for malaria','Goutte epaisse','GE'],
+    r1:['RDT','MRDT','Malaria RDT','Rapid diagnostic test','TDR'],
+    c7:['CSF','Cerebro spinal fluid','LCR'],
+    oUrea:['Urea','Blood urea','Uree'],
+    oAsat:['ASAT','AST','SGOT'],
+    oKetone:['Ketones','Ketone'],
+    oBGRh:['Blood group','Grouping and Rh','Blood grouping'],
+    xMpox:['Mpox','M-POX','Monkey pox']
+  };
+  out.forEach(l=>{ if(SAY[l.id]) l.alias=(l.alias||[]).concat(SAY[l.id]); });
   return out;
 })();
 function reportBlank(key){
@@ -2459,6 +2483,107 @@ S.reportRankings=function(summary){
   const byLeast=rows.slice().sort((a,b)=>a.figure-b.figure||a.total-b.total);
   const qualitative=rows.filter(r=>r.rate!=null && r.pos>0).sort((a,b)=>b.pos-a.pos);
   return {requested:byTotal, least:byLeast, positives:qualitative, all:rows};
+};
+/* ——— Reading the returns as a series ————————————————————————————
+   One month is a return; many months are a history. Everything here is computed
+   from the month documents that are actually on file — nothing interpolated, and a
+   month that was never entered is simply absent rather than a zero. */
+S.reportSeries=function(){
+  return S.reportMonths().slice().sort().map(k=>{
+    const sm=S.reportSummary(k);
+    const sections={};
+    sm.sections.forEach(x=>{ sections[x.key]=x.total; });
+    return {key:k, year:+k.slice(0,4), month:+k.slice(5,7),
+      label:(U.M3&&U.M3[+k.slice(5,7)-1]||'')+' '+k.slice(2,4),
+      tests:sm.totals.tests, positives:sm.totals.qualPositives, negatives:sm.totals.negatives,
+      qualTests:sm.totals.qualTests, samples:sm.totals.samples,
+      bloodRecv:sm.bloodTotals.recv, bloodUsed:sm.bloodTotals.used, bloodEnd:sm.bloodTotals.end,
+      sections, summary:sm};
+  });
+};
+/* One examination, month by month — the trend of full blood counts, amylase or
+   anything else, from the returns on file. */
+S.reportTestSeries=function(lineId){
+  return S.reportSeries().map(m=>{
+    const row=(m.summary.lines||[]).find(r=>r.id===lineId);
+    return {key:m.key, label:m.label, total:row?row.total:0, pos:row?row.pos:0};
+  });
+};
+/* Everything that moved between two months, biggest change first. A test that
+   appears or disappears shows as its whole figure, which is what a new examination
+   looks like in the first month it is used. */
+S.reportMovers=function(fromKey, toKey){
+  const a=S.reportSummary(fromKey), b=S.reportSummary(toKey);
+  const index=sm=>{ const o={}; (sm.lines||[]).forEach(r=>{ if(r.band||r.line.breakdown) return; o[r.id]=r; }); return o; };
+  const A=index(a), B=index(b), ids=U.uniq(Object.keys(A).concat(Object.keys(B)));
+  return ids.map(id=>{
+    const x=A[id]||{total:0,pos:0,line:(B[id]||{}).line}, y=B[id]||{total:0,pos:0,line:(A[id]||{}).line};
+    return {id, label:((y.line&&y.line.no)?y.line.no+' ':'')+((y.line&&y.line.label)||''),
+      from:x.total||0, to:y.total||0, change:(y.total||0)-(x.total||0),
+      fromPos:x.pos||0, toPos:y.pos||0};
+  }).filter(r=>r.change!==0).sort((p,q)=>Math.abs(q.change)-Math.abs(p.change));
+};
+/* A month against the month before it and against the same month a year earlier.
+   The two comparisons answer different questions and both are kept: “are we busier
+   than last month” and “are we busier than this time last year”. */
+S.reportCompare=function(key){
+  const all=S.reportSeries();
+  const at=k=>all.find(m=>m.key===k)||null;
+  const idx=all.findIndex(m=>m.key===key);
+  const y=+String(key).slice(0,4), m=String(key).slice(5,7);
+  /* “last month” is the month before this one on the calendar. If that month was never
+     entered the comparison is absent — the month before it is a different question. */
+  const back=new Date(Date.UTC(y,+m-2,1));
+  const prevKey=back.getUTCFullYear()+'-'+String(back.getUTCMonth()+1).padStart(2,'0');
+  const prev=at(prevKey);
+  const lastYear=at((y-1)+'-'+m);
+  const pct=(now,then)=>then?(Math.round((now-then)/then*1000)/10):null;
+  const now=at(key);
+  return {now,prev,lastYear,
+    vsPrev:prev?{tests:pct(now.tests,prev.tests),positives:pct(now.positives,prev.positives),delta:now.tests-prev.tests}:null,
+    vsYear:lastYear?{tests:pct(now.tests,lastYear.tests),positives:pct(now.positives,lastYear.positives),delta:now.tests-lastYear.tests}:null};
+};
+/* By calendar year and by financial year (July–June), from the returns on file. */
+S.reportRollup=function(){
+  const all=S.reportSeries();
+  const group=(fn)=>{
+    const g={};
+    all.forEach(m=>{ const k=fn(m); (g[k]=g[k]||[]).push(m); });
+    return Object.keys(g).sort().map(k=>{
+      const list=g[k];
+      const tests=U.sum(list,x=>x.tests), pos=U.sum(list,x=>x.positives);
+      const qual=U.sum(list,x=>x.qualTests);
+      return {key:k, months:list.length, tests, positives:pos,
+        avg:list.length?Math.round(tests/list.length):0,
+        positivity:qual?Math.round(pos/qual*1000)/10:0,
+        bloodRecv:U.sum(list,x=>x.bloodRecv), bloodUsed:U.sum(list,x=>x.bloodUsed),
+        from:list[0].key, to:list[list.length-1].key, list};
+    });
+  };
+  const fyOf=k=>{ const y=+String(k).slice(0,4), m=+String(k).slice(5,7); return m>=7?(y+'/'+(y+1)):((y-1)+'/'+y); };
+  return {years:group(m=>String(m.year)), fy:group(m=>fyOf(m.key))};
+};
+/* Bulk load of one month — used by the import screen and by anything else that has
+   a month of figures in hand. */
+S.reportImportMonth=function(key, values, extra){
+  if(!/^\d{4}-\d{2}$/.test(String(key))) return false;
+  const vals=(values&&values.values)?values.values:(values||{});
+  const ex=extra||{};
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
+    m.meta=Object.assign({},m.meta||{},ex.meta||{});
+    m.values=m.values||{};
+    Object.keys(vals).forEach(id=>{
+      const v=vals[id]||{};
+      const clean={};
+      ['pos','neg','a0','a1','a2','total'].forEach(f=>{ if(v[f]!=null&&+v[f]) clean[f]=Math.max(0,Math.round(+v[f])); });
+      if(Object.keys(clean).length) m.values[id]=Object.assign({},m.values[id]||{},clean);
+    });
+    m.touchedAt=U.nowISO();
+  },{action:'report.import',entity:'reporting',entityId:key,
+     detail:'Monthly return loaded for '+key+' · '+Object.keys(vals).length+' examinations'});
+  return true;
 };
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';

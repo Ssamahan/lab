@@ -18,7 +18,7 @@
 'use strict';
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.reports=M;
-let rootEl=null, monthKey=null, lastParams={};
+let rootEl=null, monthKey=null, lastParams={}, tab='return', trendId=null, cmpOpen=false;
 
 const MODES={
   pn:   {cols:['pos','neg'], heads:['Positives','Negatives']},
@@ -322,8 +322,15 @@ function head(sm){
    +'<div class="actions">'
      +'<div class="rep-month"><label class="xs faint">Return for</label><select class="select mono" id="repMonth">'+opts+'</select></div>'
      +'<button class="btn" data-new-month>'+UI.ic('calendar-days',15)+'New month</button>'
+     +'<button class="btn" data-import>'+UI.ic('upload',15)+'Load a past month</button>'
      +'<button class="btn primary" data-export>'+UI.ic('download',15)+'Export the return</button>'
    +'</div></div>'
+   +'<div class="rep-tabs">'
+     +'<button class="rep-tab'+(tab==='return'?' on':'')+'" data-tab="return">'+UI.ic('clipboard-list',13)+' The return</button>'
+     +'<button class="rep-tab'+(tab==='analysis'?' on':'')+'" data-tab="analysis">'+UI.ic('chart-line',13)+' Analysis & history</button>'
+     +'<span class="grow"></span>'
+     +'<span class="xs faint">'+(S.reportMonths().length)+' month'+(S.reportMonths().length===1?'':'s')+' on file · '+(S.reportMonths().length?'since '+monthLabel(S.reportMonths().slice().sort()[0]):'no history yet')+'</span>'
+   +'</div>'
    +'<div class="rep-strip">'+status
      +'<span class="pill slate mono">'+U.fmtNum(sm.totals.tests)+' tests</span>'
      +'<span class="pill slate mono">'+U.fmtNum(sm.totals.qualPositives)+' positives</span>'
@@ -332,16 +339,416 @@ function head(sm){
 }
 function renderInner(root){
   const sm=summary();
-  root.innerHTML=head(sm)+kpis(sm)
-    +'<div class="rep-pair">'+tableCard(sm)+'</div>'
-    +'<div class="grid-12" style="gap:14px;margin-top:14px"><div class="c5">'+identCard(sm)+'</div><div class="c7">'+bloodCard(sm)+'</div></div>'
-    +'<div class="rep-analysis-head"><h2>Analysis</h2><span class="xs faint">Every figure is read off the return above — nothing is estimated.</span></div>'
-    +analysis(sm);
+  root.innerHTML=head(sm)
+    +(tab==='analysis'?analysisTab(sm):returnTab(sm));
   const sel=root.querySelector('#repMonth');
   if(sel) sel.onchange=()=>{ monthKey=sel.value; renderInner(root); };
   const nm=root.querySelector('[data-new-month]'); if(nm) nm.onclick=newMonthModal;
+  const im=root.querySelector('[data-import]'); if(im) im.onclick=importModal;
+  const wb=root.querySelector('[data-load-wb]'); if(wb) wb.onclick=workbookModal;
+  /* the month table is a way back in time: a row opens that month's return */
+  root.querySelectorAll('.rep-hist tr[data-month]').forEach(tr=>tr.onclick=()=>{
+    monthKey=tr.dataset.month; tab='return'; renderInner(root);
+  });
+  root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderInner(root); });
   wire(root);
+  if(tab==='analysis') drawHistoryCharts(root,sm); else drawCharts(root,sm);
+}
+function returnTab(sm){
+  return kpis(sm)
+    +'<div class="rep-pair">'+tableCard(sm)+'</div>'
+    +'<div class="grid-12" style="gap:14px;margin-top:14px"><div class="c5">'+identCard(sm)+'</div><div class="c7">'+bloodCard(sm)+'</div></div>'
+    +'<div class="rep-analysis-head"><h2>This month at a glance</h2><span class="xs faint">Every figure is read off the return above — nothing is estimated.</span></div>'
+    +analysis(sm);
+}
+
+/* ——— Analysis & history ————————————————————————————————
+   The same returns read as a series: this month against the one before and against
+   the same month a year earlier, a month-by-month table, the years rolled up, and
+   any single examination followed across every month on file. */
+function dirTag(pct){
+  if(pct==null) return '<span class="pill slate">no comparison</span>';
+  const up=pct>0, flat=pct===0;
+  return '<span class="rep-dir '+(flat?'flat':up?'up':'down')+'">'+UI.ic(flat?'arrow-right':up?'arrow-up':'arrow-down',11)+(flat?'no change':(up?'+':'')+pct+'%')+'</span>';
+}
+function compareStrip(sm){
+  const c=S.reportCompare(sm.key);
+  const card=(title,sub,cmp)=>{
+    if(!cmp) return '<div class="rep-cmp-card"><div class="eyebrow">'+title+'</div>'
+      +'<div class="rep-cmp-none">'+sub+'</div></div>';
+    return '<div class="rep-cmp-card"><div class="eyebrow">'+title+'</div>'
+      +'<div class="rep-cmp-row"><span class="rep-cmp-v mono">'+U.fmtNum(cmp.now.tests)+'</span>'+dirTag(cmp.pct.tests)+'</div>'
+      +'<div class="xs faint">'+sub+' · '+(cmp.pct.delta>=0?'+':'')+U.fmtNum(cmp.pct.delta)+' tests</div>'
+      +'<div class="rep-cmp-pos">positives '+U.fmtNum(cmp.now.positives)+' '+dirTag(cmp.pct.positives)+'</div></div>';
+  };
+  const withPrev=c.prev?{now:c.now,pct:c.vsPrev}:null;
+  const withYear=c.lastYear?{now:c.now,pct:c.vsYear}:null;
+  return '<div class="rep-cmp">'
+    +card('This month',monthLabel(sm.key)+(c.prev?' · against '+monthLabel(c.prev.key):''),withPrev)
+    +card('Same month last year',c.lastYear?('against '+monthLabel(c.lastYear.key)):'no return for this month a year earlier — load one to see the comparison',withYear)
+    +'<div class="rep-cmp-card rep-cmp-wide"><div class="eyebrow">History on file</div>'
+      +(function(){ const all=S.reportSeries();
+        if(all.length<2) return '<div class="rep-cmp-none">One month on file. Load the months and years behind it — <b>Load a past month</b> — and the month-by-month, yearly and per-test trends fill in.</div>';
+        return '<div class="rep-cmp-row"><span class="rep-cmp-v mono">'+all.length+'</span><span class="xs faint">months · '+monthLabel(all[0].key)+' → '+monthLabel(all[all.length-1].key)+'</span></div>'
+          +'<div class="xs faint">'+U.fmtNum(U.sum(all,m=>m.tests))+' tests recorded across the history</div>';
+      })()+'</div></div>';
+}
+function monthTable(){
+  const all=S.reportSeries().slice().reverse();
+  if(!all.length) return UI.empty({art:'search',title:'No returns yet',body:'Open a month, or load one from the spreadsheet, and the history starts here.'});
+  const rows=[];
+  all.forEach((m,i)=>{
+    const prev=all[i+1];
+    const pct=prev&&prev.tests?Math.round((m.tests-prev.tests)/prev.tests*1000)/10:null;
+    const rate=m.qualTests?Math.round(m.positives/m.qualTests*1000)/10:0;
+    rows.push('<tr data-month="'+m.key+'"><td class="rep-m">'+monthLabel(m.key)+'</td>'
+      +'<td class="num mono">'+U.fmtNum(m.tests)+'</td>'
+      +'<td class="num">'+dirTag(pct)+'</td>'
+      +'<td class="num mono">'+U.fmtNum(m.positives)+'</td>'
+      +'<td class="num mono">'+rate+'%</td>'
+      +'<td class="num mono">'+(m.samples?U.fmtNum(m.samples):'—')+'</td>'
+      +'<td class="num mono">'+U.fmtNum(m.bloodUsed)+'</td>'
+      +'<td class="num mono">'+U.fmtNum(m.bloodEnd)+'</td></tr>');
+  });
+  return '<div class="dt-scroll"><table class="dt rep-hist"><thead><tr><th>Month</th><th>Tests</th><th>Change</th><th>Positives</th><th>Positivity</th><th>Stool samples</th><th>Packs used</th><th>Packs left</th></tr></thead>'
+    +'<tbody>'+rows.join('')+'</tbody></table></div>';
+}
+function yearTable(){
+  const r=S.reportRollup();
+  const row=(x,unit,prev)=>{
+    const pct=prev&&prev.avg?Math.round((x.avg-prev.avg)/prev.avg*1000)/10:null;
+    return '<tr><td class="rep-m">'+U.esc(x.key)+'</td><td class="num mono">'+x.months+'</td>'
+      +'<td class="num mono">'+U.fmtNum(x.tests)+'</td><td class="num mono">'+U.fmtNum(x.avg)+'</td>'
+      +'<td class="num">'+dirTag(pct)+'</td><td class="num mono">'+x.positivity+'%</td>'
+      +'<td class="num mono">'+U.fmtNum(x.bloodRecv)+'</td><td class="num mono">'+U.fmtNum(x.bloodUsed)+'</td></tr>';
+  };
+  const body=(list)=>list.map((x,i)=>row(x,'',list[i+1])).join('');
+  return '<div class="dt-scroll"><table class="dt rep-hist"><thead><tr><th>Year</th><th>Months</th><th>Tests</th><th>Average a month</th><th>Change</th><th>Positivity</th><th>Packs received</th><th>Packs used</th></tr></thead><tbody>'
+    +body(r.years)+'</tbody></table></div>'
+    +'<div class="xs faint" style="margin-top:8px">Financial year (July–June) as the district reports it:</div>'
+    +'<div class="dt-scroll"><table class="dt rep-hist" style="margin-top:4px"><thead><tr><th>Financial year</th><th>Months</th><th>Tests</th><th>Average a month</th><th>Change</th><th>Positivity</th><th>Packs received</th><th>Packs used</th></tr></thead><tbody>'
+    +body(r.fy.slice().reverse())+'</tbody></table></div>';
+}
+function trendCard(sm){
+  const all=S.reportSeries();
+  const lines=(sm.lines||[]).filter(r=>!r.band&&!r.line.breakdown);
+  const withData=lines.filter(r=>r.total>0||(r.pos||0)>0);
+  if(!trendId || !lines.some(r=>r.id===trendId)){
+    const fbc=lines.find(r=>/full blood count/i.test(r.line.label));
+    trendId=(withData[0]&&withData[0].id)||(fbc&&fbc.id)||null;
+  }
+  const opts=lines.map(r=>'<option value="'+U.esc(r.id)+'"'+(r.id===trendId?' selected':'')+'>'+U.esc((r.line.no?r.line.no+' ':'')+r.line.label)+'</option>').join('');
+  const series=trendId?S.reportTestSeries(trendId):[];
+  const line=lines.find(r=>r.id===trendId);
+  const first=series.find(x=>x.total>0), last=[].concat(series).reverse().find(x=>x.total>0);
+  const pct=first&&last&&first!==last&&first.total?Math.round((last.total-first.total)/first.total*1000)/10:null;
+  return UI.card({title:'Follow one examination through time',sub:all.length>1?(series.length+' months on file · every figure read from the return of that month'):'One month on file — load the months before it and the line fills in',icon:'chart-line',cls:'rep-trend',
+    tools:'<select class="select mono rep-trend-sel" id="repTrendSel">'+opts+'</select>',
+    body:'<div class="rep-trend-head">'
+      +(line?'<div><div class="rep-cmp-v mono">'+U.fmtNum(series.length?series[series.length-1].total:0)+'</div><div class="xs faint">'+U.esc(line.label)+' in '+monthLabel(sm.key)+'</div></div>':'')
+      +(pct!=null?'<div class="rep-trend-delta">'+dirTag(pct)+'<span class="xs faint">since '+monthLabel(first.key)+'</span></div>':'')
+      +'</div>'
+      +'<div id="repTestTrend"></div>'
+      +'<div class="rep-trend-mini">'+(series.length?series.slice(-6).map(x=>'<div><span class="xs faint">'+x.label+'</span><b class="mono">'+U.fmtNum(x.total)+'</b></div>').join(''):'')+'</div>',
+    foot:'<span>Choose any examination on the form — full blood count, amylase, urea, HBV …</span>'
+      +'<span class="mono">'+(line&&line.line.mode==='quant'?'a count each month':'positives and negatives')+'</span>'});
+}
+function moversCard(sm){
+  const all=S.reportSeries();
+  const idx=all.findIndex(m=>m.key===sm.key);
+  const prev=idx>0?all[idx-1]:null;
+  if(!prev) return UI.card({title:'What moved since last month',sub:'Needs two months on file',icon:'activity',
+    body:'<div class="rep-cmp-none">Load the month before this one and the examinations that rose and fell are listed here, biggest movement first.</div>'});
+  const movers=S.reportMovers(prev.key,sm.key);
+  const up=movers.filter(m=>m.change>0).slice(0,7), down=movers.filter(m=>m.change<0).slice(0,7);
+  const row=(m)=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.4px">'+U.esc(m.label)+'</div>'
+    +'<div class="lr-sub">'+U.fmtNum(m.from)+' → '+U.fmtNum(m.to)+'</div></div>'
+    +'<span class="mono xs" style="color:var(--'+(m.change>0?'pos':'crit')+')">'+(m.change>0?'+':'')+U.fmtNum(m.change)+'</span></div>';
+  return UI.card({title:'What moved since '+monthLabel(prev.key),sub:'Examinations by change in the number carried out',icon:'activity',
+    body:'<div class="grid-12" style="gap:12px"><div class="c6"><div class="eyebrow" style="margin-bottom:6px">Rising</div>'+(up.length?up.map(row).join(''):'<p class="xs faint">Nothing rose.</p>')+'</div>'
+      +'<div class="c6"><div class="eyebrow" style="margin-bottom:6px">Falling</div>'+(down.length?down.map(row).join(''):'<p class="xs faint">Nothing fell.</p>')+'</div></div>',
+    foot:'<span>Biggest movements first, on the examinations the form counts</span>'
+      +'<span class="mono">'+movers.length+' moved</span>'});
+}
+function sectionsOverTime(){
+  const all=S.reportSeries();
+  const keys=S.REPORT_SECTIONS.map(x=>x.key);
+  const used=keys.filter(k=>all.some(m=>m.sections[k]>0));
+  if(!used.length) return '<p class="xs faint">No section carries a figure yet.</p>';
+  return '<div class="dt-scroll"><table class="dt rep-hist"><thead><tr><th>Month</th>'
+    +used.map(k=>{ const sec=S.REPORT_SECTIONS.find(x=>x.key===k); return '<th>'+U.esc(sec.no+'. '+sec.title)+'</th>'; }).join('')
+    +'</tr></thead><tbody>'
+    +all.slice().reverse().map(m=>'<tr><td class="rep-m">'+monthLabel(m.key)+'</td>'
+      +used.map(k=>'<td class="num mono">'+(m.sections[k]?U.fmtNum(m.sections[k]):'—')+'</td>').join('')+'</tr>').join('')
+    +'</tbody></table></div>';
+}
+function analysisTab(sm){
+  const all=S.reportSeries();
+  return '<div class="rep-cmp-wrap">'+compareStrip(sm)+'</div>'
+    +'<div class="grid-12" style="gap:14px;margin-top:14px">'
+      +'<div class="c7">'+UI.card({title:'Month by month',sub:'Every return on file, newest first · change against the month before',icon:'calendar-days',
+        body:monthTable(),foot:'<span>Positivity is of the qualitative tests in that month</span><span class="mono">'+all.length+' months</span>'})+'</div>'
+      +'<div class="c5">'+UI.card({title:'Year by year',sub:'Tests carried out, rolled up as the district reads them',icon:'layers',
+        body:yearTable(),foot:'<span>Average a month is the fair comparison between a full year and a part year</span>'
+          +'<span class="mono">'+all.length+' months</span>'})+'</div>'
+      +'<div class="c7">'+trendCard(sm)+'</div>'
+      +'<div class="c5">'+moversCard(sm)+'</div>'
+    +'</div>'
+    +'<div class="rep-loadbar">'
+      +'<div><div class="rep-loadbar-t">'+(all.length>1?'Add more months to the history':'The history starts with the months behind this one')+'</div>'
+      +'<div class="xs faint">The district\u2019s workbook has a sheet for every month. Load it whole and every comparison above fills in — month over month, year over year, and each examination\u2019s trend.</div></div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-load-wb>'+UI.ic('folder-open',14)+'Load the workbook</button>'
+      +'<button class="btn sm" data-import>'+UI.ic('clipboard-list',14)+'Paste one sheet</button></div>'
+    +'</div>'
+    +'<div class="grid-12" style="gap:14px;margin-top:14px">'
+      +'<div class="c12">'+UI.card({title:'Where the work sat, month by month',sub:'Tests by section of the return',icon:'chart-line',
+        body:'<div id="repSecTrend"></div>',foot:'<span>Each line is one section of the form</span><span class="mono">'+S.REPORT_SECTIONS.filter(x=>all.some(m=>m.sections[x.key]>0)).length+' sections used</span>'})+'</div>'
+    +'</div>'
+    +'<div class="rep-analysis-head"><h2>This month, in full</h2><span class="xs faint">The same rankings, for the month chosen above.</span></div>'
+    +analysis(sm);
+}
+function drawHistoryCharts(root,sm){
   drawCharts(root,sm);
+  const all=S.reportSeries();
+  /* the chosen examination through every month on file */
+  const el=root.querySelector('#repTestTrend');
+  if(el){
+    const series=trendId?S.reportTestSeries(trendId):[];
+    if(series.length<2){
+      const one=series[0];
+      el.innerHTML='<div class="rep-trend-single"><div class="rep-trend-v">'+U.fmtNum(one?one.total:0)+'</div>'
+        +'<div class="xs faint">'+U.esc(one?one.label:'')+' · the trend needs a second month</div></div>';
+    } else {
+      C.line(el,{id:'repTestTrend',height:230,padLeft:56,series:[{name:'Tests',color:'var(--gold)',values:series.map(x=>x.total)}],
+        labels:series.map(x=>x.label)});
+    }
+  }
+  const sel=root.querySelector('#repTrendSel');
+  if(sel) sel.onchange=()=>{ trendId=sel.value; renderInner(root); };
+  /* every section, month by month */
+  const st=root.querySelector('#repSecTrend');
+  if(st&&all.length>=2){
+    const keys=S.REPORT_SECTIONS.map(x=>x.key).filter(k=>all.some(m=>m.sections[k]>0));
+    const tones=['var(--gold)','var(--teal-400)','var(--rose-400)','#7595C8','#3FA57E','#D9A13B','#8C93A3','#A3212E','#6B3C7A'];
+    C.line(st,{id:'repSecTrend',height:280,padLeft:60,
+      series:keys.map((k,i)=>({name:S.REPORT_SECTIONS.find(x=>x.key===k).title,color:tones[i%tones.length],
+        values:all.map(m=>m.sections[k])})),
+      labels:all.map(m=>m.label)});
+  } else if(st){
+    st.innerHTML='<div class="rep-cmp-none">One month on file — the section lines appear once a second month is loaded.</div>';
+  }
+}
+
+/* ——— Loading past months ————————————————————————————————
+   The district's workbook holds a sheet per month. Two ways in, both kept because
+   one is quicker and the other always works: the .xlsx itself (read on the device,
+   every sheet at once) or a sheet pasted from Excel. Whatever comes in is matched to
+   the form line by line, and a row that matches nothing is reported rather than
+   guessed at — nothing is invented to fill a month. */
+const MONTH_ABBR={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,
+  aug:8,august:8,sep:9,sept:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
+/* A sheet is named the way the district names it — “Oct 26”, “September 2024”,
+   “Sep-25”, “2024-10”. The month it stands for is read off that name; when the name
+   says nothing, no month is assumed and the reader is asked. */
+function monthFromName(name){
+  const raw=String(name||'').trim();
+  const iso=/^(\d{4})[-_ ](\d{1,2})$/.exec(raw);
+  if(iso){ const m=+iso[2]; if(m>=1&&m<=12) return iso[1]+'-'+String(m).padStart(2,'0'); }
+  const t=raw.toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+  const words=t.split(' ');
+  let mon=0, yr=0;
+  words.forEach(w=>{
+    if(MONTH_ABBR[w]) mon=MONTH_ABBR[w];
+    else if(/^(19|20)\d{2}$/.test(w)) yr=+w;
+    else if(/^\d{2}$/.test(w)&&!yr&&!mon) { /* “Oct 26” — the year needs the month beside it */ }
+  });
+  if(!mon) return '';
+  const two=words.find(w=>/^\d{2}$/.test(w)&&+w<=99&&+w>12);
+  if(!yr && two!=null) yr=2000+ +two;
+  if(!yr) return '';
+  return yr+'-'+String(mon).padStart(2,'0');
+}
+const normLabel=x=>String(x==null?'':x).toLowerCase().replace(/[^a-z0-9]+/g,'');
+function lineIndex(){
+  const byLabel={}, byNo={};
+  S.reportLines().forEach(l=>{
+    byLabel[normLabel(l.label)]=l;
+    if(l.no) byNo[normLabel(l.no)]=l;
+    (l.alias||[]).forEach(a=>{ if(!byLabel[normLabel(a)]) byLabel[normLabel(a)]=l; });
+  });
+  return {byLabel,byNo,lines:S.reportLines()};
+}
+/* Rows in, figures out. The label can sit in any column of the sheet, so each cell is
+   tried as a label and the numbers to its right are the figures for it. The number of
+   figures a line takes follows the line: positives and negatives, an age split, or a
+   single total. */
+function matchSheet(rows){
+  const {byLabel,byNo}=lineIndex();
+  const num=x=>{
+    if(typeof x==='number') return isFinite(x)?Math.round(x):null;
+    const v=String(x==null?'':x).replace(/[ ,]/g,'').trim();
+    if(v===''||v==='-'||v==='—'||/^n\/?a$/i.test(v)) return null;
+    return isNaN(+v)?null:Math.round(+v);
+  };
+  const values={}, detail=[], seen={};
+  let skipped=0, unclear=0;
+  (rows||[]).forEach(row=>{
+    if(!row||!row.length) return;
+    for(let c=0;c<row.length;c++){
+      const cell=row[c];
+      if(typeof cell==='number'||cell==null||cell==='') continue;
+      const key=normLabel(cell);
+      if(!key) continue;
+      const hit=byLabel[key]||byNo[key];
+      if(!hit) continue;
+      const nums=[];
+      for(let k=c+1;k<row.length;k++){ const n=num(row[k]); if(n!=null) nums.push(n); }
+      if(!nums.length) break;
+      if(seen[hit.id]) break;
+      const v={};
+      if(hit.mode==='quant') v.total=nums.length>1?nums[nums.length-1]:nums[0];
+      else if(hit.mode==='posage3'){ v.pos=nums[0]||0; v.a0=nums[1]||0; v.a1=nums[2]||0; v.a2=nums[3]||0; }
+      else if(hit.mode==='pn2'){ v.pos=nums[0]||0; v.neg=nums[1]||0; v.a0=nums[2]||0; v.a1=nums[3]||0; }
+      else if(hit.mode==='pn'){ v.pos=nums[0]||0; v.neg=nums[1]||0; }
+      else break;
+      const want=hit.mode==='quant'?1:(hit.mode==='posage3'?4:(hit.mode==='pn2'?4:2));
+      if(nums.length<want) unclear++;
+      seen[hit.id]=1; values[hit.id]=v;
+      detail.push({id:hit.id,label:hit.label,mode:hit.mode,v,nums});
+      break;
+    }
+  });
+  const matched=Object.keys(values).length;
+  skipped=Math.max(0,(rows||[]).length-matched);
+  return {values,detail,matched,skipped,unclear};
+}
+function textToRows(text){
+  return String(text||'').replace(/\r/g,'').split('\n').map(l=>l.split('\t'));
+}
+function parsePasted(text){ return matchSheet(textToRows(text)); }
+const FIG=id=>{
+  const line=S.reportLines().find(l=>l.id===id)||{label:id,mode:'pn'};
+  return line;
+};
+function figureText(v,mode){
+  if(mode==='quant') return 'total '+U.fmtNum(v.total||0);
+  if(mode==='posage3') return 'pos '+U.fmtNum(v.pos||0)+(v.a0||v.a1||v.a2?' · ages '+[v.a0,v.a1,v.a2].map(n=>U.fmtNum(n||0)).join('/'):'');
+  if(mode==='pn2') return 'pos '+U.fmtNum(v.pos||0)+' · neg '+U.fmtNum(v.neg||0)+' · ages '+[v.a0,v.a1].map(n=>U.fmtNum(n||0)).join('/');
+  return 'pos '+U.fmtNum(v.pos||0)+' · neg '+U.fmtNum(v.neg||0);
+}
+function previewHTML(r){
+  const rows=r.detail.map(d=>{
+    const line=FIG(d.id);
+    return '<div class="rep-imp-row"><span>'+U.esc((line.no?line.no+' ':'')+(line.label||d.id))+'</span><span class="mono">'+figureText(d.v,d.mode)+'</span></div>';
+  }).join('');
+  return '<div class="small" style="margin-top:10px"><b>'+r.matched+'</b> examination'+(r.matched===1?'':'s')+' matched'
+    +(r.unclear?' · <b>'+r.unclear+'</b> with fewer figures than the form expects — worth checking':'')
+    +(r.skipped?' · '+r.skipped+' row'+(r.skipped===1?'':'s')+' ignored':'')+'</div>'
+    +'<div class="rep-imp-list">'+(rows||'<p class="xs faint">Nothing matched yet — check that the sheet has its examination names in a column of their own.</p>')+'</div>';
+}
+/* the whole workbook, every sheet at once */
+function workbookModal(){
+  if(!canEdit()) return UI.toast('Sign in to load history',{type:'warn'});
+  const canRaw=typeof DecompressionStream==='function'&&typeof DOMParser==='function';
+  let found=[];
+  UI.modal({title:'Load the workbook',sub:'Every month in the district\\u2019s spreadsheet, read on this device. Nothing is uploaded; nothing is altered.',width:'min(760px,100%)',
+    body:'<div class="rep-drop" id="wbDrop">'
+        +'<div class="rep-drop-ic">'+UI.ic('upload',20)+'</div>'
+        +'<div><b>Choose the workbook</b> — the .xlsx the district sends, with a sheet for each month.</div>'
+        +'<div class="xs faint" style="margin-top:3px">A sheet is a month when its name says so: “Oct 26”, “September 2024”, “Sep-25”. Every sheet found is listed below and you choose what each one becomes.</div>'
+        +'<input type="file" id="wbFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">'
+        +'<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+          +'<button class="btn primary sm" data-pick>'+UI.ic('folder-open',14)+'Choose a file</button>'
+          +'<span class="xs faint">'+(canRaw?'or':'— and')+' paste a single sheet below'+(canRaw?'':' (this browser cannot open .xlsx directly)'+'"')+'</span></div>'
+        +'</div>'
+        +'<div id="wbList" style="margin-top:12px"></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn" data-paste>'+UI.ic('clipboard-list',14)+'Paste one sheet</button><button class="btn primary" data-save disabled>'+UI.ic('check',14)+'Load the months</button>',
+    onMount:(el,close)=>{
+      const listEl=el.querySelector('#wbList'), saveEl=el.querySelector('[data-save]');
+      const fileEl=el.querySelector('#wbFile');
+      el.querySelector('[data-pick]').onclick=()=>fileEl.click();
+      el.querySelector('[data-paste]').onclick=()=>{ close(); importModal(); };
+      const draw=()=>{
+        if(!found.length){ listEl.innerHTML=''; saveEl.disabled=true; return; }
+        listEl.innerHTML='<div class="dt-scroll"><table class="dt rep-hist" style="min-width:520px"><thead><tr><th>Sheet</th><th>Month it becomes</th><th>Matched</th><th>Ignored</th></tr></thead><tbody>'
+          +found.map((f,i)=>'<tr><td class="rep-m">'+U.esc(f.name)+'</td>'
+            +'<td><input class="input mono" type="month" data-wbmonth="'+i+'" value="'+U.esc(f.guess||'')+'" style="padding:3px 6px;font-size:11px"></td>'
+            +'<td class="num mono">'+f.match.matched+'</td>'
+            +'<td class="num mono">'+(f.match.skipped||0)+'</td></tr>').join('')
+          +'</tbody></table></div>'
+          +'<div class="xs faint" style="margin-top:6px">A month already on file is added to, not replaced — the figures in the workbook win for the examinations it names.</div>';
+        listEl.querySelectorAll('[data-wbmonth]').forEach(inp=>{
+          inp.onchange=()=>{ found[+inp.dataset.wbmonth].key=inp.value; refresh(); };
+        });
+        refresh();
+      };
+      const refresh=()=>{
+        const ready=found.filter(f=>f.key&&f.match.matched>0);
+        saveEl.disabled=!ready.length;
+        saveEl.textContent='';
+        saveEl.appendChild(document.createTextNode(' '));
+        saveEl.innerHTML=UI.ic('check',14)+' Load '+ready.length+' month'+(ready.length===1?'':'s');
+      };
+      fileEl.onchange=async ()=>{
+        const f=fileEl.files&&fileEl.files[0];
+        if(!f) return;
+        listEl.innerHTML='<p class="xs faint">Reading '+U.esc(f.name)+' …</p>';
+        try{
+          const sheets=await LSXLSX.readWorkbook(f);
+          found=sheets.map(s=>{
+            const guess=monthFromName(s.name);
+            return {name:s.name,guess,key:guess,match:matchSheet(s.rows)};
+          });
+          draw();
+          const blank=found.filter(f=>!f.guess).length;
+          if(blank) UI.toast(blank+' sheet'+(blank===1?' has':'s have')+' no month in the name — set '+(blank===1?'it':'them')+' above',{type:'warn'});
+        }catch(err){
+          listEl.innerHTML='<div class="rep-cmp-none">'+U.esc(err&&err.message==='NOSTREAM'
+            ?'This browser cannot unpack an .xlsx. Use “Paste one sheet” below — copy the sheet out of Excel and paste it.'
+            :(err&&err.message)||'The workbook could not be read.')+'</div>';
+        }
+      };
+      saveEl.onclick=()=>{
+        const ready=found.filter(f=>f.key&&f.match.matched>0);
+        if(!ready.length) return;
+        let loaded=0, ex=0;
+        ready.slice().sort((a,b)=>a.key<b.key?-1:1).forEach(f=>{
+          if(S.reportImportMonth(f.key,f.match.values,{meta:{source:'District workbook · sheet “'+f.name+'”',monthName:monthLabel(f.key).split(' ')[0]}})) { loaded++; ex+=f.match.matched; }
+        });
+        const last=ready[ready.length-1].key;
+        monthKey=last; close();
+        UI.toast(loaded+' month'+(loaded===1?'':'s')+' loaded · '+ex+' examinations',{type:'ok'});
+        tab='analysis'; renderInner(rootEl);
+      };
+    }});
+}
+function importModal(){
+  if(!canEdit()) return UI.toast('Sign in to load a month',{type:'warn'});
+  const next=(function(){ const a=S.reportMonths().slice().sort(); if(!a.length) return U.todayISO().slice(0,7);
+    const d=U.parseISO(a[0]+'-01'); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
+  UI.modal({title:'Load a past month',sub:'From the spreadsheet: choose the month, then paste the sheet — the labels and the figures, exactly as they sit in Excel.',width:'min(680px,100%)',
+    body:'<div class="form-grid"><div class="field"><label>Month</label><input class="input mono" type="month" id="impKey" value="'+next+'"></div>'
+      +'<div class="field"><label>Source</label><input class="input" id="impSrc" placeholder="October 2024 HMIS sheet"></div></div>'
+      +'<div class="field" style="margin-top:10px"><label>Paste the sheet</label>'
+      +'<textarea class="textarea mono" id="impText" rows="8" placeholder="1.	Blood Smears Plasmodium	2	86	51	37&#10;6.4	Full Blood Count				1364&#10;Urea		929&#10;…"></textarea>'
+      +'<div class="xs faint" style="margin-top:4px">Copy the whole block from Excel — the first column is the examination, the figures follow. Labels and numbers are matched to the form; a row that matches nothing is reported, not guessed at.</div></div>'
+      +'<div id="impPreview" class="rep-imp-preview"></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn" data-preview>Check what matched</button><button class="btn primary" data-save>'+UI.ic('check',14)+'Load the month</button>',
+    onMount:(el,close)=>{
+      const run=()=>parsePasted(el.querySelector('#impText').value);
+      el.querySelector('[data-preview]').onclick=()=>{
+        el.querySelector('#impPreview').innerHTML=previewHTML(run());
+      };
+      el.querySelector('[data-save]').onclick=()=>{
+        const key=el.querySelector('#impKey').value;
+        if(!key) return UI.toast('Choose the month',{type:'warn'});
+        const r=run();
+        if(!r.matched) return UI.toast('Nothing matched — paste the sheet again',{type:'warn'});
+        const src=(el.querySelector('#impSrc').value||'').trim();
+        S.reportImportMonth(key,r.values,{meta:{source:src||('Loaded from the district workbook'),monthName:monthLabel(key).split(' ')[0],year:U.fyLabel?U.fyLabel():''}});
+        monthKey=key; close(); UI.toast(r.matched+' examinations loaded into '+monthLabel(key),{type:'ok'}); renderInner(rootEl);
+      };
+    }});
 }
 function newMonthModal(){
   if(!canEdit()) return UI.toast('Sign in to open a month',{type:'warn'});
@@ -368,4 +775,7 @@ M.render=async function(root,params){
   renderInner(root);
 };
 M.month=()=>pickMonth();
+/* Test seams — the reader and the matcher are the one place a workbook can be
+   misread, so they are reachable from the harness without going through the DOM. */
+M.__read={monthFromName,matchSheet,parsePasted,figureText};
 })();
