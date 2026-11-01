@@ -111,7 +111,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   const decReq=S.requisitionOfficer('2027-02');
   ok(decReq && decReq.name==='Kelvin SAMAHANI' && !decReq.acting,'the month after his leave, it is his again');
 
-  await w.LS.shell.route(); await tick(250);
+  await go('#/roster?month=2026-10'); await tick(300);
   await new Promise(r=>{ const t=doc.querySelector('[data-view="grid"]'); click(t); setTimeout(r,250); });
   const rowText=name=>{
     const tr=[...doc.querySelectorAll('#roBody tbody tr')].find(x=>x.textContent.indexOf(name)>=0);

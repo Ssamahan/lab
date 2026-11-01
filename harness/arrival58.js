@@ -58,7 +58,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
      'after it she takes her share of the nights — she is on the rota');
 
   /* ── 6 · the screen shows the hatch ────────────────────────────────── */
-  await go('#/roster'); await tick(320);
+  await go('#/roster?month=2026-10'); await tick(320);
   doc.querySelector('[data-view="grid"]').click(); await tick(360);
   const beCells=[...doc.querySelectorAll('#roBody td.be')];
   ok(beCells.length===i6,'the grid hatches exactly the days before she arrived ('+beCells.length+')');
@@ -128,7 +128,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms));
   const sheetOct=w.LS.sheets.monthlySVG(S.planForMonth('2026-10'));
   ok(sheetOct.indexOf('Jeanne Claudine UWAYISABA')>=0,'the October sheet prints her full name');
   ok(sheetOct.indexOf('Marie Claudine')<0,'and never the old one');
-  await go('#/roster'); await tick(320);
+  await go('#/roster?month=2026-10'); await tick(320);
   doc.querySelector('[data-view="grid"]').click(); await tick(340);
   const herCells=[...doc.querySelectorAll('#roBody td.staff-cell')].map(td=>td.textContent.replace(/\s+/g,' '));
   ok(herCells.some(t=>/Jeanne Claudine UWAYISABA/.test(t)),'the working plan prints her full name on her row');

@@ -144,7 +144,7 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(S().shiftState(bea,'2026-11-12').label==='Authorised leave','AA reads as authorised leave');
 
   /* ── the month is reachable on the roster screen ───────────────────── */
-  await go('#/roster'); await tick(300);
+  await go('#/roster?month=2026-10'); await tick(300);
   const next=[...doc.querySelectorAll('[data-nav]')].find(b=>b.dataset.nav==='1');
   click(next); await tick(400);
   const head=doc.querySelector('#roHead')?doc.querySelector('#roHead').textContent:doc.body.textContent;
@@ -191,7 +191,7 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(codeAt(nightName,'2027-05-11')!=='RBW' && codeAt(nightName,'2027-05-11')!=='OFF','and is on duty on the Tuesday, when the clinic is heaviest');
 
   /* ── the grid fits the page, coverage and balance below it ─────────── */
-  await go('#/roster'); await tick(320);
+  await go('#/roster?month=2026-10'); await tick(320);
   /* the roster opens on the current month — step forward to November */
   const toNov=[...doc.querySelectorAll('[data-nav]')].filter(b=>b.dataset.nav==='1')[0];
   click(toNov); await tick(360);

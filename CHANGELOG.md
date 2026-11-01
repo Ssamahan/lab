@@ -4,6 +4,52 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.83
+
+**A Monthly Reports module — the district HMIS return, the analysis behind it, and an export that looks like
+the sheet the district receives.**
+
+The laboratory reports its month to Gakenke District on the HMIS form: a numbered list of examinations, each
+with positives, negatives and — for malaria and stool — the age split, then the blood-supply table. That is
+now a module of its own, in Operations, and October 2026 is already on it, transcribed line by line from the
+signed sheet: **10,855 tests**, 223 positives, 6,081 negatives, and the blood bank reconciling exactly
+(6 opening · 54 received · 51 used · 9 left).
+
+**The form is data, not code.** Every line carries its section, its number, and how it is counted (positives
+and negatives · with the age split · positives by 0–4 / 5–15 / 16+ · a single total). Because of that:
+
+- a **test added to Settings → Test menu appears on the return by itself**, in the right section, marked
+  *new* — nothing has to be re-coded when the laboratory takes on another examination (the blood cultures
+  that are referred out are on the sheet already, waiting for their figures);
+- **Add examination** puts a line of your own on the form from that month on, linked to a test or standing
+  alone, and it can be taken off again;
+- the *of-which* rows — the malaria species, the eleven stool parasites — are printed in full and never
+  counted twice, which is why the page total matches the 10,855 on the signed sheet to the test.
+
+**Nothing is typed twice.** Only the figures are typed; every row total, section total, page total and closing
+blood balance is computed, and the whole page updates as a cell is left. **New month** opens an empty return
+without copying the month before, so last month's figures can never be mistaken for this one.
+
+**The analysis** that the module carries beside the form:
+
+- **Top 10 requested examinations** — full blood count 1,364, blood glucose 1,022, creatinine 938, urea 929,
+  ALAT 917 …
+- **Top positive tests** — only the examinations whose result is qualitative, each with its own rate:
+  H. pylori 69 of 273 (25.3%), Entamoeba 58 of the 268 stool samples (21.6%), albumin 41 of 119 (34.5%) …
+- **Least requested** — and the examinations nobody requested at all this month, named.
+- **Blood transfusion** — packs by group type, received against transfused, the closing balance and the
+  transfusion rate, with O+ and B+ carrying the month.
+- **Where the work sits** — every section of the return, and its share of the month.
+- **Month on month** — tests and positives, once more than one return is on file.
+
+**The export** is one press away and follows the house style of the working plan and the roster: the same
+letterhead, the form's own sections, page numbered, **A4 portrait, paginated from the data** — three pages for
+October, and more pages when lines are added rather than a broken sheet. Offered as PDF (multi-page), Print,
+PNG per page, and Excel with the same rows. The export dialogue previews page one before you choose.
+
+Also fixed: three plan and roster suites that read the *current* month, which rolled over to November during
+this work — they now open the month they assert about, so they stay honest in any month.
+
 ## What changed in 6.9.82
 
 **The training queue reads the history, and the history had two mistakes in it.**
