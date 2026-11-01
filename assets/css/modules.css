@@ -654,3 +654,81 @@
   background:linear-gradient(90deg,rgba(201,168,76,.10),rgba(201,168,76,.01))}
 .role-post-row{border-bottom:0!important}
 .role-post-row .lr-title{font-weight:600;color:var(--text-strong)}
+
+/* ——— Monthly reports: the HMIS return on screen ————————————————————
+   The table is the form. Rows are dense, numbers are tabular, and the computed
+   column is visibly not an input — a person can see at a glance which figures
+   they type and which the console works out. */
+.rep-month{display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.rep-month .select{height:32px;min-width:132px;font-size:11.5px}
+.rep-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;margin-bottom:14px;
+  border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.rep-legend{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:10.6px;color:var(--text-muted);
+  padding:0 0 10px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.rep-legend .rep-dot{display:inline-block;width:7px;height:7px;border-radius:2px;background:var(--gold-400);margin-right:5px;vertical-align:middle}
+.rep-legend .rep-dot.auto{background:var(--teal-400)}
+.rep-sec{margin-top:10px;border:1px solid var(--border);border-radius:11px;overflow:hidden;background:var(--surface)}
+.rep-sec-head{display:flex;align-items:center;gap:9px;padding:8px 12px;background:linear-gradient(90deg,rgba(18,32,60,.94),rgba(18,32,60,.78));
+  color:#fff;font-size:11.4px;font-weight:600}
+.rep-sec-no{font-family:var(--font-mono);font-size:10px;background:rgba(255,255,255,.16);border-radius:4px;padding:1px 5px}
+.rep-sec-title{letter-spacing:.01em}
+.rep-sec-note{font-size:10px;color:#EADDB2;font-weight:500}
+.rep-sec-tot{font-size:11.6px;color:#F1E3B4}
+.rep-scroll{overflow-x:auto}
+.rep-table{width:100%;border-collapse:collapse;font-size:11.2px}
+.rep-table th{font-size:9.6px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);
+  font-weight:600;text-align:center;padding:6px 6px;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap}
+.rep-table th.rep-th-exam{text-align:left;padding-left:12px}
+.rep-table td{padding:2px 6px;border-bottom:1px solid var(--border);vertical-align:middle}
+.rep-row:hover td{background:var(--surface-2)}
+.rep-zero{opacity:.62}
+.rep-exam{padding-left:12px!important;color:var(--text);line-height:1.3}
+.rep-row.ind1 .rep-exam{padding-left:26px!important}
+.rep-row.ind2 .rep-exam{padding-left:40px!important}
+.rep-break .rep-exam{color:var(--text-muted);font-style:italic}
+.rep-no{font-family:var(--font-mono);font-size:9.6px;color:var(--text-faint)}
+.rep-tag{font-size:8.4px;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--border-gold);
+  color:var(--gold-bright);border-radius:4px;padding:0 4px;margin-left:4px}
+.rep-td{width:74px;text-align:right}
+.rep-in{width:64px;height:24px;text-align:right;border:1px solid transparent;background:transparent;border-radius:5px;
+  font-family:var(--font-mono);font-size:11.2px;color:var(--text-muted);padding:0 6px;transition:border-color .16s,background .16s}
+.rep-in:hover{border-color:var(--border)}
+.rep-in:focus{outline:none;border-color:var(--gold);background:var(--surface-2);color:var(--text-strong)}
+.rep-in.has{color:var(--text-strong);font-weight:600}
+.rep-total{width:78px;text-align:right;color:var(--text-strong);font-weight:600;padding-right:12px!important}
+.rep-th-total{text-align:right!important;padding-right:12px!important}
+.rep-th-del,.rep-del{width:26px;padding:0!important}
+.rep-band td{background:var(--surface-3);padding:0}
+.rep-band-t{display:block;padding:4px 12px;font-size:10.4px;font-weight:600;color:var(--text-muted);letter-spacing:.03em}
+.rep-sum td{background:var(--surface-2);font-weight:600;padding:5px 6px;border-top:1px solid var(--border-strong)}
+.rep-sum td:first-child{text-align:right;font-size:10.6px;color:var(--text-muted);padding-right:10px}
+.rep-blood-t td{font-size:11px}
+.rep-quiet{font-size:9.6px;color:var(--text-faint);max-width:290px;text-align:right}
+.rep-quiet{display:inline-block}
+.rep-blood-an{display:flex;flex-direction:column;gap:10px}
+.rep-blood-bars{display:flex;flex-direction:column;gap:6px}
+.rep-bb{display:grid;grid-template-columns:34px 1fr 58px;align-items:center;gap:8px}
+.rep-bb-g{font-family:var(--font-mono);font-size:10.4px;color:var(--text-strong);font-weight:600}
+.rep-bb-track{position:relative;height:9px;border-radius:99px;background:var(--surface-3);overflow:hidden}
+.rep-bb-track i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;display:block}
+.rep-bb-track i.recv{background:rgba(201,168,76,.34)}
+.rep-bb-track i.used{background:linear-gradient(90deg,var(--rose-600),var(--rose-300));height:9px}
+.rep-bb .mono{text-align:right;color:var(--text-muted)}
+.rep-blood-sum{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding-top:9px;border-top:1px solid var(--border)}
+.rep-blood-ring{display:flex;align-items:center;gap:12px;padding-top:6px}
+.rep-trend-single{display:flex;flex-direction:column;justify-content:center;align-items:center;height:220px;gap:4px}
+.rep-trend-v{font-family:var(--font-serif,Georgia,serif);font-size:2.4rem;color:var(--text-strong)}
+.rep-analysis-head{display:flex;align-items:baseline;gap:12px;margin:22px 0 10px}
+.rep-analysis-head h2{font-size:1.05rem;margin:0;color:var(--text-strong);font-weight:600;letter-spacing:.01em}
+.rep-ident .rep-id-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.rep-id{display:flex;flex-direction:column;gap:3px}
+.rep-id label{font-size:9.6px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint)}
+.rep-id .input{height:28px;font-size:11.4px}
+.rep-id-grid .rep-id:first-child,.rep-id-grid .rep-id:nth-child(2){grid-column:auto}
+.rep-exp-preview{max-height:250px;overflow:hidden;border:1px solid var(--border);border-radius:8px;background:#fff}
+@media (max-width:900px){
+  .rep-ident .rep-id-grid{grid-template-columns:1fr}
+  .rep-blood-sum{grid-template-columns:repeat(2,1fr)}
+  .rep-td{width:52px}
+  .rep-in{width:46px}
+}

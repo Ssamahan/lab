@@ -1528,6 +1528,63 @@ function normalize(db){
       && String(t.start)==='2026-07-24'
       && (t.attendees||[]).slice().sort().join(',')==='s3,s4'));
   }
+  /* v6.9.83 — the monthly HMIS report opens on October 2026, transcribed line by
+     line from the signed sheet the laboratory sent the district (section IX and the
+     blood-supply table in section VIII). Nothing is estimated: a line that carried
+     no figure is left empty, and every total on the screen is computed from what is
+     stored here rather than typed in twice. */
+  if(!db.meta.reportingV691){
+    db.meta.reportingV691=1;
+    db.reporting=db.reporting||{lines:[],months:{}};
+    if(!db.reporting.months['2026-10']){
+      const V=(pos,neg,a0,a1,a2,total)=>({pos:pos||0,neg:neg||0,a0:a0||0,a1:a1||0,a2:a2||0,total:total||0});
+      db.reporting.months['2026-10']={
+        month:'2026-10',
+        meta:{service:'Laboratory',catchment:115897,year:'2026/2027',monthName:'October',
+          sector:'Ruli',district:'Gakenke',charge:'Kelvin SAMAHANI',qualification:'A0',
+          sentDate:'2026-11-01',received:'',enteredInDhis:'',
+          source:'Transcribed from the signed October 2026 HMIS sheet'},
+        values:{
+          m1:V(2,86,51,37), m11:V(2,0,0,2), m12:V(0), m13:V(0), m14:V(0), m15:V(0),
+          r1:V(0),
+          s1:V(0,0,0,0,0,268),
+          s31:V(0), s32:V(0), s33:V(0), s34:V(0), s35:V(0), s36:V(58), s37:V(4),
+          s38:V(0), s39:V(0), s310:V(6), s311:V(43),
+          u41:V(11,24), u42:V(41,78), u43:V(31,49),
+          b51a:V(8,59), b51b:V(8,59), b51c:V(0,0,0,0,0,0),
+          b52a:V(0,0), b52b:V(0,0), b52c:V(0,0,0,0,0,0),
+          b53a:V(6,529), b53b:V(6,529), b53c:V(0,0,0,0,0,0),
+          x61:V(0,0), x62:V(0,0), x63:V(0,0,0,0,0,0), x64:V(0,0,0,0,0,1364),
+          x65:V(0,0,0,0,0,917), x66:V(0,0,0,0,0,938), x67:V(0,0,0,0,0,1022),
+          x68:V(0,0,0,0,0,41), x69:V(0,0,0,0,0,0),
+          x610:V(0,0), x611:V(0,1), x612:V(5,431), x613:V(0,0),
+          c7:V(0,0,0,0,0,1),
+          oUrea:V(0,929), oAsat:V(0,913), oNa:V(0,251), oK:V(0,249), oCl:V(0,241),
+          oCa:V(0,82), oDB:V(0,132), oTB:V(0,138), oRF:V(8,92), oCRP:V(0,0),
+          oASLO:V(20,88), oGGT:V(0,0), oCHO:V(0,76), oTrig:V(0,73), oTP:V(0,69),
+          oEID:V(0,0), oRecency:V(0,4), oHBVVL:V(4,1), oHCVVL:V(0,0),
+          oCompat:V(0,19), oBGRh:V(0,406), oTransfusion:V(0,51), oTBGXP:V(4,59),
+          oTBLAM:V(0,0), oTBSmear:V(0,1), oSperm:V(0,3), oHPylori:V(69,204),
+          oBleeding:V(0,34), oKetone:V(0,0), oClotting:V(0,37), oIAT:V(0,13),
+          oEffusion:V(0,0), oCovid:V(0,0), oNitrites:V(0,0), oUrinalysis:V(0,0),
+          oCapSugar:V(0,71), oSerumAlb:V(0,0),
+          xMpox:V(0,0), xMeasles:V(0,1)
+        },
+        blood:{
+          'A-':{open:0,req:0,recv:0,used:0,expired:0,returned:0},
+          'A+':{open:2,req:2,recv:2,used:2,expired:0,returned:0},
+          'AB-':{open:0,req:0,recv:0,used:0,expired:0,returned:0},
+          'AB+':{open:0,req:3,recv:3,used:3,expired:0,returned:0},
+          'B+':{open:2,req:25,recv:25,used:24,expired:0,returned:0},
+          'B-':{open:0,req:0,recv:0,used:0,expired:0,returned:0},
+          'O+':{open:2,req:22,recv:22,used:20,expired:0,returned:0},
+          'O-':{open:0,req:2,recv:2,used:2,expired:0,returned:0}
+        },
+        notes:'',
+        touchedAt:'2026-11-01T00:00:00.000Z'
+      };
+    }
+  }
   /* v6.9.67 — December goes easiest on Bernadette. Her record carries December
      2026 as a month she is not put on the nights for, so the December draft gives
      the night blocks to Dieudonné, Patrick and Jeanne Claudine and turns to her
@@ -2131,6 +2188,277 @@ S.reapplyTAT=function(){
      reaches for this outside a commit. */
   if(touched) S.save();
   return touched;
+};
+/* ——— Monthly HMIS report ————————————————————————————————————
+   The district hospital reports the laboratory month to the ministry on the HMIS
+   form: the same numbered lines every month, each with positives, negatives and,
+   for the malaria and stool sections, the age split. Those lines are DATA, not code:
+   they are seeded once from the form, and an examination added to the test menu
+   later appears on the report by itself, under its own section — so the sheet grows
+   as the laboratory grows instead of needing a new build.
+
+   A line is recorded as: pos, neg, a0, a1, a2, total.
+     · pn      positives and negatives   → total = pos + neg
+     · pn2     the same, plus <5yrs / 5yrs+
+     · posage3 positives split 0–4 / 5–15 / 16+
+     · quant   one figure (full blood count, creatinine, ALAT …)
+     · band    a heading row, no numbers
+   Blood supply is kept apart, per group type, exactly as the form prints it. */
+const REPORT_SECTIONS=[
+  {key:'malaria',no:'1',title:'Blood Smears Plasmodium'},
+  {key:'rdt',no:'2',title:'Rapid Diagnostic Tests for Malaria'},
+  {key:'stool',no:'3',title:'Stool samples'},
+  {key:'urine',no:'4',title:'Urine'},
+  {key:'bacteriology',no:'5',title:'Bacteriology'},
+  {key:'blood',no:'6',title:'Blood'},
+  {key:'csf',no:'7',title:'Cerebrospinal fluid'},
+  {key:'other',no:'8',title:'Other laboratory tests'},
+  {key:'outbreak',no:'9',title:'Outbreak & surveillance samples'}
+];
+const REPORT_GROUPS=['A-','A+','AB-','AB+','B+','B-','O+','O-'];
+const REPORT_BLOOD_FIELDS=[['open','Present at the beginning'],['req','Requested'],['recv','Received'],
+  ['used','Used'],['expired','Expired / damaged / lost'],['returned','Returned']];
+/* id · number · label · section · mode · indent
+   `breakdown` marks a row that details the row above it (the malaria species); it is
+   printed and never counted twice. The outbreak section is reported on its own line,
+   below the total — the form does the same, and October's figures then reconcile
+   exactly with the 10,855 on the signed sheet. */
+const REPORT_LINES=(function(){
+  const L=(id,no,label,section,mode,indent)=>({id,no,label,section,mode:mode||'pn',indent:indent||0});
+  const out=[];
+  /* 1 · malaria */
+  out.push(L('m1','1.','Blood Smears Plasmodium','malaria','pn2',0));
+  [['m11','1.1','Blood Smears Plasmodium Falciparum'],
+   ['m12','1.2','Blood Smears Plasmodium Malariae'],
+   ['m13','1.3','Blood Smears Plasmodium Vivax'],
+   ['m14','1.4','Blood Smears Plasmodium Knowlesi'],
+   ['m15','1.5','Blood Smears Plasmodium Ovale']].forEach(x=>{
+     /* a species row is a breakdown of line 1 — printed, never added to the total again */
+     const l=L(x[0],x[1],x[2],'malaria','pn2',1); l.breakdown=true; out.push(l);
+   });
+  /* 2 · rapid test */
+  out.push(L('r1','2.','Rapid Diagnostic Tests for Malaria','rdt','pn2',0));
+  /* 3 · stool — the total counts samples, the species count positives */
+  out.push(L('s1','3.','Stool Samples TOTAL (samples analysed)','stool','quant',0));
+  [['s31','3.1','Ascaris'],['s32','3.2','Trichuris (Tricocephale)'],
+   ['s33','3.3','Ankylostoma (hookworms)'],['s34','3.4','Schistosoma in stool'],
+   ['s35','3.5','Taenia (solium and saginata)'],['s36','3.6','Entamoeba histolytica'],
+   ['s37','3.7','Giardia lamblia / intestinalis'],['s38','3.8','Enterobius vermicularis (Oxyure)'],
+   ['s39','3.9','Strongyloides stercoralis (Anguille)'],['s310','3.10','Trichomonas intestinalis'],
+   ['s311','3.11','Other parasites in stools']].forEach(x=>{
+     /* a species found in the 268 stool samples examined: it is a result inside that
+        count, not another test on top of it */
+     const l=L(x[0],x[1],x[2],'stool','posage3',1); l.breakdown=true; out.push(l);
+   });
+  /* 4 · urine */
+  out.push(L('u1','4.','Urine','urine','band',0));
+  [['u41','4.1','Sugar / Sucre'],['u42','4.2','Albumin'],['u43','4.3','Pregnancy test']]
+    .forEach(x=>out.push(L(x[0],x[1],x[2],'urine','pn',1)));
+  /* 5 · bacteriology */
+  out.push(L('b1','5.','Bacteriology','bacteriology','band',0));
+  [['b51','5.1','Vaginal swab'],['b52','5.2','Urethral swab'],['b53','5.3','Urine']].forEach(grp=>{
+    out.push(L(grp[0],grp[1],grp[2],'bacteriology','band',1));
+    const lead=grp[0];
+    const rows=[['a','Fresh'],['b','Gram'],['c','of which diplococcus gram (−)']];
+    rows.forEach(r=>out.push(L(lead+r[0],grp[1]+'.'+r[0],r[1],'bacteriology',r[0]==='c'?'quant':'pn',2)));
+  });
+  /* 6 · blood */
+  out.push(L('x61','6.1','RPR','blood','pn',0));
+  out.push(L('x62','6.2','HIV final result','blood','pn',0));
+  [['x63','6.3','ESR'],['x64','6.4','Full Blood Count (FBC/NFS)'],['x65','6.5','ALAT (GPT)'],
+   ['x66','6.6','Creatinine'],['x67','6.7','Blood glucose'],['x68','6.8','Amylase'],
+   ['x69','6.9','CD4']].forEach(x=>out.push(L(x[0],x[1],x[2],'blood','quant',0)));
+  out.push(L('x610','6.10','Pregnancy test','blood','pn',0));
+  out.push(L('x611','6.11','CRAG (Serum Cryptococcal Antigen)','blood','pn',0));
+  out.push(L('x612','6.12','HBV (Hepatitis B Virus)','blood','pn',0));
+  out.push(L('x613','6.13','HCV (Hepatitis C Virus)','blood','pn',0));
+  /* 7 · cerebrospinal fluid */
+  out.push(L('c7','7.','Cerebrospinal fluid','csf','quant',0));
+  /* 8 · other laboratory tests — the long list the department keeps adding to */
+  [['oUrea','Urea'],['oAsat','ASAT'],['oNa','Na+'],['oK','K+'],['oCl','Cl−'],['oCa','Ca+'],
+   ['oDB','DB (direct bilirubin)'],['oTB','TB (total bilirubin)'],['oRF','RF'],['oCRP','CRP'],
+   ['oASLO','ASLO'],['oGGT','GGT'],['oCHO','CHO (cholesterol)'],['oTrig','Triglycerides'],
+   ['oTP','T.P (total protein)'],['oEID','EID'],['oRecency','Recency'],['oHBVVL','HBV VL'],
+   ['oHCVVL','HCV VL'],['oCompat','Compatibility'],['oBGRh','Blood group & Rh'],
+   ['oTransfusion','Transfusion'],['oTBGXP','TB-GXP (GeneXpert)'],['oTBLAM','TB-LAM'],
+   ['oTBSmear','TB smears'],['oSperm','Spermogram'],['oHPylori','H. pylori'],
+   ['oBleeding','Bleeding time'],['oKetone','Ketone (urine)'],['oClotting','Clotting time'],
+   ['oIAT','IAT'],['oEffusion','Effusion'],['oCovid','COVID-19'],['oNitrites','Nitrites'],
+   ['oUrinalysis','Urinalysis'],['oCapSugar','Capillary blood sugar'],['oSerumAlb','Serum albumin']
+  ].forEach(x=>out.push(L(x[0],'',x[1],'other','pn',1)));
+  /* blood cultures that leave the hospital for a reference laboratory — counted here,
+     because a specimen that is referred is still an examination the department did */
+  out.push(L('oBloodCultureOut','','Blood cultures transferred (referred out)','other','pn',1));
+  /* 9 · outbreak & surveillance */
+  [['xMpox','M-Pox','MonkeyPox PCR'],['xMeasles','Measles / Rubella','Measles & Rubella PCR']]
+    .forEach(x=>{ const l=L(x[0],'',x[1],'outbreak','pn',1); if(x[2]) l.alias=[x[2]]; out.push(l); });
+  return out;
+})();
+function reportBlank(key){
+  return {month:key,meta:{},values:{},blood:{},notes:'',
+    lines:null};
+}
+S.REPORT_SECTIONS=REPORT_SECTIONS;
+S.REPORT_GROUPS=REPORT_GROUPS;
+S.REPORT_BLOOD_FIELDS=REPORT_BLOOD_FIELDS;
+S.reportSeedLines=()=>REPORT_LINES;
+/* The lines the report shows for a month: the form's own lines, then anything the
+   department added, then a line for every examination on the test menu that no line
+   covers yet. Nothing has to be re-coded when a new test is introduced. */
+S.reportLines=function(){
+  const db=S.db();
+  const rows=REPORT_LINES.map(r=>Object.assign({},r));
+  const reg=(db.reporting&&db.reporting.lines)||[];
+  reg.forEach(c=>rows.push(Object.assign({},c)));
+  /* A form line and a test on the menu can be the same examination under two
+     names — the form says “M-Pox”, the menu says “MonkeyPox PCR”. `alias` holds
+     those pairs so the sheet never prints the same examination twice. Matching is
+     on the whole normalised name: “Blood Culture” and “Blood cultures transferred
+     (referred out)” are different examinations and stay apart. */
+  const norm=x=>String(x||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+  const seen={};
+  rows.forEach(r=>{
+    seen[norm(r.label)]=1;
+    if(r.test) seen[norm(r.test)]=1;
+    (r.alias||[]).forEach(a=>{ seen[norm(a)]=1; });
+  });
+  (db.catalog.tests||[]).forEach(t=>{
+    const key=String(t.name||'');
+    if(!key || seen[norm(key)]) return;
+    rows.push({id:'auto:'+key.toLowerCase().replace(/[^a-z0-9]+/g,'-'),no:'',label:key,
+      section:/outbreak|surveil/i.test(t.cat||'')?'outbreak':'other',mode:'pn',indent:1,
+      auto:true,test:key});
+  });
+  return rows;
+};
+S.reportMonths=function(){
+  const r=S.db().reporting||{};
+  return Object.keys(r.months||{}).sort().reverse();
+};
+S.reportMonth=function(key){
+  const r=S.db().reporting||{};
+  return (r.months||{})[key]||reportBlank(key);
+};
+S.reportEnsure=function(key){
+  const db=S.db();
+  db.reporting=db.reporting||{lines:[],months:{}};
+  if(!db.reporting.months[key]) db.reporting.months[key]=reportBlank(key);
+  return db.reporting.months[key];
+};
+S.reportSet=function(key,lineId,field,value){
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
+    m.values=m.values||{};
+    const v=m.values[lineId]||(m.values[lineId]={});
+    v[field]=Math.max(0,Math.round(+value||0));
+    m.touchedAt=U.nowISO();
+  },{action:'report.edit',entity:'reporting',entityId:key,detail:'Monthly report '+key+' · '+lineId+' '+field});
+  return true;
+};
+S.reportMeta=function(key,field,value){
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
+    m.meta=m.meta||{}; m.meta[field]=value;
+  },{action:'report.meta',entity:'reporting',entityId:key,detail:'Report identification · '+field});
+};
+S.reportBlood=function(key,group,field,value){
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
+    m.blood=m.blood||{};
+    const g=m.blood[group]||(m.blood[group]={});
+    g[field]=Math.max(0,Math.round(+value||0));
+  },{action:'report.blood',entity:'reporting',entityId:key,detail:'Blood supply '+group+' '+field});
+};
+S.reportAddLine=function(def){
+  const d=def||{};
+  const label=String(d.label||'').trim(); if(!label) return false;
+  const id='c:'+label.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now().toString(36).slice(-4);
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    db.reporting.lines.push({id,no:d.no||'',label,section:d.section||'other',
+      mode:d.mode||'pn',indent:d.indent==null?1:d.indent,custom:true,test:d.test||null});
+  },{action:'report.line',entity:'reporting',entityId:id,detail:'Examination added to the monthly report · '+label});
+  return id;
+};
+S.reportRemoveLine=function(id){
+  S.commit(db=>{
+    const r=db.reporting||{};
+    r.lines=(r.lines||[]).filter(x=>x.id!==id);
+    Object.keys(r.months||{}).forEach(k=>{ if(r.months[k].values) delete r.months[k].values[id]; });
+  },{action:'report.line.delete',entity:'reporting',entityId:id,detail:'Line removed from the monthly report'});
+};
+/* One row, read back: what was typed, and the total that follows from it. */
+S.reportRow=function(m,line){
+  const v=((m&&m.values)||{})[line.id]||{};
+  const n=x=>Math.max(0,Math.round(+x||0));
+  const r={id:line.id,pos:n(v.pos),neg:n(v.neg),a0:n(v.a0),a1:n(v.a1),a2:n(v.a2),total:n(v.total)};
+  if(line.mode==='pn'){ r.total=r.pos+r.neg; r.qual=true; }
+  else if(line.mode==='pn2'){ r.total=r.pos+r.neg; r.qual=true; r.ages=r.a0+r.a1; }
+  else if(line.mode==='posage3'){ const ages=r.a0+r.a1+r.a2; r.total=r.pos||ages; r.qual=r.pos>0; }
+  else if(line.mode==='quant'){ r.qual=false; }
+  else { r.total=0; r.band=true; }
+  return r;
+};
+/* The whole month, grouped the way the form prints it, with the figures the charts
+   and the export both read. */
+S.reportSummary=function(key){
+  const m=S.reportMonth(key);
+  const lines=S.reportLines();
+  const sections=REPORT_SECTIONS.map(sec=>{
+    const rows=lines.filter(l=>l.section===sec.key).map(l=>{
+      const row=S.reportRow(m,l);
+      return Object.assign({line:l},row);
+    });
+    const counted=rows.filter(r=>!r.band && !r.line.breakdown);
+    return {key:sec.key,no:sec.no,title:sec.title,rows,
+      total:U.sum(counted,r=>r.total), positives:U.sum(counted,r=>r.pos), negatives:U.sum(counted,r=>r.neg),
+      tests:counted.length};
+  });
+  const flat=[].concat.apply([],sections.map(s=>s.rows.filter(r=>!r.band)));
+  const counted=flat.filter(r=>!r.line.breakdown);
+  const qual=counted.filter(r=>r.line.mode!=='quant');
+  const routine=counted.filter(r=>r.line.section!=='outbreak');
+  const blood={};
+  REPORT_GROUPS.forEach(g=>{
+    const v=((m.blood||{})[g])||{};
+    const n=x=>Math.max(0,Math.round(+x||0));
+    const open=n(v.open),req=n(v.req),recv=n(v.recv),used=n(v.used),expired=n(v.expired),returned=n(v.returned);
+    blood[g]={open,req,recv,used,expired,returned,end:Math.max(0,open+recv-used-expired-returned)};
+  });
+  const bsum=k=>U.sum(REPORT_GROUPS,g=>blood[g][k]);
+  const outbreak=counted.filter(r=>r.line.section==='outbreak');
+  return {key,meta:m.meta||{},notes:m.notes||'',sections,
+    lines:flat,
+    totals:{tests:U.sum(routine,r=>r.total), positives:U.sum(routine,r=>r.pos), negatives:U.sum(routine,r=>r.neg),
+      qualTests:U.sum(qual,r=>r.total), qualPositives:U.sum(qual,r=>r.pos),
+      outbreakTests:U.sum(outbreak,r=>r.total), outbreakPositives:U.sum(outbreak,r=>r.pos),
+      samples:(m.values&&m.values.s1&&m.values.s1.total)||0,
+      examinations:flat.length, entered:flat.filter(r=>r.total>0).length},
+    blood, bloodTotals:{open:bsum('open'),req:bsum('req'),recv:bsum('recv'),used:bsum('used'),
+      expired:bsum('expired'),returned:bsum('returned'),end:bsum('end')}};
+};
+/* The rankings the analysis is built on. One list, three readings: most requested,
+   least requested, and — among the examinations whose result is qualitative — the
+   ones that came back positive most often. */
+S.reportRankings=function(summary){
+  const base={};
+  (summary.lines||[]).forEach(r=>{
+    if(r.line.breakdown||r.band) return;
+    if(base[r.line.section]==null && r.total>0) base[r.line.section]=r.total;
+  });
+  const rows=(summary.lines||[]).filter(r=>!r.band && (r.total>0||r.pos>0)).map(r=>{
+    const denom=r.line.breakdown?(base[r.line.section]||0):r.total;
+    return {id:r.id,label:(r.line.no?r.line.no+' ':'')+r.line.label,section:r.line.section,
+      breakdown:!!r.line.breakdown, total:r.line.breakdown?denom:r.total, figure:r.total, pos:r.pos, neg:r.neg,
+      rate:(r.line.mode==='quant'||!denom)?null:Math.round(r.pos/denom*1000)/10};
+  });
+  const byTotal=rows.slice().sort((a,b)=>b.figure-a.figure||b.total-a.total);
+  const byLeast=rows.slice().sort((a,b)=>a.figure-b.figure||a.total-b.total);
+  const qualitative=rows.filter(r=>r.rate!=null && r.pos>0).sort((a,b)=>b.pos-a.pos);
+  return {requested:byTotal, least:byLeast, positives:qualitative, all:rows};
 };
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';

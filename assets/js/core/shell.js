@@ -4,18 +4,19 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.82';
+const APP_VERSION='6.9.83';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
   dash:'layout-dashboard', samples:'flask-conical', stock:'package', training:'graduation-cap', revenue:'wallet',
-  roster:'calendar-days', leave:'calendar-clock', eqa:'target', pbf:'award', quality:'shield-check',
+  reports:'clipboard-list', roster:'calendar-days', leave:'calendar-clock', eqa:'target', pbf:'award', quality:'shield-check',
   equipment:'microscope', staff:'users', security:'lock', design:'palette', roadmap:'rocket'
 };
 const ROUTES={
   dash:{title:'Command Center',sub:'Live laboratory operations · Ruli District Hospital',group:'Operations',icon:ICON.dash,file:'dash'},
   samples:{title:'Referred Samples',sub:'Register · chain of custody · manifest · TAT',group:'Operations',icon:ICON.samples,file:'samples'},
   stock:{title:'Stock & Supplies',sub:'Consumables · lots · expiry · forecasts',group:'Operations',icon:ICON.stock,file:'stock'},
+  reports:{title:'Monthly Reports',sub:'HMIS return · the form, the analysis, the export',group:'Operations',icon:ICON.reports,file:'report'},
   training:{title:'Training Roster',sub:'FIFO queue · registry · competency history',group:'People',icon:ICON.training,file:'training'},
   revenue:{title:'Training Revenue',sub:'Expenses · reimbursements · balance',group:'People',icon:ICON.revenue,file:'revenue',permission:'revenue'},
   roster:{title:'Working Plan',sub:'Shift grid · coverage · fairness',group:'Scheduling',icon:ICON.roster,file:'roster'},

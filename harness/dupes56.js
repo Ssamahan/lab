@@ -58,7 +58,7 @@ const ROOT=path.resolve(__dirname,'..');
   ok(before===after,'a commit on the repaired month does not duplicate anything again');
 
   /* ── the screen ────────────────────────────────────────────────────── */
-  await go('#/roster'); await tick(300);
+  await go('#/roster?month=2026-10'); await tick(300);
   doc.querySelector('[data-view="grid"]').click(); await tick(350);
   [...doc.querySelectorAll('[data-nav]')].filter(b=>b.dataset.nav==='1')[0].click(); await tick(400);
   /* the calendar itself: the rest-owed table under it has rows of its own */

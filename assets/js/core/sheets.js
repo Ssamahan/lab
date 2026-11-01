@@ -671,6 +671,435 @@ SH.monthlySVG=function(plan,opts){
 };
 
 /* ——— Weekly unit roster sheet ————————————————————— */
+/* ——— Monthly HMIS report ————————————————————————————————
+   The district's own form, drawn as the district receives it: the letterhead, the
+   identification and approval blocks, then section IX — examinations, positives,
+   negatives, the age split and the total — and section VIII, the blood supply.
+
+   The sheet is paginated from the data, never from a fixed list: the rows are the
+   report's own lines, so an examination added to the menu next month lands on the
+   sheet by itself, and the pages grow with them. Each section carries its own
+   column captions, because the form counts different sections differently — the
+   stool species are split 0–4 / 5–15 / 16+, the blood bank is one figure a row. */
+const REP={ W:2480, H:3508 };
+function repTheme(){
+  return {navy:'#12203C', band:'#101E3C', gold:'#B8860B', goldLine:'#C9A84C', rule:'#C9CFDA',
+    ink:'#1B2433', muted:'#5B6474', faint:'#8A93A3', zebra:'#F7F9FC', cream:'#FBF6E8'};
+}
+const REP_MODES={
+  pn:{cols:['pos','neg'],heads:['Positives','Negatives']},
+  pn2:{cols:['pos','neg','a0','a1'],heads:['Positives','Negatives','< 5 yrs','5 yrs +']},
+  posage3:{cols:['pos','a0','a1','a2'],heads:['Positives','0–4 yrs','5–15 yrs','16+ yrs']},
+  quant:{cols:['total'],heads:['Total']}
+};
+function repSpecFor(sec){
+  const row=((sec&&sec.rows)||[]).find(r=>r.line&&r.line.mode!=='band'&&r.line.mode!=='quant');
+  return REP_MODES[row?row.line.mode:'pn2']||REP_MODES.pn2;
+}
+/* column geometry, fixed across the whole sheet so every section lines up */
+function repGeom(W){
+  const exam=W-5*150-190;
+  const cells=[0,1,2,3,4].map(i=>({x:exam+i*150,w:150}));
+  return {exam,total:{x:exam+5*150,w:190},cells};
+}
+const REP_ROW=46, REP_BAND=40, REP_CAP=34, REP_HEAD=52;
+function reportPages(rep){
+  const H=REP.H, PAD=118;
+  const blocks=[];
+  (rep.sections||[]).forEach(sec=>{
+    const spec=repSpecFor(sec);
+    blocks.push({kind:'sec',h:REP_BAND,sec,spec});
+    blocks.push({kind:'cap',h:REP_CAP,spec});
+    let i=0;
+    (sec.rows||[]).forEach(r=>{
+      const h=r.line.mode==='band'?(REP_ROW-6):REP_ROW;
+      blocks.push({kind:r.line.mode==='band'?'rub':'row',h,row:r,spec,zebra:(i++%2===1)});
+    });
+    blocks.push({kind:'sum',h:REP_ROW,sec,spec});
+  });
+  const TAIL=760;                                   /* totals + blood supply + signatures */
+  const FOOT=190;
+  /* the first page gives up the room the letterhead, the title and the two
+     identification blocks take; the pages after it need only a running head */
+  const FIRST_TOP=912, NEXT_TOP=232;
+  const pages=[]; let page=null;
+  const open=(first)=>{ page={idx:pages.length,pages:pages.length+1,blocks:[],used:first?FIRST_TOP:NEXT_TOP,
+    cap:H-FOOT,top:first?FIRST_TOP:NEXT_TOP}; pages.push(page); return page; };
+  open(true);
+  blocks.forEach(b=>{
+    if(page.used+b.h>page.cap && !(b.kind==='cap' && page.blocks.length && page.blocks[page.blocks.length-1].kind==='sec')){
+      open(false);
+    } else if(page.used+b.h>page.cap){
+      /* a caption never starts a page on its own — move the band with it */
+      const band=page.blocks.pop(); page.used-=band.h; open(false); page.blocks.push(band); page.used+=band.h;
+    }
+    page.blocks.push(b); page.used+=b.h;
+  });
+  if(page.used+TAIL>page.cap) open(false);
+  page.tail=true;
+  return pages;
+}
+SH.reportSVG=function(rep,pageObj,pages,opts){
+  opts=opts||{};
+  const T=repTheme();
+  const W=REP.W, H=REP.H, PAD=118, TX=PAD, TW=W-PAD*2;
+  const s=LS.store.settings();
+  const geom=repGeom(TW);
+  const g=[];
+  const total=pages.length;
+  if(pageObj.idx===0){
+    g.push(letterhead(s,{width:W,pad:PAD,top:52,rule1:296}));
+  } else {
+    g.push(text(PAD,116,(s.hospital||'Ruli District Hospital').toUpperCase(),{size:32,weight:700,fill:T.navy,family:FONT.serif,ls:'1'}));
+    g.push(text(PAD,152,'Laboratory Department · District Hospital Monthly HMIS Report',{size:23,fill:T.muted}));
+    g.push(text(W-PAD,152,'Section IX · laboratory',{size:21,anchor:'end',fill:T.faint}));
+    g.push(rect(PAD,176,TW,3,T.goldLine));
+  }
+  let y;
+  if(pageObj.idx===0){
+    y=344;
+    g.push(text(W/2,y+34,'District Hospital Monthly HMIS Report',{size:50,weight:700,anchor:'middle',fill:T.navy,family:FONT.serif}));
+    g.push(text(W/2,y+78,'Rapport Mensuel SIS de l\u2019H\u00f4pital de district',{size:29,anchor:'middle',fill:T.muted,family:FONT.serif}));
+    g.push(text(W/2,y+124,((rep.meta&&rep.meta.monthName)||'')+' '+((rep.meta&&rep.meta.year)||''),{size:25,anchor:'middle',fill:T.gold,ls:'3'}));
+    y+=160;
+    y=repIdentBlock(g,y,PAD,TW,T,rep);
+    y=repApproveBlock(g,y,PAD,TW,T,rep);
+    y=pageObj.top;                                  /* the table starts where the form says */
+  } else {
+    y=pageObj.top;
+  }
+  /* the examinations */
+  pageObj.blocks.forEach(b=>{
+    const spec=b.spec||REP_MODES.pn2;
+    if(b.kind==='sec'){
+      g.push(rect(TX,y,TW,REP_BAND-6,T.band));
+      g.push(text(TX+16,y+27,(b.sec.no?b.sec.no+'. ':'')+b.sec.title,{size:24,weight:600,fill:'#FFFFFF'}));
+      if(b.sec.key==='stool') g.push(text(TX+TW-16,y+27,U.fmtNum(b.sec.total)+' samples analysed',{size:19,anchor:'end',fill:'#EADDB2'}));
+      else g.push(text(TX+TW-16,y+27,U.fmtNum(b.sec.total)+(b.sec.total===1?' test':' tests'),{size:19,anchor:'end',fill:'#EADDB2'}));
+      y+=REP_BAND;
+      return;
+    }
+    if(b.kind==='cap'){
+      g.push(rect(TX,y,TW,REP_CAP,'#F3F5F9'));
+      g.push(text(TX+16,y+23,'Exams',{size:19,weight:600,fill:T.muted}));
+      spec.heads.forEach((h,i)=>g.push(text(geom.cells[i].x+geom.cells[i].w/2,y+23,h,{size:18,weight:600,anchor:'middle',fill:T.muted})));
+      g.push(text(geom.total.x+geom.total.w/2,y+23,'Total',{size:18,weight:600,anchor:'middle',fill:T.muted}));
+      y+=REP_CAP;
+      return;
+    }
+    if(b.kind==='rub'){
+      g.push(rect(TX,y,TW,b.h,T.cream));
+      g.push(text(TX+44,y+27,b.row.line.label,{size:22,weight:600,fill:T.navy}));
+      y+=b.h;
+      return;
+    }
+    if(b.kind==='sum'){
+      g.push(line(TX,y,TX+TW,y,T.rule,1.4));
+      g.push(text(TX+16,y+29,'Section total',{size:21,weight:600,fill:T.navy}));
+      const counted=(b.sec.rows||[]).filter(r=>r.line&&r.line.mode!=='band'&&!r.line.breakdown);
+      spec.cols.forEach((c,i)=>g.push(text(geom.cells[i].x+geom.cells[i].w/2,y+29,U.fmtNum(U.sum(counted,r=>r[c]||0)),
+        {size:21,weight:600,anchor:'middle',fill:T.navy,mono:true})));
+      g.push(text(geom.total.x+geom.total.w/2,y+29,U.fmtNum(b.sec.total),{size:22,weight:700,anchor:'middle',fill:T.navy,mono:true}));
+      y+=b.h;
+      g.push(line(TX,y,TX+TW,y,T.rule,1));
+      return;
+    }
+    const r=b.row, L=r.line;
+    if(b.zebra) g.push(rect(TX,y,TW,b.h,T.zebra));
+    const indent=L.indent?26*L.indent:0;
+    if(L.no) g.push(text(TX+16,y+28,L.no,{size:18,fill:T.faint,mono:true}));
+    g.push(text(TX+16+Math.max(indent,46),y+28,L.label,{size:21,fill:L.breakdown?T.muted:T.ink}));
+    spec.cols.forEach((c,i)=>{
+      const v=r[c]||0;
+      g.push(text(geom.cells[i].x+geom.cells[i].w-14,y+28,v?U.fmtNum(v):'\u2014',
+        {size:21,anchor:'end',fill:v?T.ink:T.faint,mono:true}));
+    });
+    g.push(text(geom.total.x+geom.total.w-14,y+28,r.total?U.fmtNum(r.total):'\u2014',
+      {size:22,weight:r.total?600:400,anchor:'end',fill:r.total?T.navy:T.faint,mono:true}));
+    y+=b.h;
+    g.push(line(TX,y,TX+TW,y,T.rule,0.7));
+  });
+  if(pageObj.tail){
+    y+=20;
+    y=repTotalsBlock(g,y,TX,TW,T,rep);
+    y=repBloodBlock(g,y,TX,TW,T,rep);
+    y=repSignBlock(g,y,TX,TW,T,rep);
+  }
+  const footY=H-64;
+  g.push(line(PAD,footY-20,W-PAD,footY-20,T.rule,0.8));
+  g.push(text(PAD,footY,(LS.store.settings().hospital||'Ruli District Hospital')+' · Laboratory Department · monthly HMIS return · '+((rep.meta&&rep.meta.monthName)||'')+' '+((rep.meta&&rep.meta.year)||''),{size:17,fill:T.faint}));
+  g.push(text(W-PAD,footY,'Page '+pageObj.pages+' of '+total,{size:17,anchor:'end',fill:T.faint,mono:true}));
+  return svgDoc(W,H,g.join(''));
+};
+function repIdentBlock(g,y,x,W,T,rep){
+  const m=rep.meta||{};
+  const half=(W-24)/2;
+  const rows=[['Service name',m.service||'Laboratory'],['Catchment population',m.catchment?U.fmtNum(m.catchment):'\u2014'],
+    ['District',m.district||'Gakenke'],['Sector',m.sector||'Ruli'],
+    ['Financial year',m.year||''],['Month',m.monthName||''],
+    ['Name of in-charge',m.charge||''],['Qualification',m.qualification||'']];
+  g.push(rect(x,y,W,42,T.band));
+  g.push(text(x+16,y+28,'II.  Identification and important communications',{size:24,weight:600,fill:'#FFFFFF'}));
+  g.push(text(x+W-16,y+28,'Identifcation et remarques importantes',{size:19,anchor:'end',fill:'#EADDB2'}));
+  y+=42;
+  const H2=44;
+  rows.forEach((row,i)=>{
+    const cx=x+(i%2?half+24:0), cy=y+Math.floor(i/2)*H2;
+    g.push(rect(cx,cy,half,H2,'#FFFFFF',{stroke:T.rule,sw:1}));
+    g.push(text(cx+14,cy+28,row[0],{size:20,fill:T.muted}));
+    g.push(text(cx+half-14,cy+28,row[1],{size:21,weight:600,anchor:'end',fill:T.ink,mono:true}));
+  });
+  return y+42+Math.ceil(rows.length/2)*H2+14;
+}
+function repApproveBlock(g,y,x,W,T,rep){
+  const m=rep.meta||{};
+  const w=W/4;
+  g.push(rect(x,y,W,36,'#F3F5F9',{stroke:T.rule}));
+  g.push(text(x+14,y+25,'Processing · approval and transmission',{size:19,weight:600,fill:T.navy}));
+  y+=36;
+  const items=[['Prepared by',m.charge||'Kelvin SAMAHANI',m.qualification||''],
+    ['Date sent',m.sentDate?U.fmtDate(m.sentDate):'\u2014',''],
+    ['Received by / date','',''],
+    ['Signature','','']];
+  items.forEach((it,i)=>{
+    const cx=x+i*w;
+    g.push(rect(cx,y,w,70,'#FFFFFF',{stroke:T.rule,sw:1}));
+    g.push(text(cx+12,y+24,it[0],{size:17,fill:T.muted}));
+    if(it[1]) g.push(text(cx+12,y+50,it[1],{size:20,weight:600,fill:T.ink}));
+    if(it[2]) g.push(text(cx+12,y+65,it[2],{size:16,fill:T.faint}));
+  });
+  return y+36+70+16;
+}
+function repTotalsBlock(g,y,x,W,T,rep){
+  const t=rep.totals||{};
+  g.push(rect(x,y,W,48,T.band));
+  g.push(text(x+16,y+32,'IX.  Totals',{size:24,weight:600,fill:'#FFFFFF'}));
+  y+=48;
+  const cells=[['Tests conducted in the laboratory',U.fmtNum(t.tests||0)],
+    ['Positives',U.fmtNum(t.qualPositives||0)],
+    ['Negatives',U.fmtNum(t.negatives||0)],
+    ['Outbreak & surveillance',U.fmtNum(t.outbreakTests||0)]];
+  const w=W/4;
+  cells.forEach((c,i)=>{
+    g.push(rect(x+i*w,y,w,72,i%2?'#FAFBFC':'#FFFFFF',{stroke:T.rule,sw:1}));
+    g.push(text(x+i*w+14,y+26,c[0],{size:18,fill:T.muted}));
+    g.push(text(x+i*w+14,y+58,c[1],{size:29,weight:700,fill:T.navy,mono:true}));
+  });
+  return y+72+24;
+}
+function repBloodBlock(g,y,x,W,T,rep){
+  const groups=(LS.store.REPORT_GROUPS||[]);
+  const fields=(LS.store.REPORT_BLOOD_FIELDS||[]);
+  const bt=rep.bloodTotals||{};
+  g.push(rect(x,y,W,46,T.band));
+  g.push(text(x+16,y+31,'VIII.  Blood supply',{size:24,weight:600,fill:'#FFFFFF'}));
+  g.push(text(x+W-16,y+31,'packs, by group type',{size:19,anchor:'end',fill:'#EADDB2'}));
+  y+=46;
+  const groupW=140, endW=180, colW=(W-groupW-endW)/fields.length;
+  g.push(rect(x,y,W,40,'#F3F5F9',{stroke:T.rule}));
+  g.push(text(x+14,y+26,'Group type',{size:18,weight:600,fill:T.muted}));
+  fields.forEach((f,i)=>g.push(text(x+groupW+i*colW+colW/2,y+26,f[1].split(' / ')[0].split(' (')[0],{size:17,weight:600,anchor:'middle',fill:T.muted})));
+  g.push(text(x+W-endW/2,y+26,'Present at the end',{size:17,weight:600,anchor:'middle',fill:T.muted}));
+  y+=40;
+  groups.forEach((gr,i)=>{
+    const row=(rep.blood||{})[gr]||{};
+    if(i%2) g.push(rect(x,y,W,38,T.zebra));
+    g.push(rect(x,y,groupW,38,'#FFFFFF',{stroke:T.rule,sw:0.8}));
+    g.push(text(x+16,y+26,gr,{size:21,weight:700,fill:T.navy,mono:true}));
+    fields.forEach((f,j)=>g.push(text(x+groupW+j*colW+colW/2,y+26,U.fmtNum(row[f[0]]||0),
+      {size:20,anchor:'middle',fill:(row[f[0]]||0)?T.ink:T.faint,mono:true})));
+    g.push(text(x+W-endW/2,y+26,U.fmtNum(row.end||0),{size:21,weight:600,anchor:'middle',fill:T.navy,mono:true}));
+    y+=38;
+    g.push(line(x,y,x+W,y,T.rule,0.6));
+  });
+  g.push(rect(x,y,W,6,T.goldLine));
+  y+=6;
+  g.push(rect(x,y,W,40,'#F3F5F9',{stroke:T.rule}));
+  g.push(text(x+16,y+26,'Sum',{size:20,weight:700,fill:T.navy}));
+  fields.forEach((f,j)=>g.push(text(x+groupW+j*colW+colW/2,y+26,U.fmtNum(bt[f[0]]||0),{size:20,weight:700,anchor:'middle',fill:T.navy,mono:true})));
+  g.push(text(x+W-endW/2,y+26,U.fmtNum(bt.end||0),{size:21,weight:700,anchor:'middle',fill:T.navy,mono:true}));
+  return y+40+30;
+}
+function repSignBlock(g,y,x,W,T,rep){
+  const m=rep.meta||{}, s=LS.store.settings();
+  const items=[['Prepared by',m.charge||'Kelvin SAMAHANI','Laboratory Manager'],
+    ['Verified by',s.verified||'Dr. Judson B. MUMBERE',s.verifiedRole||'Clinical Director'],
+    ['Approved by',s.approved||'Jean de Dieu SIBOMANA',s.approvedRole||'Human Resources Officer']];
+  const w=(W-48)/3;
+  items.forEach((it,i)=>{
+    const cx=x+i*(w+24);
+    g.push(line(cx,y+56,cx+w,y+56,T.rule,1));
+    g.push(text(cx,y+82,it[0],{size:17,fill:T.muted}));
+    g.push(text(cx,y+110,it[1],{size:20,weight:600,fill:T.navy}));
+    g.push(text(cx,y+134,it[2],{size:16,fill:T.faint}));
+  });
+  if(rep.notes) g.push(text(x,y+176,String(rep.notes).slice(0,160),{size:17,fill:T.muted}));
+  return y+190;
+}
+SH.reportSheets=function(rep){
+  const pages=reportPages(rep);
+  return pages.map(p=>SH.reportSVG(rep,p,pages,{}));
+};
+/* Excel: the same rows, so the figures can be worked on and sent on. */
+SH.reportXLSX=function(rep){
+  const s=LS.store.settings();
+  const rows=[];
+  const push=(cells,h)=>rows.push(h?{cells,h}:{cells:cells||[]});
+  push([{c:0,v:'MINISTRY OF HEALTH',s:13}]);
+  push([{c:0,v:s.hospital||'Ruli District Hospital',s:1}],26);
+  push([{c:0,v:(s.dept||'Laboratory Department')+' · District Hospital Monthly HMIS Report',s:13}]);
+  push([]);
+  const m=rep.meta||{};
+  push([{c:0,v:'Identification',s:2},{c:1,v:'',s:2},{c:2,v:'Value',s:2}]);
+  [['Service name',m.service||'Laboratory'],['Catchment population',m.catchment||''],
+   ['District',m.district||'Gakenke'],['Sector',m.sector||'Ruli'],['Financial year',m.year||''],
+   ['Month',m.monthName||''],['Name of in-charge',m.charge||''],['Qualification',m.qualification||''],
+   ['Date sent',m.sentDate||'']].forEach(r=>push([{c:0,v:r[0],s:3},{c:2,v:r[1],s:4}]));
+  push([]);
+  (rep.sections||[]).forEach(sec=>{
+    const spec=repSpecFor(sec);
+    push([{c:0,v:(sec.no?sec.no+'. ':'')+(sec.title||''),s:2}],22);
+    const head=[{c:0,v:'Exams',s:2}];
+    spec.heads.forEach((h,i)=>head.push({c:i+1,v:h,s:2}));
+    head.push({c:spec.heads.length+1,v:'Total',s:2});
+    push(head);
+    sec.rows.forEach(r=>{
+      if(r.line.mode==='band'){ push([{c:0,v:r.line.label,s:5}]); return; }
+      const cells=[{c:0,v:(r.line.no?r.line.no+' ':'')+r.line.label,s:r.line.breakdown?7:3}];
+      spec.cols.forEach((c,i)=>cells.push({c:i+1,v:r[c]||0,s:4}));
+      cells.push({c:spec.cols.length+1,v:r.total||0,s:6});
+      push(cells);
+    });
+    const counted=sec.rows.filter(r=>r.line&&r.line.mode!=='band'&&!r.line.breakdown);
+    const sc=[{c:0,v:'Section total',s:2}];
+    spec.cols.forEach((c,i)=>sc.push({c:i+1,v:U.sum(counted,r=>r[c]||0),s:6}));
+    sc.push({c:spec.cols.length+1,v:sec.total||0,s:6});
+    push(sc);
+    push([]);
+  });
+  const t=rep.totals||{};
+  push([{c:0,v:'Totals',s:2}],22);
+  [['Tests conducted in the laboratory',t.tests||0],['Positives',t.qualPositives||0],
+   ['Negatives',t.negatives||0],['Outbreak & surveillance',t.outbreakTests||0]]
+    .forEach(r=>push([{c:0,v:r[0],s:3},{c:1,v:r[1],s:6}]));
+  push([]);
+  push([{c:0,v:'VIII. Blood supply',s:2}],22);
+  const fields=LS.store.REPORT_BLOOD_FIELDS||[];
+  const head=[{c:0,v:'Group type',s:2}];
+  fields.forEach((f,i)=>head.push({c:i+1,v:f[1],s:2}));
+  head.push({c:fields.length+1,v:'Present at the end',s:2});
+  push(head);
+  (LS.store.REPORT_GROUPS||[]).forEach(g=>{
+    const row=(rep.blood||{})[g]||{};
+    const cells=[{c:0,v:g,s:3}];
+    fields.forEach((f,i)=>cells.push({c:i+1,v:row[f[0]]||0,s:4}));
+    cells.push({c:fields.length+1,v:row.end||0,s:6});
+    push(cells);
+  });
+  const bt=rep.bloodTotals||{};
+  const sc=[{c:0,v:'Sum',s:2}];
+  fields.forEach((f,i)=>sc.push({c:i+1,v:bt[f[0]]||0,s:6}));
+  sc.push({c:fields.length+1,v:bt.end||0,s:6});
+  push(sc);
+  const ncols=Math.max.apply(null,rows.map(r=>(r.cells||[]).length).concat([7]));
+  return workbookFile('Monthly HMIS report',
+    sheetXML(rows,{cols:Array.from({length:ncols},(_,i)=>i?17:52)}),STYLES);
+};
+/* Print and PDF, page by page, at the paper's own size. */
+SH.reportPrint=function(svgs,title){
+  const css='@page{size:A4 portrait;margin:4mm}html,body{margin:0;padding:0;background:#fff}'
+   +'svg{display:block;width:202mm;height:auto;margin:0 auto;page-break-after:always}svg:last-child{page-break-after:auto}';
+  U.print('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>'+css+'</style></head><body>'+svgs.join('')+'</body></html>');
+};
+/* A multi-page PDF: one raster per page, in the order the return prints. */
+SH.toPDFPages=async function(svgs,opts){
+  opts=opts||{};
+  const portrait=opts.portrait!==false;
+  const pageW=portrait?595:842, pageH=portrait?842:595;
+  const margin=opts.margin==null?14:opts.margin;
+  const availW=pageW-margin*2, availH=pageH-margin*2;
+  const images=[];
+  for(let i=0;i<svgs.length;i++){
+    const cv=await SH.svgToCanvas(svgs[i],opts.scale||2);
+    images.push({cv,jpeg:cv.toDataURL('image/jpeg',0.95).split(',')[1]});
+  }
+  const chunks=[]; const offsets=[]; let length=0;
+  const enc=str=>{ const a=new Uint8Array(str.length); for(let k=0;k<str.length;k++) a[k]=str.charCodeAt(k)&0xff; return a; };
+  const pushStr=str=>{ chunks.push(enc(str)); length+=str.length; };
+  const obj=str=>{ offsets.push(length); pushStr(str); };
+  const n=images.length;
+  const kids=[]; for(let i=0;i<n;i++) kids.push((3+i*3)+' 0 R');
+  pushStr('%PDF-1.4\n');
+  obj('1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n');
+  obj('2 0 obj<</Type/Pages/Kids['+kids.join(' ')+']/Count '+n+'>>endobj\n');
+  images.forEach((img,i)=>{
+    const cv=img.cv;
+    const ratio=Math.min(availW/cv.width, availH/cv.height);
+    const w=cv.width*ratio, h=cv.height*ratio;
+    const x=(pageW-w)/2, y=(pageH-h)/2;
+    const content='q '+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+x.toFixed(2)+' '+y.toFixed(2)+' cm /Im0 Do Q';
+    const pageNo=3+i*3, contNo=pageNo+1, imgNo=pageNo+2;
+    obj(pageNo+' 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 '+pageW+' '+pageH+']/Resources<</XObject<</Im0 '+imgNo+' 0 R>>/ProcSet[/PDF/ImageC]>>/Contents '+contNo+' 0 R>>endobj\n');
+    obj(contNo+' 0 obj<</Length '+content.length+'>>stream\n'+content+'\nendstream endobj\n');
+    const raw=atob(img.jpeg); const bytes=new Uint8Array(raw.length);
+    for(let k=0;k<raw.length;k++) bytes[k]=raw.charCodeAt(k);
+    obj(imgNo+' 0 obj<</Type/XObject/Subtype/Image/Width '+cv.width+'/Height '+cv.height+'/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length '+bytes.length+'>>stream\n');
+    chunks.push(bytes); length+=bytes.length;
+    pushStr('\nendstream endobj\n');
+  });
+  const xrefPos=length;
+  let xref='xref\n0 '+(3+3*n)+'\n0000000000 65535 f \n';
+  offsets.forEach(o=>{ xref+=String(o).padStart(10,'0')+' 00000 n \n'; });
+  pushStr(xref+'trailer<</Size '+(3+3*n)+'/Root 1 0 R>>\nstartxref\n'+xrefPos+'\n%%EOF');
+  return new Blob(chunks,{type:'application/pdf'});
+};
+/* The export dialogue for the monthly return. */
+SH.offerReport=function(rep,opts){
+  opts=opts||{};
+  const svgs=SH.reportSheets(rep);
+  const base='monthly-hmis-report-'+(rep.key||'');
+  const UI2=LS.ui;
+  const items=[['pdf','PDF · A4 portrait · '+svgs.length+' page'+(svgs.length===1?'':'s'),'the return exactly as the district receives it','file-text'],
+    ['print','Print / Save as PDF','the same pages, straight to the printer','printer'],
+    ['png','PNG · one file per page','an image per page, for email or WhatsApp','image'],
+    ['xlsx','Excel · .xlsx','the same rows, editable','table-2']];
+  UI2.modal({title:'Export the return',sub:'Laid out like the paper HMIS sheet, in the same house style as the working plan and the roster.',width:'min(620px,100%)',
+    body:'<div class="rep-exp"><div class="rep-exp-preview">'
+      +svgs[0].replace(/width="\d+" height="\d+"/,'width="100%" height="auto" style="display:block;border-radius:6px"')+'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">'+items.map(([k,t,s2,ic])=>
+        '<button class="choice" data-fmt="'+k+'"><span class="kpi-ic" style="width:30px;height:30px">'+UI2.ic(ic,15)+'</span>'
+        +'<span class="grow" style="text-align:left;margin-left:10px"><span class="ct">'+t+'</span><span class="cs" style="display:block">'+s2+'</span></span>'
+        +UI2.ic('arrow-right',14)+'</button>').join('')+'</div>'
+      +'<div class="hint" style="margin-top:10px">Everything is drawn on this device — nothing leaves the laboratory network.</div></div>',
+    foot:'<button class="btn" data-close>Close</button>',
+    onMount:(el,close)=>{
+      el.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=async()=>{
+        const fmt=b.dataset.fmt;
+        close();
+        try{
+          if(fmt==='print'){ SH.reportPrint(svgs,'Monthly HMIS report '+(rep.key||'')); return; }
+          LS.ui.toast('Preparing '+fmt.toUpperCase()+'…',{type:'info',duration:1600});
+          if(fmt==='png'){
+            for(let i=0;i<svgs.length;i++){
+              const blob=await SH.toPNG(svgs[i],2);
+              U.download(base+(svgs.length>1?'-page'+(i+1):'')+'.png',blob);
+            }
+            LS.ui.toast(svgs.length+' page'+(svgs.length===1?'':'s')+' saved',{type:'ok'});
+          } else if(fmt==='pdf'){
+            const blob=await SH.toPDFPages(svgs,{portrait:true,scale:2});
+            U.download(base+'.pdf',blob);
+            LS.ui.toast(base+'.pdf saved',{type:'ok'});
+          } else {
+            U.download(base+'.xlsx',SH.reportXLSX(rep));
+            LS.ui.toast(base+'.xlsx saved',{type:'ok'});
+          }
+          if(LS.store&&LS.store.audit){ LS.store.audit({action:'export.report.'+fmt,entity:'reporting',entityId:rep.key,
+            detail:'Monthly HMIS return '+(rep.key||'')+' exported as '+fmt.toUpperCase()}); LS.store.save(); }
+        }catch(err){ LS.ui.toast('Export failed · '+(err&&err.message||err),{type:'err',duration:7000}); }
+      });
+    }});
+};
+
 SH.weeklySVG=function(data,opts){
   opts=opts||{};
   const s=LS.store.settings();

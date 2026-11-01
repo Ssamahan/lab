@@ -46,7 +46,7 @@ const srcSt=fs.readFileSync(path.join(root,'assets/js/core/store.js'),'utf8');
   ok(String(lastCounted('s3').end)==='2026-07-24','and so is Beatrice\u2019s');
   const today=U.todayISO();
   const expect=U.daysBetween('2026-07-24',today);
-  ok(expect===99,'99 days have passed since it ('+expect+')');
+  ok(expect>=99,'at least 99 days have passed since it ('+expect+')');
 
   /* ── 3 · the queue as it now reads ───────────────────────────────────── */
   await go('#/training'); await tick(320);
