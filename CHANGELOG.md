@@ -4,6 +4,45 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.85
+
+**The workbook can be read whole — and a month of returns becomes a history you can travel through.**
+
+The reports module could hold one month. The district's spreadsheet holds every month, so the gap was not
+in the form but in what could be got into it. Both halves are now closed.
+
+- **The .xlsx is read on the device, sheet by sheet.** No library, no upload, nothing sent anywhere: the
+  workbook is unpacked in the browser and every sheet is listed with the month its name says — *“Oct 2024”,
+  “Oct 26”, “September 2024”, “Sep-25”* are all read; a sheet whose name says no month is shown with the
+  month left blank to be chosen, never guessed. A name like *Sheet1* stays empty.
+- **Every row is matched to the line it belongs to** — the label can sit in any column, the figures to its
+  right. A row that matches nothing is ignored and counted, not guessed at; a line that receives fewer
+  figures than the form expects is flagged for the eye. Nothing is invented to fill a month, and a month
+  that was never entered stays absent rather than becoming a zero.
+- **A single sheet can also be pasted** from Excel, for a browser that cannot unpack an .xlsx or a month
+  that arrives on its own. Both roads end in the same matcher.
+- **Analysis & history** is a second reading of the same module, on its own tab beside the return:
+  - **the comparison strip** — this month against the month before it *on the calendar* (if that month was
+    never entered the comparison is absent, not borrowed from an older month) and against the same month a
+    year earlier, with the head-count change beside the percentage;
+  - **month by month** — every return on file, newest first, with its change, positives, positivity, stool
+    samples and the blood bank's packs used and left. A row opens that month's return, which is the way back
+    in time;
+  - **year by year** — tests rolled up by calendar year and by financial year (July–June, as the district
+    reports it), with the average per month beside the total, because a part year and a full year cannot be
+    compared on totals alone;
+  - **follow one examination through time** — choose full blood count, amylase, ALAT, creatinine, HBV or any
+    other line and see it month by month, with the change since the first month on file;
+  - **what moved** — the examinations that rose and fell since last month, biggest movement first;
+  - **where the work sat** — every section of the form charted month by month.
+- **The names the district writes now find the line they mean.** *Full Blood Count*, *FBC*, *NFS*, *ALT*,
+  *GPT*, *Blood glucose*, *Malaria smears*, *GE*, *MRDT*, *LCR*, *Urée* and their like are aliases of the
+  form's own lines, so a month read back in lands on the right row instead of creating a second one.
+
+Verified: **30 suites, 1,510 checks**, including a new one that builds a real three-sheet .xlsx in memory and
+reads it back — names, order, shared strings, numbers, the month read off each sheet name, the matcher, the
+series, month over month, year over year, the per-test trend, the movers, and the whole path through the page.
+
 ## What changed in 6.9.84
 
 **Monthly Reports can be found — and the registry stops inventing access roles.**
