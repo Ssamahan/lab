@@ -4,6 +4,37 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.86
+
+**The sheet was not being read. It is now.**
+
+The reader shipped in 6.9.85 was written against a guess at the workbook's shape, and the guess was wrong.
+The district's sheet does not put a plain name in a column: it prints **the form's numbering inside the
+label** — `1. Blood Smears Plasmodium`, `6.4 Full Blood Count`, `5.1.a Fresh` — it lays **several sections
+side by side across one row**, and the figures sit several columns to the right of the name. The matcher
+compared whole strings, found almost nothing, and the month came in nearly empty.
+
+- **The numbering is read first.** `6.4` → line 6.4, `5.1.a` → 5.1.a, `1.` → line 1, then the wording is
+  tried with the number taken off, then the wording as written. A number is only trusted when the words
+  beside it agree, so `2. Catchment Area Population` is never mistaken for line 2, the malaria rapid test.
+- **A whole row is read, not just its first label.** The urine block sits on the same row as the malaria
+  block; every block on a row is now picked up, which is why orange-sugar was arriving as nothing.
+- **Figures are the run of numbers that follows the label**, and the run stops at the gap — so the full
+  blood count takes its own `1,364` and not the blood-bank column further along the same line.
+- **A block's heading outranks the row's own numbering.** Under `5.3 Urine`, a sub-row still written
+  `5.1.a Fresh` is read as `5.3.a` — 6 of 529 — instead of colliding with the vaginal swab that already used
+  `5.1.a`.
+- **Whatever still cannot be placed is kept and shown.** Rows that carry figures but match no line are no
+  longer dropped silently: the count is stated when the workbook loads, they are listed on the analysis tab,
+  and **Place them** maps each one to its line — once, remembered as an alias for every month after.
+- **The month can come from the sheet itself** — `6. Month | October` with `5. Year | 2026/2027` — when the
+  tab's name says nothing.
+
+Verified against a reconstruction of their own layout — numbered labels, blocks side by side, the blood bank
+on the same rows, `NA` cells, `1,364` with its comma: line 1 = 2 positives / 86 negatives / 51 under-5 /
+37 over-5, stool 268, sugar 11 of 24, FBC 1,364, amylase 41, vaginal swab 8 of 59, urine 6 of 529, urea 929,
+and the catchment population never read as a test. **30 suites, 1,443 checks.**
+
 ## What changed in 6.9.85
 
 **The workbook can be read whole — and a month of returns becomes a history you can travel through.**
@@ -39,7 +70,7 @@ in the form but in what could be got into it. Both halves are now closed.
   *GPT*, *Blood glucose*, *Malaria smears*, *GE*, *MRDT*, *LCR*, *Urée* and their like are aliases of the
   form's own lines, so a month read back in lands on the right row instead of creating a second one.
 
-Verified: **30 suites, 1,510 checks**, including a new one that builds a real three-sheet .xlsx in memory and
+Verified: **30 suites, 1,443 checks**, including a new one that builds a real three-sheet .xlsx in memory and
 reads it back — names, order, shared strings, numbers, the month read off each sheet name, the matcher, the
 series, month over month, year over year, the per-test trend, the movers, and the whole path through the page.
 

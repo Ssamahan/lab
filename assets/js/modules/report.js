@@ -346,6 +346,7 @@ function renderInner(root){
   const nm=root.querySelector('[data-new-month]'); if(nm) nm.onclick=newMonthModal;
   const im=root.querySelector('[data-import]'); if(im) im.onclick=importModal;
   const wb=root.querySelector('[data-load-wb]'); if(wb) wb.onclick=workbookModal;
+  root.querySelectorAll('[data-map-rows]').forEach(b=>b.onclick=()=>mapModal(b.dataset.mapRows));
   /* the month table is a way back in time: a row opens that month's return */
   root.querySelectorAll('.rep-hist tr[data-month]').forEach(tr=>tr.onclick=()=>{
     monthKey=tr.dataset.month; tab='return'; renderInner(root);
@@ -500,6 +501,7 @@ function analysisTab(sm){
       +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-load-wb>'+UI.ic('folder-open',14)+'Load the workbook</button>'
       +'<button class="btn sm" data-import>'+UI.ic('clipboard-list',14)+'Paste one sheet</button></div>'
     +'</div>'
+    +mapCard(sm.key)
     +'<div class="grid-12" style="gap:14px;margin-top:14px">'
       +'<div class="c12">'+UI.card({title:'Where the work sat, month by month',sub:'Tests by section of the return',icon:'chart-line',
         body:'<div id="repSecTrend"></div>',foot:'<span>Each line is one section of the form</span><span class="mono">'+S.REPORT_SECTIONS.filter(x=>all.some(m=>m.sections[x.key]>0)).length+' sections used</span>'})+'</div>'
@@ -539,6 +541,59 @@ function drawHistoryCharts(root,sm){
   }
 }
 
+/* ——— Rows the form could not place ————————————————————————
+   Every sheet has a few rows written in words the form does not use. They carry
+   figures, so they are kept and listed here rather than dropped: the reader picks the
+   line each one belongs to, once, and that wording is remembered for every month after. */
+function mapCard(key){
+  const rows=S.reportUnmatched(key);
+  if(!rows.length) return '';
+  return '<div class="rep-map">'
+    +'<div class="rep-map-ic">'+UI.ic('circle-help',16)+'</div>'
+    +'<div class="rep-map-body"><div class="rep-map-t">'+rows.length+' row'+(rows.length===1?'':'s')+' on the '+monthLabel(key)+' sheet carried figures but matched no line of the form</div>'
+    +'<div class="xs faint" style="margin-top:2px">'
+      +rows.slice(0,4).map(r=>U.esc(r.label)+' <span class="mono">'+r.nums.join('·')+'</span>').join(' &nbsp;·&nbsp; ')
+      +(rows.length>4?' …':'')+'</div>'
+    +'<div class="xs faint" style="margin-top:4px">They are not lost and they are not guessed into a line. Place them and they count from now on.</div></div>'
+    +'<button class="btn sm" data-map-rows="'+U.esc(key)+'">'+UI.ic('check',13)+'Place them</button>'
+  +'</div>';
+}
+function mapModal(key){
+  if(!canEdit()) return UI.toast('Sign in to change a month',{type:'warn'});
+  const rows=S.reportUnmatched(key);
+  if(!rows.length) return;
+  const lines=S.reportLines().filter(l=>l.mode!=='band');
+  const options='<option value="">— leave it out —</option>'
+    +S.REPORT_SECTIONS.map(sec=>{
+      const inSec=lines.filter(l=>l.section===sec.key&&!l.breakdown);
+      if(!inSec.length) return '';
+      return '<optgroup label="'+U.esc(sec.no+'. '+sec.title)+'">'
+        +inSec.map(l=>'<option value="'+U.esc(l.id)+'">'+U.esc((l.no?l.no+' ':'')+l.label)+'</option>').join('')
+      +'</optgroup>';
+    }).join('');
+  UI.modal({title:'Place '+rows.length+' row'+(rows.length===1?'':'s')+' of the '+monthLabel(key)+' sheet',
+    sub:'The wording on the sheet, the figures it carried, and the line of the form it belongs to. Chosen once, remembered for every month after.',
+    width:'min(720px,100%)',
+    body:'<div class="rep-map-list">'+rows.map((r,i)=>
+        '<div class="rep-map-row"><div class="rep-map-lbl"><b>'+U.esc(r.label)+'</b><span class="mono xs faint">'+r.nums.join(' · ')+'</span></div>'
+        +'<select class="select" data-place="'+i+'">'+options+'</select></div>').join('')+'</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',14)+'Place the rows</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-save]').onclick=()=>{
+        const places=[];
+        el.querySelectorAll('[data-place]').forEach(sel=>{
+          if(!sel.value) return;
+          const r=rows[+sel.dataset.place];
+          places.push({label:r.label,lineId:sel.value,nums:r.nums});
+        });
+        if(!places.length) return UI.toast('Choose a line for at least one row',{type:'warn'});
+        S.reportPlaceRows(key,places);
+        close(); UI.toast(places.length+' row'+(places.length===1?'':'s')+' placed — and remembered',{type:'ok'});
+        renderInner(rootEl);
+      };
+    }});
+}
+
 /* ——— Loading past months ————————————————————————————————
    The district's workbook holds a sheet per month. Two ways in, both kept because
    one is quicker and the other always works: the .xlsx itself (read on the device,
@@ -568,59 +623,197 @@ function monthFromName(name){
   if(!yr) return '';
   return yr+'-'+String(mon).padStart(2,'0');
 }
-const normLabel=x=>String(x==null?'':x).toLowerCase().replace(/[^a-z0-9]+/g,'');
-function lineIndex(){
-  const byLabel={}, byNo={};
-  S.reportLines().forEach(l=>{
-    byLabel[normLabel(l.label)]=l;
-    if(l.no) byNo[normLabel(l.no)]=l;
-    (l.alias||[]).forEach(a=>{ if(!byLabel[normLabel(a)]) byLabel[normLabel(a)]=l; });
+/* The sheet states its own month — “6. Month | October”, “5. Year | 2026/2027” — which
+   is more reliable than the tab’s name and is used when the name says nothing. */
+function monthFromRows(rows){
+  let mon='', fy='';
+  (rows||[]).slice(0,40).forEach(row=>{
+    (row||[]).forEach((cell,c)=>{
+      const k=normLabel(cell);
+      if(!k) return;
+      for(let j=c+1;j<Math.min(c+4,row.length);j++){
+        const v=String(row[j]==null?'':row[j]).trim();
+        if(!v) continue;
+        if(k.indexOf('month')>=0&&/^[a-z]+$/i.test(v)&&MONTH_ABBR[v.toLowerCase()]) mon=MONTH_ABBR[v.toLowerCase()];
+        if(k.indexOf('year')>=0&&/^(19|20)\d{2}/.test(v)) fy=v;
+        break;
+      }
+    });
   });
-  return {byLabel,byNo,lines:S.reportLines()};
+  if(!mon||!fy) return '';
+  const y0=+String(fy).slice(0,4);
+  const y=(fy.indexOf('/')>0)?(mon>=7?y0:y0+1):y0;
+  return y+'-'+String(mon).padStart(2,'0');
 }
-/* Rows in, figures out. The label can sit in any column of the sheet, so each cell is
-   tried as a label and the numbers to its right are the figures for it. The number of
-   figures a line takes follows the line: positives and negatives, an age split, or a
-   single total. */
+const normLabel=x=>String(x==null?'':x).toLowerCase().replace(/[^a-z0-9]+/g,'');
+/* The district prints its sheet with the form's numbering inside the label —
+   “6.4 Full Blood Count”, “5.1.a Fresh”, “1. Blood Smears Plasmodium”. The number is
+   the most reliable thing on the row, so it is tried first, then the wording with the
+   number taken off, then the wording as written. */
+const numberingOf=x=>{
+  const m=/^\s*(\d+(?:\.\d+)*\.?[a-z]?\.?)\s*/i.exec(String(x==null?'':x));
+  return m?{num:m[1].replace(/\.$/,'').toLowerCase(), rest:String(x).slice(m[0].length)}:null;
+};
+function lineIndex(){
+  const byLabel={}, byNo={}, list=S.reportLines();
+  list.forEach(l=>{
+    const k=normLabel(l.label);
+    if(k&&!byLabel[k]) byLabel[k]=l;
+    if(l.no) byNo[normLabel(l.no)]=l;
+    (l.alias||[]).forEach(a=>{ const ka=normLabel(a); if(ka&&!byLabel[ka]) byLabel[ka]=l; });
+  });
+  /* every known wording, longest first, so a label that carries extra words still
+     finds the line it means */
+  const keys=Object.keys(byLabel).sort((a,b)=>b.length-a.length);
+  /* aliases the reader has already confirmed by hand, on any month */
+  const saved=S.reportAliases?S.reportAliases():{};
+  Object.keys(saved).forEach(k=>{ const l=list.find(x=>x.id===saved[k]); if(l&&!byLabel[k]) byLabel[k]=l; });
+  return {byLabel,byNo,keys,list};
+}
+/* The number on the row wins only when the wording beside it agrees — “2. Catchment
+   Area Population” must never become line 2, the malaria rapid test. */
+function agrees(a,b){
+  const x=normLabel(a), y=normLabel(b);
+  if(!x||!y) return true;
+  if(x===y||x.indexOf(y)>=0||y.indexOf(x)>=0) return true;
+  const tw=a=>String(a||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(' ');
+  const A=tw(a).filter(w=>w.length>2), B=tw(b).filter(w=>w.length>2);
+  if(!A.length||!B.length) return false;
+  return A.filter(w=>B.indexOf(w)>=0).length/Math.min(A.length,B.length)>=0.5;
+}
+function resolveLabel(cell,idx){
+  const raw=String(cell==null?'':cell);
+  if(!/[a-z]/i.test(raw)) return null;            /* a bare figure is not a label */
+  const key=normLabel(raw);
+  if(!key) return null;
+  const n=numberingOf(raw);
+  const rest=n?n.rest:'';
+  /* 1 · the wording as written */
+  if(idx.byLabel[key]) return idx.byLabel[key];
+  /* 2 · the number, when it is specific (6.4, 5.3.a) and the wording agrees with the
+         line it points at — “Urine” is both 4. and 5.3, so the number decides */
+  if(n&&/\./.test(n.num)&&idx.byNo[normLabel(n.num)]){
+    const hit=idx.byNo[normLabel(n.num)];
+    if(!normLabel(rest)||agrees(rest,hit.label)) return hit;
+  }
+  /* 3 · the wording with the numbering taken off */
+  const bare=normLabel(rest);
+  if(bare&&idx.byLabel[bare]) return idx.byLabel[bare];
+  /* 4 · the number, when the wording agrees with the line it points at */
+  if(n&&idx.byNo[normLabel(n.num)]){
+    const hit=idx.byNo[normLabel(n.num)];
+    if(!bare||agrees(rest,hit.label)) return hit;
+  }
+  /* 4 · a label that carries extra words — “Stool Samples Total”, “of which Gram - Diplo” */
+  if(bare){
+    const hit=idx.keys.find(k=>k.length>=5&&(bare.indexOf(k)>=0||k.indexOf(bare)>=0));
+    if(hit) return idx.byLabel[hit];
+  }
+  /* 5 · the number on its own, when the number is specific (6.4, 5.1.a) */
+  if(n&&/\./.test(n.num)&&idx.byNo[normLabel(n.num)]) return idx.byNo[normLabel(n.num)];
+  return null;
+}
+const num=x=>{
+  if(typeof x==='number') return isFinite(x)?Math.round(x):null;
+  const v=String(x==null?'':x).replace(/[ ,]/g,'').trim();
+  if(v===''||v==='-'||v==='—'||/^n\/?a$/i.test(v)) return null;
+  return isNaN(+v)?null:Math.round(+v);
+};
+/* The figures for a row are the run of numbers that follows its label. The sheet is
+   laid out in blocks side by side, so the numbers for the next block sit further along
+   the same row — the run stops at the first real gap, which is what keeps the blood
+   bank's column from being read as the full blood count's total. */
+function runAfter(row,from){
+  const out=[]; let started=false, gap=0;
+  for(let k=from+1;k<row.length;k++){
+    const n=num(row[k]);
+    if(n!=null){ started=true; gap=0; out.push(n); }
+    else if(started){ gap++; if(gap>=2) break; }
+  }
+  return out;
+}
+function figuresFor(mode,nums){
+  if(!nums.length) return null;
+  if(mode==='quant') return {total:nums[nums.length-1]};
+  if(mode==='posage3') return {pos:nums[0]||0,a0:nums[1]||0,a1:nums[2]||0,a2:nums[3]||0};
+  if(mode==='pn2') return {pos:nums[0]||0,neg:nums[1]||0,a0:nums[2]||0,a1:nums[3]||0};
+  if(mode==='pn') return {pos:nums[0]||0,neg:nums[1]||0};
+  return null;
+}
+/* Rows in, figures out, and a list of what could not be placed — which is the honest
+   half: a row the reader does not recognise is handed back to be mapped by hand, never
+   quietly dropped and never guessed into a line. */
 function matchSheet(rows){
-  const {byLabel,byNo}=lineIndex();
-  const num=x=>{
-    if(typeof x==='number') return isFinite(x)?Math.round(x):null;
-    const v=String(x==null?'':x).replace(/[ ,]/g,'').trim();
-    if(v===''||v==='-'||v==='—'||/^n\/?a$/i.test(v)) return null;
-    return isNaN(+v)?null:Math.round(+v);
+  const idx=lineIndex();
+  const values={}, detail={}, seen={}, unmatched=[];
+  let rowsWithFigures=0, unclear=0;
+  /* The sheet is built in blocks side by side — 5.1 Vaginal swab, 5.2 Urethral,
+     5.3 Urine — and the sub-rows of the later blocks are often still numbered 5.1.a
+     by the person filling it in. The block heading last seen is therefore the truest
+     thing on the row: 5.1.a inside the 5.3 block is 5.3.a. */
+  let block=null;
+  const renumber=(cell,hit)=>{
+    const n=numberingOf(cell);
+    if(!block||!n||!hit||!hit.no) return hit;
+    const parts=h=>String(h).split('.').filter(x=>x!=='');
+    const bp=parts(block.no), np=parts(n.num), hp=parts(hit.no);
+    if(bp.length!==2||hp.length<3||np.length<3) return hit;
+    if(bp[0]!==np[0]||bp[1]===np[1]) return hit;
+    const want=bp.join('.')+'.'+np.slice(2).join('.');
+    const alt=idx.byNo[normLabel(want)];
+    if(!alt) return hit;
+    const rest=numberingOf(cell).rest;
+    if(alt.id===hit.id||!agrees(rest,alt.label)) return hit;
+    return alt;
   };
-  const values={}, detail=[], seen={};
-  let skipped=0, unclear=0;
   (rows||[]).forEach(row=>{
     if(!row||!row.length) return;
     for(let c=0;c<row.length;c++){
       const cell=row[c];
-      if(typeof cell==='number'||cell==null||cell==='') continue;
-      const key=normLabel(cell);
-      if(!key) continue;
-      const hit=byLabel[key]||byNo[key];
-      if(!hit) continue;
-      const nums=[];
-      for(let k=c+1;k<row.length;k++){ const n=num(row[k]); if(n!=null) nums.push(n); }
-      if(!nums.length) break;
-      if(seen[hit.id]) break;
-      const v={};
-      if(hit.mode==='quant') v.total=nums.length>1?nums[nums.length-1]:nums[0];
-      else if(hit.mode==='posage3'){ v.pos=nums[0]||0; v.a0=nums[1]||0; v.a1=nums[2]||0; v.a2=nums[3]||0; }
-      else if(hit.mode==='pn2'){ v.pos=nums[0]||0; v.neg=nums[1]||0; v.a0=nums[2]||0; v.a1=nums[3]||0; }
-      else if(hit.mode==='pn'){ v.pos=nums[0]||0; v.neg=nums[1]||0; }
-      else break;
-      const want=hit.mode==='quant'?1:(hit.mode==='posage3'?4:(hit.mode==='pn2'?4:2));
-      if(nums.length<want) unclear++;
+      if(cell==null||cell==='') continue;
+      if(typeof cell==='number'&&String(cell).indexOf('.')<0) continue;
+      let hit=resolveLabel(cell,idx);
+      if(hit) hit=renumber(cell,hit);
+      if(hit&&hit.mode==='band') block={no:hit.no,col:c,label:hit.label};
+      const nums=hit?runAfter(row,c):[];
+      if(!hit||!nums.length) continue;
+      const v=figuresFor(hit.mode,nums);
+      if(!v) continue;
+      if(seen[hit.id]){ c=Math.max(c,0); continue; }
+      const want=hit.mode==='quant'?1:(hit.mode==='pn'?2:4);
+      if(hit.mode!=='quant'&&nums.length<want) unclear++;
       seen[hit.id]=1; values[hit.id]=v;
-      detail.push({id:hit.id,label:hit.label,mode:hit.mode,v,nums});
-      break;
+      detail[hit.id]={id:hit.id,label:hit.label,mode:hit.mode,v,nums};
+      /* the sheet lays several blocks across one row, so the rest of the row is read
+         too — the urine block sits beside the malaria block on the very same line */
+    }
+    /* a row with figures that found no line is kept for the mapping screen */
+    const nums=runAfter(row,-1);
+    if(nums.length>=2){
+      const placed=(function(){
+        for(let c=0;c<row.length;c++){
+          const cell=row[c];
+          if(cell==null||cell===''||typeof cell==='number') continue;
+          if(resolveLabel(cell,idx)) return true;
+        }
+        return false;
+      })();
+      if(placed) rowsWithFigures++;
+      else {
+        const label=(function(){
+          for(let c=0;c<row.length;c++){
+            const cell=row[c];
+            if(typeof cell==='string'&&cell.trim().length>=3&&!num(cell)) return cell.trim();
+          }
+          return '';
+        })();
+        if(label) unmatched.push({label,nums:nums.slice(0,6)});
+      }
     }
   });
   const matched=Object.keys(values).length;
-  skipped=Math.max(0,(rows||[]).length-matched);
-  return {values,detail,matched,skipped,unclear};
+  return {values,detail:Object.keys(detail).map(k=>detail[k]),matched,unmatched,unclear,
+    skipped:Math.max(0,(rows||[]).length-rowsWithFigures-unmatched.length)};
 }
 function textToRows(text){
   return String(text||'').replace(/\r/g,'').split('\n').map(l=>l.split('\t'));
@@ -641,10 +834,12 @@ function previewHTML(r){
     const line=FIG(d.id);
     return '<div class="rep-imp-row"><span>'+U.esc((line.no?line.no+' ':'')+(line.label||d.id))+'</span><span class="mono">'+figureText(d.v,d.mode)+'</span></div>';
   }).join('');
-  return '<div class="small" style="margin-top:10px"><b>'+r.matched+'</b> examination'+(r.matched===1?'':'s')+' matched'
+  const left=(r.unmatched||[]).map(x=>'<div class="rep-imp-row"><span class="rep-miss">'+U.esc(x.label)+'</span><span class="mono">'+x.nums.join(' · ')+'</span></div>').join('');
+  return '<div class="small" style="margin-top:10px"><b>'+r.matched+'</b> examination'+(r.matched===1?'':'s')+' placed'
     +(r.unclear?' · <b>'+r.unclear+'</b> with fewer figures than the form expects — worth checking':'')
-    +(r.skipped?' · '+r.skipped+' row'+(r.skipped===1?'':'s')+' ignored':'')+'</div>'
-    +'<div class="rep-imp-list">'+(rows||'<p class="xs faint">Nothing matched yet — check that the sheet has its examination names in a column of their own.</p>')+'</div>';
+    +((r.unmatched||[]).length?' · <b>'+(r.unmatched||[]).length+'</b> row'+(r.unmatched.length===1?'':'s')+' with figures that found no line (kept, and listed for mapping)':'')+'</div>'
+    +'<div class="rep-imp-list">'+(rows||'<p class="xs faint">Nothing matched yet — check that the sheet has its examination names in a column of their own.</p>')
+      +(left?'<div class="rep-imp-sep">Not placed — the wording does not match the form</div>'+left:'')+'</div>';
 }
 /* the whole workbook, every sheet at once */
 function workbookModal(){
@@ -696,8 +891,9 @@ function workbookModal(){
         try{
           const sheets=await LSXLSX.readWorkbook(f);
           found=sheets.map(s=>{
-            const guess=monthFromName(s.name);
-            return {name:s.name,guess,key:guess,match:matchSheet(s.rows)};
+            const byName=monthFromName(s.name), bySheet=monthFromRows(s.rows);
+            const guess=byName||bySheet;
+            return {name:s.name,guess,key:guess,said:byName?'name':'sheet',match:matchSheet(s.rows)};
           });
           draw();
           const blank=found.filter(f=>!f.guess).length;
@@ -712,12 +908,16 @@ function workbookModal(){
         const ready=found.filter(f=>f.key&&f.match.matched>0);
         if(!ready.length) return;
         let loaded=0, ex=0;
+        let left=0;
         ready.slice().sort((a,b)=>a.key<b.key?-1:1).forEach(f=>{
           if(S.reportImportMonth(f.key,f.match.values,{meta:{source:'District workbook · sheet “'+f.name+'”',monthName:monthLabel(f.key).split(' ')[0]}})) { loaded++; ex+=f.match.matched; }
+          S.reportStashUnmatched(f.key,f.match.unmatched||[]);
+          left+=(f.match.unmatched||[]).length;
         });
         const last=ready[ready.length-1].key;
         monthKey=last; close();
-        UI.toast(loaded+' month'+(loaded===1?'':'s')+' loaded · '+ex+' examinations',{type:'ok'});
+        UI.toast(loaded+' month'+(loaded===1?'':'s')+' loaded · '+ex+' examinations'
+          +(left?' · '+left+' rows still to place':''),{type:left?'warn':'ok'});
         tab='analysis'; renderInner(rootEl);
       };
     }});
@@ -777,5 +977,5 @@ M.render=async function(root,params){
 M.month=()=>pickMonth();
 /* Test seams — the reader and the matcher are the one place a workbook can be
    misread, so they are reachable from the harness without going through the DOM. */
-M.__read={monthFromName,matchSheet,parsePasted,figureText};
+M.__read={monthFromName,monthFromRows,matchSheet,parsePasted,figureText};
 })();
