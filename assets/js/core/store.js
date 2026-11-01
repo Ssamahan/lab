@@ -2498,6 +2498,9 @@ S.reportSeries=function(){
       tests:sm.totals.tests, positives:sm.totals.qualPositives, negatives:sm.totals.negatives,
       qualTests:sm.totals.qualTests, samples:sm.totals.samples,
       bloodRecv:sm.bloodTotals.recv, bloodUsed:sm.bloodTotals.used, bloodEnd:sm.bloodTotals.end,
+      /* whether the sheet for that month carried section VIII at all — a month with no
+         blood block is a gap in the blood bank's history, not a month of zero packs */
+      bloodKnown:Object.keys(S.reportMonth(k).blood||{}).length>0,
       sections, summary:sm};
   });
 };
@@ -2598,6 +2601,16 @@ S.reportImportMonth=function(key, values, extra){
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
     m.meta=Object.assign({},m.meta||{},ex.meta||{});
     m.values=m.values||{};
+    /* section VIII — the blood bank travels with the month, group by group */
+    if(ex.blood&&Object.keys(ex.blood).length){
+      m.blood=m.blood||{};
+      Object.keys(ex.blood).forEach(g=>{
+        if(REPORT_GROUPS.indexOf(g)<0) return;
+        const gv=ex.blood[g]||{}, clean={};
+        REPORT_BLOOD_FIELDS.forEach(f=>{ if(gv[f[0]]!=null&&+gv[f[0]]) clean[f[0]]=Math.max(0,Math.round(+gv[f[0]])); });
+        if(Object.keys(clean).length) m.blood[g]=Object.assign({},m.blood[g]||{},clean);
+      });
+    }
     Object.keys(vals).forEach(id=>{
       const v=vals[id]||{};
       const clean={};
@@ -2606,7 +2619,8 @@ S.reportImportMonth=function(key, values, extra){
     });
     m.touchedAt=U.nowISO();
   },{action:'report.import',entity:'reporting',entityId:key,
-     detail:'Monthly return loaded for '+key+' · '+Object.keys(vals).length+' examinations'});
+     detail:'Monthly return loaded for '+key+' · '+Object.keys(vals).length+' examinations'
+       +(ex.blood&&Object.keys(ex.blood).length?' · '+Object.keys(ex.blood).length+' blood groups':'')});
   return true;
 };
 /* A wording the reader has already matched by hand is remembered, so the same row in

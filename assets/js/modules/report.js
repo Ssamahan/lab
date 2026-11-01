@@ -469,8 +469,8 @@ function monthTable(){
       +'<td class="num mono">'+U.fmtNum(m.positives)+'</td>'
       +'<td class="num mono">'+rate+'%</td>'
       +'<td class="num mono">'+(m.samples?U.fmtNum(m.samples):'—')+'</td>'
-      +'<td class="num mono">'+U.fmtNum(m.bloodUsed)+'</td>'
-      +'<td class="num mono">'+U.fmtNum(m.bloodEnd)+'</td></tr>');
+      +'<td class="num mono">'+(m.bloodKnown?U.fmtNum(m.bloodUsed):'—')+'</td>'
+      +'<td class="num mono">'+(m.bloodKnown?U.fmtNum(m.bloodEnd):'—')+'</td></tr>');
   });
   return '<div class="dt-scroll"><table class="dt rep-hist"><thead><tr><th>Month</th><th>Tests</th><th>Change</th><th>Positives</th><th>Positivity</th><th>Stool samples</th><th>Packs used</th><th>Packs left</th></tr></thead>'
     +'<tbody>'+rows.join('')+'</tbody></table></div>';
@@ -575,8 +575,14 @@ function analysisTab(sm){
           +'<span class="mono">'+U.fmtNum(sm.totals.qualPositives)+' positive</span>'})+'</div>'
       +'<div class="c6">'+UI.card({title:'The blood bank over time',sub:'Packs received and transfused, month by month',icon:'droplet',
         body:'<div id="repBloodTrend"></div>',
-        foot:'<span>Opening + received − used − expired − returned = closing</span>'
-          +'<span class="mono">'+U.fmtNum(sm.bloodTotals.used)+' packs used this month</span>'})+'</div>'
+        foot:'<span>'+(function(){
+            const missing=all.filter(m=>!m.bloodKnown).map(m=>m.label);
+            return missing.length
+              ? 'No blood-supply block for '+missing.slice(0,3).join(', ')+(missing.length>3?' and '+(missing.length-3)+' more':'')
+                +' — load the workbook again and section VIII comes in with it'
+              : 'Opening + received − used − expired − returned = closing';
+          })()+'</span>'
+          +'<span class="mono">'+(sm.bloodKnown?U.fmtNum(sm.bloodTotals.used)+' packs used this month':'no blood bank on file')+'</span>'})+'</div>'
     +'</div>'):'')
     +mapCard(sm.key)
     +'<div class="grid-12" style="gap:14px;margin-top:14px">'
@@ -619,8 +625,8 @@ function drawHistoryCharts(root,sm){
   const bl=root.querySelector('#repBloodTrend');
   if(bl&&all.length>1){
     C.line(bl,{id:'repBloodTrend',height:200,padLeft:44,
-      series:[{name:'Received',color:'var(--gold)',values:all.map(m=>m.bloodRecv)},
-              {name:'Transfused',color:'var(--teal-400)',values:all.map(m=>m.bloodUsed)}],
+      series:[{name:'Received',color:'var(--gold)',values:all.map(m=>m.bloodKnown?m.bloodRecv:null)},
+              {name:'Transfused',color:'var(--teal-400)',values:all.map(m=>m.bloodKnown?m.bloodUsed:null)}],
       labels:all.map(m=>m.label)});
   }
   /* the chosen examination through every month on file */
@@ -851,12 +857,28 @@ function figuresFor(mode,nums){
   if(mode==='pn') return {pos:nums[0]||0,neg:nums[1]||0};
   return null;
 }
+/* ——— Section VIII, the blood bank ————————————————————————
+   The blood-supply block is not a list of examinations: it is eight blood groups with
+   six figures each (opening, requested, received, used, expired, returned) and a
+   closing balance the form works out. It sits on the same rows as the laboratory
+   blocks, to the right, so it is read here rather than in the line matcher — and it is
+   read for every month, which is what the blood bank's history is made of. */
+const BLOOD_TOKEN=/^(AB|A|B|O)\s*([+\-]|POS|POSITIVE|NEG|NEGATIVE)$/;
+function bloodGroupOf(cell){
+  const raw=String(cell==null?'':cell).toUpperCase().replace(/[\s.]/g,'');
+  const m=BLOOD_TOKEN.exec(raw);
+  if(!m) return null;
+  const g=m[1]+(/^(\+|POS|POSITIVE)$/.test(m[2])?'+':'-');
+  return S.REPORT_GROUPS.indexOf(g)>=0?g:null;
+}
+const BLOOD_TOTAL=/^(SUM|TOTAL|TOTALS|GRAND TOTAL)$/i;
 /* Rows in, figures out, and a list of what could not be placed — which is the honest
    half: a row the reader does not recognise is handed back to be mapped by hand, never
    quietly dropped and never guessed into a line. */
 function matchSheet(rows){
   const idx=lineIndex();
   const values={}, detail={}, seen={}, unmatched=[];
+  const blood={}, bloodDetail=[];
   let rowsWithFigures=0, unclear=0;
   /* The sheet is built in blocks side by side — 5.1 Vaginal swab, 5.2 Urethral,
      5.3 Urine — and the sub-rows of the later blocks are often still numbered 5.1.a
@@ -883,6 +905,22 @@ function matchSheet(rows){
       const cell=row[c];
       if(cell==null||cell==='') continue;
       if(typeof cell==='number'&&String(cell).indexOf('.')<0) continue;
+      /* the blood bank, wherever its block sits on the row */
+      const group=bloodGroupOf(cell);
+      if(group){
+        const nums=runAfter(row,c);
+        if(nums.length>=4&&!blood[group]){
+          const v={};
+          S.REPORT_BLOOD_FIELDS.forEach((f,i)=>{ if(nums[i]!=null) v[f[0]]=nums[i]; });
+          blood[group]=v;
+          bloodDetail.push({group,nums});
+        }
+        continue;
+      }
+      if(BLOOD_TOTAL.test(String(cell).trim())){
+        const nums=runAfter(row,c);
+        if(nums.length>=4) continue;            /* the printed sum — checked, never added again */
+      }
       let hit=resolveLabel(cell,idx);
       if(hit) hit=renumber(cell,hit);
       if(hit&&hit.mode==='band') block={no:hit.no,col:c,label:hit.label};
@@ -905,7 +943,7 @@ function matchSheet(rows){
         for(let c=0;c<row.length;c++){
           const cell=row[c];
           if(cell==null||cell===''||typeof cell==='number') continue;
-          if(resolveLabel(cell,idx)) return true;
+          if(resolveLabel(cell,idx)||bloodGroupOf(cell)||BLOOD_TOTAL.test(String(cell).trim())) return true;
         }
         return false;
       })();
@@ -923,7 +961,7 @@ function matchSheet(rows){
     }
   });
   const matched=Object.keys(values).length;
-  return {values,detail:Object.keys(detail).map(k=>detail[k]),matched,unmatched,unclear,
+  return {values,blood,bloodDetail,detail:Object.keys(detail).map(k=>detail[k]),matched,unmatched,unclear,
     skipped:Math.max(0,(rows||[]).length-rowsWithFigures-unmatched.length)};
 }
 function textToRows(text){
@@ -945,11 +983,14 @@ function previewHTML(r){
     const line=FIG(d.id);
     return '<div class="rep-imp-row"><span>'+U.esc((line.no?line.no+' ':'')+(line.label||d.id))+'</span><span class="mono">'+figureText(d.v,d.mode)+'</span></div>';
   }).join('');
+  const bloodRows=(r.bloodDetail||[]).map(b=>'<div class="rep-imp-row"><span>'+U.esc('Blood group '+b.group)+'</span><span class="mono">'+
+      S.REPORT_BLOOD_FIELDS.map((f,i)=>b.nums[i]!=null?f[0]+' '+b.nums[i]:'').filter(Boolean).join(' · ')+'</span></div>').join('');
   const left=(r.unmatched||[]).map(x=>'<div class="rep-imp-row"><span class="rep-miss">'+U.esc(x.label)+'</span><span class="mono">'+x.nums.join(' · ')+'</span></div>').join('');
   return '<div class="small" style="margin-top:10px"><b>'+r.matched+'</b> examination'+(r.matched===1?'':'s')+' placed'
     +(r.unclear?' · <b>'+r.unclear+'</b> with fewer figures than the form expects — worth checking':'')
     +((r.unmatched||[]).length?' · <b>'+(r.unmatched||[]).length+'</b> row'+(r.unmatched.length===1?'':'s')+' with figures that found no line (kept, and listed for mapping)':'')+'</div>'
     +'<div class="rep-imp-list">'+(rows||'<p class="xs faint">Nothing matched yet — check that the sheet has its examination names in a column of their own.</p>')
+      +(bloodRows?'<div class="rep-imp-sep">Section VIII · blood supply</div>'+bloodRows:'')
       +(left?'<div class="rep-imp-sep">Not placed — the wording does not match the form</div>'+left:'')+'</div>';
 }
 /* the whole workbook, every sheet at once */
@@ -1021,7 +1062,7 @@ function workbookModal(){
         let loaded=0, ex=0;
         let left=0;
         ready.slice().sort((a,b)=>a.key<b.key?-1:1).forEach(f=>{
-          if(S.reportImportMonth(f.key,f.match.values,{meta:{source:'District workbook · sheet “'+f.name+'”',monthName:monthLabel(f.key).split(' ')[0]}})) { loaded++; ex+=f.match.matched; }
+          if(S.reportImportMonth(f.key,f.match.values,{meta:{source:'District workbook · sheet “'+f.name+'”',monthName:monthLabel(f.key).split(' ')[0]},blood:f.match.blood})) { loaded++; ex+=f.match.matched; }
           S.reportStashUnmatched(f.key,f.match.unmatched||[]);
           left+=(f.match.unmatched||[]).length;
         });
@@ -1056,7 +1097,7 @@ function importModal(){
         const r=run();
         if(!r.matched) return UI.toast('Nothing matched — paste the sheet again',{type:'warn'});
         const src=(el.querySelector('#impSrc').value||'').trim();
-        S.reportImportMonth(key,r.values,{meta:{source:src||('Loaded from the district workbook'),monthName:monthLabel(key).split(' ')[0],year:U.fyLabel?U.fyLabel():''}});
+        S.reportImportMonth(key,r.values,{meta:{source:src||('Loaded from the district workbook'),monthName:monthLabel(key).split(' ')[0],year:U.fyLabel?U.fyLabel():''},blood:r.blood});
         monthKey=key; close(); UI.toast(r.matched+' examinations loaded into '+monthLabel(key),{type:'ok'}); renderInner(rootEl);
       };
     }});
