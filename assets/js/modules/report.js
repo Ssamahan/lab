@@ -33,6 +33,10 @@ function monthLabel(k){
   const y=+String(k).slice(0,4), m=+String(k).slice(5,7);
   return (U.M3?U.M3[m-1]:'')+' '+y;
 }
+function monthName(k){
+  const m=+String(k).slice(5,7);
+  return (U.MONTHS?U.MONTHS[m-1]:'');
+}
 function pickMonth(){
   if(monthKey && S.reportMonths().indexOf(monthKey)>=0) return monthKey;
   return months()[0];
@@ -346,6 +350,16 @@ function renderInner(root){
   const nm=root.querySelector('[data-new-month]'); if(nm) nm.onclick=newMonthModal;
   const im=root.querySelector('[data-import]'); if(im) im.onclick=importModal;
   const wb=root.querySelector('[data-load-wb]'); if(wb) wb.onclick=workbookModal;
+  /* walking the record: a chip, an arrow, or a key */
+
+  root.querySelectorAll('[data-tl]').forEach(b=>b.onclick=()=>{ monthKey=b.dataset.tl; renderInner(root); });
+  root.querySelectorAll('[data-tl-step]').forEach(b=>b.onclick=()=>{
+    const list=S.reportSeries();
+    const step=+b.dataset.tlStep;
+    const at=list.findIndex(m=>m.key===pickMonth());
+    const to=list[at+step];
+    if(to){ monthKey=to.key; renderInner(root); }
+  });
   root.querySelectorAll('[data-map-rows]').forEach(b=>b.onclick=()=>mapModal(b.dataset.mapRows));
   /* the month table is a way back in time: a row opens that month's return */
   root.querySelectorAll('.rep-hist tr[data-month]').forEach(tr=>tr.onclick=()=>{
@@ -372,26 +386,73 @@ function dirTag(pct){
   const up=pct>0, flat=pct===0;
   return '<span class="rep-dir '+(flat?'flat':up?'up':'down')+'">'+UI.ic(flat?'arrow-right':up?'arrow-up':'arrow-down',11)+(flat?'no change':(up?'+':'')+pct+'%')+'</span>';
 }
+/* ——— Winding the record back ————————————————————————————
+   The months on file, oldest to newest, as a strip you can walk along. Every card and
+   every chart below is read from the month at the marker, so moving the marker moves
+   the whole page — back to October 2024 and forward again. */
+function timelineBar(sm){
+  const all=S.reportSeries();
+  if(!all.length) return '';
+  const i=all.findIndex(m=>m.key===sm.key);
+  const at=i<0?0:i;
+  const prev=all[at-1]||null, next=all[at+1]||null;
+  const deltas=S.reportDeltaSeries();
+  return '<div class="rep-tl" role="group" aria-label="Month of history">'
+    +'<button class="rep-tl-nav" data-tl-step="-1" '+(prev?'':'disabled')+' title="'+(prev?'The month before — '+monthLabel(prev.key):'Nothing earlier on file')+'" aria-label="Earlier month">'+UI.ic('chevron-left',15)+'</button>'
+    +'<div class="rep-tl-track">'
+      +all.map((m,k)=>{
+        const d=deltas[k]||{};
+        const badge=d.change==null?'':(d.change>0?'+':d.change<0?'':'±')+U.fmtNum(d.change);
+        return '<button class="rep-tl-chip'+(m.key===sm.key?' on':'')+(d.change==null?' first':'')+'" data-tl="'+U.esc(m.key)+'" '
+          +'title="'+U.esc(monthLabel(m.key)+' · '+U.fmtNum(m.tests)+' tests'+(d.pct!=null?' · '+(d.change>0?'+':'')+d.pct+'% on the month before':''))+'">'
+          +'<span class="rep-tl-m">'+U.esc(m.label)+'</span>'
+          +'<span class="rep-tl-v mono">'+U.fmtNum(m.tests)+'</span>'
+          +(badge?'<span class="rep-tl-d '+(d.change>0?'up':d.change<0?'down':'flat')+'">'+badge+'</span>':'')
+        +'</button>';
+      }).join('')
+    +'</div>'
+    +'<button class="rep-tl-nav" data-tl-step="1" '+(next?'':'disabled')+' title="'+(next?'The month after — '+monthLabel(next.key):'Nothing later on file')+'" aria-label="Later month">'+UI.ic('chevron-right',15)+'</button>'
+    +'</div>'
+    +'<div class="rep-tl-note">'
+      +(all.length>1
+        ? '<span>'+U.esc(monthLabel(sm.key))+' · month '+(at+1)+' of '+all.length+' on file</span>'
+          +'<span class="faint">Use ← → to walk the record</span>'
+        : '<span class="faint">One month on file — load the months behind it and this strip becomes the way back</span>')
+    +'</div>';
+}
 function compareStrip(sm){
   const c=S.reportCompare(sm.key);
-  const card=(title,sub,cmp)=>{
+  const row=(label,now,then,pct,unit)=>{
+    const d=then==null?null:now-then;
+    return '<div class="rep-cmp-line"><span class="rep-cmp-k">'+label+'</span>'
+      +'<span class="mono">'+U.fmtNum(now)+(then!=null?'<span class="faint"> from '+U.fmtNum(then)+'</span>':'')+'</span>'
+      +(d==null?'<span class="rep-cmp-d flat">—</span>':'<span class="rep-cmp-d '+(d>0?'up':d<0?'down':'flat')+'">'+(d>0?'+':'')+U.fmtNum(d)+'</span>')
+      +(pct==null?'<span class="rep-dir flat">—</span>':dirTag(pct))+'</div>';
+  };
+  const card=(title,sub,cmp,then)=>{
     if(!cmp) return '<div class="rep-cmp-card"><div class="eyebrow">'+title+'</div>'
       +'<div class="rep-cmp-none">'+sub+'</div></div>';
     return '<div class="rep-cmp-card"><div class="eyebrow">'+title+'</div>'
       +'<div class="rep-cmp-row"><span class="rep-cmp-v mono">'+U.fmtNum(cmp.now.tests)+'</span>'+dirTag(cmp.pct.tests)+'</div>'
-      +'<div class="xs faint">'+sub+' · '+(cmp.pct.delta>=0?'+':'')+U.fmtNum(cmp.pct.delta)+' tests</div>'
-      +'<div class="rep-cmp-pos">positives '+U.fmtNum(cmp.now.positives)+' '+dirTag(cmp.pct.positives)+'</div></div>';
+      +'<div class="xs faint" style="margin-bottom:7px">'+sub+'</div>'
+      +row('tests',cmp.now.tests,then?then.tests:null,cmp.pct.tests)
+      +row('positives',cmp.now.positives,then?then.positives:null,cmp.pct.positives)
+      +'</div>';
   };
   const withPrev=c.prev?{now:c.now,pct:c.vsPrev}:null;
   const withYear=c.lastYear?{now:c.now,pct:c.vsYear}:null;
   return '<div class="rep-cmp">'
-    +card('This month',monthLabel(sm.key)+(c.prev?' · against '+monthLabel(c.prev.key):''),withPrev)
-    +card('Same month last year',c.lastYear?('against '+monthLabel(c.lastYear.key)):'no return for this month a year earlier — load one to see the comparison',withYear)
-    +'<div class="rep-cmp-card rep-cmp-wide"><div class="eyebrow">History on file</div>'
-      +(function(){ const all=S.reportSeries();
-        if(all.length<2) return '<div class="rep-cmp-none">One month on file. Load the months and years behind it — <b>Load a past month</b> — and the month-by-month, yearly and per-test trends fill in.</div>';
-        return '<div class="rep-cmp-row"><span class="rep-cmp-v mono">'+all.length+'</span><span class="xs faint">months · '+monthLabel(all[0].key)+' → '+monthLabel(all[all.length-1].key)+'</span></div>'
-          +'<div class="xs faint">'+U.fmtNum(U.sum(all,m=>m.tests))+' tests recorded across the history</div>';
+    +card('This month',c.prev?'against '+monthLabel(c.prev.key):'nothing earlier on file',withPrev,c.prev)
+    +card('Same month a year earlier',c.lastYear?'against '+monthLabel(c.lastYear.key):'no return for this month a year earlier',withYear,c.lastYear)
+    +'<div class="rep-cmp-card rep-cmp-wide"><div class="eyebrow">'+U.esc(monthName(sm.key))+' across the years on file</div>'
+      +(function(){
+        const same=S.reportAcrossYears(sm.key);
+        if(same.length<2) return '<div class="rep-cmp-none">Only '+same.length+' '+monthName(sm.key)+' on file. Load the same month in the years around it and the year-over-year comparison appears here.</div>';
+        const first=same[0], last=same[same.length-1];
+        const pct=first.tests?Math.round((last.tests-first.tests)/first.tests*1000)/10:null;
+        return '<div class="rep-cmp-row"><span class="rep-cmp-v mono">'+U.fmtNum(last.tests)+'</span>'+dirTag(pct)
+          +'<span class="xs faint">since '+U.esc(first.label)+'</span></div>'
+          +'<div class="rep-cmp-years">'+same.map(m=>'<div class="'+((m.key===sm.key)?'on':'')+'"><span class="xs faint">'+U.esc(m.label)+'</span><b class="mono">'+U.fmtNum(m.tests)+'</b></div>').join('')+'</div>';
       })()+'</div></div>';
 }
 function monthTable(){
@@ -485,15 +546,43 @@ function sectionsOverTime(){
 }
 function analysisTab(sm){
   const all=S.reportSeries();
-  return '<div class="rep-cmp-wrap">'+compareStrip(sm)+'</div>'
+  const deltas=S.reportDeltaSeries();
+  const cur=deltas.find(x=>x.key===sm.key)||{};
+  return '<div class="rep-panel">'
+    +timelineBar(sm)
+    +'<div class="rep-cmp-wrap">'+compareStrip(sm)+'</div>'
     +'<div class="grid-12" style="gap:14px;margin-top:14px">'
       +'<div class="c7">'+UI.card({title:'Month by month',sub:'Every return on file, newest first · change against the month before',icon:'calendar-days',
-        body:monthTable(),foot:'<span>Positivity is of the qualitative tests in that month</span><span class="mono">'+all.length+' months</span>'})+'</div>'
+        body:monthTable(),foot:'<span>A row opens that month\u2019s return</span><span class="mono">'+all.length+' months</span>'})+'</div>'
       +'<div class="c5">'+UI.card({title:'Year by year',sub:'Tests carried out, rolled up as the district reads them',icon:'layers',
         body:yearTable(),foot:'<span>Average a month is the fair comparison between a full year and a part year</span>'
           +'<span class="mono">'+all.length+' months</span>'})+'</div>'
+    +'</div>'
+    +(all.length>1?('<div class="grid-12" style="gap:14px;margin-top:14px"><div class="c12">'
+      +UI.card({title:'Movement, month by month',sub:'Each month against the month before it — the count it moved by, and the percentage',
+        icon:'activity',body:'<div id="repDelta"></div>',
+        foot:'<span>'+(cur.pct!=null?(U.esc(monthLabel(sm.key))+' moved '+(cur.change>0?'+':'')+U.fmtNum(cur.change)+' tests ('+(cur.change>0?'+':'')+cur.pct+'%) on '+U.esc(monthLabel(cur.prevKey))):'This month has no month before it on file yet')+'</span>'
+          +'<span class="mono">'+deltas.filter(d=>d.change!=null).length+' steps</span>'})
+      +'</div></div>'):'')
+    +'<div class="grid-12" style="gap:14px;margin-top:14px">'
       +'<div class="c7">'+trendCard(sm)+'</div>'
       +'<div class="c5">'+moversCard(sm)+'</div>'
+    +'</div>'
+    +(all.length>1?('<div class="grid-12" style="gap:14px;margin-top:14px">'
+      +'<div class="c6">'+UI.card({title:'Positivity through the months',sub:'Positive results as a share of the qualitative tests in the same month',icon:'chart-pie',
+        body:'<div id="repPositivity"></div>',
+        foot:'<span>'+(cur.positivesChange!=null?('positives '+(cur.positivesChange>0?'+':'')+U.fmtNum(cur.positivesChange)+' on '+U.esc(monthLabel(cur.prevKey))):'')+'</span>'
+          +'<span class="mono">'+U.fmtNum(sm.totals.qualPositives)+' positive</span>'})+'</div>'
+      +'<div class="c6">'+UI.card({title:'The blood bank over time',sub:'Packs received and transfused, month by month',icon:'droplet',
+        body:'<div id="repBloodTrend"></div>',
+        foot:'<span>Opening + received − used − expired − returned = closing</span>'
+          +'<span class="mono">'+U.fmtNum(sm.bloodTotals.used)+' packs used this month</span>'})+'</div>'
+    +'</div>'):'')
+    +mapCard(sm.key)
+    +'<div class="grid-12" style="gap:14px;margin-top:14px">'
+      +'<div class="c12">'+UI.card({title:'Where the work sat, month by month',sub:'Tests by section of the return',icon:'chart-line',
+        body:'<div id="repSecTrend"></div>',foot:'<span>Each line is one section of the form</span><span class="mono">'+S.REPORT_SECTIONS.filter(x=>all.some(m=>m.sections[x.key]>0)).length+' sections used</span>'})+'</div>'
+    +'</div>'
     +'</div>'
     +'<div class="rep-loadbar">'
       +'<div><div class="rep-loadbar-t">'+(all.length>1?'Add more months to the history':'The history starts with the months behind this one')+'</div>'
@@ -501,17 +590,39 @@ function analysisTab(sm){
       +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-load-wb>'+UI.ic('folder-open',14)+'Load the workbook</button>'
       +'<button class="btn sm" data-import>'+UI.ic('clipboard-list',14)+'Paste one sheet</button></div>'
     +'</div>'
-    +mapCard(sm.key)
-    +'<div class="grid-12" style="gap:14px;margin-top:14px">'
-      +'<div class="c12">'+UI.card({title:'Where the work sat, month by month',sub:'Tests by section of the return',icon:'chart-line',
-        body:'<div id="repSecTrend"></div>',foot:'<span>Each line is one section of the form</span><span class="mono">'+S.REPORT_SECTIONS.filter(x=>all.some(m=>m.sections[x.key]>0)).length+' sections used</span>'})+'</div>'
-    +'</div>'
-    +'<div class="rep-analysis-head"><h2>This month, in full</h2><span class="xs faint">The same rankings, for the month chosen above.</span></div>'
-    +analysis(sm);
+    +'<div class="rep-analysis-head"><h2>'+U.esc(monthLabel(sm.key))+' in full</h2><span class="xs faint">The rankings for the month at the marker — every figure read off that month\u2019s return.</span></div>'
+    +'<div class="rep-panel">'+analysis(sm)+'</div>';
 }
 function drawHistoryCharts(root,sm){
   drawCharts(root,sm);
   const all=S.reportSeries();
+  /* the month-over-month movement, whole history at once */
+  const dl=root.querySelector('#repDelta');
+  if(dl){
+    const deltas=S.reportDeltaSeries();
+    C.delta(dl,{id:'repDelta',height:210,
+      items:deltas.map(d=>({label:d.label,tests:d.tests,value:d.change,pct:d.pct,prev:d.prev,key:d.key,current:d.key===sm.key}))});
+    /* a bar is a month: clicking it winds the whole page back or forward */
+    dl.querySelectorAll('[data-key]').forEach(b=>b.addEventListener('click',()=>{
+      if(b.dataset.key===pickMonth()) return;
+      monthKey=b.dataset.key; renderInner(root);
+    }));
+  }
+  /* positivity: positive results as a share of that month's qualitative tests */
+  const pos=root.querySelector('#repPositivity');
+  if(pos&&all.length>1){
+    C.line(pos,{id:'repPositivity',height:200,padLeft:52,zeroBase:true,yFmt:v=>Math.round(v)+'%',
+      series:[{name:'Positivity',color:'var(--rose-400)',values:all.map(m=>m.qualTests?Math.round(m.positives/m.qualTests*1000)/10:null)}],
+      labels:all.map(m=>m.label)});
+  }
+  /* the blood bank, received against transfused */
+  const bl=root.querySelector('#repBloodTrend');
+  if(bl&&all.length>1){
+    C.line(bl,{id:'repBloodTrend',height:200,padLeft:44,
+      series:[{name:'Received',color:'var(--gold)',values:all.map(m=>m.bloodRecv)},
+              {name:'Transfused',color:'var(--teal-400)',values:all.map(m=>m.bloodUsed)}],
+      labels:all.map(m=>m.label)});
+  }
   /* the chosen examination through every month on file */
   const el=root.querySelector('#repTestTrend');
   if(el){
@@ -970,6 +1081,21 @@ function newMonthModal(){
 
 M.render=async function(root,params){
   rootEl=root; lastParams=params||{};
+  /* ← and → walk the record, so going back a month is a keystroke */
+  if(!M.__keys){
+    M.__keys=true;
+    document.addEventListener('keydown',ev=>{
+      if(!rootEl||!rootEl.isConnected) return;
+      const t=ev.target||{};
+      if(/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName||'')) return;
+      if(ev.key!=='ArrowLeft'&&ev.key!=='ArrowRight') return;
+      const list=S.reportSeries(); if(list.length<2) return;
+      const at=list.findIndex(m=>m.key===pickMonth());
+      const to=list[at+(ev.key==='ArrowLeft'?-1:1)];
+      if(!to) return;
+      ev.preventDefault(); monthKey=to.key; renderInner(rootEl);
+    });
+  }
   if(params&&params.month) monthKey=params.month;
   monthKey=pickMonth();
   renderInner(root);

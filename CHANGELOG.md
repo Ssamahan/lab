@@ -4,6 +4,35 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.87
+
+**The history is something you walk through, not a page you read once.**
+
+Choosing a month used to change some of the page. Now the month is a position on a record, and everything
+below it is read from that position.
+
+- **A strip of the months on file**, oldest to newest, each carrying its total and what it moved by. Click a
+  month, press the arrows either side, or use **← →** — the whole page follows: the comparison, the
+  month-by-month table, the year roll-ups, every chart, and the rankings at the foot. The strip marks where
+  you are ("October 2024 · month 2 of 14 on file").
+- **The movement chart is the record itself.** `C.delta` — a new diverging chart — draws every month's change
+  against the month before it: bars up for a rise, down for a fall, on one zero line, the month you are
+  reading outlined in gold. **Clicking a bar winds the page to that month.**
+- **Counts and percentages together, never one without the other.** Each comparison card now breaks into
+  lines — tests, positives — each with the figure, what it came from, the count it moved by, and the
+  percentage:
+  `tests 1,180 from 1,024 · +156 · +15.2%`.
+- **Year over year, asked of the month in front of you**: *“October across the years on file”* lists each
+  October with its total and the change since the first — which is the honest comparison when a year is
+  missing.
+- **Two more readings across the whole record**: **positivity** through the months (positives as a share of
+  that month's qualitative tests) and **the blood bank over time** (received against transfused).
+- A month with nothing before it shows a gap in the movement chart and says so; nothing is scored as a fall
+  to zero.
+
+Verified — **30 suites, 1,610 checks** — including the strip, the bar-click, both arrow keys, the count and
+the percentage in the comparison, and the two new charts.
+
 ## What changed in 6.9.86
 
 **The sheet was not being read. It is now.**
