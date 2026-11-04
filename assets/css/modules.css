@@ -838,3 +838,12 @@
 .rep-vault-ic{color:var(--teal-400)}
 .rep-vault-body{flex:1;min-width:0}
 .rep-vault-t{font-size:12.2px;font-weight:600;color:var(--text-strong);margin-bottom:1px}
+/* ——— Removing a month ——————————————————————————————— */
+.rep-del{display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;padding:0;
+  border:1px solid transparent;border-radius:var(--r-sm);background:none;color:var(--text-faint);cursor:pointer}
+.rep-del:hover{color:var(--crit);border-color:var(--crit-border);background:var(--crit-soft)}
+.rep-del:focus-visible{outline:2px solid var(--crit);outline-offset:1px}
+.rep-del-what{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-2);padding:9px 11px}
+.rep-del-what .row{padding:3px 0;font-size:11.4px}
+.rep-del-what .row+.row{border-top:1px solid var(--line)}
+.btn.danger[disabled]{opacity:.45;cursor:default}

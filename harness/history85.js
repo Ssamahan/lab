@@ -9,6 +9,7 @@ const root=path.resolve(__dirname,'..');
 const srcRep=fs.readFileSync(path.join(root,'assets/js/modules/report.js'),'utf8');
 const srcRead=fs.readFileSync(path.join(root,'assets/js/core/xlsxread.js'),'utf8');
 const srcSt=fs.readFileSync(path.join(root,'assets/js/core/store.js'),'utf8');
+const srcSync=fs.readFileSync(path.join(root,'assets/js/core/sync.js'),'utf8');
 const css=fs.readFileSync(path.join(root,'assets/css/modules.css'),'utf8');
 const idx=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
@@ -403,6 +404,95 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   ok(page.querySelector('#repMonth').value==='2024-10','← walks back again',page.querySelector('#repMonth').value);
   ok(typeof w.LS.charts.delta==='function','the diverging chart is part of the chart set');
   ok(/\.rep-tl\{/.test(css)&&/\.rep-cmp-line\{/.test(css),'the strip and the comparison rows are styled');
+
+  /* ── 14 · removing a month that was opened by mistake ─────────────── */
+  await go('#/reports'); await tick(350);
+  S.reportImportMonth('2026-11',{},{});          /* the month opened by mistake */
+  ok(S.reportMonths().indexOf('2026-11')>=0,'November 2026 is on file, as it is after a slip of the menu');
+  const stats=S.reportMonthStats('2026-11');
+  ok(stats.empty===true,'a month opened and left holds nothing ('+stats.examinations+' examinations)');
+  ok(S.reportMonths().length===4,'and the other months are still there');
+
+  await go('#/reports'); await tick(300);
+  const delBtn=page.querySelector('[data-delete-month="2026-11"]');
+  ok(!!delBtn,'the month can be deleted from the header when it is the month in front of you');
+  ok(page.querySelectorAll('[data-delete-month]').length>=1,'and every month row of the table carries one too');
+  click(delBtn); await tick(300);
+  const dlg=d.querySelector('.modal, [role="dialog"]');
+  ok(!!dlg&&/Delete Nov 2026\?/.test(dlg.textContent),'a confirmation names the month',dlg&&dlg.textContent.slice(0,60));
+  ok(/no figures|holds no figures/i.test(dlg.textContent),'and says that it holds no figures, rather than implying a loss');
+  const confirm=d.querySelector('[data-confirm-delete]');
+  ok(!!confirm&&!confirm.disabled,'the delete can be confirmed');
+  click(confirm); await tick(500);
+  ok(S.reportMonths().indexOf('2026-11')<0,'the month leaves the record',S.reportMonths().join(', '));
+  ok(S.reportMonths().length===3,'and nothing else is touched');
+  ok(S.reportMonths().indexOf('2026-10')>=0&&S.reportMonths().indexOf('2024-10')>=0,'the real months survive');
+  ok(S.reportMonth('2026-11').values&&Object.keys(S.reportMonth('2026-11').values).length===0,'the deleted month is gone, not just hidden');
+  ok(S.reportSeries().every(m=>m.key!=='2026-11'),'and it is gone from the series the charts read');
+  const delAudit=S.db().audit.find(a=>a.action==='report.delete'&&a.entityId==='2026-11');
+  ok(!!delAudit,'the audit trail keeps one line saying it happened',delAudit&&delAudit.detail);
+  ok(/2026-11/.test(delAudit.detail),'naming the month',delAudit.detail);
+
+  /* a month with figures says what is discarded */
+  S.reportImportMonth('2026-11',R.matchSheet([['Full Blood Count (FBC/NFS)',1180]]).values,{});
+  await go('#/reports'); await tick(300);
+  const sel2=page.querySelector('#repMonth');
+  if(sel2){ sel2.value='2026-11'; sel2.dispatchEvent(new w.Event('change')); await tick(300); }
+  click(page.querySelector('[data-delete-month="2026-11"]')); await tick(300);
+  const dlg2=d.querySelector('.modal, [role="dialog"]');
+  ok(/carries figures/i.test(dlg2.textContent),'a month with figures warns that they are discarded');
+  ok(/1[^0-9]*examination|Examinations recorded[\s\S]{0,80}1\b/i.test(dlg2.textContent),'and states how many examinations it holds');
+  click(d.querySelector('[data-close]')); await tick(250);
+  ok(S.reportMonths().indexOf('2026-11')>=0,'cancelling keeps the month');
+
+  /* the last month on file cannot be deleted away */
+  /* only a month that holds nothing and is alone is refused; the ones with figures go
+     first, which is what a person would do */
+  S.reportMonths().slice().forEach(k=>{ if(k!=='2026-11') S.reportDeleteMonth(k); });
+  ok(S.reportMonths().join(',')==='2026-11','the other months can be removed until one is left',S.reportMonths().join(','));
+  /* a month that carries figures can go even when it is the last one — only an empty
+     last month is refused, because then there would be nothing to show at all */
+  ok(S.reportDeleteMonth('2026-11').ok===true,'the last month can be removed when it holds figures');
+  ok(S.reportMonths().length===0,'leaving the module with no months, as expected');
+  S.reportImportMonth('2026-11',{},{});          /* opened again, empty */
+  let guarded=S.reportDeleteMonth('2026-11');
+  ok(guarded.ok===false,'the only month on file is not deleted away',guarded.reason);
+  ok(/only month/i.test(guarded.reason),'and the reason says why',guarded.reason);
+  ok(S.reportMonths().length===1,'so the module always has something to show');
+  ok(S.reportDeleteMonth('2019-01').ok===false,'a month that is not on file is refused too');
+
+  /* the online copy goes with it */
+  const calls=[];
+  const cloud6={months:{'2024-10':{month:'2024-10',meta:{},values:{x64:{total:1180}},blood:{},notes:''},
+                 '2026-11':{month:'2026-11',meta:{},values:{},blood:{},notes:''}}};
+  cloud6.fetch=async(url,opts)=>{
+    opts=opts||{}; const method=(opts.method||'GET').toUpperCase();
+    const u=String(url);
+    calls.push(method+' '+u.replace(/^https:\/\/[^/]+/,''));
+    if(u.indexOf('/lab_report_months')>=0){
+      if(method==='DELETE'){
+        const m=/ym=eq\.([^&]+)/.exec(u); const ym=m?decodeURIComponent(m[1]):null;
+        if(ym) delete cloud6.months[ym];
+        return {ok:true,status:204,json:async()=>null,text:async()=>''};
+      }
+      return {ok:true,status:200,json:async()=>[],text:async()=>'[]'};
+    }
+    return {ok:true,status:200,json:async()=>[],text:async()=>'[]'};
+  };
+  const {w:w6}=await boot('#/reports',{seed(win){ win.fetch=(u,o)=>cloud6.fetch(u,o); }});
+  const S6=w6.LS.store, SY6=w6.LS.sync;
+  S6.reportImportMonth('2026-11',{},{}); S6.reportImportMonth('2024-10',{x64:{total:1180}},{});
+  const gone=await SY6.vaultForget('2026-11');
+  ok(gone.ok===true,'the month is removed from the online record as well');
+  ok(cloud6.months['2026-11']===undefined,'so the row is not there any more');
+  ok(cloud6.months['2024-10']!==undefined,'and the real months are untouched online');
+  ok(calls.some(c=>/^DELETE .*lab_report_months\?ym=eq\.2026-11/.test(c)),'by its key, one month at a time',calls.filter(c=>/DELETE/.test(c)).join(' '));
+
+  /* the code is in place */
+  ok(/S\.reportDeleteMonth=function/.test(srcSt)&&/S\.reportMonthStats=function/.test(srcSt),
+     'the store removes a month and reports what it held');
+  ok(/SY\.vaultDeleteMonth=async function/.test(srcSync),'the sync layer removes the online row');
+  ok(/rep-del/.test(css),'and the row control is styled');
 
   done('history85');
 })();
