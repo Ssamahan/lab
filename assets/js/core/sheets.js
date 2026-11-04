@@ -797,8 +797,11 @@ SH.reportSVG=function(rep,pageObj,pages,opts){
       g.push(line(TX,y,TX+TW,y,T.rule,1.4));
       g.push(text(TX+16,y+29,'Section total',{size:21,weight:600,fill:T.navy}));
       const counted=(b.sec.rows||[]).filter(r=>r.line&&r.line.mode!=='band'&&!r.line.breakdown);
-      spec.cols.forEach((c,i)=>g.push(text(geom.cells[i].x+geom.cells[i].w/2,y+29,U.fmtNum(U.sum(counted,r=>r[c]||0)),
-        {size:21,weight:600,anchor:'middle',fill:T.navy,mono:true})));
+      spec.cols.forEach((c,i)=>{
+        const filled=counted.some(r=>r.present&&r.present[c]);
+        g.push(text(geom.cells[i].x+geom.cells[i].w/2,y+29,filled?U.fmtNum(U.sum(counted,r=>r[c]||0)):'',
+          {size:21,weight:600,anchor:'middle',fill:T.navy,mono:true}));
+      });
       g.push(text(geom.total.x+geom.total.w/2,y+29,U.fmtNum(b.sec.total),{size:22,weight:700,anchor:'middle',fill:T.navy,mono:true}));
       y+=b.h;
       g.push(line(TX,y,TX+TW,y,T.rule,1));
@@ -809,13 +812,15 @@ SH.reportSVG=function(rep,pageObj,pages,opts){
     const indent=L.indent?26*L.indent:0;
     if(L.no) g.push(text(TX+16,y+28,L.no,{size:18,fill:T.faint,mono:true}));
     g.push(text(TX+16+Math.max(indent,46),y+28,L.label,{size:21,fill:L.breakdown?T.muted:T.ink}));
+    /* A cell nobody filled is left empty, exactly as on the paper form; a 0 that was
+       written down is printed as a 0. The district's sheet makes the same distinction. */
     spec.cols.forEach((c,i)=>{
-      const v=r[c]||0;
-      g.push(text(geom.cells[i].x+geom.cells[i].w-14,y+28,v?U.fmtNum(v):'\u2014',
-        {size:21,anchor:'end',fill:v?T.ink:T.faint,mono:true}));
+      const has=!!(r.present&&r.present[c]);
+      g.push(text(geom.cells[i].x+geom.cells[i].w-14,y+28,has?U.fmtNum(r[c]||0):'',
+        {size:21,anchor:'end',fill:T.ink,mono:true}));
     });
-    g.push(text(geom.total.x+geom.total.w-14,y+28,r.total?U.fmtNum(r.total):'\u2014',
-      {size:22,weight:r.total?600:400,anchor:'end',fill:r.total?T.navy:T.faint,mono:true}));
+    g.push(text(geom.total.x+geom.total.w-14,y+28,r.any?U.fmtNum(r.total):'',
+      {size:22,weight:r.any?600:400,anchor:'end',fill:T.navy,mono:true}));
     y+=b.h;
     g.push(line(TX,y,TX+TW,y,T.rule,0.7));
   });
@@ -834,7 +839,7 @@ SH.reportSVG=function(rep,pageObj,pages,opts){
 function repIdentBlock(g,y,x,W,T,rep){
   const m=rep.meta||{};
   const half=(W-24)/2;
-  const rows=[['Service name',m.service||'Laboratory'],['Catchment population',m.catchment?U.fmtNum(m.catchment):'\u2014'],
+  const rows=[['Service name',m.service||'Laboratory'],['Catchment population',m.catchment?U.fmtNum(m.catchment):''],
     ['District',m.district||'Gakenke'],['Sector',m.sector||'Ruli'],
     ['Financial year',m.year||''],['Month',m.monthName||''],
     ['Name of in-charge',m.charge||''],['Qualification',m.qualification||'']];
@@ -858,7 +863,7 @@ function repApproveBlock(g,y,x,W,T,rep){
   g.push(text(x+14,y+25,'Processing · approval and transmission',{size:19,weight:600,fill:T.navy}));
   y+=36;
   const items=[['Prepared by',m.charge||'Kelvin SAMAHANI',m.qualification||''],
-    ['Date sent',m.sentDate?U.fmtDate(m.sentDate):'\u2014',''],
+    ['Date sent',m.sentDate?U.fmtDate(m.sentDate):'',''],
     ['Received by / date','',''],
     ['Signature','','']];
   items.forEach((it,i)=>{
@@ -901,14 +906,20 @@ function repBloodBlock(g,y,x,W,T,rep){
   fields.forEach((f,i)=>g.push(text(x+groupW+i*colW+colW/2,y+26,f[1].split(' / ')[0].split(' (')[0],{size:17,weight:600,anchor:'middle',fill:T.muted})));
   g.push(text(x+W-endW/2,y+26,'Present at the end',{size:17,weight:600,anchor:'middle',fill:T.muted}));
   y+=40;
+  /* the same rule as the examinations: a group the return carries is printed, blank
+     cells stay blank, and a 0 that was written down is printed as 0 */
+  const rawBlood=((LS.store.reportMonth&&LS.store.reportMonth(rep.key))||{}).blood||{};
   groups.forEach((gr,i)=>{
     const row=(rep.blood||{})[gr]||{};
+    const raw=rawBlood[gr]||{};
     if(i%2) g.push(rect(x,y,W,38,T.zebra));
     g.push(rect(x,y,groupW,38,'#FFFFFF',{stroke:T.rule,sw:0.8}));
     g.push(text(x+16,y+26,gr,{size:21,weight:700,fill:T.navy,mono:true}));
-    fields.forEach((f,j)=>g.push(text(x+groupW+j*colW+colW/2,y+26,U.fmtNum(row[f[0]]||0),
-      {size:20,anchor:'middle',fill:(row[f[0]]||0)?T.ink:T.faint,mono:true})));
-    g.push(text(x+W-endW/2,y+26,U.fmtNum(row.end||0),{size:21,weight:600,anchor:'middle',fill:T.navy,mono:true}));
+    fields.forEach((f,j)=>{ if(raw[f[0]]!=null)
+      g.push(text(x+groupW+j*colW+colW/2,y+26,U.fmtNum(row[f[0]]||0),
+        {size:20,anchor:'middle',fill:T.ink,mono:true})); });
+    if(Object.keys(raw).length)
+      g.push(text(x+W-endW/2,y+26,U.fmtNum(row.end||0),{size:21,weight:600,anchor:'middle',fill:T.navy,mono:true}));
     y+=38;
     g.push(line(x,y,x+W,y,T.rule,0.6));
   });
@@ -966,13 +977,13 @@ SH.reportXLSX=function(rep){
     sec.rows.forEach(r=>{
       if(r.line.mode==='band'){ push([{c:0,v:r.line.label,s:5}]); return; }
       const cells=[{c:0,v:(r.line.no?r.line.no+' ':'')+r.line.label,s:r.line.breakdown?7:3}];
-      spec.cols.forEach((c,i)=>cells.push({c:i+1,v:r[c]||0,s:4}));
-      cells.push({c:spec.cols.length+1,v:r.total||0,s:6});
+      spec.cols.forEach((c,i)=>{ if(r.present&&r.present[c]) cells.push({c:i+1,v:r[c]||0,s:4}); });
+      if(r.any) cells.push({c:spec.cols.length+1,v:r.total,s:6});
       push(cells);
     });
     const counted=sec.rows.filter(r=>r.line&&r.line.mode!=='band'&&!r.line.breakdown);
     const sc=[{c:0,v:'Section total',s:2}];
-    spec.cols.forEach((c,i)=>sc.push({c:i+1,v:U.sum(counted,r=>r[c]||0),s:6}));
+    spec.cols.forEach((c,i)=>{ if(counted.some(r=>r.present&&r.present[c])) sc.push({c:i+1,v:U.sum(counted,r=>r[c]||0),s:6}); });
     sc.push({c:spec.cols.length+1,v:sec.total||0,s:6});
     push(sc);
     push([]);
@@ -989,11 +1000,13 @@ SH.reportXLSX=function(rep){
   fields.forEach((f,i)=>head.push({c:i+1,v:f[1],s:2}));
   head.push({c:fields.length+1,v:'Present at the end',s:2});
   push(head);
+  const bloodRaw=(LS.store.reportMonth&&LS.store.reportMonth(rep.key)||{}).blood||{};
   (LS.store.REPORT_GROUPS||[]).forEach(g=>{
     const row=(rep.blood||{})[g]||{};
+    const raw=bloodRaw[g]||{};
     const cells=[{c:0,v:g,s:3}];
-    fields.forEach((f,i)=>cells.push({c:i+1,v:row[f[0]]||0,s:4}));
-    cells.push({c:fields.length+1,v:row.end||0,s:6});
+    fields.forEach((f,i)=>{ if(raw[f[0]]!=null) cells.push({c:i+1,v:row[f[0]]||0,s:4}); });
+    if(Object.keys(raw).length) cells.push({c:fields.length+1,v:row.end||0,s:6});
     push(cells);
   });
   const bt=rep.bloodTotals||{};
