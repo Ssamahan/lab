@@ -67,6 +67,53 @@ function mov(series){
 /* How much of the roster is accounted for — by the link each ledger row carries, not by
    counting rows. Two sessions of one training, or one session and a typed row, no longer
    make the registry look settled when it is not. */
+/* ——— What a session costs, on average ————————————————————————————
+   Every figure here is divided by the sessions actually on the ledger, so it moves the
+   day a record is added and never invents a base. The trend compares the three latest
+   sessions with everything before them: the recent habit, against the record. */
+function averages(){
+  const d=data();
+  const list=d.list.slice().sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
+  const n=list.length;
+  const statOf=arr=>({n:arr.length,exp:U.sum(arr,sumExp),reimb:U.sum(arr,sumReimb)});
+  const per=(x,k)=>x.n?Math.round(x[k]/x.n):0;
+  const last=statOf(list.slice(0,3)), before=statOf(list.slice(3));
+  const pct=(a,b)=>b?Math.round((a-b)/Math.abs(b)*1000)/10:null;
+  return {n,
+    avg:{exp:n?Math.round(d.exp/n):0,reimb:n?Math.round(d.reimb/n):0,net:n?Math.round(d.balance/n):0},
+    recovery:d.exp?Math.round(d.reimb/d.exp*100):null,
+    last:{n:last.n,exp:per(last,'exp'),reimb:per(last,'reimb')},
+    before:{n:before.n,exp:per(before,'exp'),reimb:per(before,'reimb')},
+    change:{exp:pct(per(last,'exp'),per(before,'exp')),reimb:pct(per(last,'reimb'),per(before,'reimb'))}};
+}
+function deltaChip(v){
+  if(v==null) return '<span class="delta flat">—</span>';
+  const cls=v>0?'':v<0?' down':' flat';
+  return '<span class="delta'+cls+'">'+U.ic(v>0?'arrow-up':v<0?'arrow-down':'arrow-right',10)+(v>0?'+':'')+v+'%</span>';
+}
+function averagesCard(){
+  const a=averages();
+  if(!a.n) return UI.card({title:'Averages',sub:'From the record',icon:'chart-line',
+    body:'<p class="xs faint">No sessions on the ledger yet — the first one sets the average.</p>'});
+  const row=(label,value,sub)=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(label)+'</div>'
+    +'<div class="lr-sub">'+U.esc(sub)+'</div></div><div class="lr-val mono">'+U.fmtRWF(value)+'</div></div>';
+  return UI.card({title:'Average per session',sub:'Worked out from the '+a.n+' session'+(a.n===1?'':'s')+' on the ledger',icon:'chart-line',cls:'rev-avg',
+    body:row('Reimbursed',a.avg.reimb,'reimbursed ÷ '+a.n+' session'+(a.n===1?'':'s'))
+      +row('Expenses',a.avg.exp,'spent ÷ '+a.n+' session'+(a.n===1?'':'s'))
+      +row('Net',a.avg.net,'reimbursed less expenses, per session')
+      +'<div class="rev-avg-trend">'
+        +'<div class="row between"><span class="xs faint">Last '+a.last.n+' session'+(a.last.n===1?'':'s')+' against the '+a.before.n+' before</span>'
+          +'<span class="xs faint mono">'+(a.recovery!=null?a.recovery+'% recovered':'—')+'</span></div>'
+        +'<div class="rev-avg-cols">'
+          +'<div><span class="eyebrow">Reimbursed</span><b class="mono">'+U.fmtNum(a.last.reimb)+'</b>'+deltaChip(a.change.reimb)
+            +'<span class="xs faint">was '+U.fmtNum(a.before.reimb)+'</span></div>'
+          +'<div><span class="eyebrow">Expenses</span><b class="mono">'+U.fmtNum(a.last.exp)+'</b>'+deltaChip(a.change.exp)
+            +'<span class="xs faint">was '+U.fmtNum(a.before.exp)+'</span></div>'
+        +'</div>'
+        +'<div class="hint" style="margin-top:8px">'+(a.before.n?'The chip is the change in the average per session, not the change in the total — one large session does not flatter the trend.':'Only '+a.last.n+' session'+(a.last.n===1?'':'s')+' on file — the trend fills in as more are logged.')+'</div>'
+      +'</div>',
+    foot:'<span>All amounts in RWF</span><span class="mono">'+a.n+' sessions</span>'});
+}
 function reconciliation(){
   const d=data();
   const trainings=S.db().trainings||[];
@@ -77,13 +124,13 @@ function reconciliation(){
     unlinked:d.list.filter(t=>!t.linkedTraining).length,exp:d.exp,reimb:d.reimb,net:d.balance};
 }
 function kpis(){
-  const d=data(), m=monthly(), reconciled=reconciliation();
+  const d=data(), m=monthly(), reconciled=reconciliation(), avg=averages().avg;
   const spark=(vals,color)=>C.spark(vals.length?vals:[0],{color});
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
-   +'<div class="c3">'+UI.stat({label:'Reimbursed',value:Math.round(d.reimb/1000),unit:'k RWF',icon:'banknote',formatted:'0',delta:mov(m.map(x=>x.reimb)),note:d.list.length+' sessions · '+reconciled.registry+' in the registry',spark:spark(m.map(x=>x.reimb),'var(--pos)')})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Expenses',value:Math.round(d.exp/1000),unit:'k RWF',icon:'receipt',formatted:'0',delta:mov(m.map(x=>x.exp)),note:'Transport, per-diem, materials',spark:spark(m.map(x=>x.exp),'var(--amber)')})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Net balance',value:Math.round(d.balance/1000),unit:'k RWF',icon:'wallet',formatted:'0',delta:mov(m.map(x=>x.net)),note:d.balance>=0?'Reimbursed less expenses':'Expenses exceed reimbursements',spark:spark(m.map(x=>x.net),'var(--gold)')})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Pending claims',value:Math.round(d.pending/1000),unit:'k RWF',icon:'clock',formatted:'0',note:d.list.filter(t=>sumReimb(t)<sumExp(t)).length+' sessions open',spark:spark(m.map(x=>Math.max(0,x.exp-x.reimb)),'var(--crit)')})+'</div></div>'
+   +'<div class="c3">'+UI.stat({label:'Reimbursed',value:d.reimb,unit:'RWF',icon:'banknote',formatted:U.fmtNum(d.reimb),delta:mov(m.map(x=>x.reimb)),note:d.list.length+' sessions · avg '+U.fmtNum(avg.reimb)+' each',spark:spark(m.map(x=>x.reimb),'var(--pos)')})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Expenses',value:d.exp,unit:'RWF',icon:'receipt',formatted:U.fmtNum(d.exp),delta:mov(m.map(x=>x.exp)),note:'avg '+U.fmtNum(avg.exp)+' a session',spark:spark(m.map(x=>x.exp),'var(--amber)')})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Net balance',value:d.balance,unit:'RWF',icon:'wallet',formatted:U.fmtNum(d.balance),delta:mov(m.map(x=>x.net)),note:d.balance>=0?'Reimbursed less expenses':'Expenses exceed reimbursements',spark:spark(m.map(x=>x.net),'var(--gold)')})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Pending claims',value:d.pending,unit:'RWF',icon:'clock',formatted:U.fmtNum(d.pending),note:d.list.filter(t=>sumReimb(t)<sumExp(t)).length+' sessions open',spark:spark(m.map(x=>Math.max(0,x.exp-x.reimb)),'var(--crit)')})+'</div></div>'
    +'<div class="card pad" style="margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
      +'<span class="pill teal">'+UI.ic('check-check',12)+'Reconciled</span>'
      +'<span class="small grow">'+U.fmtNum(reconciled.exp)+' RWF recorded expenses · '+U.fmtNum(reconciled.reimb)+' RWF reimbursed · <b class="mono">net '+U.fmtNum(reconciled.net)+' RWF</b> across '+reconciled.covered+' ledger sessions.</span>'
@@ -110,7 +157,7 @@ function table(){
       const keys=Object.keys(g); const max=Math.max.apply(null,keys.map(k=>g[k]).concat([1]));
       return keys.length?keys.map(k=>'<div style="margin-bottom:9px"><div class="row between"><span class="xs">'+U.esc(k)+'</span><span class="mono xs faint">'+U.fmtNum(g[k])+'</span></div><div class="meter teal" style="margin-top:4px"><i style="width:'+(g[k]/max*100)+'%"></i></div></div>').join(''):'<p class="xs faint">No reimbursements recorded.</p>';
     })()})+'</div></div></div>'
-   +'<div class="grid-12" style="margin-top:14px"><div class="c12">'+UI.card({title:'Monthly cash flow',sub:'Expenses against reimbursements, month by month',icon:'chart-line',
+   +'<div class="grid-12" style="margin-top:14px"><div class="c4">'+averagesCard()+'</div><div class="c8">'+UI.card({title:'Monthly cash flow',sub:'Expenses against reimbursements, month by month',icon:'chart-line',
       tools:'<span class="pill gold">RWF</span><span class="pill teal">reimbursed</span><span class="pill amber">expenses</span>',
       body:'<div id="revChart"></div>',
       foot:'<span>Hover a month for exact figures</span><span class="mono">'+d.list.length+' sessions</span>'})+'</div></div>';
@@ -136,6 +183,10 @@ function drawer(id){
        +'<div class="hint" style="margin-top:8px">Linked sessions are counted once on the registry side: the '+(tr?'training':'session')+' stops appearing as one still waiting for a revenue line. <a href="#/training" data-go-roster>Open the training roster</a></div>'
      +'</div>'
      +'<div class="split-3" style="margin-bottom:14px">'+[['Expenses',e,'amber'],['Reimbursed',r,'teal'],['Net',r-e,r-e>=0?'teal':'rose']].map(([k,v,tone])=>'<div class="card pad"><div class="eyebrow">'+k+'</div><div class="serif" style="font-size:1.4rem;margin-top:4px;color:var(--'+(tone==='teal'?'pos':tone==='rose'?'crit':'warn')+')">'+U.fmtNum(v)+'</div><div class="xs faint">RWF</div></div>').join('')+'</div>'
+     +'<div class="hint" style="margin-bottom:14px">'
+       +'This session against the average on the record: expenses <b class="mono">'+U.fmtNum(e)+'</b> vs <b class="mono">'+U.fmtNum(averages().avg.exp)+'</b>, '
+       +'reimbursed <b class="mono">'+U.fmtNum(r)+'</b> vs <b class="mono">'+U.fmtNum(averages().avg.reimb)+'</b>.'
+     +'</div>'
      +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('receipt',14,'ic')+'Expense lines</div></div><button class="btn xs" data-add-exp>'+UI.ic('plus',12)+'Add line</button></div><div class="card-body">'
        +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div></div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>'+(x.desc&&x.custom?'':'' )).join('')
      +'</div></div>'
