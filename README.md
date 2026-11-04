@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.98** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.99** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -122,7 +122,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.98`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.99`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -176,6 +176,13 @@ The service worker caches the shell from the browser's own copy of those files (
 re-downloading them), warms the sixteen screens twelve seconds after it takes control, and
 answers a versioned asset from the cache without asking the network again — the version is in
 the address, so a hit cannot be stale.
+
+A screen that does not arrive is treated as its own kind of failure: the deferred helpers
+have a ten-second deadline, a module has fifteen, and a module that misses it is asked for
+once more past the cache. The panel then names the two builds — *this tab is running v6.9.88;
+the site is now v6.9.99* — and offers **Clear cache & reload** (`?fresh=1`) without ever
+touching what is stored. A skeleton that is still empty after six seconds says what it is
+waiting for rather than looking busy.
 
 When a start passes 2.6 s, a corner line reports what it cost — *started in 3.4 s · 612 KB ·
 41 files* — with the breakdown on **details**. Add `?diag=1` to always see it, and `?fresh=1`

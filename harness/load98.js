@@ -24,7 +24,7 @@ ok(deferred.every(n=>new RegExp("'assets/js/core/"+n+"\\.js'").test(shellJs)),
 ok(/async=false/.test(shellJs),'they load in order, so the sheet engine finds the charts');
 ok(/function ensureDeps\(/.test(shellJs)&&/deferredLoad\.catch/.test(shellJs),
    'they are loaded once, and a failure can be retried');
-ok(/return ensureDeps\(\)\.then\(/.test(shellJs),'a module is not fetched until its helpers are');
+ok(/return ensureDeps\(\)\s*\n?\s*\.then\(/.test(shellJs),'a module is not fetched until its helpers are');
 {
   const raw=deferred.reduce((a,n)=>a+fs.statSync(path.join(root,'assets/js/core/'+n+'.js')).size,0);
   ok(raw>90000,'which keeps '+Math.round(raw/1024)+' KB off the first paint');

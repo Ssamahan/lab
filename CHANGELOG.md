@@ -4,6 +4,50 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.99
+
+**A screen that does not arrive now says why — and offers the one action that fixes it.**
+
+A report came back from a real device:
+
+> Lab Systems **v6.9.88** · route: dash · *Module took longer than 25 seconds to render.*
+
+Two separate things were wrong in that line.
+
+### The tab was ten builds behind the site, and nothing said so
+v6.9.88 was live in September. A tab left open since then keeps running the JavaScript it
+loaded; the browser was holding an old copy of the console while the site had moved on. The
+failure panel never mentioned it, so the message read like a bug in the dashboard.
+
+- The panel now **asks the deployed page for its build** and, when the two disagree, says it in
+  numbers: *"This tab is running v6.9.88; the site is now v6.9.99."* It names that as the
+  usual cause of a screen not arriving.
+- It carries a **Clear cache & reload** button, written as a plain address (`?fresh=1`) so it
+  still works when the thing that failed to load is the script that would have drawn it.
+- It says what clearing does **not** touch: nothing stored on the device is deleted.
+
+### A script that never answers used to hang the screen
+A `<script>` can fail by firing `error` — or by firing nothing at all: a service worker
+holding a request, a connection that dies mid-download, a file that is no longer where the
+address says. Only the first was handled, so the second sat on a skeleton until the 25-second
+watchdog gave up.
+
+- The three deferred helpers have a **ten-second deadline**; a module has **fifteen**.
+- A module that does not arrive is asked for **once more, past the cache** (a different search
+  string is a different URL to the worker), which fixes most stale copies without anyone
+  needing to know that a service worker exists.
+- The failure is named by kind: *"This screen did not arrive"* rather than *"could not
+  render"*, because they are different problems with different cures.
+
+### A skeleton with nothing under it says what it is waiting for
+After **six seconds** a note appears above the skeleton — *still loading this screen* — with the
+same clear-and-reload action, and it disappears the moment the screen renders. A panel that
+looks like it is working while nothing is happening is the worst of both.
+
+`npm test` now covers **39 suites and 1,927 checks**, including 29 in `harness/load99.js`.
+
+---
+
 ## What changed in 6.9.98
 
 **The page opens first; the printer, the spreadsheet and the second download come after.**

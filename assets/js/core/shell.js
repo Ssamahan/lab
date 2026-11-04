@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.98';
+const APP_VERSION='6.9.99';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -62,18 +62,26 @@ const DEFERRED=[
   ['xlsx','assets/js/core/xlsxread.js']
 ];
 let deferredLoad=null;
+/* A script tag can fail in two ways: it fires `error`, or it fires nothing at all — a
+   service worker holding a request, a connection that dies mid-download, a build whose
+   files are no longer where the address says. Only the first used to be handled, so the
+   second left the screen on its skeleton until a 25-second watchdog gave up on it. Each
+   file now has its own deadline, and the message names the file rather than the symptom. */
+const DEP_TIMEOUT=10000;
 function ensureDeps(){
   if(deferredLoad) return deferredLoad;
   deferredLoad=new Promise((resolve,reject)=>{
     let left=DEFERRED.length, failed=false;
+    const fail=msg=>{ if(failed) return; failed=true; clearTimeout(timer); reject(Object.assign(new Error(msg),{code:'LOAD_TIMEOUT'})); };
+    const timer=setTimeout(()=>fail('The code for this screen did not arrive.'),DEP_TIMEOUT);
     DEFERRED.forEach(dep=>{
       const sc=document.createElement('script');
       sc.src=dep[1]+'?v='+encodeURIComponent(APP_VERSION);
       /* async=false keeps the declared order: the sheet engine asks for the chart helpers
          the moment it renders, so charts must be there first. */
       sc.async=false;
-      sc.onload=()=>{ if(--left===0&&!failed) resolve(); };
-      sc.onerror=()=>{ if(failed) return; failed=true; reject(new Error('Could not load '+dep[0])); };
+      sc.onload=()=>{ if(--left===0&&!failed){ clearTimeout(timer); resolve(); } };
+      sc.onerror=()=>fail('Could not load '+dep[0]+'.');
       document.head.appendChild(sc);
     });
   });
@@ -83,19 +91,36 @@ function ensureDeps(){
 SH.ensureDeps=ensureDeps;
 
 /* ——— Module loading (code-split per route) ——————— */
-function loadModule(id){
-  const r=ROUTES[id];
-  if(loaded[id]) return Promise.resolve();
-  return ensureDeps().then(()=>new Promise((resolve,reject)=>{
+/* One attempt, with a deadline. `bust` is added on the retry: a different search string is
+   a different URL to the service worker, so it goes to the network instead of answering
+   from a cache that may be holding a half-written file. */
+function loadScript(id,file,bust,ms){
+  return new Promise((resolve,reject)=>{
     const sc=document.createElement('script');
     /* The version is part of the URL: after a deploy a cached module can never be served
        in place of the one that goes with this shell. */
-    sc.src='assets/js/modules/'+r.file+'.js?v='+encodeURIComponent(APP_VERSION);
+    sc.src='assets/js/modules/'+file+'.js?v='+encodeURIComponent(APP_VERSION)+(bust?('&r='+bust):'');
     sc.async=true;
-    sc.onload=()=>{ loaded[id]=true; resolve(); };
-    sc.onerror=()=>reject(new Error('Could not load module: '+id));
+    let settled=false;
+    const timer=setTimeout(()=>{
+      if(settled) return; settled=true;
+      reject(Object.assign(new Error('Could not load module: '+id),{code:'LOAD_TIMEOUT'}));
+    },ms);
+    sc.onload=()=>{ if(settled) return; settled=true; clearTimeout(timer); loaded[id]=true; resolve(); };
+    sc.onerror=()=>{ if(settled) return; settled=true; clearTimeout(timer); reject(Object.assign(new Error('Could not load module: '+id),{code:'LOAD_TIMEOUT'})); };
     document.head.appendChild(sc);
-  }));
+  });
+}
+function loadModule(id){
+  const r=ROUTES[id];
+  if(loaded[id]) return Promise.resolve();
+  return ensureDeps()
+    .then(()=>loadScript(id,r.file,null,15000))
+    /* A screen that did not arrive is usually a stale or half-written copy of the build in
+       the browser. Asking once more, past the cache, costs nothing and fixes most of them
+       without the person having to know that a service worker exists. */
+    .catch(err=>loadScript(id,r.file,String(Date.now()),15000))
+    .catch(err=>{ throw err; });
 }
 
 /* ——— Render nav ————————————————————————— */
@@ -313,7 +338,25 @@ SH.route=async function(opts){
   try{ UI.closeAll(); }catch(e){}
   page.dataset.route=id;
   page.innerHTML='<div class="page">'+UI.skel(3,'kpi')+'<div style="height:16px"></div>'+UI.skel(1,'table')+'</div>';
-  clearTimeout(SH._failTimer);
+  clearTimeout(SH._failTimer); clearTimeout(SH._slowTimer);
+  /* A skeleton with nothing under it is the worst thing a screen can be: it looks like it
+     is working. After six seconds it says what it is waiting for, and offers the one action
+     that fixes the usual cause — an older copy of the build in this browser. */
+  SH._slowTimer=setTimeout(()=>{
+    if(page.dataset.route!==id || !page.querySelector('.skeleton')) return;
+    const sk=page.querySelector('.skeleton');
+    if(!sk || page.querySelector('#slowHint')) return;
+    const note=document.createElement('div');
+    note.id='slowHint';
+    note.className='card pad';
+    note.style.cssText='margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+    note.innerHTML='<span class="small muted" style="flex:1;min-width:220px">Still loading this screen. On a slow connection, or with a large register, this can take a moment. '
+      +'If it stays like this, this browser is probably holding an older copy of the console.</span>'
+      +'<button class="btn" type="button" data-slow-fresh>'+U.ic('trash-2',14)+' Clear cache &amp; reload</button>';
+    sk.parentNode.insertBefore(note,sk);
+    const b=note.querySelector('[data-slow-fresh]');
+    if(b) b.onclick=()=>{ location.href=location.pathname+'?fresh=1'; };
+  },6000);
   SH._failTimer=setTimeout(()=>{ if(page.dataset.route===id && page.querySelector('.skeleton')) SH.fail(new Error('Module took longer than 25 seconds to render. The local register is intact — try reloading, or open another module.'),id,page); }, 25000);
   if(document.body.classList.contains('rail-open')) document.body.classList.remove('rail-open');
   document.querySelector('.app')?.classList.remove('rail-open');
@@ -324,7 +367,7 @@ SH.route=async function(opts){
     page.innerHTML='<div class="page" id="pageInner"></div>';
     const root=page.querySelector('#pageInner');
     await mod.render(root, params);
-    clearTimeout(SH._failTimer);
+    clearTimeout(SH._failTimer); clearTimeout(SH._slowTimer);
     UI.animateCounts(root); UI.observeReveals(root);
     /* tables size to their content, everywhere, on every route */
     try{ U.fitTables(root); setTimeout(()=>U.fitTables(root),240); }catch(e){}
@@ -350,20 +393,61 @@ SH.go=function(id,params){
 };
 SH.refresh=function(){ SH.route({keepScroll:true}); };
 SH.fail=function(err,id,host){
+  clearTimeout(SH._failTimer); clearTimeout(SH._slowTimer);
   const box=host||document.getElementById('page');
   if(!box) return;
+  const code=(err&&err.code)||'';
+  const slow=code==='LOAD_TIMEOUT'||/took longer than/i.test(String(err&&err.message||''));
   const diag='Lab Systems v'+APP_VERSION+'\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
-  box.innerHTML='<div class="page"><div class="card pad" style="max-width:620px;margin:5vh auto">'
+  /* The commonest cause of both symptoms is the same one: this browser is running a copy of
+     the build that is no longer the one on the site — a tab left open since an older release,
+     or a cache holding half an update. Naming the two versions turns "it is broken" into a
+     fact somebody can act on, so the live build is asked for while the panel is drawn. */
+  box.innerHTML='<div class="page"><div class="card pad" style="max-width:640px;margin:5vh auto">'
    +'<div class="row" style="gap:12px;margin-bottom:10px"><div class="kpi-ic" style="width:36px;height:36px;color:var(--crit);background:var(--crit-soft);border-color:var(--crit-border)">'+U.ic('alert-triangle',18)+'</div>'
-   +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">This panel could not render</div><div class="xs faint">Your data is safe — nothing was written.</div></div></div>'
-   +'<p class="small muted" style="line-height:1.6;margin-bottom:14px">A recoverable error was caught by the module boundary. Retry the panel, or continue to the Command Center. If it repeats, copy the diagnostics for the lab systems administrator.</p>'
-   +'<div class="row wrap"><button class="btn primary" data-retry>'+U.ic('refresh-cw',15)+' Retry</button>'
-   +'<button class="btn" data-home>'+U.ic('layout-dashboard',15)+' Command Center</button>'
-   +'<button class="btn" data-diag>'+U.ic('copy',15)+' Copy diagnostics</button></div></div></div>';
-  const q=s=>box.querySelector(s);
+   +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">'+(slow?'This screen did not arrive':'This panel could not render')+'</div>'
+   +'<div class="xs faint">Your data is safe — nothing was written.</div></div></div>'
+   +'<p class="small muted" style="line-height:1.6;margin-bottom:10px">'+(slow
+      ?'The code for this screen was asked for and did not come back in time. The register on this device is untouched — this is the page, not the data.'
+      :'A recoverable error was caught by the module boundary. Retry the panel, or continue to the Command Center.')
+   +'</p>'
+   +'<div class="hint" id="failVer" style="display:none;margin-bottom:12px"></div>'
+   +'<div class="row wrap" style="gap:8px">'
+     +'<button class="btn primary" data-retry>'+U.ic('refresh-cw',15)+' Retry</button>'
+     +'<button class="btn" data-fresh>'+U.ic('trash-2',15)+' Clear cache &amp; reload</button>'
+     +'<button class="btn" data-home>'+U.ic('layout-dashboard',15)+' Command Center</button>'
+     +'<button class="btn" data-diag>'+U.ic('copy',15)+' Copy diagnostics</button>'
+   +'</div>'
+   +'<div class="xs faint" style="margin-top:12px;line-height:1.6">Clearing the cache removes the copy of the build this browser is holding, not the register. '
+     +'Nothing stored on this device is deleted.</div></div></div>';
+  const q=sel=>box.querySelector(sel);
   if(q('[data-retry]')) q('[data-retry]').onclick=()=>SH.route();
   if(q('[data-home]')) q('[data-home]').onclick=()=>SH.go('dash');
+  if(q('[data-fresh]')) q('[data-fresh]').onclick=()=>{
+    /* ?fresh=1 asks the boot to drop the service worker and every cache on this origin,
+       then reload once. Written as an address so it works even if boot.js is the file
+       that failed to arrive. */
+    location.href=location.pathname+'?fresh=1';
+  };
   if(q('[data-diag]')) q('[data-diag]').onclick=async()=>{ const ok=await U.copy(diag); UI.toast(ok?'Diagnostics copied to clipboard':'Copy failed',{type:ok?'ok':'err'}); };
+  (async()=>{
+    const line=q('#failVer'); if(!line) return;
+    try{
+      const res=await fetch('index.html?build='+Date.now(),{cache:'no-store'});
+      if(!res.ok) return;
+      const txt=await res.text();
+      const m=/v(\d+\.\d+\.\d+)/.exec(txt);
+      if(!m||!m[1]) return;
+      line.style.display='';
+      if(m[1]===APP_VERSION){
+        line.innerHTML='This tab is already running the current build (v'+APP_VERSION+'). Clearing the cache is still the right first move if a screen will not open.';
+      } else {
+        line.innerHTML='<b>This tab is running v'+APP_VERSION+'; the site is now v'+m[1]+'.</b> '
+          +'That is the usual cause of a screen not arriving — this browser is holding an older copy of the console. '
+          +'<b>Clear cache &amp; reload</b> replaces it; your register stays where it is.';
+      }
+    }catch(e){}
+  })();
 };
 
 /* Every chart carries a PNG / SVG export. PNG renders at 3× for sharing on a
