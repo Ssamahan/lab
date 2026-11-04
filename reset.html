@@ -56,6 +56,7 @@
       <button class="btn" id="go">Repair this device</button>
       <button class="btn ghost" id="open">Open Lab Systems</button>
       <button class="btn ghost" id="safe">Open without charts</button>
+      <button class="btn ghost" id="bundle">Open the single-file build</button>
     </div>
     <div class="note" id="verdict"></div>
   </div>
@@ -219,6 +220,7 @@ function backup(){
 document.getElementById('go').addEventListener('click',repair);
 document.getElementById('open').addEventListener('click',function(){ location.href='./?v='+Date.now(); });
 document.getElementById('safe').addEventListener('click',function(){ location.href='./?safe=1'; });
+document.getElementById('bundle').addEventListener('click',function(){ location.href='bundle.html'; });
 document.getElementById('backup').addEventListener('click',backup);
 
 /* what can be said before anything is pressed */

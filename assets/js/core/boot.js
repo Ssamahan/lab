@@ -280,7 +280,9 @@ else setTimeout(init,60);
 /* Service worker — offline-first, and never stale. The new build takes control
    as soon as it installs; the page reloads once so the user is not left running
    yesterday's JavaScript (that is what makes a fixed Close button look broken). */
-if(navigator.serviceWorker && location.protocol!=='file:'){
+/* The single-file bundle carries its own copy of every screen, so a stored copy of the
+   build can only get in its way. It registers no worker at all. */
+if(navigator.serviceWorker && location.protocol!=='file:' && !window.__LS_BUNDLE){
   let reloading=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
     if(reloading) return; reloading=true;
