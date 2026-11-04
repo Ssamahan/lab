@@ -15,6 +15,8 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   const trainings=()=>S.db().trainings||[];
   const ledger=()=>S.db().trainingExpenses||[];
   const rows=()=>doc.querySelectorAll('#revTable tbody tr[data-rev]').length;
+  const sumExpTest=t=>(t.expenses||[]).reduce((a,x)=>a+(x.amount||0),0);
+  const sumReimbTest=t=>(t.reimbursements||[]).reduce((a,x)=>a+(x.amount||0),0);
 
   /* ── 1 · the page, and what it counts ───────────────────────────────── */
   ok(rows()===ledger().length,'every ledger session is listed ('+rows()+')');
@@ -112,12 +114,53 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   const recon3=(doc.body.textContent.match(/(\d+) ledger rows? not linked to the roster/g)||[])[0];
   ok(!!recon3,'the page counts the rows that are not tied to the roster');
 
-  /* ── 6 · the rules are in the source ───────────────────────────────── */
+  /* ── 6 · the money itself, and what a session averages ────────────── */
+  await go('#/revenue'); await tick(400);
+  const ledgerNow=S.db().trainingExpenses||[];
+  const totExp=ledgerNow.reduce((a,t)=>a+(t.expenses||[]).reduce((x,y)=>x+(y.amount||0),0),0);
+  const totRei=ledgerNow.reduce((a,t)=>a+(t.reimbursements||[]).reduce((x,y)=>x+(y.amount||0),0),0);
+  const txt=doc.body.textContent.replace(/\s+/g,' ');
+  ok(txt.indexOf(U.fmtNum(totRei))>=0,'the reimbursed card shows the money itself, all of it ('+U.fmtNum(totRei)+')',txt.slice(0,80));
+  ok(txt.indexOf(U.fmtNum(totExp))>=0,'the expenses card too ('+U.fmtNum(totExp)+')');
+  ok(txt.indexOf(U.fmtNum(totRei-totExp))>=0,'and the net balance ('+U.fmtNum(totRei-totExp)+')');
+  const kpiText=[...doc.querySelectorAll('.kpi')].map(k=>k.textContent.replace(/\s+/g,' ')).join(' | ');
+  ok(!/k RWF/.test(kpiText),'no card is divided down to thousands any more',kpiText.slice(0,120));
+  ok(/RWF/.test(kpiText),'the cards are in RWF, the currency the ledger is kept in');
+  const kpiValues=[...doc.querySelectorAll('.kpi .kpi-value span[data-count]')].map(x=>+x.getAttribute('data-count'));
+  ok(kpiValues.indexOf(totRei)>=0,'the card is animated from the exact amount, not a rounded one',kpiValues.join(' '));
+
+  const avgRei=Math.round(totRei/ledgerNow.length), avgExp=Math.round(totExp/ledgerNow.length);
+  ok(/Average per session/.test(txt),'an averages card is on the page');
+  ok(txt.indexOf(U.fmtNum(avgRei))>=0,'showing the average reimbursed per session ('+U.fmtNum(avgRei)+')');
+  ok(txt.indexOf(U.fmtNum(avgExp))>=0,'the average expense ('+U.fmtNum(avgExp)+')');
+  ok(/against the \d+ before/.test(txt),'and the trend against the sessions before the latest three',(txt.match(/Last \d+ sessions? against[^.]*/)||[])[0]);
+
+  /* the trend is the change in the average, computed from the record itself */
+  const byDate=ledgerNow.slice().sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
+  const sumOf=(arr,f)=>arr.reduce((a,t)=>a+f(t),0);
+  const reiAvg=k=>{ const a=byDate.slice(0,k); return a.length?sumOf(a,t=>sumReimbTest(t))/a.length:0; };
+  const expAvg=k=>{ const a=byDate.slice(0,k); return a.length?sumOf(a,t=>sumExpTest(t))/a.length:0; };
+  const last3=byDate.slice(0,3), older=byDate.slice(3);
+  const r3=last3.reduce((a,t)=>a+sumReimbTest(t),0)/last3.length;
+  const o3=older.length?older.reduce((a,t)=>a+sumReimbTest(t),0)/older.length:0;
+  const expect=o3?Math.round((r3-o3)/Math.abs(o3)*1000)/10:null;
+  const shown=(txt.match(/([+-]?\d+(?:\.\d+)?)%/g)||[]).map(x=>parseFloat(x));
+  ok(expect==null||shown.indexOf(expect)>=0,'the trend figure is the real percentage change ('+expect+'%)',shown.join(' '));
+  ok(new RegExp('was '+U.fmtNum(Math.round(o3)).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).test(txt)||o3===0,'and names what it is being compared with');
+
+  /* a drawer session compares itself with that average */
+  click(doc.querySelector('#revTable tbody tr[data-rev] td')); await tick(400);
+  ok(/against the average on the record/.test(doc.body.textContent.replace(/\s+/g,' ')),'a session says how it compares with the average');
+  w.LS.ui.closeAll(); await tick(150);
+
+  /* ── 7 · the rules are in the source ───────────────────────────────── */
   const fs=require('fs'), path=require('path');
   const src=fs.readFileSync(path.join(__dirname,'..','assets/js/modules/revenue.js'),'utf8');
   ok(/function rosterRows/.test(src),'the roster is read in one place');
   ok(/rosterOptions\(t\.linkedTraining\|\|'',t\.id\)/.test(src),'a row never offers to link itself twice');
   ok(/action:'revenue\.link'/.test(src),'linking is audited');
+  ok(/function averages\(\)/.test(src),'the average is worked out in one place');
+  ok(/avg\.reimb|averages\(\)\.avg/.test(src),'and read by the cards and the drawer');
 
   done('revenue94');
 })();

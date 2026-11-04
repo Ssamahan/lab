@@ -4,6 +4,26 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.94
+
+**The money is shown as money, and a session now has an average.**
+
+- **The four cards were divided by a thousand.** Reimbursed, expenses, net and pending read `806 k RWF`,
+  `150 k RWF`, `656 k RWF` — which reads as *806 shillings*, and rounds away the part that matters. They now
+  show the figures themselves: **805,952 RWF**, **150,200 RWF**, **655,752 RWF**, each with the average per
+  session in its note. The cash-flow chart keeps its `k` axis ticks, because a chart legend is not a total.
+- **Average per session**, on a card of its own: reimbursed, expenses and net, each divided by the sessions
+  actually on the ledger, with the recovery rate (*reimbursed ÷ expenses*).
+- **Trend change**: the last three sessions against the ones before them — the average reimbursed and the
+  average expense, each with the percentage change and the figure it moved from. It compares the *average per
+  session*, not the month total, so one large session cannot flatter the trend; and it says so when there is
+  not yet a "before" to compare with.
+- **A session compares itself with the record**: opening a drawer states *this session against the average on
+  the record* — expenses and reimbursed, side by side.
+
+Verified — **34 suites, 1,797 checks** — including the exact totals on the cards, the average maths read back
+from the ledger, the trend percentage derived independently in the test, and the drawer comparison.
+
 ## What changed in 6.9.93
 
 **A revenue session is chosen from the training roster.**
