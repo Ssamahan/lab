@@ -1940,9 +1940,16 @@ function load(){
   try{ raw=localStorage.getItem(DB_KEY); }catch(e){}
   let db=null;
   if(raw){ try{ db=JSON.parse(raw); }catch(e){ console.warn('Corrupt store, restoring seed'); } }
-  if(!db || !db.staff){ db=JSON.parse(JSON.stringify(window.LS_SEED)); }
+  const seeded=!db||!db.staff;
+  if(seeded){ db=JSON.parse(JSON.stringify(window.LS_SEED)); }
   DB=normalize(db);
-  S._persist();
+  /* Writing the register back on every start is a freeze on a phone — a few hundred
+     kilobytes serialised and stored before the first screen, and a broadcast that wakes
+     every other open tab to read it too. The write only happens when what came out of the
+     repair differs from what was read, or when the seed had to be laid down. */
+  const next=JSON.stringify(DB);
+  if(seeded||next!==raw) S._persist(next);
+  else dirty=false;
   return DB;
 }
 S.EQA_MIN=EQA_MIN; S.PBF_MIN=PBF_MIN;
@@ -1950,9 +1957,9 @@ S.init=function(){ if(!DB) load(); return DB; };
 S.db=function(){ return DB||load(); };
 S.data=S.db;
 S.settings=()=>S.db().settings;
-S._persist=function(){
+S._persist=function(prepared){
   try{
-    const json=JSON.stringify(DB);
+    const json=prepared||JSON.stringify(DB);
     localStorage.setItem(DB_KEY,json);
     dirty=false;
     try{ window.dispatchEvent(new CustomEvent('ls:saved',{detail:{bytes:json.length}})); }catch(e){}

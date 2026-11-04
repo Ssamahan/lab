@@ -36,7 +36,15 @@ if((function freshRecovery(){
 
 const U=window.LSU;
 const LINES=['Calibrating QC engines…','Verifying chain of custody…','Loading ISO 15189 register…','Rehydrating local register…','Arming offline cache…','Ready.'];
-const SPLASH_MIN=2100;
+/* The splash is a first-run courtesy, not a toll gate. A device that has opened the
+   console before shows it for a moment; a first visit gets the full animation. The
+   difference is what "it takes longer to load" actually was on a phone. */
+const FIRST_RUN=2100, RETURNING=380;
+function hasOpenedBefore(){
+  try{ return localStorage.getItem('labSystems.opened.v1')==='1'; }catch(e){ return false; }
+}
+function markOpened(){ try{ localStorage.setItem('labSystems.opened.v1','1'); }catch(e){} }
+const SPLASH_MIN=hasOpenedBefore()?RETURNING:FIRST_RUN;
 let done=false;
 /* The first thing that went wrong in this page, in plain words. A blank console is
    almost always one thrown line, and naming it turns a mystery into a bug report. */
@@ -58,13 +66,29 @@ function finish(){
   const boot=document.getElementById('boot');
   if(boot){ boot.classList.add('done'); setTimeout(()=>boot.remove(),700); }
 }
+/* How long each part of the start took. Kept on the window so a slow device can be asked
+   what was actually slow, and printed when the address carries ?diag=1. */
+const timings=[];
+function mark(name,t0){ timings.push({name,ms:Math.round((performance.now()-t0)*10)/10}); }
+function stamp(name,fn){
+  const t0=performance.now();
+  try{ return fn(); }
+  finally{ mark(name,t0); }
+}
+function reportTimings(){
+  try{
+    if(!/[?&]diag=1\b/.test(location.search)) return;
+    const total=Math.round(timings.reduce((a,x)=>a+x.ms,0));
+    console.info('[Lab Systems] start-up '+total+' ms\n'+timings.map(x=>'  '+x.name+': '+x.ms+' ms').join('\n'));
+  }catch(e){}
+}
 function init(){
   const t0=performance.now();
   try{
-    LS.store.init();
-    LS.i18n.init();
+    stamp('register loaded',()=>LS.store.init());
+    stamp('language',()=>LS.i18n.init());
     try{ if(window.LS.sync) LS.sync.start(); }catch(e){ console.warn('sync start',e); }
-    LS.auth.init();
+    stamp('accounts',()=>LS.auth.init());
     /* Read the session at the moment the splash ends, not when it starts: a
        sign-in that completes during the animation must not be overruled. */
     const sessionUser=()=>LS.auth.user;
@@ -103,7 +127,10 @@ function init(){
         if(sessionUser() && consoleRoute) setTimeout(()=>LS.shell.route(),60);
       }, wait);
     };
+    mark('total to first screen',t0);
+    reportTimings();
     jump();
+    markOpened();
   }catch(err){
     console.error('Boot failed',err);
     finish();
@@ -144,6 +171,7 @@ function recover(reason){
   if(b) b.onclick=()=>{ location.href=location.pathname+'?fresh=1'; };
 }
 window.__lsRecover=recover;
+window.LS_TIMINGS=timings;
 
 // watchdog: never trap the user behind the splash
 setTimeout(()=>{

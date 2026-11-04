@@ -94,7 +94,7 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   ok(!errors.length,'the console boots without console errors',errors.join(' | '));
   ok(typeof w.LSXLSX==='object'&&typeof w.LSXLSX.readWorkbook==='function','the workbook reader is loaded');
   ok(idx.indexOf('core/xlsxread.js')>0,'and it is on the page in index.html');
-  ok(sw.indexOf("'./assets/js/core/xlsxread.js'")>0,'and precached by the service worker');
+  ok(/'\.\/assets\/js\/core\/xlsxread\.js(\?v=[\d.]+)?'/.test(sw),'and precached by the service worker');
 
   /* ── 1 · the workbook, read from its own bytes ─────────────────────── */
   const sheets=await w.LSXLSX.readWorkbook(fileLike(buf));
