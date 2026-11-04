@@ -2375,7 +2375,14 @@ S.reportSet=function(key,lineId,field,value){
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
     m.values=m.values||{};
     const v=m.values[lineId]||(m.values[lineId]={});
-    v[field]=Math.max(0,Math.round(+value||0));
+    /* Clearing a cell returns it to blank — the form does not write 0 where nobody
+       wrote anything. A typed 0 is kept, and stays a 0. */
+    if(value===''||value==null){
+      delete v[field];
+      if(!Object.keys(v).length) delete m.values[lineId];
+    } else {
+      v[field]=Math.max(0,Math.round(+value||0));
+    }
     m.touchedAt=U.nowISO();
   },{action:'report.edit',entity:'reporting',entityId:key,detail:'Monthly report '+key+' · '+lineId+' '+field});
   return true;
@@ -2393,7 +2400,8 @@ S.reportBlood=function(key,group,field,value){
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
     m.blood=m.blood||{};
     const g=m.blood[group]||(m.blood[group]={});
-    g[field]=Math.max(0,Math.round(+value||0));
+    if(value===''||value==null){ delete g[field]; if(!Object.keys(g).length) delete m.blood[group]; }
+    else g[field]=Math.max(0,Math.round(+value||0));
   },{action:'report.blood',entity:'reporting',entityId:key,detail:'Blood supply '+group+' '+field});
 };
 S.reportAddLine=function(def){
@@ -2419,6 +2427,11 @@ S.reportRow=function(m,line){
   const v=((m&&m.values)||{})[line.id]||{};
   const n=x=>Math.max(0,Math.round(+x||0));
   const r={id:line.id,pos:n(v.pos),neg:n(v.neg),a0:n(v.a0),a1:n(v.a1),a2:n(v.a2),total:n(v.total)};
+  /* Which of those the sheet actually carries. A blank cell and a cell holding 0 are
+     two different things on the paper form — one says nothing, the other says something
+     and it is nothing — so the form printed here must not turn either into the other. */
+  r.present={pos:v.pos!=null,neg:v.neg!=null,a0:v.a0!=null,a1:v.a1!=null,a2:v.a2!=null,total:v.total!=null};
+  r.any=r.present.pos||r.present.neg||r.present.a0||r.present.a1||r.present.a2||r.present.total;
   if(line.mode==='pn'){ r.total=r.pos+r.neg; r.qual=true; }
   else if(line.mode==='pn2'){ r.total=r.pos+r.neg; r.qual=true; r.ages=r.a0+r.a1; }
   else if(line.mode==='posage3'){ const ages=r.a0+r.a1+r.a2; r.total=r.pos||ages; r.qual=r.pos>0; }
@@ -2607,14 +2620,15 @@ S.reportImportMonth=function(key, values, extra){
       Object.keys(ex.blood).forEach(g=>{
         if(REPORT_GROUPS.indexOf(g)<0) return;
         const gv=ex.blood[g]||{}, clean={};
-        REPORT_BLOOD_FIELDS.forEach(f=>{ if(gv[f[0]]!=null&&+gv[f[0]]) clean[f[0]]=Math.max(0,Math.round(+gv[f[0]])); });
+        REPORT_BLOOD_FIELDS.forEach(f=>{ if(gv[f[0]]!=null&&gv[f[0]]!==''&&isFinite(+gv[f[0]])) clean[f[0]]=Math.max(0,Math.round(+gv[f[0]])); });
         if(Object.keys(clean).length) m.blood[g]=Object.assign({},m.blood[g]||{},clean);
       });
     }
     Object.keys(vals).forEach(id=>{
       const v=vals[id]||{};
       const clean={};
-      ['pos','neg','a0','a1','a2','total'].forEach(f=>{ if(v[f]!=null&&+v[f]) clean[f]=Math.max(0,Math.round(+v[f])); });
+      /* 0 is a figure the laboratory wrote down; a missing field is not */
+      ['pos','neg','a0','a1','a2','total'].forEach(f=>{ if(v[f]!=null&&v[f]!==''&&isFinite(+v[f])) clean[f]=Math.max(0,Math.round(+v[f])); });
       if(Object.keys(clean).length) m.values[id]=Object.assign({},m.values[id]||{},clean);
     });
     m.touchedAt=U.nowISO();
@@ -2659,7 +2673,7 @@ S.reportPlaceRows=function(key,places){
       else if(line.mode==='pn2'){ v.pos=nums[0]||0; v.neg=nums[1]||0; v.a0=nums[2]||0; v.a1=nums[3]||0; }
       else { v.pos=nums[0]||0; v.neg=nums[1]||0; }
       const clean={};
-      Object.keys(v).forEach(f=>{ if(v[f]) clean[f]=v[f]; });
+      Object.keys(v).forEach(f=>{ if(v[f]!=null&&v[f]!=='') clean[f]=v[f]; });
       if(Object.keys(clean).length) m.values[p.lineId]=Object.assign({},m.values[p.lineId]||{},clean);
       db.reporting.aliases[reportNorm(p.label)]=p.lineId;
     });

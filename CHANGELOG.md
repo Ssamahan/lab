@@ -4,6 +4,31 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.92
+
+**A blank is a blank, and a written 0 is a 0.**
+
+The district's sheet leaves many cells empty and writes 0 in others on purpose — *RPR 0 | 0* is a statement,
+an empty cell is silence. The return had been flattening both into one: every zero was dropped on import and
+every empty cell was printed as a dash, so a laboratory that reported "no positives" looked identical to one
+that had not filled the row at all.
+
+The three states are now kept apart, from the workbook to the screen to the export:
+
+- **On import**, a 0 in the sheet is kept as a 0; a cell the sheet never names stays absent. `S.reportRow`
+  now carries `present` — which cells of the row were actually written.
+- **On the form**, a written 0 shows as `0` in its box and in the row total; a cell nobody filled is left
+  empty, and its total is empty — no dash anywhere.
+- **In the blood bank**, a group the sheet records as all zeroes prints zeroes and a closing balance of 0;
+  a group the sheet never mentions is left blank.
+- **On the printed sheet and in the Excel export**, the same map is read: a figure prints, a 0 prints as 0,
+  and a blank cell is an empty cell. The Excel export no longer writes 0 across every empty cell.
+- **Typing**: clearing a box removes the figure instead of storing a 0; typing 0 stores a 0.
+
+Verified — **33 suites, 1,755 checks** — including RPR `0|0` read as two zeroes, CD4 `0` kept, a line the
+sheet never names staying absent, blank cells and blank totals on the form, the all-zero blood group, and the
+printed sheet carrying no dash at all.
+
 ## What changed in 6.9.91
 
 **"The site is not reachable" — when the address answers and the device shows nothing.**

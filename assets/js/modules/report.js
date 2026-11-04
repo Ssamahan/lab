@@ -46,9 +46,12 @@ function canEdit(){ return !!(LS.auth.can && LS.auth.can('edit')); }
 
 /* ——— the report itself ————————————————————————————————— */
 function numCell(line,row,field){
-  const v=row[field]||0;
-  return '<td class="rep-td"><input class="rep-in mono'+(v?' has':'')+'" type="number" min="0" step="1" '
-    +'inputmode="numeric" data-line="'+U.esc(line.id)+'" data-field="'+field+'" value="'+(v||'')+'" '
+  /* A recorded 0 is printed as 0; a cell nobody filled is left empty, as it is on the
+     paper form. Neither is a dash, and neither is the other. */
+  const has=!!(row.present&&row.present[field]);
+  const v=has?(row[field]||0):null;
+  return '<td class="rep-td"><input class="rep-in mono'+(has?' has':'')+'" type="number" min="0" step="1" '
+    +'inputmode="numeric" data-line="'+U.esc(line.id)+'" data-field="'+field+'" value="'+(has?v:'')+'" '
     +(canEdit()?'':'readonly ')+'aria-label="'+U.esc(line.label+' '+FIELD_LABEL[field])+'"></td>';
 }
 function rowHTML(r){
@@ -57,13 +60,13 @@ function rowHTML(r){
     return '<tr class="rep-band"><td colspan="6"><span class="rep-band-t">'+U.esc(line.label)+'</span></td></tr>';
   }
   const spec=MODES[line.mode]||MODES.pn;
-  const cls='rep-row'+(line.indent?' ind'+Math.min(2,line.indent):'')+(line.breakdown?' rep-break':'')+(r.total?'':' rep-zero');
+  const cls='rep-row'+(line.indent?' ind'+Math.min(2,line.indent):'')+(line.breakdown?' rep-break':'')+(r.any?'':' rep-zero');
   return '<tr class="'+cls+'" data-row="'+U.esc(line.id)+'">'
     +'<td class="rep-exam">'+(line.no?'<span class="rep-no">'+U.esc(line.no)+'</span> ':'')+U.esc(line.label)
       +(line.auto?' <span class="rep-tag" title="Added from the test menu">new</span>':'')
       +(line.custom?' <span class="rep-tag" title="Added on this report">added</span>':'')+'</td>'
     +spec.cols.map(f=>numCell(line,r,f)).join('')
-    +'<td class="rep-total mono" data-total="'+U.esc(line.id)+'">'+(r.total?U.fmtNum(r.total):'—')+'</td>'
+    +'<td class="rep-total mono" data-total="'+U.esc(line.id)+'">'+(r.any?U.fmtNum(r.total):'')+'</td>'
     +(canEdit()&&line.custom?'<td class="rep-del"><button class="icon-btn" data-del-line="'+U.esc(line.id)+'" title="Remove this examination from the report">'+UI.ic('x',12)+'</button></td>':'<td class="rep-del"></td>')
     +'</tr>';
 }
@@ -87,9 +90,11 @@ function sectionHTML(sec){
     +'</tr></thead><tbody>'+sec.rows.map(rowHTML).join('')
       +(function(){
         if(!counted.length) return '';
-        const sum=c=>U.sum(counted.filter(r=>!r.line.breakdown),r=>r[c]||0);
+        const rowsIn=counted.filter(r=>!r.line.breakdown);
+        const sum=c=>U.sum(rowsIn,r=>r[c]||0);
+        const filled=c=>rowsIn.some(r=>r.present&&r.present[c]);
         return '<tr class="rep-sum"><td>Section total</td>'
-          +spec.cols.map(f=>'<td class="mono">'+(sum(f)?U.fmtNum(sum(f)):'0')+'</td>').join('')
+          +spec.cols.map(f=>'<td class="mono">'+(filled(f)?U.fmtNum(sum(f)):'')+'</td>').join('')
           +'<td class="mono strong">'+U.fmtNum(sec.total)+'</td><td></td></tr>';
       })()
     +'</tbody></table></div>'
@@ -108,6 +113,12 @@ function tableCard(sm){
     foot:'<span>Positives, negatives and the age split are what the district receives · blood supply is on its own table below</span>'
       +'<span class="mono strong">'+U.fmtNum(sm.totals.tests)+' tests</span>'});
 }
+/* Which figures of a blood group the return actually carries — 0 counts, blank does not. */
+function bloodPresent(key,g){
+  const m=S.reportMonth(key);
+  const v=((m&&m.blood)||{})[g]||{};
+  return S.REPORT_BLOOD_FIELDS.map(f=>f[0]).filter(f=>v[f]!=null);
+}
 function bloodCard(sm){
   const bt=sm.bloodTotals;
   const usage=bt.recv?Math.round(bt.used/bt.recv*100):0;
@@ -118,10 +129,12 @@ function bloodCard(sm){
       +S.REPORT_BLOOD_FIELDS.map(f=>'<th>'+U.esc(f[1])+'</th>').join('')
       +'<th class="rep-th-total">Present at the end</th></tr></thead><tbody>'
       +S.REPORT_GROUPS.map(g=>{ const row=sm.blood[g];
-        return '<tr class="rep-row'+(row.recv||row.open||row.used?'':' rep-zero')+'" data-blood="'+g+'"><td class="rep-exam"><span class="rep-no">'+U.esc(g)+'</span></td>'
-          +S.REPORT_BLOOD_FIELDS.map(f=>'<td class="rep-td"><input class="rep-in mono'+(row[f[0]]?' has':'')+'" type="number" min="0" step="1" '
-            +(canEdit()?'':'readonly ')+'data-blood-group="'+U.esc(g)+'" data-blood-field="'+f[0]+'" value="'+(row[f[0]]||'')+'"></td>').join('')
-          +'<td class="rep-total mono" data-blood-end="'+g+'">'+(row.end?U.fmtNum(row.end):'—')+'</td></tr>';
+        const carries=bloodPresent(sm.key,g);
+        return '<tr class="rep-row'+(carries?'':' rep-zero')+'" data-blood="'+g+'"><td class="rep-exam"><span class="rep-no">'+U.esc(g)+'</span></td>'
+          +S.REPORT_BLOOD_FIELDS.map(f=>{ const has=carries.indexOf(f[0])>=0;
+            return '<td class="rep-td"><input class="rep-in mono'+(has?' has':'')+'" type="number" min="0" step="1" '
+              +(canEdit()?'':'readonly ')+'data-blood-group="'+U.esc(g)+'" data-blood-field="'+f[0]+'" value="'+(has?row[f[0]]:'')+'"></td>';}).join('')
+          +'<td class="rep-total mono" data-blood-end="'+g+'">'+(carries.length?U.fmtNum(row.end):'')+'</td></tr>';
       }).join('')
       +'<tr class="rep-sum"><td>Sum</td>'
         +S.REPORT_BLOOD_FIELDS.map(f=>'<td class="mono">'+U.fmtNum(bt[f[0]])+'</td>').join('')
@@ -132,10 +145,10 @@ function bloodCard(sm){
 }
 function identCard(sm){
   const m=sm.meta||{};
-  const rows=[['Service name','service','Laboratory'],['Catchment population','catchment','—'],
+  const rows=[['Service name','service','Laboratory'],['Catchment population','catchment',''],
     ['District','district','Gakenke'],['Sector','sector','Ruli'],['Financial year','year','2026/2027'],
     ['Month','monthName',''],['Name of in-charge','charge','Kelvin SAMAHANI'],
-    ['Qualification','qualification','A0'],['Date sent','sentDate',''],['Entered in DHIS2','enteredInDhis','—']];
+    ['Qualification','qualification','A0'],['Date sent','sentDate',''],['Entered in DHIS2','enteredInDhis','']];
   const field=(k,label,def)=>{
     const v=m[k]==null?'':m[k];
     return '<div class="rep-id"><label>'+U.esc(label)+'</label>'
@@ -241,7 +254,7 @@ function drawCharts(root,sm){
 function wire(root){
   const paint=()=>{ renderInner(root); };
   root.querySelectorAll('.rep-in[data-line]').forEach(inp=>{
-    inp.addEventListener('input',()=>{ if(inp.value!==''&&inp.value!=='0') inp.classList.add('has'); else if(inp.value==='') inp.classList.remove('has'); });
+    inp.addEventListener('input',()=>{ if(inp.value==='') inp.classList.remove('has'); else inp.classList.add('has'); });
     inp.addEventListener('change',()=>{
       if(!canEdit()) return;
       const lineId=inp.dataset.line, field=inp.dataset.field;
@@ -250,7 +263,7 @@ function wire(root){
       const sm=summary();
       const row=(sm.lines||[]).find(r=>r.id===lineId);
       const cel=root.querySelector('[data-total="'+lineId+'"]');
-      if(cel&&row) cel.textContent=row.total?U.fmtNum(row.total):'—';
+      if(cel&&row) cel.textContent=row.any?U.fmtNum(row.total):'';
       const sec=sm.sections.find(s=>s.rows.some(r=>r.id===lineId));
       if(sec){ const st=root.querySelector('[data-sec-total="'+sec.key+'"]'); if(st) st.textContent=U.fmtNum(sec.total); }
       const head=root.querySelector('[data-page-total]'); if(head) head.textContent=U.fmtNum(sm.totals.tests);
@@ -262,10 +275,10 @@ function wire(root){
       if(!canEdit()) return;
       const g=inp.dataset.bloodGroup, f=inp.dataset.bloodField;
       S.reportBlood(pickMonth(),g,f,inp.value);
-      if(inp.value!==''&&inp.value!=='0') inp.classList.add('has'); else inp.classList.remove('has');
+      if(inp.value!=='') inp.classList.add('has'); else inp.classList.remove('has');
       const sm=summary();
       const endEl=root.querySelector('[data-blood-end="'+g+'"]');
-      if(endEl) endEl.textContent=sm.blood[g].end?U.fmtNum(sm.blood[g].end):'—';
+      if(endEl) endEl.textContent=bloodPresent(pickMonth(),g).length?U.fmtNum(sm.blood[g].end):'';
       const sumRow=root.querySelector('.rep-blood-t .rep-sum');
       if(sumRow){
         const cells=sumRow.querySelectorAll('td');
