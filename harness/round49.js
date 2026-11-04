@@ -68,8 +68,19 @@ const mod=fs.readFileSync(path.resolve(__dirname,'..','assets/css/modules.css'),
   await go('#/leave'); await tick(350);
   const rows=[...d.querySelectorAll('#app .table-card tbody tr')];
   const firstName=(tr)=>{ const t=tr.querySelector('td'); return t?t.textContent.replace(/\s+/g,' ').trim():''; };
-  ok(/Aurelie/.test(firstName(rows[0])),'the plan book opens with the person who is away now ('+firstName(rows[0]).slice(0,30)+')');
-  ok(/On leave/.test(rows[0].textContent),'and her block reads "On leave"');
+  /* Who is away depends on the calendar, so the expectation is read from the register
+     rather than typed into the suite: if somebody is on leave today they come first,
+     and if nobody is, the book opens on the next turn away. */
+  const todayISO=U.todayISO();
+  const awayNow=db().leaves.filter(l=>l.status!=='Rejected'&&l.status!=='Declined'&&l.from<=todayISO&&l.to>=todayISO);
+  if(awayNow.length){
+    const awayName=String(S.staffById(awayNow[0].staffId).name);
+    ok(firstName(rows[0]).indexOf(awayName)>=0,'the plan book opens with the person who is away now ('+firstName(rows[0]).slice(0,30)+')');
+    ok(/On leave/.test(rows[0].textContent),'and their block reads "On leave"');
+  } else {
+    ok(rows.length>0,'with nobody away today, the book still opens on the turns to come ('+firstName(rows[0]).slice(0,30)+')');
+    ok(!/On leave/.test(rows[0].textContent),'and nobody is marked as away who is not');
+  }
   const upcoming=[];
   rows.forEach(tr=>{ const chips=[...tr.querySelectorAll('.block-chip')];
     chips.forEach(c=>{ if(c.dataset.state==='planned') upcoming.push({name:firstName(tr),from:(c.getAttribute('title')||'').split('·')[1]||''}); }); });

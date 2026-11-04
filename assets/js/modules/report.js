@@ -361,6 +361,8 @@ function renderInner(root){
     if(to){ monthKey=to.key; renderInner(root); }
   });
   root.querySelectorAll('[data-map-rows]').forEach(b=>b.onclick=()=>mapModal(b.dataset.mapRows));
+  const vs=root.querySelector('[data-vault-save]'); if(vs) vs.onclick=vaultSave;
+  const vf=root.querySelector('[data-vault-pull]'); if(vf) vf.onclick=vaultFetch;
   /* the month table is a way back in time: a row opens that month's return */
   root.querySelectorAll('.rep-hist tr[data-month]').forEach(tr=>tr.onclick=()=>{
     monthKey=tr.dataset.month; tab='return'; renderInner(root);
@@ -590,6 +592,7 @@ function analysisTab(sm){
         body:'<div id="repSecTrend"></div>',foot:'<span>Each line is one section of the form</span><span class="mono">'+S.REPORT_SECTIONS.filter(x=>all.some(m=>m.sections[x.key]>0)).length+' sections used</span>'})+'</div>'
     +'</div>'
     +'</div>'
+    +vaultCard()
     +'<div class="rep-loadbar">'
       +'<div><div class="rep-loadbar-t">'+(all.length>1?'Add more months to the history':'The history starts with the months behind this one')+'</div>'
       +'<div class="xs faint">The district\u2019s workbook has a sheet for every month. Load it whole and every comparison above fills in — month over month, year over year, and each examination\u2019s trend.</div></div>'
@@ -656,6 +659,49 @@ function drawHistoryCharts(root,sm){
   } else if(st){
     st.innerHTML='<div class="rep-cmp-none">One month on file — the section lines appear once a second month is loaded.</div>';
   }
+}
+
+/* ——— The history, kept online ————————————————————————
+   The register is one document and is rewritten whole on every change; a monthly return
+   is a record and must not be. So the months are also published one row each to a table
+   of their own, where they stay: on a new phone, after a cleared browser, after a
+   register that was started again. One press, once — and from then on the record is
+   fetched wherever the console is opened. */
+function vaultCard(){
+  const v=(window.LS&&LS.sync&&LS.sync.vaultStatus)?LS.sync.vaultStatus():null;
+  if(!v||!v.configured) return '';
+  const months=S.reportMonths();
+  const online=v.months;
+  const state=online==null?'never saved from this device':(online+' month'+(online===1?'':'s')+' kept online');
+  return '<div class="rep-vault">'
+    +'<div class="rep-vault-ic">'+UI.ic('cloud',16)+'</div>'
+    +'<div class="rep-vault-body"><div class="rep-vault-t">Keep the history online</div>'
+      +'<div class="xs faint">'+months.length+' month'+(months.length===1?'':'s')+' on this device · '+U.esc(state)
+        +(v.at?' · last saved '+U.relTime(v.at):'')+'</div>'
+      +'<div class="xs faint" style="margin-top:3px">Each month is written to the cloud as its own record, once. A cleared browser, a new phone or a register started again does not touch them.</div></div>'
+    +'<button class="btn sm" data-vault-pull>'+UI.ic('download',13)+'Fetch</button>'
+    +'<button class="btn sm primary" data-vault-save>'+UI.ic('cloud',13)+'Save online</button>'
+  +'</div>';
+}
+async function vaultSave(){
+  if(!canEdit()) return UI.toast('Sign in to publish the history',{type:'warn'});
+  const months=S.reportMonths();
+  if(!months.length) return UI.toast('No months on file yet',{type:'warn'});
+  const t=UI.toast('Saving '+months.length+' month'+(months.length===1?'':'s')+' online…',{type:'info',duration:4000});
+  try{
+    const r=await LS.sync.vaultPushAll();
+    if(r.tableMissing) return UI.toast('The online table is missing — run the SQL in supabase/schema.sql',{type:'warn',duration:8000});
+    if(r.ok) UI.toast(r.done+' month'+(r.done===1?'':'s')+' saved online — they stay there',{type:'ok'});
+    else UI.toast(r.done+' saved · '+r.failed+' failed — try again',{type:'warn'});
+    renderInner(rootEl);
+  }catch(e){ UI.toast('Could not save the history: '+(e.message||e),{type:'crit',duration:8000}); }
+}
+async function vaultFetch(){
+  try{
+    const r=await LS.sync.vaultMerge();
+    UI.toast(r.total+' month'+(r.total===1?'':'s')+' online · '+(r.added+r.updated)+' brought in',{type:'ok'});
+    renderInner(rootEl);
+  }catch(e){ UI.toast('Could not reach the online record: '+(e.message||e),{type:'warn'}); }
 }
 
 /* ——— Rows the form could not place ————————————————————————
@@ -1071,6 +1117,14 @@ function workbookModal(){
         UI.toast(loaded+' month'+(loaded===1?'':'s')+' loaded · '+ex+' examinations'
           +(left?' · '+left+' rows still to place':''),{type:left?'warn':'ok'});
         tab='analysis'; renderInner(rootEl);
+        /* the whole point of loading the workbook once is that it stays loaded: the
+           months are written to the online record straight away */
+        if(window.LS&&LS.sync&&LS.sync.vaultPushAll&&LS.sync.configured&&LS.sync.configured()){
+          LS.sync.vaultPushAll().then(r=>{
+            if(r&&r.ok) UI.toast(r.done+' month'+(r.done===1?'':'s')+' kept online for good',{type:'ok'});
+            else if(r&&r.tableMissing) UI.toast('Months saved here, but the online record needs the new table — run supabase/schema.sql',{type:'warn',duration:8000});
+          }).catch(()=>{});
+        }
       };
     }});
 }

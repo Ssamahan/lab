@@ -40,6 +40,17 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(sundayNames.indexOf(jeanne)<0,'so she is not on duty on the Sunday ('+sundayNames.map(n=>n.split(' ')[0]).join(', ')+')');
 
   /* ── 4 · the weekend is one duty, not seven benches ────────────────── */
+  /* The roster opens on the current week. This suite is about the week the month turns
+     (26 October), so walk back to it before allocating — the same two presses a manager
+     makes. Without this the suite only passed in the week it was written. */
+  let guard=0;
+  while(guard++<8){
+    const label=doc.querySelector('[data-wknav="0"]');
+    if(!label||/26 Oct|26 October/.test(label.textContent)) break;
+    click(doc.querySelector('[data-wknav="-1"]')); await tick(260);
+  }
+  ok(!!doc.querySelector('[data-wknav="0"]')&&/26/.test(doc.querySelector('[data-wknav="0"]').textContent),
+     'the manager can walk back to the week of 26 October',doc.querySelector('[data-wknav="0"]')&&doc.querySelector('[data-wknav="0"]').textContent.trim());
   click(doc.querySelector('[data-auto-week]')); await tick(800);
   const alloc=(S.db().unitRosters[START]||{}).assignments||{};
   ok(Object.keys(alloc[sat]||{}).length===0,'Saturday 31 October carries no bench allocation');
