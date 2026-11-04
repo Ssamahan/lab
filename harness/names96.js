@@ -53,7 +53,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   click(doc.querySelector('[data-names-toggle]')); await tick(300);
   ok(!!doc.querySelector('#nmUser')&&!!doc.querySelector('#nmPass'),'pressing it asks for a username and a password');
   ok(!!doc.querySelector('#nmPass[type="password"]'),'the password is masked as it is typed');
-  ok(/never travel to the shared copy/i.test(doc.body.textContent),'and the dialog explains where names are kept');
+  ok(/names are kept apart from the register/i.test(doc.body.textContent)&&/shared copy never carries one/i.test(doc.body.textContent),'and the dialog explains where names are kept');
 
   /* a wrong password in the dialog changes nothing */
   doc.querySelector('#nmUser').value='kelvin';

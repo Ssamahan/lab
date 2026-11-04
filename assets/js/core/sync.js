@@ -995,6 +995,95 @@ SY.vaultForget=async function(ym){
   }
 };
 
+/* ——— Patient names, in the locked table ————————————————————————
+   The register travels as one document and anyone holding the publishable key can read it,
+   so a name is not kept there. Names live in `lab_patient_names`, which carries no policy
+   for the anon role at all: a read without a real signed-in account returns nothing, and
+   even with one, the account must be on the staff allowlist. That is why a cloud session
+   is needed here and nowhere else in the console. */
+const AUTHSESSION_KEY='labSystems.authsession.v1';
+let authSession=null;
+try{ authSession=JSON.parse(localStorage.getItem(AUTHSESSION_KEY)||'null'); }catch(e){ authSession=null; }
+function saveAuthSession(v){
+  authSession=v||null;
+  try{ if(authSession) localStorage.setItem(AUTHSESSION_KEY,JSON.stringify(authSession)); else localStorage.removeItem(AUTHSESSION_KEY); }catch(e){}
+}
+SY.cloudSignedIn=function(){ return !!(authSession&&authSession.access_token&&(!authSession.expires_at||authSession.expires_at>Date.now())); };
+SY.cloudUser=function(){ return authSession&&authSession.user?authSession.user:null; };
+/* PostgREST needs the access token, not the publishable key, to reach the locked table. */
+async function bearer(){
+  if(!authSession||!authSession.access_token) return null;
+  if(authSession.expires_at&&authSession.expires_at-30000<Date.now()&&authSession.refresh_token){
+    try{
+      const c=cfg();
+      const r=await fetch(c.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',
+        headers:{'apikey':c.key,'Content-Type':'application/json'},
+        body:JSON.stringify({refresh_token:authSession.refresh_token})});
+      if(r.ok){
+        const j=await r.json();
+        saveAuthSession({access_token:j.access_token,refresh_token:j.refresh_token,
+          expires_at:Date.now()+(j.expires_in||3600)*1000,user:j.user||authSession.user});
+      } else saveAuthSession(null);
+    }catch(e){}
+  }
+  return authSession?authSession.access_token:null;
+}
+SY.cloudSignOut=function(){ saveAuthSession(null); };
+/* Signing in with the account the person already has, for the one purpose that needs it. */
+SY.cloudSignIn=async function(email,password){
+  const c=cfg(); if(!c.url||!c.key) return {ok:false, reason:'Sync is not configured'};
+  const mail=String(email||'').trim(); if(!mail||!password) return {ok:false, reason:'An email and a password are needed'};
+  let r;
+  try{
+    r=await fetch(c.url+'/auth/v1/token?grant_type=password',{method:'POST',
+      headers:{'apikey':c.key,'Content-Type':'application/json'},
+      body:JSON.stringify({email:mail,password:String(password)})});
+  }catch(e){ return {ok:false, reason:'The cloud could not be reached'}; }
+  if(!r.ok){
+    const t=(await r.text())||'';
+    return {ok:false, reason:/invalid|credential|grant/i.test(t)?'The cloud account refused that password'
+      :/email.*not.*confirm/i.test(t)?'That cloud account has not confirmed its email':'Cloud sign-in failed ('+r.status+')'};
+  }
+  const j=await r.json();
+  saveAuthSession({access_token:j.access_token,refresh_token:j.refresh_token,
+    expires_at:Date.now()+(j.expires_in||3600)*1000,user:j.user||null});
+  return {ok:true, user:j.user||null};
+};
+SY.namesPull=async function(){
+  const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
+  const tok=await bearer(); if(!tok) throw new Error('NOT_SIGNED_IN');
+  const r=await fetch(c.url+'/rest/v1/lab_patient_names?select=sample_id,name,updated_at,updated_by',
+    {headers:{'apikey':c.key,'Authorization':'Bearer '+tok}});
+  if(r.status===401||r.status===403) throw new Error('NOT_ALLOWED');
+  if(r.status===404) throw new Error('NAMES_TABLE_MISSING');
+  if(!r.ok) throw new Error('Names read failed ('+r.status+')');
+  const rows=await r.json();
+  const map={};
+  (rows||[]).forEach(x=>{ if(x&&x.sample_id&&x.name) map[x.sample_id]={name:x.name,at:x.updated_at,by:x.updated_by}; });
+  return map;
+};
+SY.namesPush=async function(entries){
+  const c=cfg(); if(!c.url||!c.key) return {ok:false, reason:'not configured'};
+  const tok=await bearer(); if(!tok) return {ok:false, reason:'not signed in to the cloud'};
+  const list=(entries||[]).filter(e=>e&&e.sample_id&&e.name);
+  if(!list.length) return {ok:true, pushed:0};
+  const r=await fetch(c.url+'/rest/v1/lab_patient_names',{method:'POST',
+    headers:{'apikey':c.key,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify(list)});
+  if(r.status===401||r.status===403) return {ok:false, reason:'this account is not on the staff allowlist'};
+  if(r.status===404) return {ok:false, reason:'the names table is missing — run supabase/schema.sql'};
+  if(!r.ok) return {ok:false, reason:'Names write failed ('+r.status+')'};
+  return {ok:true, pushed:list.length};
+};
+SY.namesPushOne=function(sampleId,name){ return SY.namesPush([{sample_id:sampleId,name:String(name),updated_by:(LS.auth&&LS.auth.user&&LS.auth.user.name)||null}]); };
+SY.namesDelete=async function(sampleId){
+  const c=cfg(); if(!c.url||!c.key) return {ok:false};
+  const tok=await bearer(); if(!tok) return {ok:false, reason:'not signed in'};
+  const r=await fetch(c.url+'/rest/v1/lab_patient_names?sample_id=eq.'+encodeURIComponent(sampleId),
+    {method:'DELETE',headers:{'apikey':c.key,'Authorization':'Bearer '+tok}});
+  return {ok:r.ok};
+};
+
 SY.vaultStatus=function(){
   const st=state();
   return {configured:SY.configured(), at:st.vaultAt||null, months:st.vaultMonths||st.vaultCount||null,

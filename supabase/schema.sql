@@ -187,3 +187,68 @@ drop trigger if exists lab_register_version_trigger on public.lab_registers;
 create trigger lab_register_version_trigger
   before update on public.lab_registers
   for each row execute function public.keep_lab_register_version();
+
+-- ============================================================================
+-- Patient names — a table the publishable key cannot read
+-- ----------------------------------------------------------------------------
+-- The register is one document, rewritten whole on every push, and `anon` may
+-- read it. A patient name kept there would be downloadable by anyone holding
+-- the publishable key, which sits in a public repository. Names therefore live
+-- here, in their own table, and this table has NO policy for the anon role: a
+-- read without a real signed-in account returns nothing at all.
+--
+-- Being signed in is not enough either. `lab_staff` is the allowlist: an
+-- account that is not on it is refused by every policy below, even with a
+-- valid session. Add a person by inserting their auth user id here.
+-- ============================================================================
+
+create table if not exists public.lab_staff (
+  uid        uuid primary key,
+  email      text,
+  role       text,
+  note       text,
+  added_at   timestamptz not null default now()
+);
+comment on table public.lab_staff is 'Who may read patient names. No anon access at all.';
+
+alter table public.lab_staff enable row level security;
+
+-- a person may see whether they themselves are on the list, and nothing else
+create policy "staff reads own row" on public.lab_staff
+  for select to authenticated using (uid = auth.uid());
+
+revoke all on public.lab_staff from anon;
+grant select on public.lab_staff to authenticated;
+
+create table if not exists public.lab_patient_names (
+  sample_id   text primary key,
+  name        text not null,
+  updated_at  timestamptz not null default now(),
+  updated_by  text
+);
+comment on table public.lab_patient_names is 'Patient names, one row per order. Readable only by allowlisted staff accounts.';
+
+alter table public.lab_patient_names enable row level security;
+
+-- every policy asks the allowlist, so a stranger with a real login is still refused
+create or replace function public.lab_is_staff() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.lab_staff s where s.uid = auth.uid());
+$$;
+revoke all on function public.lab_is_staff() from anon;
+grant execute on function public.lab_is_staff() to authenticated;
+
+create policy "names read"   on public.lab_patient_names for select to authenticated using (public.lab_is_staff());
+create policy "names write"  on public.lab_patient_names for insert to authenticated with check (public.lab_is_staff());
+create policy "names update" on public.lab_patient_names for update to authenticated using (public.lab_is_staff()) with check (public.lab_is_staff());
+create policy "names delete" on public.lab_patient_names for delete to authenticated using (public.lab_is_staff());
+
+revoke all on public.lab_patient_names from anon;
+grant select, insert, update, delete on public.lab_patient_names to authenticated;
+
+-- 1 · create the person an account in Authentication → Users (email + password)
+-- 2 · put them on the allowlist:
+--       insert into public.lab_staff (uid, email, role)
+--       select id, email, 'Technologist' from auth.users where email = 'person@example.com';
+-- 3 · they press "Show names", enter that password, and the names come down.
+-- Removing a row from lab_staff takes the privilege away at once, on every device.
