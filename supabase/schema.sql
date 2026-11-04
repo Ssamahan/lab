@@ -133,6 +133,14 @@ create policy "report months update anon" on public.lab_report_months for update
 
 grant select, insert, update on public.lab_report_months to anon, authenticated;
 
+-- A month opened by mistake has to be removable from the record, and a delete that only
+-- cleared one browser would be undone by the next Fetch. The rule is narrow on purpose:
+-- a row may be deleted, the table may not be truncated, and the app deletes one month at
+-- a time, by key, with an audit line left behind in the register.
+create policy "report months delete"      on public.lab_report_months for delete to authenticated using (true);
+create policy "report months delete anon" on public.lab_report_months for delete to anon using (true);
+grant delete on public.lab_report_months to anon, authenticated;
+
 -- The register's own, same reasoning
 create policy "lab register read anon"   on public.lab_registers for select to anon using (true);
 create policy "lab register write anon"  on public.lab_registers for insert to anon with check (true);

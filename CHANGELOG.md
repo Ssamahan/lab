@@ -4,6 +4,32 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.90
+
+**A month can be deleted — including the one opened by mistake.**
+
+Opening a month was one press and there was no way back: a slip on "New month" left a month in the history for
+ever, and every comparison below it was drawn against a blank. A month is now removable, in two places:
+
+- **Delete month** in the header, for the month in front of you;
+- a **bin on every row** of the month-by-month table, for any other month.
+
+The confirmation counts what is being removed — examinations, tests, blood groups — read from the month itself,
+so it can never claim an empty month that is not. An empty month says *"this month holds no figures — it was
+opened and left"*; a month with figures says plainly that they are discarded and that it stops appearing in the
+table, the yearly totals and the trends. Cancelling changes nothing.
+
+- **The online copy goes with it.** A delete that only cleared this browser would be undone by the next Fetch,
+  so `lab_report_months` loses the row too — one month, by key — and a new delete rule in `supabase/schema.sql`
+  allows exactly that.
+- **One refusal:** an *empty* month that is the only month on file is not deleted, because the module would then
+  have nothing to show. A month carrying figures can always go.
+- **The audit trail keeps one line** — *"Monthly return deleted for 2026-11 · 0 examinations and 0 blood groups
+  discarded"* — so the record still says the month existed and was removed, without keeping the figures.
+
+Verified — **31 suites, 1,675 checks** — including deleting from the header, cancelling, the count in the
+confirmation, the refusal of an empty last month, the audit line, and the row leaving the online table by key.
+
 ## What changed in 6.9.89
 
 **The register is live on every device, the history is kept online, and the public page is drawn on paper.**

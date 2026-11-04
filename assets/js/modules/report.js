@@ -327,6 +327,8 @@ function head(sm){
      +'<div class="rep-month"><label class="xs faint">Return for</label><select class="select mono" id="repMonth">'+opts+'</select></div>'
      +'<button class="btn" data-new-month>'+UI.ic('calendar-days',15)+'New month</button>'
      +'<button class="btn" data-import>'+UI.ic('upload',15)+'Load a past month</button>'
+     +'<button class="btn" data-delete-month="'+U.esc(pickMonth())+'"'+(canEdit()?'':' disabled')
+       +' title="Remove '+(canEdit()?'this month from the record':'')+'">'+UI.ic('trash-2',15)+'Delete month</button>'
      +'<button class="btn primary" data-export>'+UI.ic('download',15)+'Export the return</button>'
    +'</div></div>'
    +'<div class="rep-tabs">'
@@ -348,6 +350,10 @@ function renderInner(root){
   const sel=root.querySelector('#repMonth');
   if(sel) sel.onchange=()=>{ monthKey=sel.value; renderInner(root); };
   const nm=root.querySelector('[data-new-month]'); if(nm) nm.onclick=newMonthModal;
+  root.querySelectorAll('[data-delete-month]').forEach(b=>b.onclick=ev=>{
+    ev.stopPropagation();
+    deleteMonthModal(b.dataset.deleteMonth);
+  });
   const im=root.querySelector('[data-import]'); if(im) im.onclick=importModal;
   const wb=root.querySelector('[data-load-wb]'); if(wb) wb.onclick=workbookModal;
   /* walking the record: a chip, an arrow, or a key */
@@ -472,9 +478,10 @@ function monthTable(){
       +'<td class="num mono">'+rate+'%</td>'
       +'<td class="num mono">'+(m.samples?U.fmtNum(m.samples):'—')+'</td>'
       +'<td class="num mono">'+(m.bloodKnown?U.fmtNum(m.bloodUsed):'—')+'</td>'
-      +'<td class="num mono">'+(m.bloodKnown?U.fmtNum(m.bloodEnd):'—')+'</td></tr>');
+      +'<td class="num mono">'+(m.bloodKnown?U.fmtNum(m.bloodEnd):'—')+'</td>'
+      +'<td class="num">'+(canEdit()?'<button class="rep-del" data-delete-month="'+U.esc(m.key)+'" title="Delete '+U.esc(monthLabel(m.key))+' from the record" aria-label="Delete '+U.esc(monthLabel(m.key))+'">'+UI.ic('trash-2',12)+'</button>':'')+'</td></tr>');
   });
-  return '<div class="dt-scroll"><table class="dt rep-hist"><thead><tr><th>Month</th><th>Tests</th><th>Change</th><th>Positives</th><th>Positivity</th><th>Stool samples</th><th>Packs used</th><th>Packs left</th></tr></thead>'
+  return '<div class="dt-scroll"><table class="dt rep-hist"><thead><tr><th>Month</th><th>Tests</th><th>Change</th><th>Positives</th><th>Positivity</th><th>Stool samples</th><th>Packs used</th><th>Packs left</th><th></th></tr></thead>'
     +'<tbody>'+rows.join('')+'</tbody></table></div>';
 }
 function yearTable(){
@@ -1153,6 +1160,57 @@ function importModal(){
         const src=(el.querySelector('#impSrc').value||'').trim();
         S.reportImportMonth(key,r.values,{meta:{source:src||('Loaded from the district workbook'),monthName:monthLabel(key).split(' ')[0],year:U.fyLabel?U.fyLabel():''},blood:r.blood});
         monthKey=key; close(); UI.toast(r.matched+' examinations loaded into '+monthLabel(key),{type:'ok'}); renderInner(rootEl);
+      };
+    }});
+}
+/* ——— Removing a month ————————————————————————————
+   A month opened by mistake is a row in the history that every later comparison is drawn
+   against, so it has to be removable — and it has to say what it is removing. The figures
+   come from the month itself, and the online copy goes with it, or the next Fetch would
+   bring the month straight back. */
+function deleteMonthModal(key){
+  if(!canEdit()) return UI.toast('Sign in to change the record',{type:'warn'});
+  if(!key||S.reportMonths().indexOf(key)<0) return UI.toast('That month is not on file',{type:'warn'});
+  const st=S.reportMonthStats(key);
+  const online=(window.LS&&LS.sync&&LS.sync.configured&&LS.sync.configured());
+  const only=S.reportMonths().length===1;
+  const guard=st.empty&&only;
+  UI.modal({title:'Delete '+monthLabel(key)+'?',
+    sub:'The month leaves the history here, and leaves the online record with it.',
+    width:'min(520px,100%)',
+    body:'<div class="rep-del-what">'
+      +'<div class="row between"><span class="xs faint">Examinations recorded</span><span class="mono">'+U.fmtNum(st.examinations)+'</span></div>'
+      +'<div class="row between"><span class="xs faint">Tests in the month</span><span class="mono">'+U.fmtNum(st.tests)+'</span></div>'
+      +'<div class="row between"><span class="xs faint">Blood groups with figures</span><span class="mono">'+U.fmtNum(st.bloodGroups)+'</span></div>'
+      +'</div>'
+      +(st.empty?'<div class="hint" style="margin-top:10px">This month holds no figures — it was opened and left. Deleting it changes no total.</div>'
+        :'<div class="hint" style="margin-top:10px;border-left:3px solid var(--warn)">'+
+          'This month carries figures. They are discarded, and the month stops appearing in the month-by-month table, the yearly totals and the trends.</div>')
+      +(guard?'<div class="hint" style="margin-top:8px;border-left:3px solid var(--crit)">It is the only month on file, so it cannot be deleted — the module would have nothing to show. Open another month first.</div>':'')
+      +(online?'<div class="hint" style="margin-top:8px">The copy kept online is removed as well, so a Fetch on another device will not bring it back.</div>'
+        :'<div class="hint" style="margin-top:8px">This device is not connected to the online record, so only the copy here is removed.</div>')
+      +'<div class="hint" style="margin-top:8px">The audit trail keeps one line saying it was deleted — the figures themselves are gone.</div>',
+    foot:'<button class="btn" data-close>Keep the month</button>'
+      +'<button class="btn danger" data-confirm-delete '+(guard?'disabled':'')+'>'+UI.ic('trash-2',14)+'Delete '+monthLabel(key)+'</button>',
+    onMount:(el,close)=>{
+      const btn=el.querySelector('[data-confirm-delete]');
+      if(btn) btn.onclick=async()=>{
+        btn.disabled=true;
+        const r=S.reportDeleteMonth(key);
+        if(!r.ok){ close(); return UI.toast(r.reason,{type:'warn'}); }
+        /* the month in front of the person may be the one just deleted */
+        const left=S.reportMonths();
+        monthKey=left.length?left[0]:null;
+        close();
+        let after='';
+        if(online){
+          try{
+            const v=await LS.sync.vaultForget(key);
+            after=v.ok?' · the online copy too':' · the online copy stayed ('+v.reason+')';
+          }catch(e){ after=' · the online copy could not be reached'; }
+        }
+        UI.toast(monthLabel(key)+' deleted'+after,{type:'ok',duration:5000});
+        renderInner(rootEl);
       };
     }});
 }

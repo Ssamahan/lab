@@ -2671,6 +2671,38 @@ S.reportPlaceRows=function(key,places){
      detail:list.length+' rows of the sheet placed by hand'});
   return list.length;
 };
+/* What a month actually holds — the figures a delete would discard. Read from the
+   month itself so a confirmation can never claim an empty month that is not. */
+S.reportMonthStats=function(key){
+  const sm=S.reportSummary(key);
+  const filled=Object.keys((S.reportMonth(key).values)||{}).length;
+  return {key, examinations:filled, entered:sm.totals.entered, tests:sm.totals.tests,
+    positives:sm.totals.qualPositives, bloodGroups:Object.keys(S.reportMonth(key).blood||{}).length,
+    empty:filled===0&&sm.totals.tests===0&&Object.keys(S.reportMonth(key).blood||{}).length===0};
+};
+/* Remove a month from the record.
+   A month opened by mistake has to be removable, or the history carries it for ever and
+   every comparison below it is drawn against a blank. Two refusals, both deliberate:
+   a month carrying nothing that is the only month on file is not deleted (the module
+   would have nothing to show), and the store never writes without the audit entry that
+   says what was discarded. What the month held is returned, so the caller can tell the
+   person, and the cloud row is removed by the caller through SY.vaultForget. */
+S.reportDeleteMonth=function(key){
+  const months=S.reportMonths();
+  if(months.indexOf(key)<0) return {ok:false, reason:'That month is not on file.'};
+  const stats=S.reportMonthStats(key);
+  if(stats.empty&&months.length===1)
+    return {ok:false, reason:'This is the only month on file and it holds nothing — there would be nothing left to show.'};
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    delete (db.reporting.months||{})[key];
+    if(db.reporting.unmatched) delete db.reporting.unmatched[key];
+  },{action:'report.delete',entity:'reporting',entityId:key,
+     detail:'Monthly return deleted for '+key+' · '+stats.examinations+' examination'
+       +(stats.examinations===1?'':'s')+' and '+stats.bloodGroups+' blood group'
+       +(stats.bloodGroups===1?'':'s')+' discarded'});
+  return {ok:true, stats};
+};
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;

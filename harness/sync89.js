@@ -36,6 +36,12 @@ function makeCloud(){
       if(cloud.failVault) return json(404,{code:'PGRST205',message:'Could not find the table'});
       if(method==='GET') return json(200,Object.keys(cloud.months).sort().map(ym=>
         ({ym,data:cloud.months[ym],updated_at:(cloud.monthTimes&&cloud.monthTimes[ym])||new Date().toISOString(),updated_by:'device'})));
+      if(method==='DELETE'){
+        const m=/ym=eq\.([^&]+)/.exec(u);
+        const ym=m?decodeURIComponent(m[1]):null;
+        if(ym&&cloud.months[ym]!==undefined){ delete cloud.months[ym]; log.push('vault delete '+ym); return json(204,null); }
+        return json(204,null);
+      }
       const rows=JSON.parse(opts.body||'[]');
       rows.forEach(r=>{ cloud.months[r.ym]=r.data; });
       return json(201,[]);

@@ -972,6 +972,29 @@ SY.vaultMerge=async function(){
   SY.emit('vault');
   return {ok:true, added:add.length, updated:newer.length, total:rows.length};
 };
+/* Removing a month from the online record. A delete that only cleared this browser
+   would be undone by the next Fetch — the month would come back from the vault — so the
+   row goes with it. The register keeps its own history of every write it replaced; the
+   vault is the list of months the laboratory keeps, and a month that was deleted is not
+   one of them. */
+SY.vaultDeleteMonth=async function(ym){
+  const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
+  const url=c.url+'/rest/v1/'+VAULT+'?ym=eq.'+encodeURIComponent(ym);
+  let r=await fetch(url,{method:'DELETE',headers:await headers()});
+  if(r.status===401||r.status===403) r=await fetch(url,{method:'DELETE',headers:{'apikey':c.key}});
+  if(r.status===404) throw new Error('VAULT_TABLE_MISSING');
+  if(!r.ok) throw new Error('Vault delete failed ('+r.status+')');
+  return true;
+};
+SY.vaultForget=async function(ym){
+  try{ await SY.vaultDeleteMonth(ym); return {ok:true}; }
+  catch(e){
+    return {ok:false, reason:/VAULT_TABLE_MISSING/.test(e.message)
+      ? 'the online table has no delete rule yet — run the new statements in supabase/schema.sql'
+      : e.message};
+  }
+};
+
 SY.vaultStatus=function(){
   const st=state();
   return {configured:SY.configured(), at:st.vaultAt||null, months:st.vaultMonths||st.vaultCount||null,
