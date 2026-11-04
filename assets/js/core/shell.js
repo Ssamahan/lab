@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.97';
+const APP_VERSION='6.9.98';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -49,11 +49,44 @@ function parse(){
 SH.params=()=>parse().params;
 SH.current=()=>parse().id;
 
+/* ——— The three heavy helpers are fetched when a screen first needs them —————
+   Charts, the sheet engine and the workbook reader together are 116 KB of JavaScript
+   that the public overview never touches: the overview is text, counts and two fonts.
+   Loading them with the shell made every visit — on a phone, on a rural connection —
+   wait for the printer and the spreadsheet engine before it could draw a paragraph.
+   They are fetched at the same version as everything else, in order, the first time a
+   module asks for them, and then never again. */
+const DEFERRED=[
+  ['charts','assets/js/core/charts.js'],
+  ['sheets','assets/js/core/sheets.js'],
+  ['xlsx','assets/js/core/xlsxread.js']
+];
+let deferredLoad=null;
+function ensureDeps(){
+  if(deferredLoad) return deferredLoad;
+  deferredLoad=new Promise((resolve,reject)=>{
+    let left=DEFERRED.length, failed=false;
+    DEFERRED.forEach(dep=>{
+      const sc=document.createElement('script');
+      sc.src=dep[1]+'?v='+encodeURIComponent(APP_VERSION);
+      /* async=false keeps the declared order: the sheet engine asks for the chart helpers
+         the moment it renders, so charts must be there first. */
+      sc.async=false;
+      sc.onload=()=>{ if(--left===0&&!failed) resolve(); };
+      sc.onerror=()=>{ if(failed) return; failed=true; reject(new Error('Could not load '+dep[0])); };
+      document.head.appendChild(sc);
+    });
+  });
+  deferredLoad.catch(()=>{ deferredLoad=null; });
+  return deferredLoad;
+}
+SH.ensureDeps=ensureDeps;
+
 /* ——— Module loading (code-split per route) ——————— */
 function loadModule(id){
   const r=ROUTES[id];
   if(loaded[id]) return Promise.resolve();
-  return new Promise((resolve,reject)=>{
+  return ensureDeps().then(()=>new Promise((resolve,reject)=>{
     const sc=document.createElement('script');
     /* The version is part of the URL: after a deploy a cached module can never be served
        in place of the one that goes with this shell. */
@@ -62,7 +95,7 @@ function loadModule(id){
     sc.onload=()=>{ loaded[id]=true; resolve(); };
     sc.onerror=()=>reject(new Error('Could not load module: '+id));
     document.head.appendChild(sc);
-  });
+  }));
 }
 
 /* ——— Render nav ————————————————————————— */

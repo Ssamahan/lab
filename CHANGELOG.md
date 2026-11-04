@@ -4,6 +4,53 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.98
+
+**The page opens first; the printer, the spreadsheet and the second download come after.**
+
+"It takes longer to load, and I am not sure the landing page will open at all" is not an
+impression to be argued with — it was three separate costs, and all three were real.
+
+### The overview no longer waits for what it does not use
+The public page is words, counts and two fonts. It was being made to download and parse
+**116 KB of JavaScript** first: the chart helper (23 KB), the sheet engine (93 KB, the second
+largest file in the build) and the workbook reader. All three are for printing a roster or
+importing a district return — neither of which exists on the overview.
+
+- They are **no longer in `index.html`**. The shell fetches them, at the same version, in
+  order, the first time a screen asks for them, and never again after that.
+- Every one of the sixteen screens still works: the smoke run opens all of them, and the
+  monthly sheet still draws.
+
+### The service worker stopped downloading everything twice
+- The install step cached all **fifty-six** files with `cache: 'reload'`, which ignores the
+  copy the page had downloaded moments earlier — on a phone, **the whole bundle came down
+  twice, on every release**. It now caches the shell only, from the browser's own copy.
+- The sixteen screens are warmed **twelve seconds after activation**, four at a time, when
+  nobody is waiting for them.
+- Every versioned asset was also **re-requested in the background on every visit** — forty
+  requests for files that carry the build version in their address and therefore cannot
+  change. A cache hit is now final. That alone stops a phone from spending its connection
+  on redundant traffic while a page is being drawn.
+
+### A slow start now says so, with numbers
+When the start passes **2.6 seconds**, a small line appears in the corner — *started in
+3.4 s · 612 KB · 41 files* — with **details** listing each part of the start. It blocks
+nothing, it is dismissible, and `?diag=1` shows it always. A measured claim is fixable; a
+report of "slow" is not.
+
+### If the page still does not open
+That is a browser holding a half-written build, and it has its own answer: **add `?fresh=1`**
+to the address — `https://ssamahan.github.io/lab/?fresh=1`. It removes the service worker and
+every cache on that origin once, then reloads clean. The register stored on the device is
+untouched. The same button appears by itself if the console has not started after seven
+seconds.
+
+`npm test` now covers **38 suites and 1,898 checks**, including 32 new ones in
+`harness/load98.js` that pin the deferral, the single download and the timing readout.
+
+---
+
 ## What changed in 6.9.97
 
 **Patient names reach the cloud — but only through a door staff open themselves.**
