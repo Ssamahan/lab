@@ -68,7 +68,14 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   await go('#/leave');
   await tick(320);
   const strip=doc.querySelector('#app .leave-now');
-  ok(!!strip,'the leave screen names who is on leave right now');
+  /* The strip appears when somebody is away today. Read the register rather than the
+     calendar: on a day with nobody away there is correctly no strip, and the suite
+     must not fail for the passage of time. */
+  const todayISO=doc.defaultView.LSU.todayISO();
+  const away=doc.defaultView.LS.store.leaves()
+    .filter(l=>todayISO>=l.from&&todayISO<=l.to&&!/declin|reject/i.test(l.status||''));
+  if(away.length) ok(!!strip,'the leave screen names who is on leave right now ('+away.length+')');
+  else ok(!strip,'with nobody away today the strip is not shown, rather than naming the wrong person');
   await go('#/leave?tab=plan'); await tick(300);
   const order=[...doc.querySelectorAll('#app table.dt tbody tr')].map(tr=>(tr.querySelector('td .small')||{}).textContent||'');
   ok(order.length>0,'the plan book lists every member of staff');

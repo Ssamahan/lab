@@ -5,15 +5,38 @@
 
 .landing{
   position:relative;min-height:100vh;display:flex;flex-direction:column;
+  /* ——— Light ————————————————————————————————————————————
+     The public page is the one screen a stranger reads on a phone in daylight, so it is
+     drawn on paper: a warm off-white ground, near-black text, and the gold kept dark
+     enough to pass on white. The tokens are re-stated here rather than in the theme so
+     the console behind this page keeps its own dark palette, untouched. */
+  --bg:#F7F5EF;
+  --surface:#FFFFFF;
+  --surface-2:#FBFAF6;
+  --surface-3:#F1EEE6;
+  --surface-hover:#F2EFE7;
+  --surface-inset:#FFFFFF;
+  --surface-glass:rgba(255,255,255,.82);
+  --text:#23201B;
+  --text-strong:#141210;
+  --text-muted:#5C564C;
+  --text-faint:#8A8377;
+  --border:rgba(35,32,27,.12);
+  --border-strong:rgba(35,32,27,.20);
+  --border-gold:rgba(140,110,41,.34);
+  --gold:#8C6E29;
+  --gold-bright:#7A5C18;
+  --gold-thread:linear-gradient(90deg,rgba(140,110,41,.55),rgba(140,110,41,.06));
+  --pos:#0F7F68;
   background:
-    radial-gradient(900px 520px at 78% -12%,rgba(201,168,76,.16),transparent 62%),
-    radial-gradient(700px 460px at 8% 8%,rgba(31,191,159,.09),transparent 60%),
+    radial-gradient(900px 520px at 80% -12%,rgba(201,168,76,.20),transparent 62%),
+    radial-gradient(700px 460px at 6% 6%,rgba(31,191,159,.10),transparent 60%),
     var(--bg);
   color:var(--text);font-family:var(--font-ui);
 }
 .landing::after{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:var(--grain);opacity:.16;mix-blend-mode:overlay;
+  background-image:var(--grain);opacity:.06;mix-blend-mode:multiply;
 }
 
 /* ——— Header ————————————————————————————— */
@@ -71,6 +94,38 @@
   color:var(--text-strong);letter-spacing:var(--tracking-tight);line-height:1;
 }
 .land-facts div small{display:block;margin-top:6px;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)}
+
+/* ——— The glassware, in the free half of the hero ———————
+   The right of the hero was empty: the headline is set at 19 characters, so on a wide
+   screen half the page carried nothing. A drawn bench belongs there — it is what the
+   department is, and it costs no image, no font and no request. */
+.land-hero{position:relative}
+.land-lab{
+  position:absolute;top:clamp(8px,3vw,44px);right:clamp(-10px,0vw,10px);
+  width:min(44%,440px);pointer-events:none;z-index:0;
+  opacity:.95;
+}
+.land-glass{width:100%;height:auto;display:block}
+.land-bubbles circle{animation:labRise 7s ease-in-out infinite}
+.land-bubbles circle:nth-child(2){animation-duration:8.6s;animation-delay:-1.4s}
+.land-bubbles circle:nth-child(3){animation-duration:9.8s;animation-delay:-3.1s}
+.land-bubbles circle:nth-child(4){animation-duration:7.8s;animation-delay:-2.2s}
+@keyframes labRise{
+  0%{transform:translateY(8px);opacity:.15}
+  40%{opacity:.55}
+  100%{transform:translateY(-46px);opacity:0}
+}
+@media (max-width:1020px){
+  .land-lab{
+    position:relative;top:auto;right:auto;width:min(78%,330px);margin:0 auto -6px;
+    opacity:.85;
+  }
+  .land-hero{display:flex;flex-direction:column}
+  .land-hero .land-lab{order:-1}
+}
+@media (prefers-reduced-motion:reduce){
+  .land-bubbles circle{animation:none}
+}
 
 /* ——— Sections ——————————————————————————— */
 .land-section{padding:clamp(30px,4vw,54px) clamp(18px,4vw,54px);max-width:1180px;margin:0 auto}

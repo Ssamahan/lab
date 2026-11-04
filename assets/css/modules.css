@@ -833,3 +833,8 @@
 .chart-legend span{display:inline-flex;align-items:center;gap:5px}
 .chart-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
 .chart-legend i.ring{background:none;border:2px solid var(--gold);border-radius:2px}
+.rep-vault{display:flex;align-items:center;gap:12px;margin-top:14px;padding:11px 14px;border-radius:var(--r-md);
+  border:1px solid var(--line);background:var(--surface-2)}
+.rep-vault-ic{color:var(--teal-400)}
+.rep-vault-body{flex:1;min-width:0}
+.rep-vault-t{font-size:12.2px;font-weight:600;color:var(--text-strong);margin-bottom:1px}

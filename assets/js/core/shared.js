@@ -16,5 +16,17 @@ window.LS_SHARED = {
   key: 'sb_publishable_60QVktnGsJo_RPPzFGtITQ_pt3NC',
   /* A visitor never pushes, so this is the only mode it may use. */
   mode: 'pull',
-  label: 'Ruli DH · shared register'
+  label: 'Ruli DH · shared register',
+
+  /* The laboratory's own devices use the same project, and they do not have to be set
+     up one by one: a phone that has never seen this console still has to reach the
+     live register, or the register is only as good as the one browser it lives in.
+     These are the deployment's coordinates, used whenever a device has none of its
+     own — Settings → Cloud sync still overrides them, per device. */
+  device: {
+    mode: 'push-pull',
+    live: true,
+    pollMs: 2500,
+    pushMs: 700
+  }
 };

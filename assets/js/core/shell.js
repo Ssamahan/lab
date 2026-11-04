@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.88';
+const APP_VERSION='6.9.89';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -782,8 +782,10 @@ function afterAuth(){
   /* The session decides what the live loop may do (a visitor only reads), so it is
      rebuilt here rather than left as it was at boot. */
   if(LS.sync&&LS.sync.restart) LS.sync.restart();
-  if(LS.sync&&LS.sync.configured&&LS.sync.configured()){
-    setTimeout(()=>{ LS.sync.refresh&&LS.sync.refresh().catch(()=>{}); },600);
+  /* Sign-in is the moment the live register has to be here: pull it, bring in the
+     months kept online, and start the loop — not "in a moment, if a timer fires". */
+  if(LS.sync&&LS.sync.onSession&&LS.sync.configured&&LS.sync.configured()){
+    setTimeout(()=>{ LS.sync.onSession().catch(()=>{}); },250);
   }
 }
 SH.afterAuth=afterAuth;

@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.88** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.89** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -57,26 +57,37 @@ manager account is lost, clear this site's browser data (`Settings → Data → 
 — the seeded manager account returns, and its password should be changed immediately in
 Security Center.
 
-## Cloud sync (optional, off by default)
+## Cloud sync (on, for the deployment)
 
 One register shared between the phone and the PC, live: a change leaves a device in about
-a second and appears on the other within three. Setup is a Supabase project plus four
-values in **Staff & settings → Data → Cloud sync**:
+a second and appears on the other within three. **A device needs no setup** — the
+deployment's project coordinates live in `assets/js/core/shared.js`, so a fresh install
+pulls the shared register when the console opens, publishes every change, and polls for
+other devices every 2.5 s. Signing in pulls immediately.
+
+Only the **publishable** key is in that file: it identifies the project, and row-level
+security decides what it may touch. The app refuses the `sb_secret_…` key outright. A
+device can still be pointed at a different project in
+**Staff & settings → Data → Cloud sync**, which now says which of the two it is using:
 [the step-by-step guide](docs/supabase-setup.html) · [server notes](supabase/README.md).
 
-**No keys belong in this repository.** The project URL, the API key and the login live in
-each device's `localStorage`; the app refuses the `sb_secret_…` key outright, because it
-bypasses row-level security.
+### The monthly returns, kept online
+
+The report module's **Keep the history online** card writes every month to
+`lab_report_months`, one row each, where it stays — on a new phone, after a cleared
+browser, after a register started again. **Fetch** brings them back; loading the workbook
+saves them without being asked. The register itself keeps the last fifty copies it
+replaced in `lab_register_history`, written by a trigger, so a wrong push can be undone
+in the database and not only on the device that made it.
 
 ### A second browser
 
-A private window or a new PC starts from the built-in sample register: it has its own
-`localStorage` and no knowledge of your project. **Settings → Data & sync → Two browsers, one
-register** compares both copies (samples, staff, PBF visits, PBF marks), **Push everything now**
-publishes the whole register, **Download the shared copy** brings the cloud version down behind a
-restore point, and **Copy / Paste setup code** carries the address and publishable key to the other
-browser as text — never a password. A browser that has never received the shared register cannot
-publish its seed over it: the background loop refuses and says so.
+A private window or a new PC starts from the built-in sample register, then pulls the shared one
+within a couple of seconds — the copy it was showing is written to restore points first, so nothing
+is lost either way. A browser that has never received the shared register can never publish its
+seed over it. **Settings → Data & sync → Two browsers, one register** still compares both copies
+(samples, staff, PBF visits, PBF marks), publishes the whole register on demand, brings the cloud
+copy down, and carries the address between browsers as text if you ever point one elsewhere.
 
 ## Identifiers
 
@@ -111,7 +122,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.88`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.89`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the

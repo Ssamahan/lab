@@ -23,6 +23,38 @@ side that lets a phone and a PC share it.
    values: project URL, anon key, the login email and the login password. Press
    **Test connection**, then **Save**. The first device that syncs creates the row.
 
+## How the deployment is wired now
+
+The laboratory's project (`lkjwztvhmzhasclmlocx`) is already carrying the register, and the
+console is built with its coordinates in `assets/js/core/shared.js`:
+
+- **Every device is connected by a fresh install.** A phone that has never seen this
+  console still knows the project, pulls the shared register the moment the console opens,
+  publishes every change, and checks for other devices every 2.5 s. Nothing has to be typed
+  into Settings on each device — that screen now only exists to point one device somewhere
+  else.
+- **No Supabase session is required to sync.** Row-level security grants `anon`
+  (the publishable key) read and write on `lab_registers`, `lab_report_months` and
+  `lab_register_history`. The alternative — a project user with a password in the build —
+  is no more secret, and anonymous sign-ins are switched off on this project, so a key
+  alone is the only route that works everywhere.
+- **What that costs, said plainly:** the publishable key is in a public repository, so
+  anyone who finds it can read, and could write to, this register. The laboratory's own
+  login still decides who may use the console, and every overwritten copy is kept in
+  `lab_register_history` (last fifty) so a bad write can be put back. If the register ever
+  holds names, move to a project with real accounts and turn the `anon` policies off.
+- **The months are separate.** `lab_report_months` holds one row per monthly return, so
+  the history does not depend on the register document surviving: a cleared browser, a new
+  phone or a register started again cannot take it away.
+
+### The tables
+
+| Table | What it holds |
+| --- | --- |
+| `lab_registers` | the whole register as one document, one row (`id = 'ruli-dh'`), with `revision` |
+| `lab_report_months` | one row per monthly HMIS return, keyed by `ym` (`2024-10`) |
+| `lab_register_history` | the copy each write replaced, last fifty, written by a trigger |
+
 The policies in `schema.sql` grant the table to the `authenticated` role, so the API
 key on its own is not enough: the console signs in with the account from step 3 and
 sends that access token, refreshing it when it expires.

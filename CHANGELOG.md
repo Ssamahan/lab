@@ -4,6 +4,45 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.89
+
+**The register is live on every device, the history is kept online, and the public page is drawn on paper.**
+
+Four things, and the first one is the reason the other three matter.
+
+- **Sync was off on every device that had not been set up by hand.** The project coordinates lived in that
+  device's browser settings — so a phone that had never been configured showed "Local only", its own copy,
+  and no sign of the register the laboratory actually keeps. The deployment now carries the coordinates
+  itself (`shared.js`), so **a fresh install is connected with nothing typed**: it pulls the shared register
+  when the console opens, publishes every change, and checks for other devices every 2.5 s. Settings →
+  Cloud sync still overrides the address for one device, and now says which of the two it is using.
+- **A device that has never received the register takes it, and keeps what it was showing.** Before, the
+  background loop refused and went quiet — which is safe but reads as "it did not sync". Now it adopts the
+  shared copy, writes the old one to restore points first, and says so in one line. The sample register can
+  still never be published over the real one.
+- **Signing in pulls immediately.** `SY.onSession()` — pull, start the live loop, bring in the months — is
+  the first thing that happens after the password, rather than a timer that may fire later.
+- **The monthly returns are kept in a table of their own** (`lab_report_months`, one row per month). The
+  register is one document and is rewritten whole on every push; a return is a record and must not be. A
+  **Keep the history online** card in the report module saves every month once, and **Fetch** brings them
+  back — on a new phone, after a cleared browser, after a register started again. Loading the workbook saves
+  them automatically. A month that exists in both places is only replaced by a copy that is genuinely later.
+- **Every write keeps the copy it replaced** (`lab_register_history`, last fifty, by trigger), so a wrong
+  push is recoverable from the database and not only from the browser that made it.
+- **The public page is light.** Warm paper ground, near-black text, dark gold for contrast, and the empty
+  half of the hero now carries a drawn bench — an Erlenmeyer, a round-bottom flask, a test tube in its rack
+  and a pipette at rest, with slow-rising bubbles that stop for anyone who asked for less motion. It is SVG:
+  no image, no request, no weight.
+
+Verified — **31 suites, 1,545 checks** — including a mocked Supabase at the fetch boundary: a device with no
+settings reaches the register, a new device adopts it and preserves its own copy, a change travels both
+ways, the sample register is refused a push, the vault saves and restores months on a second device, and an
+older online copy never overwrites a newer figure.
+
+Two suites had pinned results to the calendar — the week the month turns, and who is on leave "now" — and
+failed for the passage of time rather than for a defect. They now walk to the week they mean and read the
+leave register instead of assuming a date.
+
 ## What changed in 6.9.88
 
 **The blood bank was only ever October.**

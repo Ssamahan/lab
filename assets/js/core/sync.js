@@ -75,16 +75,34 @@ function sharedForVisitor(){
   if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor())) return null;
   return v;
 }
+/* A device that has never been set up still has to reach the live register: the
+   deployment carries its own coordinates (shared.js), and those are what a fresh phone
+   uses until somebody types something different into Settings → Cloud sync. Without
+   this, every new device was "Local only" and the cloud copy was invisible to it —
+   which is not syncing, it is one browser with a backup. */
+function deployment(){
+  const v=window.LS_SHARED;
+  if(!v||!v.endpoint||!v.key) return null;
+  return {endpoint:v.endpoint, key:v.key, extra:v.device||{}};
+}
 function cfg(){
   const vis=sharedForVisitor();
   if(vis) return {url:baseUrl(vis.endpoint), raw:vis.endpoint, key:String(vis.key).trim(),
     email:'', password:'', anonAuth:true, live:true, pollMs:15000, pushMs:700,
-    mode:'pull', enabled:true, visitor:true};
+    mode:'pull', enabled:true, visitor:true, source:'visitor'};
   const c=S.settings().cloud||{};
-  return {url:baseUrl(c.endpoint), raw:(c.endpoint||''), key:(c.anonKey||'').trim(),
+  const own=!!(c.endpoint&&c.anonKey);
+  const dep=own?null:deployment();
+  const endpoint=own?c.endpoint:(dep?dep.endpoint:'');
+  const key=own?c.anonKey:(dep?dep.key:'');
+  const base=own?c:(dep?Object.assign({},dep.extra):{});
+  return {url:baseUrl(endpoint), raw:endpoint, key:String(key||'').trim(),
     email:(c.email||'').trim(), password:c.password||'', anonAuth:!!c.anonAuth,
-    live:c.live!==false, pollMs:Math.max(800,Number(c.pollMs)||2500), pushMs:Math.max(150,Number(c.pushMs)||700),
-    mode:c.mode||'push-pull', enabled:!!c.endpoint&&!!c.anonKey}; }
+    live:(own?c.live!==false:(base.live!==false)),
+    pollMs:Math.max(800,Number(own?c.pollMs:base.pollMs)||2500),
+    pushMs:Math.max(150,Number(own?c.pushMs:base.pushMs)||700),
+    mode:own?(c.mode||'push-pull'):(base.mode||'push-pull'),
+    enabled:!!(endpoint&&key), source:own?'device':(dep?'deployment':'none'), deployment:!own&&!!dep}; }
 SY.config=cfg;
 SY.configured=()=>{ const c=cfg(); return !!(c.url&&c.key); };
 
@@ -383,8 +401,21 @@ SY.pullBare=async function(){
 };
 
 SY.push=async function(opts){
+  opts=opts||{};
   if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) throw new Error('This is a read-only visitor view — nothing is published from here.');
   const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
+  /* A device showing the built-in sample register must never publish it over a real
+     cloud copy: it has nothing of the laboratory's in it, and the mistake cannot be
+     undone from the device that made it. It pulls first, and only publishes if the
+     cloud is empty. */
+  const never = !state().lastRevision && !state().lastPullAt && !state().lastPushAt;
+  if(never && !opts.allowPristine){
+    const remote=await SY.remoteVersion();
+    if(remote){
+      setState({pristineBlockedAt:U.nowISO()});
+      throw new Error('This device is still showing the sample register, so nothing was published over the shared copy. It pulls the shared register instead.');
+    }
+  }
   const db=S.db();
   const payload=[{id:ROW_ID, data:db, client_id:deviceId(), updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}];
   const r=await request(TABLE+'?on_conflict=id',{
@@ -816,13 +847,18 @@ SY.sync=async function(opts){
       if(hasLocalChanges() && !opts.force){
         /* A background tick must never stop and ask: an edit typed here is the one the
            person can see, so it is published, and the other copy stays in restore points. */
-        if(opts.auto && !state().lastPullAt){
-          /* This browser has never held the shared register — it is showing the built-in
-             seed. Publishing that over a real cloud copy is the one mistake that cannot
-             be undone from here, so the background loop refuses and says why. */
-          setState({running:false, conflictAt:U.nowISO(),
-            conflictNote:'This browser has never received the shared register, so its own copy was NOT published over it. Open Data & sync and choose which one to keep.'});
-          return {ok:false, reason:'This browser has never received the shared register'};
+        if(!state().lastPullAt){
+          /* This browser has never received the shared register. What it holds is either
+             the built-in sample copy or edits made while it was on its own — and the
+             shared copy is the laboratory's real record. So it takes that copy, and the
+             one it was showing is put in restore points first, where it can still be
+             brought back. Publishing the sample register over the cloud is the one
+             mistake that cannot be undone from here, and it never happens. */
+          applyRemote(remote);
+          setState({conflictAt:U.nowISO(),
+            conflictNote:'This device had not yet received the shared register. It now shows it; what it was showing was kept in restore points.'});
+          if(!quiet) UI.toast('The shared register is on this device now — the copy it was showing is in restore points',{type:'ok',duration:6000});
+          return {ok:true, action:'pulled', adopted:true};
         }
         if(opts.auto){
           setState({conflictAt:U.nowISO(), conflictNote:'This device published over a newer cloud copy ('+(remote.updated_by||'another device')+').'});
@@ -853,6 +889,93 @@ SY.sync=async function(opts){
   }finally{
     busy=false; setState({running:false});
   }
+};
+
+/* ——— The month vault ————————————————————————————————
+   The register is one document: useful for today's work, but it is rewritten whole on
+   every push, and a register can be reset. The laboratory's monthly returns are not
+   today's work — they are the record. They therefore live in their own table, one row
+   per month, written once and kept: a month saved here survives a cleared browser, a
+   new phone, and a register that was started again. */
+const VAULT='lab_report_months';
+SY.vaultConfigured=()=>SY.configured();
+SY.vaultPushMonth=async function(ym,doc){
+  const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
+  const send=async()=>fetch(c.url+'/rest/v1/'+VAULT+'?on_conflict=ym',{
+    method:'POST',
+    headers:await headers({'Prefer':'resolution=merge-duplicates,return=minimal'}),
+    body:JSON.stringify([{ym, data:doc, updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}])
+  });
+  let r=await send();
+  if(r.status===401||r.status===403){
+    /* no session, or the key alone: try the bare route before giving up */
+    r=await fetch(c.url+'/rest/v1/'+VAULT+'?on_conflict=ym',{
+      method:'POST', headers:{'apikey':c.key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify([{ym, data:doc, updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}])});
+  }
+  if(!r.ok){
+    const body=(await r.text())||'';
+    if(r.status===404||/PGRST20[0-9]/.test(body)) throw new Error('VAULT_TABLE_MISSING');
+    throw new Error('Vault write failed ('+r.status+') '+body.slice(0,140));
+  }
+  return true;
+};
+SY.vaultPull=async function(){
+  const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
+  const q=VAULT+'?select=ym,data,updated_at,updated_by&order=ym.asc';
+  let r=await fetch(c.url+'/rest/v1/'+q,{headers:await headers()});
+  if(r.status===401||r.status===403) r=await fetch(c.url+'/rest/v1/'+q,{headers:{'apikey':c.key}});
+  if(r.status===404) throw new Error('VAULT_TABLE_MISSING');
+  if(!r.ok) throw new Error('Vault read failed ('+r.status+')');
+  return r.json();
+};
+/* Push every month on file. Idempotent: a month already saved is written again with the
+   same figures, so pressing it twice costs nothing. */
+SY.vaultPushAll=async function(){
+  const months=S.reportMonths();
+  if(!months.length) return {ok:false, reason:'No months on file yet'};
+  let done=0, failed=0;
+  for(const ym of months){
+    try{ await SY.vaultPushMonth(ym, S.reportMonth(ym)); done++; }
+    catch(e){ failed++; if(e.message==='VAULT_TABLE_MISSING') return {ok:false, tableMissing:true, done, failed}; }
+  }
+  setState({vaultAt:U.nowISO(), vaultMonths:done});
+  SY.emit('vault');
+  return {ok:failed===0, done, failed};
+};
+/* Months kept online that this device does not have (or that are newer) are merged in.
+   Nothing is overwritten with an older copy: the vault is a record, not a race. */
+SY.vaultMerge=async function(){
+  const rows=await SY.vaultPull();
+  const have=S.reportMonths();
+  const add=[], newer=[];
+  rows.forEach(row=>{
+    if(!row||!row.ym||!row.data) return;
+    const local=S.reportMonth(row.ym);
+    const localAt=local&&local.touchedAt?String(local.touchedAt):'';
+    const onlineAt=row.updated_at?String(row.updated_at):'';
+    const same=JSON.stringify(local)===JSON.stringify(row.data);
+    if(have.indexOf(row.ym)<0) add.push(row.ym);
+    /* A month that differs is taken from the online record only when that copy is
+       genuinely later. The record is a record: an older copy must never replace a newer
+       figure, which would silently roll a corrected return backwards. */
+    else if(!same&&onlineAt&&localAt&&new Date(onlineAt)>new Date(localAt)) newer.push(row.ym);
+  });
+  const take=rows.filter(r=>add.indexOf(r.ym)>=0||newer.indexOf(r.ym)>=0);
+  if(!take.length){ setState({vaultAt:U.nowISO(), vaultCount:rows.length}); return {ok:true, added:0, updated:0, total:rows.length}; }
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    take.forEach(row=>{ db.reporting.months[row.ym]=row.data; });
+  },{action:'report.vault',entity:'reporting',
+     detail:take.length+' month'+(take.length===1?'':'s')+' restored from the online record ('+take.map(r=>r.ym).join(', ')+')'});
+  setState({vaultAt:U.nowISO(), vaultCount:rows.length});
+  SY.emit('vault');
+  return {ok:true, added:add.length, updated:newer.length, total:rows.length};
+};
+SY.vaultStatus=function(){
+  const st=state();
+  return {configured:SY.configured(), at:st.vaultAt||null, months:st.vaultMonths||st.vaultCount||null,
+    local:S.reportMonths().length};
 };
 
 /* Both copies changed at once: show what is at stake and let the operator choose.
@@ -905,6 +1028,27 @@ SY.startLive=function(){
 };
 SY.stopLive=function(){ clearInterval(liveTimer); liveTimer=null; SY.emit('live'); };
 
+/* Signing in on a device is the moment the live register must appear: pull it now,
+   bring in any months kept online, and start the loop. Waiting for a timer is how a
+   person concludes the app "did not sync". */
+SY.onSession=async function(){
+  if(!SY.configured()) return {ok:false, reason:'Cloud sync is not configured'};
+  SY.restart();
+  const pulled=await SY.sync({auto:true, quiet:true}).catch(e=>({ok:false, reason:e.message}));
+  let vault=null;
+  try{ vault=await SY.vaultMerge(); onVaultMonths(vault); }
+  catch(e){ vault={ok:false, reason:e.message}; }
+  return {ok:!!(pulled&&pulled.ok), sync:pulled, vault};
+};
+let vaultAnnounced=false;
+function onVaultMonths(v){
+  if(!v||!v.ok||!(v.added||v.updated)||vaultAnnounced) return;
+  vaultAnnounced=true;
+  try{ UI.toast((v.added+v.updated)+' month'+(v.added+v.updated===1?'':'s')+' restored from the online record',{type:'ok'}); }catch(e){}
+  try{ if(window.LS&&LS.shell&&LS.shell.route) LS.shell.route({keepScroll:true}); }catch(e){}
+}
+SY.onSessionReady=onVaultMonths;
+
 /* Called whenever the session changes (sign in, sign out, enter as visitor): the loop is
    rebuilt from the current configuration instead of the one at boot. */
 SY.restart=function(){
@@ -931,7 +1075,10 @@ SY.start=function(){
     if(reason==='import'||reason==='reset') return;          /* those came from elsewhere */
     if(SY.configured()) SY.pushSoon();
   });
-  if(SY.configured()) setTimeout(()=>{ SY.startLive(); SY.sync({auto:true, quiet:true}).catch(()=>{}); },1200);
+  if(SY.configured()) setTimeout(()=>{
+    SY.startLive();
+    SY.sync({auto:true, quiet:true}).then(()=>SY.vaultMerge().then(onVaultMonths)).catch(()=>{});
+  },1200);
   /* The privacy migration cleans the register on load. The shared copy must not keep
      the old names, so the cleaned register is published once, without being asked. */
   if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) && SY.configured()){
