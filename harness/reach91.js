@@ -92,7 +92,10 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||150));
 
   /* ── 5 · the build a stuck device is offered is the live one ───────── */
   {
-    ok(/const VERSION = 'v6\.9\.91'/.test(sw),'the service worker is versioned to this build');
+    const shellJs=fs.readFileSync(path.join(root,'assets/js/core/shell.js'),'utf8');
+    const build=(shellJs.match(/VERSION\s*[:=]\s*'(\d+\.\d+\.\d+)'/)||[])[1];
+    ok(!!build&&new RegExp("const VERSION = 'v"+build.replace(/\./g,'\\.')+"'").test(sw),
+       'the service worker is versioned to this build ('+build+')');
     ok(/self\.skipWaiting\(\)/.test(sw),'and a new build takes over rather than waiting');
     ok(/clients\.claim\(\)/.test(sw),'claiming the pages already open');
     ok(/networkFirst/.test(sw),'code is fetched from the network first — the cache is only the fallback');
