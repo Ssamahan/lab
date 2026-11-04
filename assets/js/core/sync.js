@@ -1078,6 +1078,13 @@ SY.restart=function(){
   SY.stopLive();
   if(SY.configured()) SY.startLive();
 };
+/* Run something when the browser is not busy drawing. Falls back to a timer. */
+function idle(fn,fallbackMs){
+  try{
+    if(typeof requestIdleCallback==='function'){ requestIdleCallback(()=>fn(),{timeout:fallbackMs||2000}); return; }
+  }catch(e){}
+  setTimeout(fn,fallbackMs||1200);
+}
 SY.start=function(){
   if(SY._started) return; SY._started=true;
   window.addEventListener('online',()=>{ if(SY.configured()){ SY.startLive(); SY.schedule(600); } });
@@ -1098,7 +1105,10 @@ SY.start=function(){
     if(reason==='import'||reason==='reset') return;          /* those came from elsewhere */
     if(SY.configured()) SY.pushSoon();
   });
-  if(SY.configured()) setTimeout(()=>{
+  /* The first exchange waits for the device to be idle. Pulling a few hundred kilobytes
+     while the first screen is still being drawn is what a slow phone shows as a freeze;
+     the register is already on the device, so nothing is late by a second. */
+  if(SY.configured()) idle(()=>{
     SY.startLive();
     SY.sync({auto:true, quiet:true}).then(()=>SY.vaultMerge().then(onVaultMonths)).catch(()=>{});
   },1200);

@@ -4,6 +4,22 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.95
+
+**It opens quickly now, and it does not freeze while it does.**
+
+Three things were making every start slow, and none of them was the register itself — the start-up work measured **7 ms**.
+
+- **The code was re-downloaded on every visit.** The service worker treated JavaScript and CSS as network-first *even when the cache held the same build*, so fifteen files had to come back over the network before the console could appear. Every asset is now asked for at the build's own version (`store.js?v=6.9.95`), and a versioned file is served from the cache at once — the fetch behind it only keeps the cache warm. A deploy still lands immediately, because `index.html` is fetched network-first and carries the new version with it.
+- **The splash was a toll gate.** 2.1 seconds on *every* visit. It is now a first-run animation; a device that has opened the console before shows it for a moment and moves on.
+- **Every start rewrote the whole register** to storage and broadcast the write, waking every other open tab to read and re-parse it too. The register is now written back only when the repair actually changed something.
+- **The cache filled fifty files at once**, saturating a phone's connection while the page was still loading. Six at a time now.
+- **The first exchange with the cloud waits for an idle device** (`requestIdleCallback`), so a pull never lands in the middle of the first screen being drawn.
+
+**Measuring instead of guessing:** the start is timed part by part (`register loaded`, `language`, `accounts`), printed to the console when the address carries `?diag=1`, and shown in **Settings → Data → Cloud sync → Last start**.
+
+Verified — **35 suites, 1,832 checks** — including every asset carrying the version, the worker's cache-first rule for versioned code and network-first for everything else, the splash on a returning device, no write to storage on an unchanged restart, and the timing report.
+
 ## What changed in 6.9.94
 
 **The money is shown as money, and a session now has an average.**

@@ -362,6 +362,11 @@ function dataView(){
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last push</span><span class="mono xs">'+(SY.state().lastPushAt?U.relTime(SY.state().lastPushAt):'never')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last pull</span><span class="mono xs">'+(SY.state().lastPullAt?U.relTime(SY.state().lastPullAt):'never')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Live loop</span><span class="mono xs">'+(SY.liveState().on?'running · checks every '+(Math.round((cl.pollMs||2500)/100)/10)+' s':'off')+'</span></div>'
+     +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last start</span><span class="mono xs">'+(function(){
+        const t=(typeof window!=='undefined'&&window.LS_TIMINGS)||[];
+        const total=t.filter(x=>x.name!=='total to first screen').reduce((a,x)=>a+(x.ms||0),0);
+        return t.length?(Math.round(total)+' ms · '+t.length+' steps'):'not measured';
+     })()+'</span></div>'
      +(SY.state().conflictNote?'<div class="hint" style="margin-top:8px">'+UI.ic('alert-triangle',12)+' '+U.esc(SY.state().conflictNote)+' A snapshot of the replaced copy is in Settings → Data &amp; backup → restore points.</div>':'')
      +(SY.state().lastError?'<div class="hint" style="margin-top:8px;color:var(--crit)">'+U.esc(SY.state().lastError)+'</div>':'')
      +'<div class="hint" style="margin-top:12px">Every edit is still saved on this device first. The shared copy is what lets your phone see what you typed on the PC. Setup steps are in the <a href="docs/supabase-setup.html" target="_blank" rel="noopener">step-by-step guide</a>; the table SQL is <span class="mono">supabase/schema.sql</span>. No patient data leaves the device until the fields are filled. The login is stored on this device only.</div>'})+'</div>'

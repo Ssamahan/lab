@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.94';
+const VERSION = 'v6.9.95';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -11,26 +11,26 @@ const CORE = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/tokens.css',
-  './assets/css/app.css',
-  './assets/css/modules.css',
-  './assets/css/landing.css',
-  './assets/data/plan-archive.js',
-  './assets/js/core/icons.js',
-  './assets/js/core/seed.js',
-  './assets/js/core/utils.js',
-  './assets/js/core/store.js',
-  './assets/js/core/ui.js',
-  './assets/js/core/charts.js',
-  './assets/js/core/sheets.js',
-  './assets/js/core/xlsxread.js',
-  './assets/js/core/i18n.js',
-  './assets/js/core/auth.js',
-  './assets/js/core/landing.js',
-  './assets/js/core/shared.js',
-  './assets/js/core/shell.js',
-  './assets/js/core/sync.js',
-  './assets/js/core/boot.js',
+  './assets/css/tokens.css?v=6.9.95',
+  './assets/css/app.css?v=6.9.95',
+  './assets/css/modules.css?v=6.9.95',
+  './assets/css/landing.css?v=6.9.95',
+  './assets/data/plan-archive.js?v=6.9.95',
+  './assets/js/core/icons.js?v=6.9.95',
+  './assets/js/core/seed.js?v=6.9.95',
+  './assets/js/core/utils.js?v=6.9.95',
+  './assets/js/core/store.js?v=6.9.95',
+  './assets/js/core/ui.js?v=6.9.95',
+  './assets/js/core/charts.js?v=6.9.95',
+  './assets/js/core/sheets.js?v=6.9.95',
+  './assets/js/core/xlsxread.js?v=6.9.95',
+  './assets/js/core/i18n.js?v=6.9.95',
+  './assets/js/core/auth.js?v=6.9.95',
+  './assets/js/core/landing.js?v=6.9.95',
+  './assets/js/core/shared.js?v=6.9.95',
+  './assets/js/core/shell.js?v=6.9.95',
+  './assets/js/core/sync.js?v=6.9.95',
+  './assets/js/core/boot.js?v=6.9.95',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -58,10 +58,16 @@ const MODULES = [
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(SHELL);
-    // addAll fails atomically; add individually so one 404 never blocks install
-    await Promise.all(CORE.concat(MODULES).map(url =>
-      cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
-    ));
+    /* A few at a time, not fifty at once. Firing every file together saturates a phone's
+       connection while the page itself is still loading — which is the "it takes longer
+       to load" part that has nothing to do with the code. Six at a time keeps the cache
+       warm without competing with what the person is waiting for. */
+    const list = CORE.concat(MODULES);
+    for (let i = 0; i < list.length; i += 6) {
+      await Promise.all(list.slice(i, i + 6).map(url =>
+        cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
+      ));
+    }
     self.skipWaiting();
   })());
 });
@@ -98,6 +104,28 @@ async function networkFirst(request, cacheName) {
   }
 }
 
+/* Code asked for at the current build's version can never be the wrong file: the version
+   is in the address. So it is served from the cache at once, and the fetch behind it only
+   keeps the cache warm. This is what makes a second visit open instantly on a phone —
+   the first visit still pays for the download, nothing after it does. An unversioned URL
+   stays network-first, which is what tells an older page that a new build exists. */
+function isCurrentVersion(url){
+  const want = VERSION.replace(/^v/,'');
+  return url.searchParams.get('v') === want;
+}
+async function cacheFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const hit = await cache.match(request);
+  const refresh = fetch(request).then(res => {
+    if (res && res.ok) cache.put(request, res.clone());
+    return res;
+  }).catch(() => null);
+  if (hit) { refresh; return hit; }
+  const fresh = await refresh;
+  if (fresh) return fresh;
+  return (await caches.match(request)) || Response.error();
+}
+
 async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request, { ignoreSearch: true });
@@ -131,9 +159,14 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Code is network-first: an update is visible on the next load, and the cache
-  // is only the offline fallback. Anything else is what made fixed bugs look
-  // unfixed on a device that had visited before.
+  // Code pinned to this build's version: from the cache, instantly, refreshed behind it.
+  if (/\.(?:css|js|json|webmanifest)$/.test(url.pathname) && isCurrentVersion(url)) {
+    event.respondWith(cacheFirst(req, RUNTIME));
+    return;
+  }
+
+  // Anything else that is code is network-first: an update is visible on the next load,
+  // and the cache is only the offline fallback.
   if (/\.(?:css|js|json|webmanifest)$/.test(url.pathname) || url.pathname === '/') {
     event.respondWith((async () => {
       try { return await networkFirst(req, RUNTIME); }
