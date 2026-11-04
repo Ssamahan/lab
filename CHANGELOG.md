@@ -4,6 +4,30 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.91
+
+**"The site is not reachable" — when the address answers and the device shows nothing.**
+
+That is almost never the server. A browser that has once held a half-installed build keeps serving it from its
+own cache, and the result is indistinguishable from a dead site: the splash turns for ever, or the page stays
+blank. The console now has three ways out, and none of them needs anyone to explain a cache.
+
+- **It says so instead of turning.** If the splash is still on screen after seven seconds the page has not
+  started at all, so the animation is replaced by a sentence — *"This device could not start the console"* —
+  that states plainly that the address is answering, names the first thing that actually failed (a script that
+  did not load, an error message, a rejected start-up promise), and offers **Clear cache & reload** and
+  **Reload**. The register on the device is never touched by either.
+- **`?fresh=1` is the guaranteed way in.** The address clears the service worker and every cache on this
+  origin, then reloads once — no flag left in the address, no history entry behind it, and a one-shot marker
+  so it cannot loop.
+- **The page itself carries a fallback that depends on nothing.** Written inline in `index.html`, it fires
+  after ten seconds if the console never started — even if none of the console's own scripts arrived — and
+  offers the same clean reload as a plain link. A browser with JavaScript switched off is told why.
+- **Version watch stays:** a tab running an older build is named, with the reload.
+
+Verified — **32 suites, 1,705 checks** — including the recovery panel naming the failure, its two buttons, the
+`?fresh=1` route (flag removed, cache-busting stamp added, one-shot marker), and the inline fallback.
+
 ## What changed in 6.9.90
 
 **A month can be deleted — including the one opened by mistake.**

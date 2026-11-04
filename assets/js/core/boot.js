@@ -3,13 +3,58 @@
    ========================================================================== */
 (function(){
 'use strict';
+/* ——— The way in when a device is stuck ————————————————————————
+   A browser that was once shown a half-installed build can keep serving it from its
+   own cache, and then the console appears not to exist at all: the address answers,
+   nothing starts. `?fresh=1` is the answer that needs no explanation — it removes the
+   service worker and every cache on this origin, then reloads once with a clean slate.
+   It runs before anything else and returns, so nothing half-initialised is left. */
+if((function freshRecovery(){
+  if(!/[?&]fresh=1\b/.test(location.search)) return false;
+  let already=false;
+  try{ already=sessionStorage.getItem('labSystems.fresh.v1')==='1'; }catch(e){}
+  if(already){ try{ sessionStorage.removeItem('labSystems.fresh.v1'); }catch(e){} return false; }
+  try{ sessionStorage.setItem('labSystems.fresh.v1','1'); }catch(e){}
+  const clean=()=>{
+    const url=new URL(location.href);
+    url.searchParams.delete('fresh');
+    url.searchParams.set('v',String(Date.now()));
+    location.replace(url.toString());
+  };
+  const steps=[];
+  try{
+    if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)
+      steps.push(navigator.serviceWorker.getRegistrations()
+        .then(rs=>Promise.all(rs.map(r=>r.unregister().catch(()=>{})))).catch(()=>{}));
+    if(window.caches&&caches.keys)
+      steps.push(caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k).catch(()=>{})))).catch(()=>{}));
+  }catch(e){}
+  Promise.all(steps).then(clean,clean);
+  try{ const b=document.getElementById('bootStatus'); if(b) b.textContent='Clearing the cache for this device…'; }catch(e){}
+  return true;
+})()) return;
+
 const U=window.LSU;
 const LINES=['Calibrating QC engines…','Verifying chain of custody…','Loading ISO 15189 register…','Rehydrating local register…','Arming offline cache…','Ready.'];
 const SPLASH_MIN=2100;
 let done=false;
+/* The first thing that went wrong in this page, in plain words. A blank console is
+   almost always one thrown line, and naming it turns a mystery into a bug report. */
+let firstError=null;
+window.addEventListener('error',ev=>{
+  if(firstError) return;
+  const t=ev&&ev.target;
+  if(t&&t.tagName==='SCRIPT') firstError='a script did not load: '+(t.src||'').split('/').pop();
+  else firstError=(ev&&ev.message)||'a script threw while starting';
+},true);
+window.addEventListener('unhandledrejection',ev=>{
+  if(firstError) return;
+  firstError=(ev&&ev.reason&&(ev.reason.message||String(ev.reason)))||'a start-up promise was rejected';
+});
 
 function finish(){
   if(done) return; done=true;
+  window.__lsBooted=true;
   const boot=document.getElementById('boot');
   if(boot){ boot.classList.add('done'); setTimeout(()=>boot.remove(),700); }
 }
@@ -70,8 +115,41 @@ try{
   let i=0; const el=document.getElementById('bootStatus');
   const iv=setInterval(()=>{ if(!el||done){ clearInterval(iv); return; } i=(i+1)%LINES.length; el.style.opacity='0'; setTimeout(()=>{ el.textContent=LINES[i]; el.style.transition='opacity .3s'; el.style.opacity='1'; },180); },520);
 }catch(e){}
+/* ——— When the console does not start ——————————————————————
+   The splash is removed on success. If it is still turning after seven seconds the page
+   has not started at all — a build that threw, a script that never arrived, a cache with
+   half of a version in it — and the honest thing is to say so and hand over the two
+   actions that fix it, instead of an animation that looks like a site that is down. */
+function started(){
+  const shown=id=>{ const el=document.getElementById(id); return el&&!el.hidden; };
+  return shown('landing')||shown('auth')||shown('app');
+}
+function recover(reason){
+  if(started()){ finish(); return; }
+  const boot=document.getElementById('boot');
+  if(!boot) return;
+  const why=reason?'<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin:10px 0 0;word-break:break-word">'+U.esc(reason)+'</div>':'';
+  boot.innerHTML='<div style="max-width:460px;text-align:center;padding:24px">'
+    +'<div style="font-family:var(--font-display);font-size:1.5rem;color:var(--text-strong);margin-bottom:8px">This device could not start the console</div>'
+    +'<p style="color:var(--text-muted);font-size:12.6px;line-height:1.65;margin:0">The address is answering — it is this browser that is holding an old or half-written copy of the build. Clearing it takes a second and does not touch the register stored on this device.</p>'
+    +why
+    +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">'
+      +'<button type="button" data-fresh style="padding:9px 14px;border-radius:8px;background:#C9A84C;color:#241A06;font-weight:600;border:0;cursor:pointer">Clear cache &amp; reload</button>'
+      +'<button type="button" onclick="location.reload()" style="padding:9px 14px;border-radius:8px;background:none;color:var(--text);border:1px solid var(--border-strong);cursor:pointer">Reload</button>'
+    +'</div>'
+    +'<div style="font-size:10.4px;color:var(--text-faint);margin-top:12px">Your register stays on this device. Nothing is deleted by clearing the cache.</div>'
+  +'</div>';
+  boot.classList.remove('done');
+  const b=boot.querySelector('[data-fresh]');
+  if(b) b.onclick=()=>{ location.href=location.pathname+'?fresh=1'; };
+}
+window.__lsRecover=recover;
+
 // watchdog: never trap the user behind the splash
-setTimeout(finish,6500);
+setTimeout(()=>{
+  if(started()) finish();
+  else recover(firstError||'the console did not finish starting within seven seconds');
+},7000);
 
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(init,60));
 else setTimeout(init,60);

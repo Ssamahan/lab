@@ -172,7 +172,7 @@ const css=fs.readFileSync(path.join(root,'assets/css/modules.css'),'utf8');
   /* ── 10 · it can be found, and it says who may sign in ─────────────── */
   await go('#/dash'); await tick(320);
   ok(!!page.querySelector('[data-hero-report]'),'the Command Center carries a Monthly report button');
-  ok(w.LS.shell.version()==='6.9.90','the shell knows the build it is running',w.LS.shell.version());
+  ok(w.LS.shell.version()==='6.9.91','the shell knows the build it is running',w.LS.shell.version());
   ok(/watchVersion/.test(fs.readFileSync(path.join(root,'assets/js/core/boot.js'),'utf8')),
      'and a tab left open is told when a newer build is live');
   ok(/'reports'/.test(fs.readFileSync(path.join(root,'sw.js'),'utf8').split('const MODULES')[1].split(']')[0]),
