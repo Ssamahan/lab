@@ -4,6 +4,33 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.93
+
+**A revenue session is chosen from the training roster.**
+
+The ledger used to be typed by hand while the registry held the same trainings already — which is how a
+revenue row and its training drifted apart, and how one session ended up written down twice. Both directions
+now exist:
+
+- **Log session** opens on **“Training from the roster”**. The trainings still without a revenue line are
+  listed first, the ones already carrying one are named as such, and *“Type a new session instead…”* is still
+  there for a workshop nobody has entered yet.
+- **Choosing one fills the form** — title, organizer, place, start and end — from the registry, and the saved
+  row carries `linkedTraining` plus the attendees, so the two records describe the same event rather than two
+  similar-sounding ones.
+- **The ledger says which rows came from the roster** (a `roster` tag on the row).
+- **The drawer** shows the roster training behind the session — title, dates, how many attended — and offers a
+  select to **correct or remove the link**. Every change is written to the audit trail
+  (*“Linked to the training roster · …”*).
+- **Reconciliation is now by link, not by row count.** The page states *“N of 39 trainings in the roster carry
+  a revenue line, M still to log”*, and counts any ledger rows that are not tied to the roster. Counting rows
+  could never be right: two sessions of one training, or one training and a typed row, made the registry look
+  settled when it was not.
+
+Verified — **34 suites, 1,797 checks** — including the roster in the form, the fill-from-registry, the link
+stored and audited, the roster tag on the row, relinking and unlinking from the drawer, a session typed outside
+the roster, and the reconciled count moving by exactly one.
+
 ## What changed in 6.9.92
 
 **A blank is a blank, and a written 0 is a 0.**

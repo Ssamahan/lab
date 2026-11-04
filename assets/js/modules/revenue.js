@@ -15,6 +15,36 @@ function catOptions(cur){
   if(cur && list.indexOf(cur)<0) list.push(cur);
   return list.map(c=>'<option value="'+U.esc(c)+'"'+(c===cur?' selected':'')+'>'+U.esc(c)+'</option>').join('');
 }
+/* ——— The roster behind the ledger ————————————————————————————
+   A session logged here is a session in the training registry: same title, same dates,
+   same organizer, same people. The ledger used to be typed independently, which is how
+   a revenue row and its training drifted apart. The registry is now the place a session
+   is chosen from, and `linkedTraining` is what joins them. */
+function rosterRows(){
+  const used={};
+  (S.db().trainingExpenses||[]).forEach(t=>{ if(t.linkedTraining) used[t.linkedTraining]=t.id; });
+  return (S.db().trainings||[]).slice()
+    .sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')))
+    .map(t=>({t,usedBy:used[t.id]||null}));
+}
+function rosterOption(tr,cur){
+  const date=tr.start?U.fmtDateShort(tr.start):'';
+  return '<option value="'+U.esc(tr.id)+'"'+(tr.id===cur?' selected':'')+'>'
+    +U.esc(tr.title)+(date?' · '+U.esc(date):'')+(tr.organizer?' · '+U.esc(tr.organizer):'')+'</option>';
+}
+/* The choice offered wherever a session is picked: the ones still without a revenue line
+   first — they are what this page is for — then the ones already carrying one, named so
+   that a second session is never logged on top of the first by accident. */
+function rosterOptions(cur,ownRow){
+  const rows=rosterRows();
+  const free=rows.filter(r=>!r.usedBy||r.usedBy===ownRow);
+  const taken=rows.filter(r=>r.usedBy&&r.usedBy!==ownRow);
+  let out='<option value="">— choose a training from the roster —</option>';
+  if(free.length) out+='<optgroup label="Not yet on the ledger">'+free.map(r=>rosterOption(r.t,cur)).join('')+'</optgroup>';
+  if(taken.length) out+='<optgroup label="Already carrying a revenue line">'+taken.map(r=>rosterOption(r.t,cur)).join('')+'</optgroup>';
+  out+='<optgroup label="Not in the roster"><option value="__new"'+(cur==='__new'?' selected':'')+'>Type a new session instead…</option></optgroup>';
+  return out;
+}
 function data(){
   const list=S.db().trainingExpenses||[];
   const exp=U.sum(list,sumExp), reimb=U.sum(list,sumReimb);
@@ -34,11 +64,17 @@ function mov(series){
   if(!prev) return last?100:0;
   return Math.round((last-prev)/Math.abs(prev)*100);
 }
+/* How much of the roster is accounted for — by the link each ledger row carries, not by
+   counting rows. Two sessions of one training, or one session and a typed row, no longer
+   make the registry look settled when it is not. */
 function reconciliation(){
   const d=data();
-  const registry=(S.db().trainings||[]).length;
-  const covered=d.list.length;
-  return {registry,covered,missing:Math.max(0,registry-covered),exp:d.exp,reimb:d.reimb,net:d.balance};
+  const trainings=S.db().trainings||[];
+  const linked={};
+  d.list.forEach(t=>{ if(t.linkedTraining) linked[t.linkedTraining]=1; });
+  const covered=trainings.filter(t=>linked[t.id]).length;
+  return {registry:trainings.length,covered,missing:Math.max(0,trainings.length-covered),
+    unlinked:d.list.filter(t=>!t.linkedTraining).length,exp:d.exp,reimb:d.reimb,net:d.balance};
 }
 function kpis(){
   const d=data(), m=monthly(), reconciled=reconciliation();
@@ -51,14 +87,19 @@ function kpis(){
    +'<div class="card pad" style="margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
      +'<span class="pill teal">'+UI.ic('check-check',12)+'Reconciled</span>'
      +'<span class="small grow">'+U.fmtNum(reconciled.exp)+' RWF recorded expenses · '+U.fmtNum(reconciled.reimb)+' RWF reimbursed · <b class="mono">net '+U.fmtNum(reconciled.net)+' RWF</b> across '+reconciled.covered+' ledger sessions.</span>'
-     +'<span class="xs faint">'+reconciled.missing+' of '+reconciled.registry+' registry trainings carry no revenue lines'+(reconciled.missing?' — <a href="#/training">open the registry</a>':'')+'</span></div>';
+     +'<span class="xs faint">'+reconciled.covered+' of '+reconciled.registry+' trainings in the roster carry a revenue line'
+       +(reconciled.missing?', '+reconciled.missing+' still to log — <a href="#/training">open the roster</a>':' — every one of them logged')
+       +(reconciled.unlinked?' · '+reconciled.unlinked+' ledger row'+(reconciled.unlinked===1?'':'s')+' not linked to the roster':'')+'</span></div>';
 }
 function table(){
   const d=data();
   return '<div class="grid-12"><div class="c8"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="revSearch" placeholder="Search session, organizer…"></div><span class="grow"></span><button class="btn sm" data-add>'+UI.ic('plus',13)+'Log session</button><button class="btn sm" data-export>'+UI.ic('download',13)+'Export</button></div>'
    +'<div class="dt-scroll"><table class="dt" id="revTable"><thead><tr><th>Session</th><th class="hide-sm">Organizer</th><th>Dates</th><th>Expenses</th><th>Reimbursed</th><th>Net</th><th>Status</th></tr></thead><tbody>'
    +d.list.map(t=>{ const e=sumExp(t),r=sumReimb(t),net=r-e;
-      return '<tr data-rev="'+t.id+'"><td><div class="primary-cell"><b>'+U.esc(t.title)+'</b><small>'+U.esc(t.location||'—')+'</small></div></td>'
+      const isLinked=!!t.linkedTraining;
+      return '<tr data-rev="'+t.id+'"><td><div class="primary-cell"><b>'+U.esc(t.title)
+        +(isLinked?' <span class="rep-tag" title="This session is a training in the roster">roster</span>':'')+'</b>'
+        +'<small>'+U.esc(t.location||'—')+'</small></div></td>'
       +'<td class="small hide-sm">'+U.esc(t.organizer||'—')+'</td><td class="num">'+U.fmtDateShort(t.start)+'</td>'
       +'<td class="num">'+U.fmtNum(e)+'</td><td class="num" style="color:var(--pos)">'+U.fmtNum(r)+'</td><td class="num" style="color:'+(net>=0?'var(--pos)':'var(--crit)')+'">'+(net>=0?'+':'')+U.fmtNum(net)+'</td>'
       +'<td>'+(r>=e?'<span class="pill teal">settled</span>':'<span class="pill amber">pending</span>')+'</td></tr>'; }).join('')
@@ -77,8 +118,23 @@ function table(){
 function drawer(id){
   const t=data().list.find(x=>x.id===id); if(!t) return;
   const e=sumExp(t),r=sumReimb(t);
+  const tr=(S.db().trainings||[]).find(x=>x.id===t.linkedTraining)||null;
+  const attendeeNames=tr?(tr.attendees||[]).map(a=>(S.staffById(a)||{}).name).filter(Boolean):[];
   UI.drawer({title:t.title,eyebrow:'Training revenue',sub:(t.organizer||'')+' · '+U.fmtDate(t.start),wide:true,
-    body:'<div class="row wrap" style="gap:6px;margin-bottom:14px"><span class="pill gold">'+U.esc(t.organizer||'—')+'</span><span class="pill slate">'+U.esc(t.location||'—')+'</span><span class="pill '+(r>=e?'teal':'amber')+'">'+(r>=e?'settled':'pending')+'</span></div>'
+    body:'<div class="row wrap" style="gap:6px;margin-bottom:14px"><span class="pill gold">'+U.esc(t.organizer||'—')+'</span><span class="pill slate">'+U.esc(t.location||'—')+'</span><span class="pill '+(r>=e?'teal':'amber')+'">'+(r>=e?'settled':'pending')+'</span>'
+      +(tr?'<span class="pill teal">'+UI.ic('clipboard-list',11)+'on the training roster</span>':'<span class="pill amber">not in the roster</span>')+'</div>'
+     +'<div class="card pad" style="margin-bottom:14px">'
+       +'<div class="row between" style="gap:10px;flex-wrap:wrap;align-items:flex-end">'
+         +'<div class="grow"><div class="eyebrow">Training in the roster</div>'
+           +'<div class="small" data-roster-line style="margin-top:4px">'+(tr
+             ? '<b>'+U.esc(tr.title)+'</b> · '+U.fmtDate(tr.start)+(tr.end&&tr.end!==tr.start?' – '+U.fmtDate(tr.end):'')
+               +(attendeeNames.length?' · '+attendeeNames.length+' attendee'+(attendeeNames.length===1?'':'s'):'')
+             : 'This ledger session is not tied to a training in the registry — choose one and the two stay together.')+'</div></div>'
+         +'<div style="min-width:260px"><label class="xs faint">Choose from the roster</label>'
+           +'<select class="select" data-link-select style="margin-top:4px">'+rosterOptions(t.linkedTraining||'',t.id)+'</select></div>'
+       +'</div>'
+       +'<div class="hint" style="margin-top:8px">Linked sessions are counted once on the registry side: the '+(tr?'training':'session')+' stops appearing as one still waiting for a revenue line. <a href="#/training" data-go-roster>Open the training roster</a></div>'
+     +'</div>'
      +'<div class="split-3" style="margin-bottom:14px">'+[['Expenses',e,'amber'],['Reimbursed',r,'teal'],['Net',r-e,r-e>=0?'teal':'rose']].map(([k,v,tone])=>'<div class="card pad"><div class="eyebrow">'+k+'</div><div class="serif" style="font-size:1.4rem;margin-top:4px;color:var(--'+(tone==='teal'?'pos':tone==='rose'?'crit':'warn')+')">'+U.fmtNum(v)+'</div><div class="xs faint">RWF</div></div>').join('')+'</div>'
      +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('receipt',14,'ic')+'Expense lines</div></div><button class="btn xs" data-add-exp>'+UI.ic('plus',12)+'Add line</button></div><div class="card-body">'
        +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div></div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>'+(x.desc&&x.custom?'':'' )).join('')
@@ -88,6 +144,23 @@ function drawer(id){
      +'</div></div>',
     foot:'<button class="btn" data-close>Close</button><button class="btn primary" data-print>'+UI.ic('printer',15)+'Statement</button>',
     onMount:(panel)=>{
+      const linkSel=panel.querySelector('[data-link-select]');
+      if(linkSel) linkSel.onchange=()=>{
+        if(!LS.auth.guard('revenue')) return;
+        const id=linkSel.value||null;
+        const tr=(S.db().trainings||[]).find(x=>x.id===id)||null;
+        S.commit(d=>{ const x=(d.trainingExpenses||[]).find(y=>y.id===t.id); if(x) x.linkedTraining=id; },
+          {action:'revenue.link',entity:'trainingExpenses',entityId:t.id,
+           detail:tr?('Linked to the training roster · '+tr.title):'Unlinked from the training roster'});
+        const line=panel.querySelector('[data-roster-line]');
+        if(line) line.innerHTML=tr
+          ? '<b>'+U.esc(tr.title)+'</b> · '+U.fmtDate(tr.start)+((tr.attendees||[]).length?' · '+(tr.attendees||[]).length+' attendee'+((tr.attendees||[]).length===1?'':'s'):'')
+          : 'This ledger session is not tied to a training in the registry — choose one and the two stay together.';
+        UI.toast(tr?'Linked to the training roster':'Unlinked from the roster',{type:'ok'});
+        LS.shell.refresh();
+      };
+      const goRoster=panel.querySelector('[data-go-roster]');
+      if(goRoster) goRoster.onclick=ev=>{ ev.preventDefault(); UI.closeAll(); LS.shell.go('training'); };
       panel.querySelector('[data-add-exp]').onclick=()=>addLine(t,'expense',panel);
       panel.querySelector('[data-add-reimb]').onclick=()=>addLine(t,'reimb',panel);
       panel.querySelector('[data-print]').onclick=()=>{
@@ -131,8 +204,12 @@ function addLine(t,kind,panel){
 }
 function addSession(){
   if(!LS.auth.guard('revenue')) return;
-  UI.modal({title:'Log training session',sub:'Expenses and reimbursements stay linked to the training registry.',width:'min(600px,100%)',
-    body:'<div class="form-grid"><div class="field span2"><label>Title</label><input class="input" id="rsTitle" placeholder="e.g. IPC and WASH FIT"></div>'
+  const free=rosterRows().filter(r=>!r.usedBy).length;
+  UI.modal({title:'Log training session',sub:'Choose the session from the training roster, then record what it cost and what was reimbursed.',width:'min(620px,100%)',
+    body:'<div class="form-grid">'
+     +'<div class="field span2"><label>Training from the roster</label><select class="select" id="rsPick">'+rosterOptions('','')+'</select>'
+       +'<div class="hint" style="margin-top:6px">'+(free?free+' training'+(free===1?'':'s')+' on the roster '+(free===1?'has':'have')+' no revenue line yet — they are listed first.':'Every training on the roster already carries a revenue line; a new session can still be typed below.')+'</div></div>'
+     +'<div class="field span2"><label>Title</label><input class="input" id="rsTitle" placeholder="e.g. IPC and WASH FIT"></div>'
      +'<div class="field"><label>Organizer</label><input class="input" id="rsOrg" value="RBC"></div>'
      +'<div class="field"><label>Location</label><input class="input" id="rsLoc" value="Ruli DH"></div>'
      +'<div class="field"><label>Start</label><input class="input mono" type="date" id="rsStart" value="'+U.todayISO()+'"></div>'
@@ -146,6 +223,21 @@ function addSession(){
     onMount:(el,close)=>{
       const catSel=el.querySelector('#rsCat'), otherWrap=el.querySelector('#rsCatOtherWrap');
       catSel.onchange=()=>{ const isOther=catSel.value==='Other'; otherWrap.style.display=isOther?'':'none'; if(isOther) otherWrap.querySelector('input').focus(); };
+      /* choosing a session fills the rest of the form from the registry, so the two
+         records describe the same event rather than two similar-sounding ones */
+      const pick=el.querySelector('#rsPick');
+      let linked=null, attendees=[];
+      pick.onchange=()=>{
+        const tr=(S.db().trainings||[]).find(x=>x.id===pick.value);
+        linked=tr?tr.id:null; attendees=tr?(tr.attendees||[]):[];
+        const fields=[['rsTitle',tr&&tr.title],['rsOrg',tr&&tr.organizer],['rsLoc',tr&&tr.location],
+          ['rsStart',tr&&tr.start],['rsEnd',tr&&(tr.end||tr.start)]];
+        fields.forEach(([id,val])=>{ const inp=el.querySelector('#'+id); if(inp&&val) inp.value=val; });
+        if(tr){
+          const already=(S.db().trainingExpenses||[]).find(t=>t.linkedTraining===tr.id);
+          if(already) UI.toast('“'+tr.title+'” already has a revenue line — adding a second one on top of it',{type:'warn',duration:5000});
+        }
+      };
       el.querySelector('[data-save]').onclick=()=>{
         const title=el.querySelector('#rsTitle').value.trim(); if(!title) return UI.toast('Title required',{type:'warn'});
         const start=el.querySelector('#rsStart').value, end=el.querySelector('#rsEnd').value;
@@ -157,10 +249,12 @@ function addSession(){
           catVal=customLabel; custom=true;
         }
         const desc=(el.querySelector('#rsExpDesc').value||'').trim()||'Recorded expense';
-        const rec={id:U.uid('te'),title,organizer:el.querySelector('#rsOrg').value,location:el.querySelector('#rsLoc').value,start,end,linkedTraining:null,
+        const rec={id:U.uid('te'),title,organizer:el.querySelector('#rsOrg').value,location:el.querySelector('#rsLoc').value,start,end,
+          linkedTraining:linked,attendees:attendees.slice(),
           expenses:exp?[{id:U.uid('x'),cat:catVal,custom,desc,amount:exp,date:end}]:[],
           reimbursements:rei?[{id:U.uid('r'),amount:rei,date:end,source:'RBC',note:''}]:[],note:''};
-        S.commit(d=>{ d.trainingExpenses.unshift(rec); },{action:'revenue.session',entity:'trainingExpenses',entityId:rec.id,detail:title+' · RWF '+exp+'/'+rei});
+        S.commit(d=>{ d.trainingExpenses.unshift(rec); },{action:'revenue.session',entity:'trainingExpenses',entityId:rec.id,
+          detail:title+' · RWF '+exp+'/'+rei+(linked?' · linked to the training roster':' · not in the roster')});
         close(); UI.toast('Session logged',{type:'ok'}); LS.shell.refresh();
       };
     }});
