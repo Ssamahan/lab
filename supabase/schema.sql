@@ -246,9 +246,45 @@ create policy "names delete" on public.lab_patient_names for delete to authentic
 revoke all on public.lab_patient_names from anon;
 grant select, insert, update, delete on public.lab_patient_names to authenticated;
 
--- 1 · create the person an account in Authentication → Users (email + password)
--- 2 · put them on the allowlist:
---       insert into public.lab_staff (uid, email, role)
---       select id, email, 'Technologist' from auth.users where email = 'person@example.com';
--- 3 · they press "Show names", enter that password, and the names come down.
--- Removing a row from lab_staff takes the privilege away at once, on every device.
+-- ——— Only real people, never an anonymous account ————————————————————————
+-- The first seeding of this table filled it from every row in auth.users, which included
+-- the two anonymous accounts the visitor view signs in with. An account with no email has
+-- no person behind it and no password to prove it with, so the trigger below refuses one.
+-- It also copies the email across, so nobody has to paste a UUID by hand.
+create or replace function public.lab_staff_real_accounts_only()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare acct auth.users%rowtype;
+begin
+  select * into acct from auth.users where id = new.uid;
+  if not found then
+    raise exception 'lab_staff: no account with id %', new.uid;
+  end if;
+  if acct.email is null or coalesce(acct.is_anonymous, false) then
+    raise exception 'lab_staff: % is an anonymous account and cannot be allowlisted', new.uid;
+  end if;
+  if new.email is null then new.email := acct.email; end if;
+  return new;
+end $$;
+revoke all on function public.lab_staff_real_accounts_only() from anon, authenticated;
+
+drop trigger if exists lab_staff_guard on public.lab_staff;
+create trigger lab_staff_guard
+  before insert or update on public.lab_staff
+  for each row execute function public.lab_staff_real_accounts_only();
+
+-- ——— Adding a person, in three statements ————————————————————————————————
+-- 1 · Authentication → Users → Add user: their real email and a password they choose.
+-- 2 · Allowlist them, by email — the trigger fills in the id and the email:
+--       insert into public.lab_staff (uid, role)
+--       select id, 'Technologist' from auth.users where email = 'person@rulidh.rw';
+--     (role is a label for people reading the table; what the server checks is that
+--      the row exists. The screens decide what somebody may open.)
+-- 3 · On their device: Samples → Show patient names → their email and that password.
+--     The names come down; recording a name from then on pushes it up for everyone.
+--
+-- Removing the row takes the privilege away at once, on every device, at the next read.
+-- Two people, two accounts: never one password shared around a bench.
