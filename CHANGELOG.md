@@ -4,6 +4,44 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.102
+
+**The single-file build: one page, nothing left to fetch.**
+
+Six releases went into the cache, the service worker, the deadlines and the chart engine, and
+the report came back the same: *landing opens, sign-in works, no screen loads.* Every layer I
+had been fixing was a layer that could fail. So this build removes the fetching itself.
+
+### `bundle.html`
+`https://ssamahan.github.io/lab/bundle.html` is **one page of 1.7 MB** with:
+
+- **all four stylesheets inline** (with every `url()` rewritten so the fonts still resolve);
+- **all sixteen screens inline**, registered before the console asks for anything;
+- the chart engine, the sheet engine and the workbook reader inline — no on-demand loading;
+- the plan archive, the seed and every core file inline, in the order they require;
+- **no service worker registered at all** — a stored copy of any earlier build cannot touch it;
+- **no request to make** except the fonts and the favicon. Nothing to 404, nothing to time out,
+  nothing for a cache to answer wrongly.
+
+A screen already in memory is now also never fetched again — `loadModule` checks
+`LS.modules[id]` before reaching for the network, which is what makes an inline bundle work
+and, separately, stops a second visit to a screen from depending on the network.
+
+### It cannot go stale
+`tools/build-bundle.js` regenerates it (`npm run bundle`), and a test **rebuilds it during the
+suite and fails if one byte differs**. A stale bundle would be worse than none.
+
+### Everywhere it is offered
+The landing footer, the six-second "still loading" note, the failure panel and the repair page
+all now carry **Single-file build** beside **Open without charts** — three doors, in the order
+of how much they give up to get you in.
+
+`npm test` now covers **42 suites and 2,006 checks**, including 39 in `harness/bundle102.js`
+that boot the bundle, check all sixteen screens are registered before anything is requested,
+open fifteen of them in turn, and confirm nothing throws.
+
+---
+
 ## What changed in 6.9.101
 
 **A missing chart can no longer cost you the screen.**

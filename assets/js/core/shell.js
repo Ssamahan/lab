@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.101';
+const APP_VERSION='6.9.102';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -154,7 +154,10 @@ function moduleUrl(file,bust){
 }
 function loadModule(id){
   const r=ROUTES[id];
-  if(loaded[id]) return Promise.resolve();
+  /* A screen that is already registered is already here — true of the single-file bundle,
+     where every module is inline, and of a second visit in the same session. Asking the
+     network for something already in memory is how a page that works looks broken. */
+  if(loaded[id] || (window.LS.modules && LS.modules[id])) { loaded[id]=true; return Promise.resolve(); }
   if(SAFE_MODE){
     stubEngines();
     return loadFile(moduleUrl(r.file),DEP_MS).then(()=>{ loaded[id]=true; });
@@ -413,6 +416,7 @@ SH.route=async function(opts){
     note.innerHTML='<span class="small muted" style="flex:1;min-width:220px">Still loading this screen. On a slow connection, or with a large register, this can take a moment. '
       +'If it stays like this, this browser is probably holding an older copy of the console.</span>'
       +'<button class="btn" type="button" data-slow-safe>'+U.ic('zap',14)+' Open without charts</button>'
+      +'<a class="btn" href="bundle.html" style="text-decoration:none">'+U.ic('file-down',14)+' Single-file build</a>'
       +'<button class="btn" type="button" data-slow-fresh>'+U.ic('trash-2',14)+' Clear cache &amp; reload</button>';
     sk.parentNode.insertBefore(note,sk);
     const b=note.querySelector('[data-slow-fresh]');
@@ -478,6 +482,7 @@ SH.fail=function(err,id,host){
    +'<div class="row wrap" style="gap:8px">'
      +'<button class="btn primary" data-retry>'+U.ic('refresh-cw',15)+' Retry</button>'
      +'<button class="btn" data-safe>'+U.ic('zap',15)+' Open without charts</button>'
+     +'<a class="btn" href="bundle.html" style="text-decoration:none">'+U.ic('file-down',15)+' Single-file build</a>'
      +'<button class="btn" data-fresh>'+U.ic('trash-2',15)+' Clear cache &amp; reload</button>'
      +'<button class="btn" data-home>'+U.ic('layout-dashboard',15)+' Command Center</button>'
      +'<button class="btn" data-diag>'+U.ic('copy',15)+' Copy diagnostics</button>'

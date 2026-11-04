@@ -1,6 +1,6 @@
 {
   "name": "lab-systems",
-  "version": "6.9.101",
+  "version": "6.9.102",
   "description": "Lab Systems - Ruli District Hospital Laboratory",
   "main": "index.html",
   "scripts": {
@@ -10,7 +10,8 @@
     "cap:copy": "npx cap copy",
     "cap:open:android": "npx cap open android",
     "apk:debug": "cd android && ./gradlew assembleDebug",
-    "apk:release": "cd android && ./gradlew assembleRelease"
+    "apk:release": "cd android && ./gradlew assembleRelease",
+    "bundle": "node tools/build-bundle.js"
   },
   "keywords": [
     "ruli",
