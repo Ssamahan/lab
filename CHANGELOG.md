@@ -4,6 +4,53 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.100
+
+**When it will not open at all, there is now a way in — and the register is never the price.**
+
+A report came back as a single line: *"Not even loading at all."* I checked the deployment
+first — the live site answered with the v6.9.99 build and its scripts — so the problem was on
+the device, and the device had no way out. Three of them are now built.
+
+### `reset.html` — a repair page that depends on nothing
+`https://ssamahan.github.io/lab/reset.html` is a single file with **no stylesheet, no script,
+no font, no service worker** in it. It cannot be broken by anything the console stores.
+
+- It **unregisters the service worker** and **empties every cache** on the origin.
+- It **asks the site for `index.html` and for the console's own script**, and reports the
+  status, the bytes, the build and how long it took.
+- It **reads the register from local storage** — parses it, counts the orders, the months, the
+  staff, the audit entries — and offers it **as a file**. If it will not parse, it says so and
+  still saves the bytes.
+- It never writes and never deletes the register. It says so on the page, in those words.
+- Every step is a tick or a cross, so a screenshot is enough to diagnose it from a distance.
+
+### A navigation can no longer end in a blank error page
+The service worker answered a failed navigation with `Response.error()`, which is the browser's
+own *"this site can't be reached"* — indistinguishable from the site having gone away. It now
+looks for the shell in **every** cache, and if there is none, writes out a small self-contained
+page with the repair link. `reset.html` is precached, so the repair page is available offline too.
+
+### A register that will not parse is kept, not overwritten
+The store used to lay the seed over an unreadable register with a line in the console — a silent
+loss of a laboratory's records. Now the raw text is copied to `labSystems.v1.unreadable.<time>`
+**before** anything else happens, whether it failed to parse or failed to migrate, the console
+starts on a fresh register, and a warning names the reason, the size and the key, with the copy
+kept until somebody acknowledges it.
+
+### Smaller doors, all open
+- The inline failsafe in `index.html` fires at **six seconds** instead of ten and offers both
+  **Repair this device** and **Clear cache & reload**.
+- `?fresh=1` **always reloads**, even if a cache delete hangs (1.6 s at the most).
+- The boot-failure card offers **Save the register as a file**, then **Repair this device**, and
+  only then — behind a confirmation — a fresh register.
+- The seven-second watchdog card carries the repair link as well.
+
+`npm test` now covers **40 suites and 1,964 checks**, including 37 in `harness/recover100.js`
+that drive a corrupt register through a real boot and check the text survives byte for byte.
+
+---
+
 ## What changed in 6.9.99
 
 **A screen that does not arrive now says why — and offers the one action that fixes it.**

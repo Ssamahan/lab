@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.99** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.100** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -122,7 +122,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.99`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.100`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -180,13 +180,26 @@ the address, so a hit cannot be stale.
 A screen that does not arrive is treated as its own kind of failure: the deferred helpers
 have a ten-second deadline, a module has fifteen, and a module that misses it is asked for
 once more past the cache. The panel then names the two builds — *this tab is running v6.9.88;
-the site is now v6.9.99* — and offers **Clear cache & reload** (`?fresh=1`) without ever
+the site is now v6.9.100* — and offers **Clear cache & reload** (`?fresh=1`) without ever
 touching what is stored. A skeleton that is still empty after six seconds says what it is
 waiting for rather than looking busy.
 
 When a start passes 2.6 s, a corner line reports what it cost — *started in 3.4 s · 612 KB ·
 41 files* — with the breakdown on **details**. Add `?diag=1` to always see it, and `?fresh=1`
 to clear a browser that is holding a half-written build.
+
+## When it will not open at all
+
+`reset.html` is a single file with no stylesheet, no script and no font of its own — the one
+page that still works when the console's stored copy is unusable. It unregisters the service
+worker, empties the caches, checks that `index.html` and the console's scripts actually answer,
+and reads the register out of local storage to say whether it parses and to save it as a file.
+It never writes to the register and never deletes it.
+
+Around it: a navigation is never answered with a blank error page, a register that will not
+parse is copied to `labSystems.v1.unreadable.<time>` before anything else happens, and the
+inline failsafe in `index.html` offers both **Repair this device** and **Clear cache & reload**
+after six seconds.
 
 ## Security, stated plainly
 

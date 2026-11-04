@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Repair this device · Lab Systems</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:#14120E;color:#EFE7D6;font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
+  .wrap{max-width:640px;margin:0 auto}
+  h1{font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:1.7rem;margin:0 0 6px;letter-spacing:-.01em}
+  p.lede{color:#B9AE99;margin:0 0 22px;font-size:14px}
+  .card{background:#1B1812;border:1px solid #35301F;border-radius:12px;padding:16px 18px;margin-bottom:14px}
+  .card h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#8C8371;margin:0 0 10px;font-weight:600}
+  ul.steps{list-style:none;margin:0;padding:0}
+  ul.steps li{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #262116;font-size:13.5px;color:#B9AE99}
+  ul.steps li:last-child{border-bottom:0}
+  ul.steps li b{color:#EFE7D6;font-weight:500}
+  .dot{flex:0 0 auto;width:16px;height:16px;border-radius:50%;border:1px solid #4A4335;margin-top:2px;display:grid;place-items:center;font-size:10px;color:#14120E}
+  .dot.wait{border-color:#C9A84C;animation:pulse 1.1s ease-in-out infinite}
+  .dot.ok{background:#4FA98A;border-color:#4FA98A;color:#0C1712}
+  .dot.bad{background:#E26D6D;border-color:#E26D6D;color:#1A0B0B}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+  .btn{appearance:none;border:0;border-radius:9px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;background:#C9A84C;color:#241A06}
+  .btn.ghost{background:none;border:1px solid #4A4335;color:#EFE7D6;font-weight:500}
+  .btn:disabled{opacity:.45;cursor:default}
+  .row{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}
+  pre{background:#100E0A;border:1px solid #262116;border-radius:8px;padding:10px 12px;font:11.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8C8371;white-space:pre-wrap;word-break:break-word;margin:10px 0 0;max-height:230px;overflow:auto}
+  .note{font-size:12.4px;color:#8C8371;margin-top:12px;line-height:1.65}
+  .note b{color:#EFE7D6;font-weight:500}
+  .danger{border-color:#5A3030}
+  .danger h2{color:#E26D6D}
+  .big{font-family:Georgia,serif;font-size:1.2rem;color:#EFE7D6;margin:0 0 6px}
+  .hide{display:none}
+  a{color:#C9A84C}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Repair this device</h1>
+  <p class="lede">For when Lab Systems will not open. This page uses nothing from the console — no
+  scripts, no stylesheets, no service worker — so it works even when the console itself is stuck.
+  <b style="color:#EFE7D6">Your register is not touched.</b></p>
+
+  <div class="card">
+    <h2>What this will do</h2>
+    <ul class="steps">
+      <li><span class="dot" id="d1"></span><span><b>Unregister the service worker.</b> The stored copy of the build stops serving pages.</span></li>
+      <li><span class="dot" id="d2"></span><span><b>Empty every cache on this site.</b> Only downloaded code — never the register in local storage.</span></li>
+      <li><span class="dot" id="d3"></span><span><b>Check the address.</b> Ask the site for <code>index.html</code> and the console's own script, and report what came back.</span></li>
+      <li><span class="dot" id="d4"></span><span><b>Read the register on this device.</b> Say whether it parses, how many orders it holds, and offer it as a file.</span></li>
+    </ul>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="go">Repair this device</button>
+      <button class="btn ghost" id="open">Open Lab Systems</button>
+    </div>
+    <div class="note" id="verdict"></div>
+  </div>
+
+  <div class="card danger" id="regCard">
+    <h2>Your register on this device</h2>
+    <div id="regBody" class="note" style="margin-top:0">Not read yet.</div>
+    <div class="row" id="regActions" style="margin-top:12px">
+      <button class="btn ghost" id="backup">Save a copy as a file</button>
+    </div>
+  </div>
+
+  <pre id="log" class="hide"></pre>
+
+  <p class="note">If the repair reports that the site could not be reached, the network is the problem, not
+  this browser — try again on a different connection. If it reports that the register will not
+  parse, <b>save a copy as a file before reloading</b>, and send it to the lab systems administrator.</p>
+</div>
+
+<script>
+(function(){
+'use strict';
+var log=[];
+function line(s){ log.push(s); var el=document.getElementById('log'); el.classList.remove('hide'); el.textContent=log.join('\n'); }
+function dot(id,state){ var el=document.getElementById(id); if(el) el.className='dot'+(state?' '+state:''); }
+function verdict(html){ var v=document.getElementById('verdict'); v.innerHTML=html; }
+
+var REGISTER_KEYS=['labSystems.v1'];
+
+/* ——— The register, read without the console ——————————————————————
+   Same key the store writes. Parsed here to answer one question: is the data on
+   this device intact? Nothing is written, moved or deleted. */
+function readRegister(){
+  var out={key:null,bytes:0,ok:false,error:null,orders:null,staff:null,samples:null};
+  for(var i=0;i<REGISTER_KEYS.length;i++){
+    var raw=null;
+    try{ raw=localStorage.getItem(REGISTER_KEYS[i]); }catch(e){ out.error='local storage is not available: '+e.message; return out; }
+    if(raw){ out.key=REGISTER_KEYS[i]; out.bytes=raw.length; break; }
+  }
+  if(!out.key) return out;
+  try{
+    var db=JSON.parse(localStorage.getItem(out.key));
+    out.ok=true;
+    if(db&&db.samples){ out.samples=db.samples.length; }
+    if(db&&db.staff){ out.staff=db.staff.length; }
+    if(db&&db.meta&&db.meta.version) out.version=db.meta.version;
+    if(db&&db.audit){ out.audit=db.audit.length; }
+    out.months=(db&&db.samples)?Object.keys(db.samples.reduce(function(a,s){ if(s.collectionDate) a[String(s.collectionDate).slice(0,7)]=1; return a; },{})).length:0;
+  }catch(e){ out.ok=false; out.error=e.message; }
+  return out;
+}
+
+async function repair(){
+  var go=document.getElementById('go');
+  go.disabled=true; go.textContent='Repairing…';
+  log=[];
+
+  /* 1 · the service worker */
+  dot('d1','wait');
+  var swCount=0;
+  try{
+    if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations){
+      var regs=await navigator.serviceWorker.getRegistrations();
+      swCount=regs.length;
+      await Promise.all(regs.map(function(r){ return r.unregister().catch(function(){}); }));
+      line('service worker: '+swCount+' registration(s) removed');
+    } else line('service worker: not supported in this browser');
+  }catch(e){ line('service worker: '+e.message); }
+  dot('d1','ok');
+
+  /* 2 · the caches */
+  dot('d2','wait');
+  var cacheNames=[];
+  try{
+    if(window.caches&&caches.keys){
+      cacheNames=await caches.keys();
+      await Promise.all(cacheNames.map(function(k){ return caches.delete(k).catch(function(){}); }));
+      line('caches: '+(cacheNames.length?cacheNames.join(', '):'none')+' — emptied');
+    } else line('caches: not supported in this browser');
+  }catch(e){ line('caches: '+e.message); }
+  dot('d2','ok');
+
+  /* 3 · can the site be reached at all? */
+  dot('d3','wait');
+  var reach={html:null,js:null,ver:null,error:null};
+  try{
+    var t0=Date.now();
+    var res=await fetch('index.html?health='+Date.now(),{cache:'no-store'});
+    reach.html=res.status;
+    var txt=await res.text();
+    var m=/v(\d+\.\d+\.\d+)/.exec(txt); reach.ver=m?m[1]:null;
+    line('index.html: HTTP '+res.status+' · '+txt.length+' bytes'+(reach.ver?' · build v'+reach.ver:'')+' · '+(Date.now()-t0)+' ms');
+    var js=await fetch('assets/js/core/shell.js?health='+Date.now(),{cache:'no-store'});
+    reach.js=js.status;
+    var body=await js.text();
+    line('shell.js: HTTP '+js.status+' · '+body.length+' bytes'+(/APP_VERSION='([\d.]+)'/.exec(body)?' · declares v'+/APP_VERSION='([\d.]+)'/.exec(body)[1]:''));
+  }catch(e){ reach.error=e.message; line('network: '+e.message); }
+  dot('d3',reach.error?'bad':'ok');
+
+  /* 4 · the register on this device */
+  dot('d4','wait');
+  var reg=readRegister();
+  dot('d4',reg.ok?'ok':(reg.key?'bad':null));
+  line('register: '+(reg.key?(reg.bytes+' bytes · '+(reg.ok?(reg.samples+' orders, '+reg.staff+' staff'):'WILL NOT PARSE: '+reg.error)):'nothing stored under '+REGISTER_KEYS[0]));
+
+  renderRegister(reg);
+  go.textContent='Repair again';
+  go.disabled=false;
+
+  /* the verdict, in one sentence somebody can act on */
+  if(reach.error){
+    verdict('<b style="color:#E26D6D">The site could not be reached.</b> That is the network or the address, not this browser — nothing here was at fault. Try another connection, or wait a moment and press <b>Repair again</b>.');
+  } else if(reach.html!==200){
+    verdict('<b style="color:#E26D6D">The site answered with HTTP '+reach.html+'.</b> The deployment is having a moment — this is not your device. Try again shortly.');
+  } else if(reg.key && !reg.ok){
+    verdict('<b style="color:#E26D6D">The site is fine but the register on this device will not parse.</b> Save a copy as a file below before opening the console, so nothing is lost.');
+  } else {
+    verdict('<b style="color:#4FA98A">This device is clean.</b> The stored build is gone and the site answers (v'+(reach.ver||'?')+'). Open Lab Systems — it will download a fresh copy.'+(reg.ok?' Your register of '+reg.samples+' orders is intact.':''));
+  }
+  /* keep the diagnostics where a screenshot can hold them */
+  line('');
+  line('browser: '+navigator.userAgent);
+  line('address: '+location.href);
+  line('time: '+new Date().toISOString());
+}
+
+function renderRegister(reg){
+  var body=document.getElementById('regBody');
+  var actions=document.getElementById('regActions');
+  if(!reg.key){
+    body.innerHTML='Nothing is stored under <code>'+REGISTER_KEYS[0]+'</code>, so there is no register on this device to read. Opening the console will seed a fresh one.';
+    actions.classList.add('hide');
+    return;
+  }
+  if(reg.ok){
+    body.innerHTML='<b>'+reg.samples+' orders</b> across '+reg.months+' month(s) · <b>'+reg.staff+' staff</b>'
+      + (reg.audit!=null?' · '+reg.audit+' audit entries':'')
+      + '<br><span style="color:#4FA98A">Reads correctly.</span> '+Math.round(reg.bytes/1024)+' KB in this browser. '
+      + 'It is independent of the copy of the app that was cached, so replacing the app does not lose it.';
+  } else {
+    body.innerHTML='<b style="color:#E26D6D">Stored but not readable:</b> '+reg.error
+      + '<br>'+reg.bytes+' bytes sit under <code>'+reg.key+'</code>. Save a copy as a file — the bytes are still '
+      + 'there and can be handed to the administrator even if the console cannot open them.';
+    actions.classList.remove('hide');
+  }
+}
+
+function backup(){
+  var raw=null;
+  try{ raw=localStorage.getItem(readRegister().key||REGISTER_KEYS[0]); }catch(e){}
+  if(!raw){ alert('There is no register on this device to save.'); return; }
+  var blob=new Blob([raw],{type:'application/json'});
+  var a=document.createElement('a');
+  var d=new Date();
+  a.href=URL.createObjectURL(blob);
+  a.download='lab-register-backup-'+d.toISOString().slice(0,10)+'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+}
+
+document.getElementById('go').addEventListener('click',repair);
+document.getElementById('open').addEventListener('click',function(){ location.href='./?v='+Date.now(); });
+document.getElementById('backup').addEventListener('click',backup);
+
+/* what can be said before anything is pressed */
+(function(){
+  var reg=readRegister();
+  renderRegister(reg);
+  dot('d4',reg.ok?'ok':(reg.key?'bad':null));
+  if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations){
+    navigator.serviceWorker.getRegistrations().then(function(r){
+      if(r.length) verdict('There '+(r.length===1?'is 1 registration':'are '+r.length+' registrations')+' of a service worker on this device holding a stored copy of the console. Press <b>Repair this device</b>.');
+      else verdict('No service worker is registered here. If the console still will not open, press <b>Repair this device</b> anyway and read the log at the bottom.');
+    }).catch(function(){});
+  }
+})();
+})();
+</script>
+</body>
+</html>

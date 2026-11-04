@@ -3,7 +3,21 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.99';
+const VERSION = 'v6.9.100';
+
+/* Served only when a navigation cannot reach the network AND the shell is not in any cache.
+   It must not depend on a single file from the build — it is the last thing that can still
+   be said when nothing else arrives. */
+const OFFLINE_PAGE = '<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  + '<title>Lab Systems — not reached</title>'
+  + '<body style="margin:0;background:#14120E;color:#EFE7D6;font:15px/1.65 system-ui,sans-serif;padding:28px">'
+  + '<div style="max-width:520px;margin:8vh auto">'
+  + '<h1 style="font-family:Georgia,serif;font-weight:400;font-size:1.6rem;margin:0 0 10px">The console did not arrive</h1>'
+  + '<p style="color:#B9AE99;margin:0 0 18px">The network did not answer and this browser holds no stored copy of the '
+  + 'console. The register on this device has not been touched.</p>'
+  + '<p style="margin:0 0 8px"><a href="./reset.html" style="display:inline-block;padding:10px 16px;border-radius:9px;'
+  + 'background:#C9A84C;color:#241A06;text-decoration:none;font-weight:600">Repair this device</a></p>'
+  + '<p style="margin:0"><a href="./" style="color:#C9A84C">Try again</a></p></div></body>';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -11,26 +25,27 @@ const CORE = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/tokens.css?v=6.9.99',
-  './assets/css/app.css?v=6.9.99',
-  './assets/css/modules.css?v=6.9.99',
-  './assets/css/landing.css?v=6.9.99',
-  './assets/data/plan-archive.js?v=6.9.99',
-  './assets/js/core/icons.js?v=6.9.99',
-  './assets/js/core/seed.js?v=6.9.99',
-  './assets/js/core/utils.js?v=6.9.99',
-  './assets/js/core/store.js?v=6.9.99',
-  './assets/js/core/ui.js?v=6.9.99',
-  './assets/js/core/charts.js?v=6.9.99',
-  './assets/js/core/sheets.js?v=6.9.99',
-  './assets/js/core/xlsxread.js?v=6.9.99',
-  './assets/js/core/i18n.js?v=6.9.99',
-  './assets/js/core/auth.js?v=6.9.99',
-  './assets/js/core/landing.js?v=6.9.99',
-  './assets/js/core/shared.js?v=6.9.99',
-  './assets/js/core/shell.js?v=6.9.99',
-  './assets/js/core/sync.js?v=6.9.99',
-  './assets/js/core/boot.js?v=6.9.99',
+  './reset.html',
+  './assets/css/tokens.css?v=6.9.100',
+  './assets/css/app.css?v=6.9.100',
+  './assets/css/modules.css?v=6.9.100',
+  './assets/css/landing.css?v=6.9.100',
+  './assets/data/plan-archive.js?v=6.9.100',
+  './assets/js/core/icons.js?v=6.9.100',
+  './assets/js/core/seed.js?v=6.9.100',
+  './assets/js/core/utils.js?v=6.9.100',
+  './assets/js/core/store.js?v=6.9.100',
+  './assets/js/core/ui.js?v=6.9.100',
+  './assets/js/core/charts.js?v=6.9.100',
+  './assets/js/core/sheets.js?v=6.9.100',
+  './assets/js/core/xlsxread.js?v=6.9.100',
+  './assets/js/core/i18n.js?v=6.9.100',
+  './assets/js/core/auth.js?v=6.9.100',
+  './assets/js/core/landing.js?v=6.9.100',
+  './assets/js/core/shared.js?v=6.9.100',
+  './assets/js/core/shell.js?v=6.9.100',
+  './assets/js/core/sync.js?v=6.9.100',
+  './assets/js/core/boot.js?v=6.9.100',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -164,17 +179,28 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;          // never cache third-party
   if (url.pathname.endsWith('/sw.js')) return;
 
-  // Navigations: network first, fall back to cached shell (deep links included)
+  // Navigations: network first, fall back to the cached shell (deep links included).
+  // A navigation must NEVER be answered with Response.error(): that is the browser's own
+  // "this site can't be reached" page, which looks exactly like a site that has gone away
+  // and tells the person nothing they can act on. If the shell is not in the cache either,
+  // a small self-contained page is written out instead — it carries the repair link.
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       try {
         const preload = await event.preloadResponse;
         if (preload) return preload;
-        return await networkFirst(req, SHELL);
-      } catch (e) {
-        const cache = await caches.open(SHELL);
-        return (await cache.match('./index.html')) || Response.error();
-      }
+        const fresh = await fetch(req).catch(() => null);
+        if (fresh && fresh.ok) {
+          const cache = await caches.open(SHELL);
+          cache.put(req, fresh.clone()).catch(() => {});
+          return fresh;
+        }
+      } catch (e) {}
+      const shell = await caches.open(SHELL);
+      const hit = (await shell.match('./index.html')) || (await shell.match(req, { ignoreSearch: true }))
+        || (await caches.match('./index.html')) || (await caches.match(req, { ignoreSearch: true }));
+      if (hit) return hit;
+      return new Response(OFFLINE_PAGE, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     })());
     return;
   }

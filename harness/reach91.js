@@ -84,8 +84,8 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||150));
   {
     ok(/__lsBooted/.test(indexHtml),'the page itself checks whether the console started');
     const inline=indexHtml.slice(indexHtml.lastIndexOf('<script>')-0);
-    ok(/setTimeout/.test(indexHtml)&&/10000/.test(indexHtml),'after ten seconds it acts');
-    ok(/did not load on this device/.test(indexHtml),'saying the console did not load, in the page, with no dependency');
+    ok(/setTimeout/.test(indexHtml)&&/\},6000\);/.test(indexHtml),'after six seconds it acts');
+    ok(/did not start on this device/.test(indexHtml),'saying the console did not start, in the page, with no dependency');
     ok(/href="\?fresh=1"/.test(indexHtml),'and it offers the same clean reload as a plain link');
     ok(/<noscript>/.test(indexHtml)&&/JavaScript/.test(indexHtml),'a browser with JavaScript off is told why');
   }
