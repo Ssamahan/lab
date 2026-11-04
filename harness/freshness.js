@@ -38,9 +38,13 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(/Nothing is generated and nothing is hidden/.test(footer),'and says nothing is hidden');
   ok(/\d{4}/.test(footer),'it names the span of dates covered');
 
-  /* ── no Confidential for staff ─────────────────────────────────────── */
-  ok(!/Confidential/.test(doc.querySelector('#smpBody').textContent),'no row reads Confidential for a signed-in Admin');
-  ok(/Uwase Aline/.test(doc.querySelector('#smpBody').textContent),'the recorded name is shown');
+  /* ── a signed-in Admin still has to open the names ─────────────────── */
+  ok(/hidden/.test(doc.querySelector('#smpBody').textContent),'a signed-in Admin sees a mask, not a name, until the names are opened');
+  ok(!/Uwase Aline/.test(doc.querySelector('#smpBody').textContent),'no name is on the page before that');
+  w.eval("LS.auth.openNames(); LS.store.setPatientName(LS.store.db().samples[0].id,'Uwase Aline');");
+  await go('#/samples');
+  ok(/Uwase Aline/.test(doc.querySelector('#smpBody').textContent),'once opened, the recorded name is shown');
+  ok(!/Confidential/.test(doc.querySelector('#smpBody').textContent),'and no row reads Confidential for them');
 
   /* ── the drawer offers to record a missing name ────────────────────── */
   const missing=db().samples.find(s=>s.patientName==='Confidential');
@@ -55,12 +59,13 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(!!nm,'a name can be typed straight from the record');
   nm.value='Nkurunziza Emmanuel';
   click(doc.querySelector('[data-save-name]')); await tick(500);
-  ok(db().samples.find(s=>s.id===missing.id).patientName==='Nkurunziza Emmanuel','the name is stored on the order');
-  ok(db().audit[0].action==='sample.name','and written to the audit trail');
+  ok(w.LS.store.patientName({id:missing.id})==='Nkurunziza Emmanuel','the name is stored in the names vault, not on the order');
+  ok(db().samples.find(s=>s.id===missing.id).patientName!=='Nkurunziza Emmanuel','and never in the register that syncs');
+  ok(db().audit[0].action==='sample.name_recorded'||db().audit[0].action==='sample.name','and written to the audit trail',db().audit[0].action);
   ok([...doc.querySelectorAll('.drawer')].some(d=>/Nkurunziza Emmanuel/.test(d.textContent)),'and shown at once');
 
   /* ── the visitor still reads the mask ──────────────────────────────── */
-  w.eval("LS.auth.user=Object.assign({},LS.auth.VISITOR,{visitor:true});");
+  w.eval("LS.auth.closeNames(); LS.auth.user=Object.assign({},LS.auth.VISITOR,{visitor:true});");
   await go('#/samples');
   ok(/Confidential/.test(doc.querySelector('#smpBody').textContent),'a visitor reads Confidential');
   ok(!/Uwase Aline/.test(doc.querySelector('#smpBody').textContent),'and never a name');
@@ -100,7 +105,10 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   await tick(500);
   ok(rows()===before+1,'a pulled order appears on the screen by itself ('+before+'→'+rows()+')');
   ok(/RBC10269999/.test(doc.querySelector('#smpBody').textContent),'and it is the order the PC sent');
-  ok(/Mukamana Alice/.test(doc.querySelector('#smpBody').textContent),'with its name');
+  ok(!/Mukamana Alice/.test(doc.querySelector('#smpBody').textContent),'with its name masked, because the names are closed on this device');
+  w.eval("LS.auth.openNames();");
+  await go('#/samples');
+  ok(/Mukamana Alice/.test(doc.querySelector('#smpBody').textContent),'and the name shown once they are opened');
 
   done('freshness');
 })().catch(e=>{console.error(e);process.exit(1);});

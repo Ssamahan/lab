@@ -83,9 +83,10 @@ A.user=null;
 A.session=null;
 
 const PERMS={
-  Admin:['view','edit','approve','revenue','staff','settings','security','export','delete'],
-  Manager:['view','edit','approve','revenue','export'],
-  Technologist:['view','edit','export'],
+  Admin:['view','edit','approve','revenue','staff','settings','security','export','delete','patient_names'],
+  Manager:['view','edit','approve','revenue','export','patient_names'],
+  /* Bench staff may see a patient name, once they have re-entered their own password. */
+  Technologist:['view','edit','export','patient_names'],
   /* Reviewers read the register and can act on what they are asked to verify —
      they sign off assessments but never see revenue, security or settings. */
   Reviewer:['view','edit','approve','export'],
@@ -143,6 +144,48 @@ A.touch=function(){
     else sessionStorage.setItem(SESSION_KEY,JSON.stringify(A.session));
   }catch(e){}
 };
+/* Re-entering a password for one action, without signing in again. The same hash the
+   login screen checks, nothing stored, and the answer says only yes or no. This is what
+   stands in front of the patient names: a session left open on a bench PC is not, by
+   itself, permission to read who the specimens belong to. */
+A.verifyCredentials=function(username,password){
+  const u=USERS.find(x=>x.username.toLowerCase()===String(username||'').trim().toLowerCase());
+  if(!u) return {ok:false, reason:'No account matches that username.'};
+  const given=sha256(String(password==null?'':password));
+  if(u.passHash?u.passHash!==given:u.password!==password) return {ok:false, reason:'Incorrect password.'};
+  return {ok:true, user:u};
+};
+/* ——— Names revealed, for a while ————————————————————————
+   Opened by re-entering a password, closed by pressing Hide, by leaving the screen, or by
+   fifteen minutes passing with the tab in front. Kept in memory and in sessionStorage for
+   this tab only, so closing the browser ends it. */
+const NAMES_KEY='labSystems.names.open.v1';
+const NAMES_WINDOW=15*60*1000;
+let namesUntil=0, namesBy=null;
+try{
+  const saved=JSON.parse(sessionStorage.getItem(NAMES_KEY)||'null');
+  if(saved&&saved.until>Date.now()){ namesUntil=saved.until; namesBy=saved.by||null; }
+}catch(e){}
+function persistNames(){
+  try{
+    if(namesUntil>0) sessionStorage.setItem(NAMES_KEY,JSON.stringify({until:namesUntil,by:namesBy}));
+    else sessionStorage.removeItem(NAMES_KEY);
+  }catch(e){}
+}
+A.namesOpen=function(){
+  if(!A.can('patient_names')) return false;
+  if(!(namesUntil>Date.now())){ namesUntil=0; namesBy=null; return false; }
+  return true;
+};
+A.namesUntil=function(){ return A.namesOpen()?namesUntil:0; };
+A.namesRemainingMin=function(){ return A.namesOpen()?Math.max(0,Math.ceil((namesUntil-Date.now())/60000)):0; };
+A.openNames=function(){
+  if(!A.can('patient_names')) return false;
+  namesUntil=Date.now()+NAMES_WINDOW; namesBy=A.user?A.user.username:null;
+  persistNames(); return true;
+};
+A.closeNames=function(){ namesUntil=0; namesBy=null; persistNames(); };
+
 A.login=function({username,password,code,remember}){
   const u=USERS.find(x=>x.username.toLowerCase()===String(username||'').trim().toLowerCase());
   if(!u) return {ok:false, reason:'No account matches that username.'};

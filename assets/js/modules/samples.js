@@ -84,6 +84,57 @@ function counts(){
     overdue:all.filter(x=>!x.resultedAt&&S.tatFor(x).breached).length, resulted:all.filter(x=>!!x.resultedAt).length,
     rbc:all.filter(x=>/NRL|RBC/i.test(x.hospital||'')).length, register:all.filter(x=>x.source!=='telemetry').length};
 }
+/* ——— The name column ————————————————————————————————
+   A visitor sees the word Confidential and nothing else — no button, no hint that there
+   is anything to open. Signed-in bench staff see a mask and a lock: pressing it asks for
+   their own username and password, and only then does the column fill in. Every unlock is
+   written to the audit trail, and it closes by itself. */
+function namesUnlockable(){ return LS.auth.can('patient_names'); }
+function nameCell(s){
+  if(!namesUnlockable()) return '<span class="xs faint" title="Visible to laboratory staff only">'+U.CONFIDENTIAL+'</span>';
+  if(LS.auth.namesOpen()){
+    const n=S.patientName(s);
+    return n?'<span class="small">'+U.esc(n)+'</span>'
+      :'<button class="btn xs" data-name-add="'+U.esc(s.id)+'">'+UI.ic('plus',11)+'Record name</button>';
+  }
+  return '<span class="xs faint">•••• hidden</span>';
+}
+function namesButton(){
+  if(!namesUnlockable()) return '';
+  const open=LS.auth.namesOpen();
+  return '<button class="btn sm'+(open?'':' ')+'" data-names-toggle>'
+    +UI.ic(open?'eye-off':'eye',13)+(open?' Hide names':' Show names')+'</button>';
+}
+function namesModal(){
+  if(!namesUnlockable()) return UI.toast('Patient names are for laboratory staff','warn');
+  if(LS.auth.namesOpen()){
+    LS.auth.closeNames();
+    S.audit({action:'sample.names_hide',entity:'samples',detail:'Patient names hidden again'});
+    UI.toast('Names hidden',{type:'ok'}); LS.shell.refresh(); return;
+  }
+  UI.modal({title:'Show patient names',sub:'This needs your own username and password, not just the open session.',
+    body:'<div class="hint" style="margin-bottom:12px">Names are kept apart from the register: they never travel to the shared copy. They will show for fifteen minutes, and each time they are opened the audit trail records it.</div>'
+      +'<div class="form-grid"><div class="field"><label>Username</label><input class="input" id="nmUser" autocomplete="username" value="'+U.esc(LS.auth.user.username||'')+'"></div>'
+      +'<div class="field"><label>Password</label><input class="input" id="nmPass" type="password" autocomplete="current-password"></div></div>'
+      +'<div class="hint" id="nmErr" style="margin-top:8px;color:var(--crit);display:none"></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-unlock>'+UI.ic('unlock',14)+'Show names</button>',
+    onMount:(el,close)=>{
+      const fail=m=>{ const x=el.querySelector('#nmErr'); x.style.display=''; x.textContent=m; };
+      const go=()=>{
+        const res=LS.auth.verifyCredentials(el.querySelector('#nmUser').value,el.querySelector('#nmPass').value);
+        if(!res.ok) return fail(res.reason);
+        if(!LS.auth.can('patient_names')) return fail('That account may not see patient names.');
+        LS.auth.openNames();
+        S.audit({action:'sample.names_open',entity:'samples',
+          detail:'Patient names shown to '+res.user.name+' ('+res.user.role+') for fifteen minutes'});
+        close(); UI.toast('Names shown for fifteen minutes',{type:'ok'});
+        LS.shell.refresh();
+      };
+      el.querySelector('[data-unlock]').onclick=go;
+      el.querySelector('#nmPass').onkeydown=ev=>{ if(ev.key==='Enter') go(); };
+      setTimeout(()=>{ const p=el.querySelector('#nmPass'); if(p) p.focus(); },120);
+    }});
+}
 function rowHTML(s,sel){
   const t=S.tatFor(s); const pct=U.clamp(t.ratio*100,2,100);
   const tone=t.done? 'teal' : t.breached?'rose':t.ratio>.8?'amber':'teal';
@@ -103,6 +154,7 @@ function rowHTML(s,sel){
       +(s.sex?' · '+U.esc(s.sex):'')
       +(s.dob?' · born '+U.fmtDate(s.dob):(s.age!==''&&s.age!=null?' · '+U.esc(String(s.age))+'y':''))
       +'</small></div></td>'
+   +'<td class="hide-sm">'+nameCell(s)+'</td>'
    +'<td><span class="small truncate" style="display:block;max-width:150px">'+U.esc(s.test)+'</span><span class="xs faint mono">'+U.esc(s.testCode||'')+'</span></td>'
    +'<td class="hide-sm"><span class="small truncate" style="display:block;max-width:130px">'+U.esc(s.healthFacility||s.healthCenter||'—')+'</span><span class="xs faint truncate" style="display:block;max-width:130px">'+U.esc(s.hospital||'Ruli DH')+'</span></td>'
    +'<td><span class="pill '+U.statusTone(s.status)+'">'+U.esc(s.status)+'</span></td>'
@@ -123,6 +175,7 @@ function tableHTML(){
      +'<div class="filters">'+FILTERS.map(f=>'<button class="filter-tab '+(s.filter===f.k?'on':'')+'" data-filter="'+f.k+'">'+f.label+'<span class="cnt">'+cnt[f.k]+'</span></button>').join('')+'</div>'
      +'<span class="grow"></span>'
      +'<div class="row gap-sm">'
+       +namesButton()
        +'<button class="btn sm" data-saved>'+UI.ic('book-marked',13)+' Saved views</button>'
        +'<button class="btn sm" data-export>'+UI.ic('download',13)+'<span class="hide-sm">Export</span></button>'
        +'<button class="btn primary sm" data-new>'+UI.ic('plus',14)+'<span class="hide-sm">New sample</span></button>'
@@ -130,8 +183,8 @@ function tableHTML(){
    +'</div>'
    +bulk
    +'<div class="dt-scroll" id="smpScroll"><table class="dt" id="smpTable">'
-   +'<thead><tr><th style="width:34px"></th><th style="width:58px">Pri</th><th data-sort="id" class="sortable"><span class="sort">Sample '+UI.ic('chevron-down',10)+'</span></th><th>Test</th><th class="hide-sm">Origin → laboratory</th><th>Status</th><th data-sort="tat" class="sortable"><span class="sort">TAT '+UI.ic('chevron-down',10)+'</span></th><th class="hide-lg">Flag</th><th class="hide-sm">Audit</th><th></th></tr></thead>'
-   +'<tbody id="smpBody">'+(rows||'<tr><td colspan="10">'+UI.empty({art:'samples',title: s.q?'No samples match “'+U.esc(s.q)+'”':'Nothing in this view',body: s.q?'Try a sample ID, patient surname or facility. Filters stay shareable by URL.':'Register a sample to begin the chain of custody. Every registration is stamped to the audit trail.',action:'<button class="btn primary" data-new>'+UI.ic('plus',14)+' Register sample</button>'})+'</td></tr>')+'</tbody></table>'
+   +'<thead><tr><th style="width:34px"></th><th style="width:58px">Pri</th><th data-sort="id" class="sortable"><span class="sort">Sample '+UI.ic('chevron-down',10)+'</span></th><th class="hide-sm">Patient name</th><th>Test</th><th class="hide-sm">Origin → laboratory</th><th>Status</th><th data-sort="tat" class="sortable"><span class="sort">TAT '+UI.ic('chevron-down',10)+'</span></th><th class="hide-lg">Flag</th><th class="hide-sm">Audit</th><th></th></tr></thead>'
+   +'<tbody id="smpBody">'+(rows||'<tr><td colspan="11">'+UI.empty({art:'samples',title: s.q?'No samples match “'+U.esc(s.q)+'”':'Nothing in this view',body: s.q?'Try a sample ID, patient surname or facility. Filters stay shareable by URL.':'Register a sample to begin the chain of custody. Every registration is stamped to the audit trail.',action:'<button class="btn primary" data-new>'+UI.ic('plus',14)+' Register sample</button>'})+'</td></tr>')+'</tbody></table>'
    +'<div id="smpMore" style="padding:10px 14px;text-align:center">'+(shown.length<list.length?'<button class="btn sm" data-more>Show the remaining '+(list.length-shown.length)+'</button>':'')
      +'<div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap"><span class="pill slate mono">'+list.length+' order'+(list.length===1?'':'s')+' shown</span>'
        +'<span class="pill slate">all time</span>'
@@ -376,8 +429,10 @@ function openSample(id){
         el.querySelector('[data-save-name]').onclick=()=>{
           const v=(el.querySelector('#nmVal').value||'').trim();
           if(!v) return UI.toast('Type the name first',{type:'warn'});
-          S.commit(x=>{ const rec=x.samples.find(y=>y.id===s.id); if(rec){ rec.patientName=v; rec.editedAt=U.nowISO(); rec.editedBy=LS.auth.user.name; } },
-            {action:'sample.name',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+s.sampleId});
+          /* the name goes to its own store; the register keeps the mask, so nothing
+             patient-identifying can travel in the copy that syncs */
+          S.setPatientName(s.id,v,{actor:LS.auth.user.name});
+          S.audit({action:'sample.name_recorded',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+s.sampleId});
           close(); UI.toast('Name recorded',{type:'ok'});
           /* the record updates in place — no second drawer stacked on the first */
           const cell=panel.querySelector('#ptCell'); if(cell) cell.textContent=v;
@@ -490,13 +545,19 @@ function editSample(id){
         if(S.db().samples.some(x=>x.id!==s.id && x.sampleId===sampleId)) return UI.toast('Another sample already uses that ID',{type:'err'});
         const dobV=g('#edDob');
         const changes={
-          sampleId, patientName:(U.canSeeNames()&&g('#edName').trim())?g('#edName').trim():U.ptName(s), patientId:g('#edPid').trim(), sex:g('#edSex'),
+          sampleId, patientName:U.CONFIDENTIAL, patientId:g('#edPid').trim(), sex:g('#edSex'),
           dob:dobV, age:(U.ageFromDob(dobV)===''?g('#edAge'):String(U.ageFromDob(dobV))),
           test:g('#edTest'), priority:g('#edPri'), healthFacility:g('#edFac'), hospital:g('#edLab'),
           collectionDate:g('#edColl'), sentDate:g('#edSent')||null, transporter:g('#edTrans').trim(),
           receivedAt:g('#edRecv')?(g('#edRecv')+'T'+(g('#edRecvT')||'09:00')):null,
           status:g('#edStatus'), resultValue:g('#edVal').trim()||null, notes:g('#edNotes').trim()
         };
+        /* a name typed on this form goes to its own store, never into the register */
+        const typedName=(g('#edName')||'').trim();
+        if(typedName && typedName!==U.CONFIDENTIAL && LS.auth.namesOpen()){
+          S.setPatientName(s.id,typedName,{actor:LS.auth.user.name});
+          S.audit({action:'sample.name_recorded',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+sampleId});
+        }
         /* The target follows the test unless a person overrides it on this one
            record — and an override is remembered as an override, so a later change
            to the standard does not quietly overwrite a deliberate figure. */
@@ -983,6 +1044,25 @@ function wire(){
   r.querySelectorAll('[data-new]').forEach(b=>b.onclick=newWizard);
   r.querySelectorAll('[data-saved]').forEach(b=>b.onclick=savedViews);
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=exportCSV);
+  const nt=r.querySelector('[data-names-toggle]'); if(nt) nt.onclick=namesModal;
+  r.querySelectorAll('[data-name-add]').forEach(b=>b.onclick=ev=>{
+    ev.stopPropagation();
+    const rec=(S.db().samples||[]).find(x=>x.id===b.dataset.nameAdd); if(!rec) return;
+    UI.modal({title:'Record the patient name',sub:rec.sampleId+' · kept apart from the register',
+      body:'<div class="field"><label>Patient name</label><input class="input" id="nmVal" autocomplete="off" placeholder="MUKAMANA Alice"></div>'
+        +'<div class="hint" style="margin-top:8px">The name is stored on this device in its own store and is never included in the register that syncs or in any export.</div>',
+      foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-name>Save name</button>',
+      onMount:(el2,close2)=>{
+        el2.querySelector('[data-save-name]').onclick=()=>{
+          const v=(el2.querySelector('#nmVal').value||'').trim();
+          if(!v) return UI.toast('Type the name first',{type:'warn'});
+          if(!LS.auth.namesOpen()) return UI.toast('Open the names first','warn');
+          S.setPatientName(rec.id,v,{actor:LS.auth.user.name});
+          S.audit({action:'sample.name_recorded',entity:'samples',entityId:rec.id,detail:'Patient name recorded'});
+          close2(); UI.toast('Name recorded',{type:'ok'}); LS.shell.refresh();
+        };
+      }});
+  });
   r.querySelectorAll('[data-more]').forEach(b=>b.onclick=()=>{ st.limit=0; paintTable(); });
   r.querySelectorAll('[data-sort]').forEach(th=>th.onclick=()=>{ const k=th.dataset.sort; if(st.sort===k) st.dir=st.dir==='asc'?'desc':'asc'; else { st.sort=k; st.dir='desc'; } paintTable(); });
   r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); openSample(b.dataset.open); });

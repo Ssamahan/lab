@@ -253,10 +253,32 @@ function addLine(t,kind,panel){
       };
     }});
 }
+/* ——— Logging a session ————————————————————————————————
+   A training is rarely one expense and one reimbursement: fuel, per-diem, a venue, a meal
+   — each with the day it was paid — and reimbursements that arrive later, often in more
+   than one instalment. The form takes as many lines as the session actually had, each
+   with its own date, and totals them live so the figure is known before it is saved. */
 function addSession(){
   if(!LS.auth.guard('revenue')) return;
   const free=rosterRows().filter(r=>!r.usedBy).length;
-  UI.modal({title:'Log training session',sub:'Choose the session from the training roster, then record what it cost and what was reimbursed.',width:'min(620px,100%)',
+  let expRows=[{amount:'',cat:'Transport',custom:'',date:U.todayISO(),desc:''}];
+  let reiRows=[{amount:'',date:U.todayISO(),source:'RBC',note:''}];
+  const catSelHTML=cur=>'<select class="select" data-e-cat>'+catOptions(cur||'Transport')+'</select>';
+  const expRowHTML=(r,i)=>'<tr data-exp-row="'+i+'">'
+    +'<td class="num"><input class="input mono" type="number" min="0" data-e-amount value="'+U.esc(r.amount)+'" placeholder="0" style="width:96px"></td>'
+    +'<td>'+catSelHTML(r.cat).replace('class="select" data-e-cat','class="select" data-e-cat')+'</td>'
+    +'<td><input class="input" data-e-custom value="'+U.esc(r.custom||'')+'" placeholder="name it" style="'+(r.cat==='Other'?'':'display:none')+'"></td>'
+    +'<td><input class="input mono" type="date" data-e-date value="'+U.esc(r.date)+'"></td>'
+    +'<td><input class="input" data-e-desc value="'+U.esc(r.desc||'')+'" placeholder="e.g. Fuel for 4 staff to Musanze"></td>'
+    +'<td class="num"><button class="rep-del" data-e-del title="Remove this line" aria-label="Remove this expense line">'+UI.ic('trash-2',12)+'</button></td></tr>';
+  const reiRowHTML=(r,i)=>'<tr data-rei-row="'+i+'">'
+    +'<td class="num"><input class="input mono" type="number" min="0" data-r-amount value="'+U.esc(r.amount)+'" placeholder="0" style="width:96px"></td>'
+    +'<td><input class="input mono" type="date" data-r-date value="'+U.esc(r.date)+'"></td>'
+    +'<td><input class="input" data-r-source value="'+U.esc(r.source||'')+'"></td>'
+    +'<td><input class="input" data-r-note value="'+U.esc(r.note||'')+'" placeholder="e.g. first instalment"></td>'
+    +'<td class="num"><button class="rep-del" data-r-del title="Remove this line" aria-label="Remove this reimbursement line">'+UI.ic('trash-2',12)+'</button></td></tr>';
+
+  UI.modal({title:'Log training session',sub:'Choose the session from the training roster, then record each expense and each reimbursement with the day it happened.',width:'min(760px,100%)',
     body:'<div class="form-grid">'
      +'<div class="field span2"><label>Training from the roster</label><select class="select" id="rsPick">'+rosterOptions('','')+'</select>'
        +'<div class="hint" style="margin-top:6px">'+(free?free+' training'+(free===1?'':'s')+' on the roster '+(free===1?'has':'have')+' no revenue line yet — they are listed first.':'Every training on the roster already carries a revenue line; a new session can still be typed below.')+'</div></div>'
@@ -265,15 +287,72 @@ function addSession(){
      +'<div class="field"><label>Location</label><input class="input" id="rsLoc" value="Ruli DH"></div>'
      +'<div class="field"><label>Start</label><input class="input mono" type="date" id="rsStart" value="'+U.todayISO()+'"></div>'
      +'<div class="field"><label>End</label><input class="input mono" type="date" id="rsEnd" value="'+U.todayISO()+'"></div>'
-     +'<div class="field"><label>Expense (RWF)</label><input class="input mono" id="rsExp" type="number" value="0"></div>'
-     +'<div class="field"><label>Expense category</label><select class="select" id="rsCat">'+catOptions('Transport')+'</select></div>'
-     +'<div class="field" id="rsCatOtherWrap" style="display:none"><label>Custom category</label><input class="input" id="rsCatOther" placeholder="e.g. Venue hire, Translator"></div>'
-     +'<div class="field"><label>Expense description</label><input class="input" id="rsExpDesc" placeholder="e.g. Fuel for 4 staff to Musanze"></div>'
-     +'<div class="field"><label>Reimbursement (RWF)</label><input class="input mono" id="rsRei" type="number" value="0"></div></div>',
+     +'</div>'
+     +'<div class="rev-lines-head"><b>Expenses</b><span class="xs faint">each line carries the day it was paid</span><span class="grow"></span>'
+       +'<button class="btn xs" data-add-exp-line>'+UI.ic('plus',12)+'Add expense</button></div>'
+     +'<div class="dt-scroll"><table class="dt rev-lines"><thead><tr><th>Amount (RWF)</th><th>Category</th><th>Other</th><th>Date</th><th>Description</th><th></th></tr></thead>'
+       +'<tbody data-exp-body></tbody></table></div>'
+     +'<div class="rev-lines-head" style="margin-top:14px"><b>Reimbursements</b><span class="xs faint">money received, and the day it arrived</span><span class="grow"></span>'
+       +'<button class="btn xs" data-add-rei-line>'+UI.ic('plus',12)+'Add reimbursement</button></div>'
+     +'<div class="dt-scroll"><table class="dt rev-lines"><thead><tr><th>Amount (RWF)</th><th>Date received</th><th>Source</th><th>Note</th><th></th></tr></thead>'
+       +'<tbody data-rei-body></tbody></table></div>'
+     +'<div class="rev-lines-tot" data-totals></div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save session</button>',
     onMount:(el,close)=>{
-      const catSel=el.querySelector('#rsCat'), otherWrap=el.querySelector('#rsCatOtherWrap');
-      catSel.onchange=()=>{ const isOther=catSel.value==='Other'; otherWrap.style.display=isOther?'':'none'; if(isOther) otherWrap.querySelector('input').focus(); };
+      const expBody=el.querySelector('[data-exp-body]'), reiBody=el.querySelector('[data-rei-body]');
+      const totalsEl=el.querySelector('[data-totals]');
+      const readExp=()=>[...expBody.querySelectorAll('[data-exp-row]')].map(tr=>({
+        amount:tr.querySelector('[data-e-amount]').value,
+        cat:tr.querySelector('[data-e-cat]').value,
+        custom:tr.querySelector('[data-e-custom]').value,
+        date:tr.querySelector('[data-e-date]').value,
+        desc:tr.querySelector('[data-e-desc]').value}));
+      const readRei=()=>[...reiBody.querySelectorAll('[data-rei-row]')].map(tr=>({
+        amount:tr.querySelector('[data-r-amount]').value,
+        date:tr.querySelector('[data-r-date]').value,
+        source:tr.querySelector('[data-r-source]').value,
+        note:tr.querySelector('[data-r-note]').value}));
+      const sync=()=>{ expRows=readExp(); reiRows=readRei(); };
+      const totals=()=>{
+        const e=U.sum(expRows,x=>Math.max(0,+x.amount||0));
+        const r=U.sum(reiRows,x=>Math.max(0,+x.amount||0));
+        totalsEl.innerHTML='<span>Expenses <b class="mono">'+U.fmtNum(e)+'</b> RWF · '+expRows.length+' line'+(expRows.length===1?'':'s')+'</span>'
+          +'<span>Reimbursed <b class="mono">'+U.fmtNum(r)+'</b> RWF · '+reiRows.length+' line'+(reiRows.length===1?'':'s')+'</span>'
+          +'<span class="'+(r-e>=0?'pos':'crit')+'">Net <b class="mono">'+(r-e>=0?'+':'')+U.fmtNum(r-e)+'</b> RWF</span>';
+      };
+      const draw=()=>{
+        expBody.innerHTML=expRows.map(expRowHTML).join('')||'<tr><td colspan="6" class="xs faint">No expense line yet — add one above.</td></tr>';
+        reiBody.innerHTML=reiRows.map(reiRowHTML).join('')||'<tr><td colspan="5" class="xs faint">No reimbursement recorded yet.</td></tr>';
+        wireRows(); totals();
+      };
+      const wireRows=()=>{
+        expBody.querySelectorAll('[data-exp-row]').forEach(tr=>{
+          const i=+tr.dataset.expRow;
+          tr.querySelector('[data-e-amount]').oninput=()=>{ expRows[i].amount=tr.querySelector('[data-e-amount]').value; totals(); };
+          tr.querySelector('[data-e-date]').onchange=()=>{ expRows[i].date=tr.querySelector('[data-e-date]').value; };
+          tr.querySelector('[data-e-desc]').oninput=()=>{ expRows[i].desc=tr.querySelector('[data-e-desc]').value; };
+          tr.querySelector('[data-e-custom]').oninput=()=>{ expRows[i].custom=tr.querySelector('[data-e-custom]').value; };
+          const cat=tr.querySelector('[data-e-cat]');
+          cat.onchange=()=>{
+            expRows[i].cat=cat.value;
+            const c=tr.querySelector('[data-e-custom]'); c.style.display=cat.value==='Other'?'':'none';
+            if(cat.value==='Other') c.focus();
+          };
+          tr.querySelector('[data-e-del]').onclick=()=>{ sync(); expRows.splice(i,1); if(!expRows.length) expRows=[{amount:'',cat:'Transport',custom:'',date:U.todayISO(),desc:''}]; draw(); };
+        });
+        reiBody.querySelectorAll('[data-rei-row]').forEach(tr=>{
+          const i=+tr.dataset.reiRow;
+          tr.querySelector('[data-r-amount]').oninput=()=>{ reiRows[i].amount=tr.querySelector('[data-r-amount]').value; totals(); };
+          tr.querySelector('[data-r-date]').onchange=()=>{ reiRows[i].date=tr.querySelector('[data-r-date]').value; };
+          tr.querySelector('[data-r-source]').oninput=()=>{ reiRows[i].source=tr.querySelector('[data-r-source]').value; };
+          tr.querySelector('[data-r-note]').oninput=()=>{ reiRows[i].note=tr.querySelector('[data-r-note]').value; };
+          tr.querySelector('[data-r-del]').onclick=()=>{ sync(); reiRows.splice(i,1); if(!reiRows.length) reiRows=[{amount:'',date:U.todayISO(),source:'RBC',note:''}]; draw(); };
+        });
+      };
+      el.querySelector('[data-add-exp-line]').onclick=()=>{ sync(); expRows.push({amount:'',cat:'Transport',custom:'',date:el.querySelector('#rsEnd').value||U.todayISO(),desc:''}); draw(); };
+      el.querySelector('[data-add-rei-line]').onclick=()=>{ sync(); reiRows.push({amount:'',date:todayOrEnd(),source:'RBC',note:''}); draw(); };
+      const todayOrEnd=()=>el.querySelector('#rsEnd').value||U.todayISO();
+
       /* choosing a session fills the rest of the form from the registry, so the two
          records describe the same event rather than two similar-sounding ones */
       const pick=el.querySelector('#rsPick');
@@ -289,24 +368,43 @@ function addSession(){
           if(already) UI.toast('“'+tr.title+'” already has a revenue line — adding a second one on top of it',{type:'warn',duration:5000});
         }
       };
+      draw();
+
       el.querySelector('[data-save]').onclick=()=>{
         const title=el.querySelector('#rsTitle').value.trim(); if(!title) return UI.toast('Title required',{type:'warn'});
         const start=el.querySelector('#rsStart').value, end=el.querySelector('#rsEnd').value;
-        const exp=+el.querySelector('#rsExp').value, rei=+el.querySelector('#rsRei').value;
-        let catVal=catSel.value, custom=false;
-        if(catVal==='Other'){
-          const customLabel=(el.querySelector('#rsCatOther').value||'').trim();
-          if(!customLabel) return UI.toast('Name the custom expense category',{type:'warn'});
-          catVal=customLabel; custom=true;
+        sync();
+        /* every line keeps its own day; a line with no date borrows the session's */
+        const expenses=[];
+        for(let i=0;i<expRows.length;i++){
+          const x=expRows[i], amt=Math.max(0,Math.round(+x.amount||0));
+          if(!amt&&!(x.desc||'').trim()) continue;
+          let catVal=x.cat, custom=false;
+          if(catVal==='Other'){
+            const customLabel=(x.custom||'').trim();
+            if(!customLabel) return UI.toast('Name the custom expense category on line '+(i+1),{type:'warn'});
+            catVal=customLabel; custom=true;
+          }
+          expenses.push({id:U.uid('x'),cat:catVal,custom,desc:(x.desc||'').trim()||catLabel({cat:catVal,custom}),
+            amount:amt,date:x.date||end||start});
         }
-        const desc=(el.querySelector('#rsExpDesc').value||'').trim()||'Recorded expense';
+        const reimbursements=[];
+        for(let i=0;i<reiRows.length;i++){
+          const x=reiRows[i], amt=Math.max(0,Math.round(+x.amount||0));
+          if(!amt) continue;
+          reimbursements.push({id:U.uid('r'),amount:amt,date:x.date||end||start,
+            source:(x.source||'').trim()||'RBC',note:(x.note||'').trim()});
+        }
+        const expTotal=U.sum(expenses,x=>x.amount), reiTotal=U.sum(reimbursements,x=>x.amount);
         const rec={id:U.uid('te'),title,organizer:el.querySelector('#rsOrg').value,location:el.querySelector('#rsLoc').value,start,end,
-          linkedTraining:linked,attendees:attendees.slice(),
-          expenses:exp?[{id:U.uid('x'),cat:catVal,custom,desc,amount:exp,date:end}]:[],
-          reimbursements:rei?[{id:U.uid('r'),amount:rei,date:end,source:'RBC',note:''}]:[],note:''};
+          linkedTraining:linked,attendees:attendees.slice(),expenses,reimbursements,note:''};
         S.commit(d=>{ d.trainingExpenses.unshift(rec); },{action:'revenue.session',entity:'trainingExpenses',entityId:rec.id,
-          detail:title+' · RWF '+exp+'/'+rei+(linked?' · linked to the training roster':' · not in the roster')});
-        close(); UI.toast('Session logged',{type:'ok'}); LS.shell.refresh();
+          detail:title+' · RWF '+reiTotal+'/'+expTotal+' · '+expenses.length+' expense line'+(expenses.length===1?'':'s')
+            +', '+reimbursements.length+' reimbursement'+(reimbursements.length===1?'':'s')
+            +(linked?' · linked to the training roster':' · not in the roster')});
+        close(); UI.toast('Session logged — '+expenses.length+' expense'+(expenses.length===1?'':'s')
+          +', '+reimbursements.length+' reimbursement'+(reimbursements.length===1?'':'s'),{type:'ok'});
+        LS.shell.refresh();
       };
     }});
 }
