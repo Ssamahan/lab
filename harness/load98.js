@@ -22,7 +22,7 @@ ok(/const DEFERRED=\[/.test(shellJs),'the shell knows the list of deferred files
 ok(deferred.every(n=>new RegExp("'assets/js/core/"+n+"\\.js'").test(shellJs)),
    'and names each of them');
 ok(/async=false/.test(shellJs),'they load in order, so the sheet engine finds the charts');
-ok(/function ensureDeps\(/.test(shellJs)&&/deferredLoad\.catch/.test(shellJs),
+ok(/function ensureDeps\(/.test(shellJs)&&/deferredLoad\.then\(res=>/.test(shellJs),
    'they are loaded once, and a failure can be retried');
 ok(/return ensureDeps\(\)\s*\n?\s*\.then\(/.test(shellJs),'a module is not fetched until its helpers are');
 {

@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.100';
+const APP_VERSION='6.9.101';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -57,70 +57,130 @@ SH.current=()=>parse().id;
    They are fetched at the same version as everything else, in order, the first time a
    module asks for them, and then never again. */
 const DEFERRED=[
-  ['charts','assets/js/core/charts.js'],
-  ['sheets','assets/js/core/sheets.js'],
-  ['xlsx','assets/js/core/xlsxread.js']
+  {key:'charts', js:'assets/js/core/charts.js',  has:()=>!!(window.LS&&LS.charts)},
+  {key:'sheets', js:'assets/js/core/sheets.js',  has:()=>!!(window.LS&&LS.sheets)},
+  {key:'xlsx',   js:'assets/js/core/xlsxread.js',has:()=>!!window.LSXLSX}
 ];
+
+/* ——— A screen must never be held hostage by a picture ————————————
+   Every module written for this console captures `LS.charts` and `LS.sheets` in its
+   first line. If either is missing when the module is evaluated the whole screen dies
+   on a missing function — for a chart it may not even have drawn yet. So when the
+   engines cannot be had, stand-ins are installed first: the screen opens with its
+   numbers, its tables and its worklist, and only the drawings are absent. A laboratory
+   can work without a graph; it cannot work without the register. */
+function stubEngines(){
+  if(typeof window.LS!=='object'||!LS) return false;
+  if(!LS.charts){
+    const noop=()=>{};
+    LS.charts={
+      line:noop, hbars:noop, delta:noop, dual:noop, map:noop, stacked:noop, bars:noop,
+      spark:()=>'', ring:()=>'', gauge:()=>'', donut:()=>'',
+      barSVG:()=>({svg:'', width:760, height:200})
+    };
+  }
+  if(!LS.sheets){
+    LS.sheets={
+      monthlySVG:()=>'', weeklySVG:()=>'', printSVG:()=>{}, sheet:()=>{}, print:()=>{},
+      toPNG:async()=>false, toPDF:async()=>false,
+      monthlyXLSX:async()=>false, weeklyXLSX:async()=>false,
+      offerReport:()=>{ try{ UI.toast('The export engine did not download — reload, or open with ?safe=1',{type:'warn',duration:6000}); }catch(e){} }
+    };
+  }
+  if(!window.LSXLSX){
+    window.LSXLSX={ readWorkbook:async()=>{ throw new Error('The workbook reader did not download. Reload and try again.'); } };
+  }
+  SH.enginesStubbed=true;
+  return true;
+}
+SH.stubEngines=stubEngines;
+
+/* ?safe=1 opens every screen without the engines at all: for a device or a connection
+   where the helpers will not come down. The console is fully usable — the drawings and
+   the exports are what it does not have. */
+const SAFE_MODE=/[?&]safe=1\b/.test(location.search);
+SH.safeMode=()=>SAFE_MODE||SH.enginesStubbed===true;
+
+/* One file, with a deadline and a fresh search string on a retry, so the service worker
+   treats it as a different URL and goes to the network. */
+function loadFile(url,ms){
+  return new Promise((resolve,reject)=>{
+    const sc=document.createElement('script');
+    sc.src=url;
+    sc.async=false;
+    let settled=false;
+    const timer=setTimeout(()=>{
+      if(settled) return; settled=true;
+      reject(Object.assign(new Error('timed out: '+url.split('/').pop()),{code:'LOAD_TIMEOUT'}));
+    },ms);
+    sc.onload=()=>{ if(settled) return; settled=true; clearTimeout(timer); resolve(); };
+    sc.onerror=()=>{ if(settled) return; settled=true; clearTimeout(timer); reject(Object.assign(new Error('failed: '+url.split('/').pop()),{code:'LOAD_TIMEOUT'})); };
+    document.head.appendChild(sc);
+  });
+}
+
+/* ——— The helpers, with three honest attempts ————————————————————
+   A deadline that fails a slow connection is worse than no deadline. Each file gets
+   twenty-five seconds, three tries, and only the files that are actually missing are
+   asked for again. Ten seconds — the first version of this — was a promise to a fast
+   network, not to a laboratory. */
 let deferredLoad=null;
-/* A script tag can fail in two ways: it fires `error`, or it fires nothing at all — a
-   service worker holding a request, a connection that dies mid-download, a build whose
-   files are no longer where the address says. Only the first used to be handled, so the
-   second left the screen on its skeleton until a 25-second watchdog gave up on it. Each
-   file now has its own deadline, and the message names the file rather than the symptom. */
-const DEP_TIMEOUT=10000;
+const DEP_MS=25000, DEP_TRIES=3;
+function depsAttempt(n){
+  const missing=DEFERRED.filter(d=>!d.has());
+  if(!missing.length) return Promise.resolve({ok:true});
+  const url=d=>d.js+'?v='+encodeURIComponent(APP_VERSION)+(n?('&r='+n+'-'+Date.now()):'');
+  return missing.reduce((chain,d)=>chain.then(()=>
+    d.has()?null:loadFile(url(d),DEP_MS).catch(()=>null)
+  ),Promise.resolve()).then(()=>{
+    const still=DEFERRED.filter(d=>!d.has());
+    if(!still.length) return {ok:true};
+    if(n+1>=DEP_TRIES) return {ok:false, missing:still.map(d=>d.key)};
+    return new Promise(r=>setTimeout(r,(n+1)*700)).then(()=>depsAttempt(n+1));
+  });
+}
 function ensureDeps(){
   if(deferredLoad) return deferredLoad;
-  deferredLoad=new Promise((resolve,reject)=>{
-    let left=DEFERRED.length, failed=false;
-    const fail=msg=>{ if(failed) return; failed=true; clearTimeout(timer); reject(Object.assign(new Error(msg),{code:'LOAD_TIMEOUT'})); };
-    const timer=setTimeout(()=>fail('The code for this screen did not arrive.'),DEP_TIMEOUT);
-    DEFERRED.forEach(dep=>{
-      const sc=document.createElement('script');
-      sc.src=dep[1]+'?v='+encodeURIComponent(APP_VERSION);
-      /* async=false keeps the declared order: the sheet engine asks for the chart helpers
-         the moment it renders, so charts must be there first. */
-      sc.async=false;
-      sc.onload=()=>{ if(--left===0&&!failed){ clearTimeout(timer); resolve(); } };
-      sc.onerror=()=>fail('Could not load '+dep[0]+'.');
-      document.head.appendChild(sc);
-    });
-  });
-  deferredLoad.catch(()=>{ deferredLoad=null; });
+  if(SAFE_MODE){ stubEngines(); return Promise.resolve({ok:false, safe:true}); }
+  deferredLoad=depsAttempt(0);
+  deferredLoad.then(res=>{ if(!res||!res.ok) deferredLoad=null; });
   return deferredLoad;
 }
 SH.ensureDeps=ensureDeps;
 
 /* ——— Module loading (code-split per route) ——————— */
-/* One attempt, with a deadline. `bust` is added on the retry: a different search string is
-   a different URL to the service worker, so it goes to the network instead of answering
-   from a cache that may be holding a half-written file. */
-function loadScript(id,file,bust,ms){
-  return new Promise((resolve,reject)=>{
-    const sc=document.createElement('script');
-    /* The version is part of the URL: after a deploy a cached module can never be served
-       in place of the one that goes with this shell. */
-    sc.src='assets/js/modules/'+file+'.js?v='+encodeURIComponent(APP_VERSION)+(bust?('&r='+bust):'');
-    sc.async=true;
-    let settled=false;
-    const timer=setTimeout(()=>{
-      if(settled) return; settled=true;
-      reject(Object.assign(new Error('Could not load module: '+id),{code:'LOAD_TIMEOUT'}));
-    },ms);
-    sc.onload=()=>{ if(settled) return; settled=true; clearTimeout(timer); loaded[id]=true; resolve(); };
-    sc.onerror=()=>{ if(settled) return; settled=true; clearTimeout(timer); reject(Object.assign(new Error('Could not load module: '+id),{code:'LOAD_TIMEOUT'})); };
-    document.head.appendChild(sc);
-  });
+function moduleUrl(file,bust){
+  return 'assets/js/modules/'+file+'.js?v='+encodeURIComponent(APP_VERSION)+(bust?('&r='+bust):'');
 }
 function loadModule(id){
   const r=ROUTES[id];
   if(loaded[id]) return Promise.resolve();
-  return ensureDeps()
-    .then(()=>loadScript(id,r.file,null,15000))
-    /* A screen that did not arrive is usually a stale or half-written copy of the build in
-       the browser. Asking once more, past the cache, costs nothing and fixes most of them
-       without the person having to know that a service worker exists. */
-    .catch(err=>loadScript(id,r.file,String(Date.now()),15000))
-    .catch(err=>{ throw err; });
+  if(SAFE_MODE){
+    stubEngines();
+    return loadFile(moduleUrl(r.file),DEP_MS).then(()=>{ loaded[id]=true; });
+  }
+  return ensureDeps().then(res=>{
+    /* The engines could not be had. Put the stand-ins in place BEFORE the screen is
+       evaluated, so nothing in it is undefined, and say so once. */
+    if(!res||!res.ok){
+      stubEngines();
+      try{ UI.toast('The chart and export engine did not download — screens open without their drawings and exports. Press Retry on any screen to try again.',{type:'warn',duration:12000}); }catch(e){}
+    }
+    return loadFile(moduleUrl(r.file),DEP_MS);
+  }).then(()=>{
+    loaded[id]=true;
+  }).catch(err=>{
+    /* The screen's own file did not arrive. Two more things are worth trying before
+       anybody is shown an error, and both are cheap:
+       1 · ask again past the cache — a half-written copy in the browser is the usual cause;
+       2 · if that fails too and the engines are still missing, stand in for them and ask a
+           third time — a screen without its charts is worth far more than no screen. */
+    if(!SH.enginesStubbed){
+      stubEngines();
+      return loadFile(moduleUrl(r.file,String(Date.now())),DEP_MS).then(()=>{ loaded[id]=true; });
+    }
+    throw err;
+  });
 }
 
 /* ——— Render nav ————————————————————————— */
@@ -352,10 +412,13 @@ SH.route=async function(opts){
     note.style.cssText='margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
     note.innerHTML='<span class="small muted" style="flex:1;min-width:220px">Still loading this screen. On a slow connection, or with a large register, this can take a moment. '
       +'If it stays like this, this browser is probably holding an older copy of the console.</span>'
+      +'<button class="btn" type="button" data-slow-safe>'+U.ic('zap',14)+' Open without charts</button>'
       +'<button class="btn" type="button" data-slow-fresh>'+U.ic('trash-2',14)+' Clear cache &amp; reload</button>';
     sk.parentNode.insertBefore(note,sk);
     const b=note.querySelector('[data-slow-fresh]');
     if(b) b.onclick=()=>{ location.href=location.pathname+'?fresh=1'; };
+    const sm=note.querySelector('[data-slow-safe]');
+    if(sm) sm.onclick=()=>{ location.href=location.pathname+'?safe=1'+(location.hash||''); };
   },6000);
   SH._failTimer=setTimeout(()=>{ if(page.dataset.route===id && page.querySelector('.skeleton')) SH.fail(new Error('Module took longer than 25 seconds to render. The local register is intact — try reloading, or open another module.'),id,page); }, 25000);
   if(document.body.classList.contains('rail-open')) document.body.classList.remove('rail-open');
@@ -408,12 +471,13 @@ SH.fail=function(err,id,host){
    +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">'+(slow?'This screen did not arrive':'This panel could not render')+'</div>'
    +'<div class="xs faint">Your data is safe — nothing was written.</div></div></div>'
    +'<p class="small muted" style="line-height:1.6;margin-bottom:10px">'+(slow
-      ?'The code for this screen was asked for and did not come back in time. The register on this device is untouched — this is the page, not the data.'
+      ?'The code for this screen was asked for and did not come back. The register on this device is untouched — this is the page, not the data. <b>Open without charts</b> loads every screen with its numbers and tables but without the drawings and exports, which is the quickest way back in on a slow connection.'
       :'A recoverable error was caught by the module boundary. Retry the panel, or continue to the Command Center.')
    +'</p>'
    +'<div class="hint" id="failVer" style="display:none;margin-bottom:12px"></div>'
    +'<div class="row wrap" style="gap:8px">'
      +'<button class="btn primary" data-retry>'+U.ic('refresh-cw',15)+' Retry</button>'
+     +'<button class="btn" data-safe>'+U.ic('zap',15)+' Open without charts</button>'
      +'<button class="btn" data-fresh>'+U.ic('trash-2',15)+' Clear cache &amp; reload</button>'
      +'<button class="btn" data-home>'+U.ic('layout-dashboard',15)+' Command Center</button>'
      +'<button class="btn" data-diag>'+U.ic('copy',15)+' Copy diagnostics</button>'
@@ -423,6 +487,7 @@ SH.fail=function(err,id,host){
   const q=sel=>box.querySelector(sel);
   if(q('[data-retry]')) q('[data-retry]').onclick=()=>SH.route();
   if(q('[data-home]')) q('[data-home]').onclick=()=>SH.go('dash');
+  if(q('[data-safe]')) q('[data-safe]').onclick=()=>{ location.href=location.pathname+'?safe=1'+(location.hash||''); };
   if(q('[data-fresh]')) q('[data-fresh]').onclick=()=>{
     /* ?fresh=1 asks the boot to drop the service worker and every cache on this origin,
        then reload once. Written as an address so it works even if boot.js is the file
