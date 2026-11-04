@@ -2762,6 +2762,24 @@ S.setPatientName=function(sampleId,name,opts){
   return true;
 };
 S.patientNameCount=function(){ return Object.keys(loadNames()).length; };
+/* Names brought down from the locked table. The cloud is the truth for the orders it
+   knows; a name typed here and not yet published is kept, so nothing is lost when the
+   pull arrives before the push. */
+S.namesMerge=function(map,opts){
+  opts=opts||{};
+  loadNames();
+  let added=0, kept=0;
+  Object.keys(map||{}).forEach(id=>{
+    const remote=map[id]; if(!remote||!remote.name) return;
+    const local=NAMES[id];
+    if(local&&local.name===remote.name) return;
+    if(local&&!opts.force&&local.at&&remote.at&&String(local.at)>String(remote.at)){ kept++; return; }
+    NAMES[id]={name:remote.name,at:remote.at||U.nowISO(),by:remote.by||''};
+    added++;
+  });
+  if(added) saveNames();
+  return {added,kept,total:S.patientNameCount()};
+};
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;

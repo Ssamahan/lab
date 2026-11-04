@@ -4,6 +4,46 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.97
+
+**Patient names reach the cloud — but only through a door staff open themselves.**
+
+6.9.96 kept names in a vault on each device, which meant a name typed at the bench did not follow you to the phone,
+and a second device started empty. That was the right trade at the time — the register syncs as one document that
+anyone holding the publishable key can read, so a name inside it would have been public. The answer is not to hide
+names forever; it is to keep them in a table that has no public door at all.
+
+### A locked table, not a shared blob
+- **`lab_patient_names`** holds *one row per order*: `sample_id`, `name`, `updated_at`, `updated_by`. Row-level
+  security is on, every policy requires `lab_is_staff()`, and the `anon` role has **no grant and no policy** — a
+  fetch with the publishable key alone returns nothing, not even an empty list with a hint.
+- **`lab_staff`** is the allowlist: one row per person, keyed by their Supabase `auth.users.id`, with a `role`.
+  Being able to sign in is *not* enough. If your account is not on the list, the table stays shut.
+- **`lab_is_staff()`** is a `SECURITY DEFINER` helper the policies call, so the check cannot be spoofed by a client.
+- The migration and the admin steps are in `supabase/schema.sql`.
+
+### Behind the same password the names already asked for
+- The **Show patient names** dialog is unchanged in spirit: your own username, your own password, fifteen minutes,
+  every opening audited. It has one extra field — **cloud account email** — shown only when a backend is
+  configured, prefilled from the signed-in user.
+- The same password is tried against **Supabase Auth** (`grant_type=password`). Success stores a session
+  (`labSystems.authsession.v1`, access + refresh token) and the names kept online come down.
+- **Newer name wins.** A local name recorded at 09:12 beats a cloud copy from yesterday; a name edited on the phone
+  wins when it is pulled. Nothing is silently overwritten or deleted.
+- **Recording a name pushes it immediately** (upsert on `sample_id`), so the next device that unlocks sees it.
+- **The cloud failing never blocks the device.** If the network is down, the password is only local, or the
+  account is not on the allowlist, names still open locally and the toast says exactly what went wrong:
+  *"Names shown on this device — the cloud did not answer: this account is not on the staff allowlist."*
+
+### What did not change
+- The register still writes `Confidential`, and the `meta.patientNamesMasked` migration still wipes any name that
+  older builds left in the document. **No patient name is in the synced register or in any export.**
+- Only **Admin, Manager, Technologist** see the control; Reviewer, Viewer and visitors never do.
+- `npm test` now covers 37 suites and **1,866 checks**, including 48 new ones that mock a cloud which refuses reads
+  without a staff session.
+
+---
+
 ## What changed in 6.9.96
 
 **Patient names, behind a password — and a training session that records every line.**

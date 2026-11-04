@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.96** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.97** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -122,7 +122,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.96`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.97`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -131,13 +131,29 @@ it from that manifest, writes an audit entry, and the toast offers **Undo**.
 
 ## Patient identity
 
-`U.ptName(record)` answers with the recorded name to **anyone signed in** — every staff role records
-it on the order and reads it in the register, the drawer, the manifest and the exports. The word
-`Confidential` is reserved for the **public visitor**, the read-only session opened from the landing
-without an account; a signed-in user never meets it. Where a record holds no name (the 6.9.30 mask
-erased what was there), staff see **—** and the record offers **Record a name**, which writes it back
-on the order in place. **Age is calculated** from a date of birth (`LSU.ageFromDob`), never typed
-while a date is present.
+Names are the one field the register deliberately does not carry. The register is a single document
+that syncs, exports and prints; a name inside it would be readable by anyone holding the public
+publishable key. So the register stores the word `Confidential`, and the name lives on its own:
+
+- **On the device** in `labSystems.names.v1`, keyed by order.
+- **In the cloud** in `lab_patient_names`, one row per order, under row-level security that has **no
+  policy and no grant for `anon`**. A read with the publishable key alone returns nothing.
+- **In the synced register and in every export** — never, and the `meta.patientNamesMasked`
+  migration wipes any name an older build left behind.
+
+A **visitor** sees `Confidential` and no control at all. **Admin, Manager and Technologist** see
+`•••• hidden` and **Show names**, which asks for their own username and password, opens the column
+for fifteen minutes, and writes an audit line naming who opened it. While it is open the same
+password is tried against Supabase Auth; if the account is on the `lab_staff` allowlist, the names
+kept online come down and are merged newest-first, so a name typed at the bench is on the phone the
+next time it is unlocked. If the cloud cannot be reached, the names on the device still open and the
+toast says why. **Being signed in is not enough** — the account must also be on the allowlist.
+
+`U.ptName(record)` answers with the recorded name to anyone signed in (behind that gate); the word
+`Confidential` is reserved for the public visitor, the read-only session opened from the landing
+without an account. Where a record holds no name, staff see **—** and the record offers **Record a
+name**, which writes it to the name store and pushes it upward. **Age is calculated** from a date of
+birth (`LSU.ageFromDob`), never typed while a date is present.
 
 ## Seeing the same register on the phone
 
