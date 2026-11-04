@@ -39,6 +39,13 @@ When the start passes **2.6 seconds**, a small line appears in the corner — *s
 nothing, it is dismissible, and `?diag=1` shows it always. A measured claim is fixable; a
 report of "slow" is not.
 
+### Fixed while explaining it: an anonymous account was on the allowlist
+The allowlist was first filled from every row of `auth.users`, which included the two
+**anonymous accounts** the visitor view signs in with. An account with no email has no person
+behind it and no password to prove one with, so neither belonged on a list that opens patient
+names. Both rows are gone, and a trigger (`lab_staff_guard`) now **refuses an account with no
+email or an anonymous one**, and fills in the email so nobody has to paste a UUID.
+
 ### If the page still does not open
 That is a browser holding a half-written build, and it has its own answer: **add `?fresh=1`**
 to the address — `https://ssamahan.github.io/lab/?fresh=1`. It removes the service worker and
