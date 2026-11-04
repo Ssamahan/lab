@@ -13,13 +13,14 @@ const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const V=pkg.version;
 
 /* ——— 1 · nothing waits for ever ——————————————————————————————— */
-ok(/const DEP_TIMEOUT=10000/.test(shellJs),'the deferred helpers have a ten-second deadline');
+ok(/const DEP_MS=25000, DEP_TRIES=3/.test(shellJs),'the deferred helpers have a twenty-five-second deadline and three tries');
 ok(/code:'LOAD_TIMEOUT'/.test(shellJs),'and a named failure, not a silent hang');
-ok(/function loadScript\(id,file,bust,ms\)/.test(shellJs),'a module is loaded under its own deadline');
-ok(/15000/.test(shellJs),'fifteen seconds, with a timer that clears on load and on error');
-ok(/\.catch\(err=>loadScript\(id,r\.file,String\(Date\.now\(\)\)/.test(shellJs),
-   'a module that does not arrive is asked for once more, past the cache');
-ok(/&r='\+bust/.test(shellJs),'the retry carries a different address, so the cache cannot answer it');
+ok(/function loadFile\(url,ms\)/.test(shellJs),'every file is loaded under one deadline rule');
+ok(/function moduleUrl\(file,bust\)/.test(shellJs),'a module is asked for by a single address builder');
+ok(/DEP_MS/.test(shellJs),'under the same deadline, with a timer that clears on load and on error');
+ok(/if\(!SH\.enginesStubbed\)\{\s*stubEngines\(\);\s*return loadFile\(moduleUrl\(r\.file,String\(Date\.now\(\)\)\)/.test(shellJs),
+   'a module that does not arrive is asked for again, past the cache, with stand-ins in place');
+ok(/\(bust\?\(\'&r=\'\+bust\)/.test(shellJs),'the retry carries a different address, so the cache cannot answer it');
 ok(/sc\.onerror=\(\)=>\{ if\(settled\) return; settled=true; clearTimeout\(timer\);/.test(shellJs),
    'an error and a timeout are handled the same way');
 
@@ -52,7 +53,7 @@ ok(/clearTimeout\(SH\._slowTimer\)/.test(shellJs),'which is cancelled the moment
   SH.fail(Object.assign(new Error('Could not load module: dash'),{code:'LOAD_TIMEOUT'}),'dash',host);
   await new Promise(r=>setTimeout(r,400));
   ok(/This screen did not arrive/.test(host.textContent),'a load timeout is titled as one');
-  ok(/did not come back in time/.test(host.textContent),'and explains itself in a sentence');
+  ok(/did not come back\./.test(host.textContent),'and explains itself in a sentence');
   const fresh=host.querySelector('[data-fresh]');
   ok(!!fresh,'the clear-cache button is there');
   ok(!!host.querySelector('[data-retry]')&&!!host.querySelector('[data-diag]'),

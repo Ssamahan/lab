@@ -4,6 +4,57 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.101
+
+**A missing chart can no longer cost you the screen.**
+
+The report: *"The landing page is functioning but once I try signing in, I get in but it fails
+to load any module fully."* That is a design fault of mine, not a network problem.
+
+### What was actually wrong
+In 6.9.98 I took three large helpers out of `index.html` — the chart engine, the sheet engine
+and the workbook reader — so the public page would open before they arrived. They are now
+fetched the first time a screen needs them, **before that screen's own file is loaded**.
+
+Every module in this console begins by capturing them:
+
+```js
+const C=LS.charts, SH=LS.sheets, S=LS.store;   // line 6 of almost every screen
+```
+
+So if either helper does not arrive — a slow connection hitting the deadline, a service worker
+answering from a half-written cache — `C` is `undefined`, and the first `C.spark(...)` throws.
+The screen dies on a drawing it never reached. And because every module does the same thing,
+**every screen failed the same way**, while the landing page (which needs none of it) worked
+perfectly. That is exactly the report.
+
+### Three ways out, in the order they happen
+1. **Stand-ins.** If the helpers cannot be had, `stubEngines()` installs a working chart API
+   (empty drawings), a sheet API that answers the shape its callers read, and a workbook reader
+   that explains itself — **before** the screen is evaluated. The screen opens with its
+   numbers, its tables and its worklist; only the drawings and exports are missing. A
+   laboratory can work without a graph; it cannot work without the register.
+2. **`?safe=1`** — an address that opens every screen with the stand-ins from the start, no
+   helpers requested at all. The quickest way in on a connection where 116 KB will not come.
+   Offered on the six-second note, on the failure panel, on the repair page, and as a link on
+   the landing page.
+3. **Retry.** A screen that fails twice is retried a third time with the stand-ins in place,
+   without asking. Nobody should have to know that an engine exists.
+
+### The deadlines were too short to be honest
+Twenty-five seconds replaced the ten I set in 6.9.99, with **three tries**, and only the files
+that are actually missing are asked for again. A deadline exists to stop a permanent hang, not
+to give up on a slow rural connection — ten seconds was a promise to a fast network.
+
+The helper loader also **never rejects** any more: it reports what is missing and lets the
+screen decide, which is why a failed helper can no longer blank a page on its own.
+
+`npm test` now covers **41 suites and 1,997 checks**, including 32 in `harness/modes101.js`
+that open **all fifteen screens** with nothing but stand-ins, and then confirm a normal visit
+still gets the real engines.
+
+---
+
 ## What changed in 6.9.100
 
 **When it will not open at all, there is now a way in — and the register is never the price.**

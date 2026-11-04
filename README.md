@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.100** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.101** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -122,7 +122,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.100`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.101`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -177,10 +177,17 @@ re-downloading them), warms the sixteen screens twelve seconds after it takes co
 answers a versioned asset from the cache without asking the network again — the version is in
 the address, so a hit cannot be stale.
 
+Three helpers — the chart engine, the sheet engine and the workbook reader — are fetched the
+first time a screen needs them. **A screen must never depend on them arriving:** if they cannot
+be had, `stubEngines()` supplies working stand-ins before the module is evaluated, so the screen
+opens with its numbers, tables and worklist and only the drawings are absent. `?safe=1` opens
+every screen that way from the start, and a screen that fails is retried a third time with the
+stand-ins in place without asking.
+
 A screen that does not arrive is treated as its own kind of failure: the deferred helpers
 have a ten-second deadline, a module has fifteen, and a module that misses it is asked for
 once more past the cache. The panel then names the two builds — *this tab is running v6.9.88;
-the site is now v6.9.100* — and offers **Clear cache & reload** (`?fresh=1`) without ever
+the site is now v6.9.101* — and offers **Clear cache & reload** (`?fresh=1`) without ever
 touching what is stored. A skeleton that is still empty after six seconds says what it is
 waiting for rather than looking busy.
 
