@@ -13,8 +13,14 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||160));
 
   click(doc.querySelector('[data-new]')); await tick(320);
   const m=()=>doc.querySelector('.modal');
+  /* the name field appears only once the names are opened with a password */
+  ok(!m().querySelector('#wName'),'the registration form asks for no name while the names are closed');
+  w.LS.auth.openNames();
+  m().querySelector('[data-close]')&&click(m().querySelector('[data-close]'));
+  await tick(200);
+  click(doc.querySelector('[data-new]')); await tick(320);
   const nameField=m().querySelector('#wName');
-  ok(!!nameField,'a signed-in user gets the patient name field');
+  ok(!!nameField,'and a staff member who has opened the names gets the field');
   nameField.value='Uwase Aline';
   m().querySelector('#wPid').value='430129';
   click(m().querySelector('[data-wnext]')); await tick(240);

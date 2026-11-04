@@ -51,8 +51,14 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(doc.querySelector('#rsEnd').value===(target.end||target.start),'and the end date');
   ok(/−|-/.test(doc.querySelector('#rsEnd').value)||/\d/.test(doc.querySelector('#rsEnd').value),'as a date the form can hold');
 
-  doc.querySelector('#rsExp').value='120000';
-  doc.querySelector('#rsRei').value='150000';
+  /* one expense line and one reimbursement line, as the form now takes */
+  const eRow=doc.querySelector('[data-exp-row]');
+  eRow.querySelector('[data-e-amount]').value='120000';
+  eRow.querySelector('[data-e-amount]').dispatchEvent(new w.Event('input',{bubbles:true}));
+  eRow.querySelector('[data-e-desc]').value='Transport';
+  const rRow=doc.querySelector('[data-rei-row]');
+  rRow.querySelector('[data-r-amount]').value='150000';
+  rRow.querySelector('[data-r-amount]').dispatchEvent(new w.Event('input',{bubbles:true}));
   const before=ledger().length;
   click(doc.querySelector('[data-save]')); await tick(500);
   ok(ledger().length===before+1,'the session is logged');
@@ -107,7 +113,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   pick2.value='__new'; pick2.dispatchEvent(new w.Event('change',{bubbles:true})); await tick(120);
   ok(doc.querySelector('#rsTitle').value==='','choosing “type a new session” clears the form rather than borrowing a roster title');
   doc.querySelector('#rsTitle').value='Ad-hoc evening bench drill';
-  doc.querySelector('#rsExp').value='0';
+  { const er=doc.querySelector('[data-exp-row]'); if(er){ const a=er.querySelector('[data-e-amount]'); a.value='0'; a.dispatchEvent(new w.Event('input',{bubbles:true})); } }
   click(doc.querySelector('[data-save]')); await tick(400);
   const typed=ledger()[0];
   ok(typed.title==='Ad-hoc evening bench drill'&&typed.linkedTraining===null,'and it is logged without a link');

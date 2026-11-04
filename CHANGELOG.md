@@ -4,6 +4,40 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.96
+
+**Patient names, behind a password — and a training session that records every line.**
+
+### Names are kept apart from the register
+The sample table has a **Patient name** column. It is not filled from the register, because the register is one
+document that travels to the cloud and back; a name kept in it would be readable by anyone holding the publishable
+key. Names live in their own store on the device (`labSystems.names.v1`), keyed by order, and **never enter the
+document that syncs or any export**.
+
+- **A visitor sees only the word Confidential**, and no control — nothing to press, nothing to suggest there is
+  something to open.
+- **Signed-in bench staff** (Admin, Manager, Technologist) see `•••• hidden` and a **Show names** button.
+- Pressing it asks for **their own username and password** — the same hash the login screen checks, verified
+  without touching the session. A session left open on a bench PC is not, on its own, permission to read who a
+  specimen belongs to.
+- It opens **for fifteen minutes**, closes with **Hide names**, and closes when the tab is closed.
+- **Every opening is written to the audit trail**: *"Patient names shown to Kelvin SAMAHANI (Admin) for fifteen
+  minutes"* — which is what an inspector asks a laboratory to be able to produce.
+- Recording a name (from the table, the drawer or the registration form) writes to the vault, and the register
+  keeps `Confidential`.
+
+### Training revenue: as many lines as the session had
+Logging a session used to take one expense and one reimbursement. It now takes a list of each:
+
+- **Expenses** — amount, category (with *Other*), **the date it was paid**, and a description per line.
+- **Reimbursements** — amount, **the date it arrived**, the source, and a note for the instalment.
+- **Add** and **remove** lines freely; a running total shows expenses, reimbursed and net before anything is
+  saved, and each line keeps its own date. A wrong instalment is now a line to remove, not a session to redo.
+
+Verified — **36 suites, 1,915 checks** — including the name vault staying out of the register, the mask for
+visitors, the password check, the fifteen-minute window, the audit line, a Viewer and Technologist role check,
+and two expenses plus two reimbursements saved with four distinct dates.
+
 ## What changed in 6.9.95
 
 **It opens quickly now, and it does not freeze while it does.**

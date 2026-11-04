@@ -741,11 +741,16 @@ U.CONFIDENTIAL='Confidential';
 /* Anyone signed in reads a recorded name — the whole laboratory staff. The mask is
    for the public visitor only: the read-only session opened from the landing, which has
    no account behind it. */
+/* A name is visible only while the names are open — which takes the permission and a
+   password re-entered for the purpose, and closes after fifteen minutes. Signing in is
+   not, by itself, permission to read who a specimen belongs to. */
 U.canSeeNames=function(){
   try{
     if(!(window.LS&&LS.auth&&LS.auth.user)) return false;
     if(LS.auth.isVisitor&&LS.auth.isVisitor()) return false;
-    return !LS.auth.user.visitor;
+    if(LS.auth.user.visitor) return false;
+    if(LS.auth.namesOpen) return LS.auth.namesOpen();
+    return false;
   }catch(e){ return false; }
 };
 /* The mask is for the visitor and for nothing else. A signed-in member of staff is
@@ -754,7 +759,7 @@ U.canSeeNames=function(){
    stops appearing in front of the people who work the register. */
 U.ptName=function(rec){
   if(U.canSeeNames()){
-    const n=rec&&rec.patientName;
+    const n=(window.LS&&LS.store&&LS.store.patientName)?LS.store.patientName(rec):(rec&&rec.patientName);
     return (n&&n!==U.CONFIDENTIAL)?n:'—';
   }
   return U.CONFIDENTIAL;

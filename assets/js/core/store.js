@@ -2724,6 +2724,44 @@ S.reportDeleteMonth=function(key){
        +(stats.bloodGroups===1?'':'s')+' discarded'});
   return {ok:true, stats};
 };
+/* ——— Patient names, kept apart from the register ————————————————
+   A name is the one thing in this system that can be read maliciously, so it is not kept
+   where everything else is kept. The register is a single document that travels to the
+   cloud and back; the names live in their own store on this device, keyed by order, and
+   are never part of the document that is pushed. Reading one aloud takes a password, and
+   each reading leaves a line in the audit trail.
+   `S.names()` is the whole map, `S.patientName(rec)` is the one lookup the screen uses. */
+const NAMES_KEY='labSystems.names.v1';
+let NAMES=null;
+function loadNames(){
+  if(NAMES) return NAMES;
+  try{ NAMES=JSON.parse(localStorage.getItem(NAMES_KEY)||'{}')||{}; }catch(e){ NAMES={}; }
+  return NAMES;
+}
+function saveNames(){
+  try{ localStorage.setItem(NAMES_KEY,JSON.stringify(NAMES||{})); return true; }
+  catch(e){ console.warn('names not saved',e.message); return false; }
+}
+S.NAMES_KEY=NAMES_KEY;
+S.names=function(){ return loadNames(); };
+S.patientName=function(rec){
+  const v=loadNames()[(rec&&rec.id)||'']||null;
+  if(v&&v.name) return v.name;
+  /* a name typed before the vault existed is still on the order; read it, never move it */
+  const n=rec&&rec.patientName;
+  return (n&&n!==U.CONFIDENTIAL)?n:null;
+};
+S.setPatientName=function(sampleId,name,opts){
+  opts=opts||{};
+  if(!sampleId) return false;
+  const v=String(name==null?'':name).trim();
+  loadNames();
+  if(!v){ delete NAMES[sampleId]; saveNames(); return true; }
+  NAMES[sampleId]={name:v,at:U.nowISO(),by:(opts.actor||(LS.auth&&LS.auth.user&&LS.auth.user.name)||'')};
+  saveNames();
+  return true;
+};
+S.patientNameCount=function(){ return Object.keys(loadNames()).length; };
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;
