@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.97** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.98** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -122,7 +122,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.97`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.98`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
@@ -163,6 +163,23 @@ The register is one list: **every order of every month is drawn, newest first** 
 as a restore point first. A device that has been asleep catches up when the screen opens or becomes
 visible, and a cloud change repaints the screen by itself — including on a visitor session, which now
 keeps polling the shared copy instead of showing the snapshot it read when it entered.
+
+## What the page loads, and in what order
+
+The public overview is drawn from `index.html`, four stylesheets and thirteen scripts. Three
+helpers are deliberately **not** among them — the chart builder, the sheet engine and the
+workbook reader (116 KB between them) — because printing a roster and importing a district
+return are not things the overview does. `LS.shell.ensureDeps()` fetches them, at the build's
+version and in order, the first time a screen needs them.
+
+The service worker caches the shell from the browser's own copy of those files (never
+re-downloading them), warms the sixteen screens twelve seconds after it takes control, and
+answers a versioned asset from the cache without asking the network again — the version is in
+the address, so a hit cannot be stale.
+
+When a start passes 2.6 s, a corner line reports what it cost — *started in 3.4 s · 612 KB ·
+41 files* — with the breakdown on **details**. Add `?diag=1` to always see it, and `?fresh=1`
+to clear a browser that is holding a half-written build.
 
 ## Security, stated plainly
 

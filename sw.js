@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.97';
+const VERSION = 'v6.9.98';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -11,26 +11,26 @@ const CORE = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/tokens.css?v=6.9.97',
-  './assets/css/app.css?v=6.9.97',
-  './assets/css/modules.css?v=6.9.97',
-  './assets/css/landing.css?v=6.9.97',
-  './assets/data/plan-archive.js?v=6.9.97',
-  './assets/js/core/icons.js?v=6.9.97',
-  './assets/js/core/seed.js?v=6.9.97',
-  './assets/js/core/utils.js?v=6.9.97',
-  './assets/js/core/store.js?v=6.9.97',
-  './assets/js/core/ui.js?v=6.9.97',
-  './assets/js/core/charts.js?v=6.9.97',
-  './assets/js/core/sheets.js?v=6.9.97',
-  './assets/js/core/xlsxread.js?v=6.9.97',
-  './assets/js/core/i18n.js?v=6.9.97',
-  './assets/js/core/auth.js?v=6.9.97',
-  './assets/js/core/landing.js?v=6.9.97',
-  './assets/js/core/shared.js?v=6.9.97',
-  './assets/js/core/shell.js?v=6.9.97',
-  './assets/js/core/sync.js?v=6.9.97',
-  './assets/js/core/boot.js?v=6.9.97',
+  './assets/css/tokens.css?v=6.9.98',
+  './assets/css/app.css?v=6.9.98',
+  './assets/css/modules.css?v=6.9.98',
+  './assets/css/landing.css?v=6.9.98',
+  './assets/data/plan-archive.js?v=6.9.98',
+  './assets/js/core/icons.js?v=6.9.98',
+  './assets/js/core/seed.js?v=6.9.98',
+  './assets/js/core/utils.js?v=6.9.98',
+  './assets/js/core/store.js?v=6.9.98',
+  './assets/js/core/ui.js?v=6.9.98',
+  './assets/js/core/charts.js?v=6.9.98',
+  './assets/js/core/sheets.js?v=6.9.98',
+  './assets/js/core/xlsxread.js?v=6.9.98',
+  './assets/js/core/i18n.js?v=6.9.98',
+  './assets/js/core/auth.js?v=6.9.98',
+  './assets/js/core/landing.js?v=6.9.98',
+  './assets/js/core/shared.js?v=6.9.98',
+  './assets/js/core/shell.js?v=6.9.98',
+  './assets/js/core/sync.js?v=6.9.98',
+  './assets/js/core/boot.js?v=6.9.98',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -53,24 +53,39 @@ const MODULES = [
   'dash', 'samples', 'stock', 'reports', 'training', 'revenue', 'roster',
   'leave', 'eqa', 'pbf', 'quality', 'equipment', 'staff',
   'security', 'design', 'roadmap'
-].map(m => './assets/js/modules/' + m + '.js');
+].map(m => './assets/js/modules/' + m + '.js?v=' + VERSION.replace(/^v/, ''));
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(SHELL);
-    /* A few at a time, not fifty at once. Firing every file together saturates a phone's
-       connection while the page itself is still loading — which is the "it takes longer
-       to load" part that has nothing to do with the code. Six at a time keeps the cache
-       warm without competing with what the person is waiting for. */
-    const list = CORE.concat(MODULES);
-    for (let i = 0; i < list.length; i += 6) {
-      await Promise.all(list.slice(i, i + 6).map(url =>
-        cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
+    /* Only the shell is cached here, and it is taken from the browser's own copy: the
+       page has just downloaded every one of these files, so `cache: 'default'` stores
+       what is already there. The old `cache: 'reload'` ignored that copy and pulled the
+       whole bundle down a second time — on a phone that is the difference between one
+       download and two, and it happens on every release. Six at a time, still, so the
+       cache never competes with the page for the connection. (The old install mode was
+       `reload`, which is what ignored the browser's copy.) */
+    for (let i = 0; i < CORE.length; i += 6) {
+      await Promise.all(CORE.slice(i, i + 6).map(url =>
+        cache.add(new Request(url, { cache: 'default' })).catch(() => null)
       ));
     }
     self.skipWaiting();
   })());
 });
+
+/* The sixteen screens are warmed once the page is up, not before it can be drawn. A
+   module is only ever fetched when someone opens that screen, so nothing is lost by
+   filling the cache a few seconds later — and a phone that is being typed into is not
+   made to wait for twelve screens nobody has asked for yet. */
+async function warmModules() {
+  const cache = await caches.open(SHELL);
+  for (let i = 0; i < MODULES.length; i += 4) {
+    await Promise.all(MODULES.slice(i, i + 4).map(url =>
+      cache.add(new Request(url, { cache: 'default' })).catch(() => null)
+    ));
+  }
+}
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
@@ -80,6 +95,7 @@ self.addEventListener('activate', event => {
       try { await self.registration.navigationPreload.enable(); } catch (e) {}
     }
     await self.clients.claim();
+    setTimeout(() => { warmModules().catch(() => {}); }, 12000);
   })());
 });
 
@@ -116,14 +132,18 @@ function isCurrentVersion(url){
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(request);
-  const refresh = fetch(request).then(res => {
-    if (res && res.ok) cache.put(request, res.clone());
-    return res;
-  }).catch(() => null);
-  if (hit) { refresh; return hit; }
-  const fresh = await refresh;
-  if (fresh) return fresh;
-  return (await caches.match(request)) || Response.error();
+  /* A hit is final: the address carries the build version, so the file behind it cannot
+     have changed. The old code fired a background request for every asset on every
+     visit — forty requests of JavaScript and CSS that only ever came back identical,
+     saturating the connection while the person waited for a page to appear. */
+  if (hit) return hit;
+  try {
+    const fresh = await fetch(request);
+    if (fresh && fresh.ok) cache.put(request, fresh.clone());
+    return fresh;
+  } catch (e) {
+    return (await caches.match(request)) || Response.error();
+  }
 }
 
 async function staleWhileRevalidate(request, cacheName) {

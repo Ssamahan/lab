@@ -75,6 +75,52 @@ function stamp(name,fn){
   try{ return fn(); }
   finally{ mark(name,t0); }
 }
+/* ——— Saying what the start actually cost ————————————————
+   "It takes longer to load" is a fact about a device, a network and a build, and none of
+   them can be argued with from a description. When the start passes 2.6 seconds, a small
+   line appears in the corner with the number; pressing it lists the parts and how many
+   bytes came down the wire. It is not a warning and it blocks nothing — it is the one
+   measurement that turns a complaint into a fix. `?diag=1` shows it always. */
+function startCost(){
+  const total=Math.round(timings.reduce((a,x)=>a+x.ms,0));
+  let bytes=0, requests=0;
+  try{
+    const res=performance.getEntriesByType?performance.getEntriesByType('resource'):[];
+    const mine=res.filter(r=>r.name.indexOf(location.origin)===0);
+    requests=mine.length;
+    bytes=mine.reduce((a,r)=>a+(r.transferSize||r.encodedBodySize||0),0);
+  }catch(e){}
+  return {total,bytes,requests};
+}
+function showStartCost(){
+  try{
+    const c=startCost();
+    const diag=/[?&]diag=1\b/.test(location.search);
+    if(!diag && c.total<2600) return;
+    if(document.getElementById('lsCost')) return;
+    const kb=Math.round(c.bytes/1024);
+    const box=document.createElement('div');
+    box.id='lsCost';
+    box.style.cssText='position:fixed;left:12px;bottom:12px;z-index:260;max-width:min(340px,92vw);'
+      +'font:11.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;color:#B9AE99;'
+      +'background:rgba(20,18,14,.94);border:1px solid #4A4335;border-radius:10px;padding:8px 10px;'
+      +'box-shadow:0 8px 24px rgba(0,0,0,.35)';
+    const detail=timings.map(t=>'  '+t.name+' · '+t.ms+' ms').join('\n');
+    box.innerHTML='<div style="display:flex;gap:10px;align-items:baseline">'
+      +'<span>started in <b style="color:#EFE7D6">'+(c.total/1000).toFixed(1)+' s</b>'
+      +' · '+kb+' KB · '+c.requests+' files</span>'
+      +'<button type="button" id="lsCostMore" style="margin-left:auto;background:none;border:0;color:#C9A84C;font:inherit;cursor:pointer;padding:0">details</button>'
+      +'<button type="button" id="lsCostX" aria-label="Dismiss" style="background:none;border:0;color:#7C7362;font:inherit;cursor:pointer;padding:0 0 0 4px">×</button>'
+      +'</div><pre id="lsCostPre" style="display:none;margin:6px 0 0;white-space:pre-wrap;font:inherit;color:#8C8371">'
+      +U.esc(detail)+'</pre>';
+    document.body.appendChild(box);
+    box.querySelector('#lsCostX').onclick=()=>box.remove();
+    box.querySelector('#lsCostMore').onclick=()=>{
+      const pre=box.querySelector('#lsCostPre');
+      pre.style.display=pre.style.display==='none'?'block':'none';
+    };
+  }catch(e){}
+}
 function reportTimings(){
   try{
     if(!/[?&]diag=1\b/.test(location.search)) return;
@@ -125,6 +171,7 @@ function init(){
         }
         // deep-link / saved view restore
         if(sessionUser() && consoleRoute) setTimeout(()=>LS.shell.route(),60);
+        setTimeout(showStartCost,1200);
       }, wait);
     };
     mark('total to first screen',t0);
