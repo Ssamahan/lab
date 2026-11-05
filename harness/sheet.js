@@ -56,7 +56,7 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||200));
   ok(!/Date of Reception/.test(sheet.textContent),'no reception date');
 
   /* ── names follow the session and the unlock ───────────────────────── */
-  ok(!/Uwase Aline/.test(sheet.textContent),'a signed-in Admin sees no name until the names are opened');
+  ok(/Uwase Aline/.test(sheet.textContent),'the manifest carries the recorded name for a signed-in Admin without unlocking');
   w.eval("LS.auth.openNames();"); await go('#/samples?tab=manifests');
   let c0=[...doc.querySelectorAll('[data-man-card]')].find(x=>x.textContent.includes('BC2610260009'));
   click(c0.querySelector('[data-man-view]')); await tick(240);
@@ -73,7 +73,7 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||200));
   c=[...doc.querySelectorAll('[data-man-card]')].find(x=>x.textContent.includes('BC2610260009'));
   click(c.querySelector('[data-man-view]')); await tick(240);
   ok(!/Uwase Aline/.test(doc.querySelector('#manDoc').textContent),'the visitor never sees the name');
-  ok(/Confidential/.test(doc.querySelector('#manDoc').textContent),'the visitor sees Confidential');
+  ok(!/Confidential/.test(doc.querySelector('#manDoc').textContent),'the visitor gets no mask in the Patient cell either — just a dash');
   click(doc.querySelector('.modal [data-close]')); await tick(220);
 
   /* ── print: the node on screen, or the page itself ─────────────────── */

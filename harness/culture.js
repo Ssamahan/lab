@@ -13,14 +13,11 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||160));
 
   click(doc.querySelector('[data-new]')); await tick(320);
   const m=()=>doc.querySelector('.modal');
-  /* the name field appears only once the names are opened with a password */
-  ok(!m().querySelector('#wName'),'the registration form asks for no name while the names are closed');
-  w.LS.auth.openNames();
-  m().querySelector('[data-close]')&&click(m().querySelector('[data-close]'));
-  await tick(200);
-  click(doc.querySelector('[data-new]')); await tick(320);
+  /* the registration form asks for the name whether or not the register column is open:
+     recording a name is ordinary work, reading the column back is what is gated */
+  ok(!!m().querySelector('#wName'),'the registration form asks for the patient name with the column closed');
+  ok(m().querySelector('#wName').value==='','and starts empty rather than with the mask in it');
   const nameField=m().querySelector('#wName');
-  ok(!!nameField,'and a staff member who has opened the names gets the field');
   nameField.value='Uwase Aline';
   m().querySelector('#wPid').value='430129';
   click(m().querySelector('[data-wnext]')); await tick(240);
@@ -47,7 +44,9 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||160));
   click(m().querySelector('[data-wnext]')); await tick(320);
 
   const created=db().samples[db().samples.length-1];
-  ok(created.patientName==='Uwase Aline','the name is recorded for a signed-in user');
+  ok(created.patientName==='Confidential','the register row keeps the mask, never the name');
+  ok(w.LS.store.recordedName(created)==='Uwase Aline','but the name is recorded in the device name store');
+  ok((db().audit||[]).some(a=>a.action==='sample.name_recorded'&&a.entityId===created.id),'and the recording is audited');
   ok(created.test==='Blood Culture','the order is a blood culture');
   ok(/^RBC/.test(created.sampleId),'so the ID is built from BC: '+created.sampleId);
   ok(JSON.stringify(created.tests)===JSON.stringify(['Cytology','Gram Stain','Blood Culture']),

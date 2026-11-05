@@ -95,10 +95,25 @@ const PERMS={
 };
 const ROLE_KEY='labSystems.roles.v1';
 function savedRoles(){ try{ return JSON.parse(localStorage.getItem(ROLE_KEY)||'{}')||{}; }catch(e){ return {}; } }
-function persistRoles(){ const map={}; USERS.forEach(u=>{ map[u.id]={role:u.role, twoFactor:!!u.twoFactor}; }); try{ localStorage.setItem(ROLE_KEY,JSON.stringify(map)); }catch(e){} }
+/* ——— A changed password has to survive the reload ————————————
+   Roles and 2FA were saved here and passwords were not: `setPassword` wrote the new
+   hash into the array in memory, and the next reload put the seeded hash back. The
+   effect was vicious — sign in with the password you set, then be told "Incorrect
+   password" the moment a second check asked for it, which is exactly what the patient
+   names ask for. The hash is part of the same record now. */
+function persistRoles(){
+  const map={};
+  USERS.forEach(u=>{ map[u.id]={role:u.role, twoFactor:!!u.twoFactor, passHash:u.passHash||null}; });
+  try{ localStorage.setItem(ROLE_KEY,JSON.stringify(map)); }catch(e){}
+}
 A.applySavedRoles=function(){
   const map=savedRoles();
-  USERS.forEach(u=>{ const o=map[u.id]; if(!o) return; if(o.role && A.ROLES.indexOf(o.role)>=0) u.role=o.role; if(typeof o.twoFactor==='boolean') u.twoFactor=o.twoFactor; });
+  USERS.forEach(u=>{
+    const o=map[u.id]; if(!o) return;
+    if(o.role && A.ROLES.indexOf(o.role)>=0) u.role=o.role;
+    if(typeof o.twoFactor==='boolean') u.twoFactor=o.twoFactor;
+    if(o.passHash && /^[0-9a-f]{64}$/.test(o.passHash)) u.passHash=o.passHash;
+  });
 };
 /* Admin-only: change what an account may do. The session keeps working, the
    next permission check simply answers differently. */
@@ -172,6 +187,23 @@ function persistNames(){
     else sessionStorage.removeItem(NAMES_KEY);
   }catch(e){}
 }
+/* ——— Whether showing the names asks for the password again ————————
+   Default: it does not. Somebody already signed in as Admin, Manager or Technologist
+   presses Show names and the column fills, audited, for fifteen minutes. A shared
+   bench PC can be set to ask every time, in Security Center, and the choice is saved
+   with the rest of the settings. */
+A.askNamesPassword=function(){
+  try{
+    const s=LS.store.settings();
+    return !!(s&&s.security&&s.security.askNamesPassword);
+  }catch(e){ return false; }
+};
+A.setNamesPasswordPolicy=function(on){
+  if(!A.can('settings')&&!A.can('security')) return {ok:false, reason:'Only an Admin can change this.'};
+  LS.store.commit(d=>{ d.settings.security=d.settings.security||{}; d.settings.security.askNamesPassword=!!on; },
+    {action:'security.names_policy',entity:'settings',detail:'Patient names '+(on?'require my password again':'open for a signed-in staff member')});
+  return {ok:true, on:!!on};
+};
 A.namesOpen=function(){
   if(!A.can('patient_names')) return false;
   if(!(namesUntil>Date.now())){ namesUntil=0; namesBy=null; return false; }
@@ -225,7 +257,8 @@ A.logout=function(){
 A.setPassword=function(userId,next){
   const u=USERS.find(x=>x.id===userId); if(!u) return false;
   if(!next||String(next).length<8) return false;
-  u.passHash=sha256(String(next)); delete u.password; LS.store.audit({action:'security.password.change', entity:'security', entityId:userId, detail:'Password rotated'}); LS.store.save(); return true;
+  u.passHash=sha256(String(next)); delete u.password; persistRoles();
+  LS.store.audit({action:'security.password.change', entity:'security', entityId:userId, detail:'Password rotated'}); LS.store.save(); return true;
 };
 A.toggle2FA=function(userId,on){
   const u=USERS.find(x=>x.id===userId); if(!u) return false;

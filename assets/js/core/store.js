@@ -66,6 +66,11 @@ const DEFAULT_SETTINGS = {
   cloud:{ enabled:false, endpoint:'', anonKey:'', email:'', password:'', anonAuth:false, live:true, pollMs:2500, pushMs:700, mode:'push-pull', lastSync:null },
   onboarding:{ importStaff:true, configureTests:false, inviteUsers:false, baselineQC:false, dismissed:false },
   features:{ qc:true, pbf:true, equipment:true, cloud:true },
+  /* askNamesPassword: a shared bench PC can be set to ask for the password again before
+     the patient-name column fills. Off by default — a signed-in Admin, Manager or
+     Technologist opens it with one press, for fifteen minutes, and every opening is
+     written to the audit trail either way. */
+  security:{ askNamesPassword:false },
   provenance:'Register data carried forward from v5.3.1. Throughput, QC and TAT telemetry are generated locally for the console.'
 };
 
@@ -96,7 +101,7 @@ const SUPPLIERS = [
 ];
 
 /* ——— Seed augmentation: appliance, quality, PBF, security ————————————————— */
-function augSettings(s){ return Object.assign({},DEFAULT_SETTINGS, s||{}, { features:Object.assign({},DEFAULT_SETTINGS.features,(s&&s.features)||{}), onboarding:Object.assign({},DEFAULT_SETTINGS.onboarding,(s&&s.onboarding)||{}), cloud:Object.assign({},DEFAULT_SETTINGS.cloud,(s&&s.cloud)||{}), tat:Object.assign({},DEFAULT_SETTINGS.tat,(s&&s.tat)||{}) }); }
+function augSettings(s){ return Object.assign({},DEFAULT_SETTINGS, s||{}, { features:Object.assign({},DEFAULT_SETTINGS.features,(s&&s.features)||{}), onboarding:Object.assign({},DEFAULT_SETTINGS.onboarding,(s&&s.onboarding)||{}), cloud:Object.assign({},DEFAULT_SETTINGS.cloud,(s&&s.cloud)||{}), tat:Object.assign({},DEFAULT_SETTINGS.tat,(s&&s.tat)||{}), security:Object.assign({},DEFAULT_SETTINGS.security,(s&&s.security)||{}) }); }
 
 function buildEquipment(){
   const today=U.todayISO();
@@ -1075,6 +1080,10 @@ function normalize(db){
   /* v6.9.30 — the register identifies a specimen by its ID, never by a person.
      Any name already stored is replaced here, once, on load: screens, sheets,
      exports and the shared copy all carry the same single word. */
+  /* Names are moved to their own store first, then the register is masked. A shared
+     copy, a restore point or a backup file from an older build still carries names on
+     the samples: they are the department's records and they are not thrown away — they
+     are taken out of the document that travels and kept where they belong. */
   if(!db.meta.patientNamesMasked){
     db.meta.patientNamesMasked=true;
     db.samples.forEach(x=>{ if(x && x.patientName!==U.CONFIDENTIAL) x.patientName=U.CONFIDENTIAL; });
@@ -1943,6 +1952,10 @@ function load(){
   const seeded=!db||!db.staff;
   if(seeded){ db=JSON.parse(JSON.stringify(window.LS_SEED)); }
   DB=normalize(db);
+  /* A register read from this device, or pulled from the shared copy, is checked for
+     names on the way in — see S.harvestNames. The mask migration above is one-way and
+     only ever runs once, so this is the guard that keeps a name from coming back in. */
+  try{ S.harvestNames(DB); }catch(e){}
   /* Writing the register back on every start is a freeze on a phone — a few hundred
      kilobytes serialised and stored before the first screen, and a broadcast that wakes
      every other open tab to read it too. The write only happens when what came out of the
@@ -2751,6 +2764,40 @@ S.patientName=function(rec){
   const n=rec&&rec.patientName;
   return (n&&n!==U.CONFIDENTIAL)?n:null;
 };
+/* ——— A name found in a register is moved to the name store, at once ————
+   Every build before 6.9.96 kept the patient name on the sample itself, inside the
+   document that syncs. The 6.9.30 mask erased those names on the device, but a shared
+   copy — or an older restore point, or a backup file — can still carry them, and any of
+   those arriving here would put a name back into a document that travels.
+   So the name is taken out of the record and kept in the name store, where it belongs,
+   every single time a register is read. Nothing is lost and nothing leaks. */
+S.harvestNames=function(db){
+  if(!db||!Array.isArray(db.samples)) return 0;
+  loadNames();
+  let moved=0;
+  db.samples.forEach(rec=>{
+    const v=rec&&rec.patientName;
+    if(!v||v===U.CONFIDENTIAL) return;
+    if(!NAMES[rec.id]){ NAMES[rec.id]={name:String(v).trim(),at:U.nowISO(),by:'recovered from the register'}; moved++; }
+    rec.patientName=U.CONFIDENTIAL;
+  });
+  if(moved){
+    saveNames();
+    try{ console.info('Lab Systems: '+moved+' patient name(s) moved out of the register into the name store'); }catch(e){}
+  }
+  return moved;
+};
+/* The name as recorded, without asking whether the column is open. Only the manifest
+   and the record view use this — the register column still answers through U.ptName. */
+S.recordedName=function(rec){
+  /* Nobody without the right to see names gets one out of here, whichever surface is
+     asking — the manifest, a printed sheet, an export or the record view. */
+  if(!(typeof LS!=='undefined'&&LS.auth&&LS.auth.can&&LS.auth.can('patient_names'))) return null;
+  const v=loadNames()[(rec&&rec.id)||'']||null;
+  if(v&&v.name) return v.name;
+  const n=rec&&rec.patientName;
+  return (n&&n!==U.CONFIDENTIAL)?n:null;
+};
 S.setPatientName=function(sampleId,name,opts){
   opts=opts||{};
   if(!sampleId) return false;
@@ -3540,7 +3587,12 @@ S.exportJSON=function(){
 };
 S.importJSON=function(obj){
   if(!obj || !obj.staff || !obj.meta) throw new Error('Not a Lab Systems backup');
-  DB=normalize(obj); S.save(true); S.emit('import');
+  DB=normalize(obj);
+  /* A copy pulled from the cloud — or read back from a backup file — may still carry
+     the names an older build put on the samples. They are moved to the name store
+     before the copy is written, so the document that travels stays clean. */
+  try{ S.harvestNames(DB); }catch(e){}
+  S.save(true); S.emit('import');
 };
 S.reset=function(){ const s=JSON.parse(JSON.stringify(window.LS_SEED)); DB=normalize(s); S.save(true); S.emit('reset'); };
 S.restorePoint=function(){ S.save(true); const key='labSystems.restore.'+Date.now(); try{ localStorage.setItem(key,JSON.stringify({at:U.nowISO(),db:S.db()})); }catch(e){} return key; };

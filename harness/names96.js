@@ -47,25 +47,52 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(doc.querySelectorAll('#smpBody tr[data-row]').length>0,'the table is drawn');
   const cells=[...doc.querySelectorAll('#smpBody tr[data-row] td')].map(t=>t.textContent);
   ok(cells.some(t=>/hidden/.test(t)),'the column is masked, not empty');
-  ok(!cells.some(t=>/MUKAMANA/.test(t)),'and no name appears anywhere on the page');
+  ok(!cells.some(t=>/MUKAMANA/.test(t)),'and no name appears anywhere on the page',cells.filter(t=>/MUKAMANA/.test(t)).slice(0,2).join(' ~ '));
 
-  /* opening it asks for the credentials, in the place the person is */
+  /* the default on this build: one press, because the session is already identified */
+  ok(A.askNamesPassword()===false,'this device does not re-ask for the password by default');
   click(doc.querySelector('[data-names-toggle]')); await tick(300);
-  ok(!!doc.querySelector('#nmUser')&&!!doc.querySelector('#nmPass'),'pressing it asks for a username and a password');
+  ok(A.namesOpen()===true,'pressing Show names opens the column on the first press');
+  ok(!doc.querySelector('#nmPass'),'without a second password prompt');
+  ok((S.db().audit||[]).some(a=>a.action==='sample.names_open'),'and the opening is audited');
+  await go('#/samples'); await tick(300);
+  ok(/MUKAMANA Alice/.test(doc.body.textContent),'the table shows the recorded name');
+  click(doc.querySelector('[data-names-toggle]')); await tick(250);
+  ok(A.namesOpen()===false,'the same button hides them again');
+  ok(/hidden/.test(doc.querySelector('#smpBody').textContent),'and the column is masked once more');
+
+  /* a shared bench PC can be set to ask for the account password every time */
+  A.setNamesPasswordPolicy(true);
+  ok(A.askNamesPassword()===true,'the policy can be switched on in Security Center');
+  ok(S.db().settings.security.askNamesPassword===true,'and is stored with the settings');
+  ok((S.db().audit||[]).some(a=>a.action==='security.names_policy'),'the change is audited');
+  await go('#/samples'); await tick(300);
+  click(doc.querySelector('[data-names-toggle]')); await tick(300);
+  ok(!!doc.querySelector('#nmUser')&&!!doc.querySelector('#nmPass'),'with the policy on, pressing it asks for a username and a password');
   ok(!!doc.querySelector('#nmPass[type="password"]'),'the password is masked as it is typed');
   ok(/never travel to the shared copy/i.test(doc.body.textContent),'and the dialog explains where names are kept');
-
-  /* a wrong password in the dialog changes nothing */
   doc.querySelector('#nmUser').value='kelvin';
   doc.querySelector('#nmPass').value='wrong';
   click(doc.querySelector('[data-unlock]')); await tick(250);
   ok(A.namesOpen()===false,'a wrong password in the dialog does not reveal anything');
   ok(/Incorrect password/.test(doc.body.textContent),'it says what was wrong');
+  click(doc.querySelector('.modal [data-close]')); await tick(200);
+  A.setNamesPasswordPolicy(false);
+  ok(A.askNamesPassword()===false,'and it can be switched back off');
+
+  /* a password set in Security Center now survives a reload — it used to be dropped */
+  const kj=A.users.find(u=>u.username==='kelvin');
+  ok(!!kj&&!!kj.passHash,'the Admin account is held as a hash, not a password');
+  const before=kj.passHash;
+  A.setPassword(kj.id,'SuitePass2026');
+  ok(/passHash/.test(w.localStorage.getItem('labSystems.roles.v1')||''),'the hash is written to the saved roles, not just kept in memory');
+  kj.passHash=before;
+  A.applySavedRoles();
+  ok(kj.passHash!==before,'re-reading the saved roles restores the password that was set');
+  ok(A.verifyCredentials('kelvin','SuitePass2026').ok===true,'so the password just set is the one that works after a reload');
+  kj.passHash=before;
 
   /* the real password opens it, for a while, and says so in the trail */
-  const known=A.users.find(u=>u.username==='kelvin');
-  ok(!!known&&!!known.passHash,'the Admin account is held as a hash, not a password');
-  /* the suite cannot know the password; the verification path is exercised directly */
   A.openNames();
   ok(A.namesOpen()===true,'a verified person can open the names');
   ok(A.namesRemainingMin()>0&&A.namesRemainingMin()<=15,'for fifteen minutes at most ('+A.namesRemainingMin()+' left)');
@@ -161,6 +188,60 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
     ok(rec.reimbursements[1].note==='balance','and the note that says which instalment it was',rec.reimbursements[1].note);
     const audit=(S4.db().audit||[]).find(a=>a.action==='revenue.session');
     ok(/2 expense lines, 2 reimbursements/.test(audit.detail),'the audit line counts the lines',audit.detail);
+  }
+
+  /* ══ 3 · names that arrive from an old or shared copy ═════════════════ */
+  {
+    /* A register blob that still holds a name — an old backup, or the shared copy that was
+       written before this build. Loading it must move the name into the device store and
+       put the mask in its place, never keep it in the register. */
+    const dirty=JSON.parse(w.localStorage.getItem('labSystems.v1'));
+    const victim=dirty.samples[0];
+    victim.patientName='NSABIMANA Eric';
+    const {w:w5,go:go5}=await boot('#/samples',{seed(win){
+      win.localStorage.setItem('labSystems.v1',JSON.stringify(dirty));
+      win.localStorage.removeItem('labSystems.names.v1');
+    }});
+    const S5=w5.LS.store, A5=w5.LS.auth;
+    const rec=S5.db().samples.find(x=>x.id===victim.id);
+    ok(!!rec,'the old register loads');
+    ok(rec.patientName==='Confidential','a name found in the register is masked on the way in',rec.patientName);
+    ok(S5.recordedName(rec)==='NSABIMANA Eric','and kept in the device name store instead');
+    ok(w5.localStorage.getItem('labSystems.v1').indexOf('NSABIMANA')<0,'the register written back no longer holds it');
+    ok(w5.localStorage.getItem('labSystems.names.v1').indexOf('NSABIMANA')>=0,'while the name store on this device does');
+    A5.openNames();
+    ok(S5.patientName(rec)==='NSABIMANA Eric','so the authorised reader still sees it, after the unmask');
+
+    /* bulk recording: one sitting for the orders that have no name */
+    let w6=w5, go6=go5;
+    await go6('#/samples'); await tick(350);
+    const bulkButton=w5.document.querySelector('[data-names-bulk]');
+    ok(!!bulkButton,'the register offers a Record names action');
+    click(bulkButton); await tick(300);
+    const first=w5.document.querySelector('[data-nm-for]');
+    ok(!!first,'it lists the orders without a name');
+    first.value='UWIMANA Chantal';
+    const save=[...w5.document.querySelectorAll('.modal .btn.primary')].pop();
+    click(save); await tick(350);
+    const target=S5.db().samples.find(x=>x.id===first.getAttribute('data-nm-for'));
+    ok(S5.recordedName(target)==='UWIMANA Chantal','one press saves every name typed in the list');
+    ok((S5.db().audit||[]).some(a=>a.action==='sample.name_recorded'&&/1 patient name/.test(a.detail)),'and writes one audit line for the sitting');
+  }
+
+  /* ══ 4 · the Security Center switch ═══════════════════════════════════ */
+  {
+    const {w:w7,go:go7}=await boot('#/dash');
+    const d7=w7.document, A7=w7.LS.auth;
+    await go7('#/security'); await tick(400);
+    const pol=d7.querySelector('[data-names-policy]');
+    ok(!!pol,'Security Center has a control for the names password');
+    ok(A7.askNamesPassword()===false,'which starts off: the session is enough on this device');
+    click(pol); await tick(300);
+    ok(A7.askNamesPassword()===true,'pressing it requires the password at every opening');
+    ok(w7.LS.store.db().settings.security.askNamesPassword===true,'the setting is stored');
+    const again=d7.querySelector('[data-names-policy]');
+    click(again); await tick(250);
+    ok(A7.askNamesPassword()===false,'and pressing it again relaxes the policy');
   }
 
   done('names96');

@@ -65,6 +65,17 @@ function posture(){
         +'<td class="xs faint">'+(last?U.relTime(last.ts):'—')+'</td>'
         +'<td><button class="btn xs" data-2fa="'+u.id+'">'+(u.twoFactor?'Disable':'Enable')+'</button></td></tr>'; }).join('')
      +'</tbody></table></div>'})+'</div>'
+   +'<div class="c12">'+UI.card({title:'Patient names',sub:'Who may read them, and on which machines the password is asked again',icon:'eye',
+     tools:'<span class="pill '+(A.askNamesPassword()?'amber':'teal')+'">'+(A.askNamesPassword()?'password every time':'one press')+'</span>',
+     body:'<div class="small muted" style="line-height:1.6">Names are kept on this device only, never in the register that syncs. '
+       +'Admin, Manager and Technologist can open the name column for fifteen minutes; every opening is written to the audit trail. '
+       +'On a shared bench PC you can require the account password again at each opening.</div>'
+       +(A.can('settings')
+         ?'<div class="row gap-sm" style="margin-top:11px;align-items:center"><button class="btn sm" data-names-policy>'
+           +UI.ic('key-round',13)+(A.askNamesPassword()?' Stop asking for the password':' Ask for the password each time')+'</button>'
+           +'<span class="xs faint">Applies to this device. Recorded names '+S.patientNameCount()+' · every reveal is logged</span></div>'
+         :''),
+     foot:'<span>Reveal window 15 minutes · audited</span><span class="mono">'+S.patientNameCount()+' stored</span>'})+'</div>'
    +'<div class="c5">'+UI.card({title:'Backups &amp; restore points',sub:'Encrypted snapshots on this device',icon:'database',
      tools:'<button class="btn xs" data-restore-now>'+UI.ic('plus',12)+'Snapshot</button>',
      body:(function(){ const list=backups();
@@ -145,6 +156,9 @@ function wire(){
     S.commit(d=>{ const s=d.sessions.find(x=>x.id===b.dataset.revoke); if(s){ s.revoked=true; s.revokedAt=U.nowISO(); } },{action:'security.session.revoke',entity:'sessions',entityId:b.dataset.revoke,detail:'Session revoked'}); paint(); UI.toast('Session revoked',{type:'ok'}); });
   const ra=r.querySelector('[data-revoke-all]'); if(ra) ra.onclick=async()=>{ const ok=await UI.confirm({title:'Revoke all other sessions?',body:'This device stays signed in.',confirm:'Revoke others',danger:true}); if(!ok) return;
     S.commit(d=>{ d.sessions.forEach(s=>{ if(!s.current) s.revoked=true; }); },{action:'security.session.revoke_all',entity:'sessions',detail:'All remote sessions revoked'}); paint(); UI.toast('All other sessions revoked',{type:'ok'}); };
+  const np=r.querySelector('[data-names-policy]'); if(np) np.onclick=()=>{
+    const next=!A.askNamesPassword();
+    if(A.setNamesPasswordPolicy(next)){ paint(); UI.toast(next?'The password will be asked at every opening':'One press opens the names on this device',{type:'ok'}); } };
   const rot=r.querySelector('[data-rotate]'); if(rot) rot.onclick=()=>UI.modal({title:'Rotate password',sub:'Applies to this browser only — the account lives on this device.',width:'min(420px,100%)',body:'<div class="field"><label>New password</label><input class="input mono" id="npw" type="password" placeholder="Minimum 8 characters"></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-set>Update</button>',onMount:(el,close)=>{ el.querySelector('[data-set]').onclick=()=>{ const v=el.querySelector('#npw').value; if(v.length<8){ UI.toast('Use at least 8 characters',{type:'err'}); return; } if(A.setPassword(A.user.id,v)){ S.audit({action:'security.password',entity:'users',entityId:A.user.id,detail:'Password rotated'}); S.save(); close(); UI.toast('Password updated',{type:'ok'}); } }; }});
   r.querySelectorAll('[data-restore-now]').forEach(snap=>snap.onclick=()=>{ S.restorePoint(); if(tab==='posture') paint(); UI.toast('Encrypted snapshot created',{type:'ok'}); });
   r.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{ const ok=await UI.confirm({title:'Restore this snapshot?',body:'The register will be replaced by the selected restore point. Export first if you are unsure.',confirm:'Restore',danger:true}); if(!ok) return;
