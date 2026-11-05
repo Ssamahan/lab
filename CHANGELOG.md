@@ -4,6 +4,70 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.106 — the key that was wrong, the name that could not be corrected, the training that never left
+
+Reported after 6.9.105, in three parts: *"Pull failed (401) {"message":"Invalid API key"}"* on
+**Check the shared copy**; *"add option to edit test name too in the settings of tests"*; and
+*"the training that I recorded yesterday is also not synced, plus its expenses."* They turned
+out to be one story with three chapters, and the first one is the reason the other two happened.
+
+**The key.** `assets/js/core/shared.js` shipped a publishable key that had been re-typed by
+hand and was wrong by three characters — `…60QVk…` for `…6OQVk…` (the digit zero for the letter
+O), `…RPPz…` for `…RPpZ…` (capital P for lower-case p), and three characters missing from the
+end. Supabase answers `401 {"message":"Invalid API key"}` to every read *and* every write with no
+hint about which character is wrong, so from 25 October nothing on any device could be published
+or read — and because the live loop swallows its errors, "not synced" looked exactly like
+"nothing to sync". The key is now the one `supabase list_api_keys` returns, taken from the
+project rather than from a picture of it. A device that was given a key of its own — pasted once
+under Settings — is now also healed: when the project answers *invalid key*, that saved key is
+dropped in favour of the built-in one, the request is retried once, and an audit line
+(`sync.key.builtin`) records that it happened.
+
+**Never a status code on its own.** A refused key now produces a sentence: which key this device
+was using (the one saved under Settings, or the built-in one), its fingerprint, its length, and
+the sentence that would have prevented the whole week — *a publishable key is case-sensitive: O
+and 0, p and P, Z and z are different characters*. Pull, publish, version check and the lean-read
+fallback all say it.
+
+**The revision that never moved.** Reading the live table showed `revision 1` written on 30
+October, and `lab_register_history` was empty — the schema's own comment promised the server
+increments `revision` on every write, but nothing did. So a device that had read revision 1
+believed for ever that it was up to date while the document changed underneath it, which is the
+second, independent reason a training published from one device stayed invisible on another. The
+schema now installs `bump_lab_register_revision()` (it has been applied to the live project), and
+the client no longer trusts the number alone: the server's `updated_at` stamp is compared for
+equality as well, so a table built from an older schema behaves too. `Compare` now reads the
+shared copy through `pullBare` — pressing it can never change either copy.
+
+**The training and its expenses.** With the key broken, the device holding yesterday's training
+and its expense rows could not publish them; and the next pull would have replaced the register
+that held them. Neither copy may be thrown away, so the two are now **combined** instead of one
+replacing the other: records this device typed are kept, records only the shared copy had are
+added, the copy that was here goes to restore points first, and the result is published at once
+(`SY.combine`, `SY.mergeDoc`). A device whose register is still the built-in sample copy is
+detected honestly — it has no unpushed work and no records of its own — and it still simply takes
+the shared copy. Data & sync now names what a device still owes the cloud ("3 changes typed on
+this browser have not reached the shared copy yet — including 1 expense line"), and the tally
+counts training-revenue rows, expense lines and reimbursement lines by name.
+
+**A name you cannot correct is a typo you keep for ever.** Settings → Test menu gains a pencil on
+every examination (`S.renameTest`): name, code and category can be changed, and the change
+follows the name into every sample that carries it — including samples with several examinations,
+where the other names are untouched — into the target turnaround typed for the old name, and into
+the figures already written on the monthly return, so the district form keeps the line it always
+had and never shows the examination twice. Sample numbers and manifest numbers already issued are
+**never** rewritten: an ID is a label that went out with a specimen. A name already on the menu is
+refused with a sentence, every rename is audited, and the modal says beforehand how many
+registered samples will follow the change.
+
+**Tests.** `harness/keys106.js` — 67 checks: the shipped key against the project's, the
+fingerprint, the saved-key repair and its retry, the sentence for a refused read *and* refused
+write, the combine (local training + 12,000 RWF expense + 8,000 RWF reimbursement kept, the other
+copy's records added), the revision that did not move, and the rename cascade. Full sweep: 39
+suites, 1,989 checks, all green.
+
+---
+
 ## v6.9.105 — the marks are in the shared copy, not on the device
 
 Reported after 6.9.104: *"no scores still."* The scoring was fixed, so the remaining answer
