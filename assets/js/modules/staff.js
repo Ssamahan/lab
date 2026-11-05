@@ -236,10 +236,11 @@ function testMenuCard(){
           +'<div class="lr-main"><div class="lr-title" style="font-size:11.6px;'+(t.active!==false?'':'opacity:.55')+'">'+U.esc(t.name)+'</div>'
             +'<div class="lr-sub">'+U.esc(t.code||'—')+' · '+U.esc(t.cat||'General')+'</div></div>'
           +'<span class="row gap-xs" style="align-items:center"><input class="input mono" type="number" min="1" max="60" style="width:54px;height:26px" data-tat="'+U.esc(t.name)+'" value="'+(S.tatTarget(t.name)||t.tat||3)+'" title="Target turnaround in days"><span class="xs faint">d</span></span>'
+          +'<button class="icon-btn" style="width:24px;height:24px" data-rename-test="'+t.id+'" title="Rename this examination">'+UI.ic('pencil',12)+'</button>'
           +'<button class="icon-btn" style="width:24px;height:24px" data-del-test="'+t.id+'" title="Delete this examination">'+UI.ic('trash-2',12)+'</button>'
         +'</div>').join('')+'</div>').join('')
       +(!all.length?'<p class="xs faint" style="margin:0">No examinations on the menu yet.</p>':'')
-      +'<div class="xs faint" style="margin-top:9px;border-top:1px solid var(--border);padding-top:7px">“On menu” means the examination is confirmed and appears in the sample wizard and every picker. Switching it off keeps it out of the way without losing history; deleting removes it from the catalogue altogether — samples already registered keep the name they were recorded with.</div>',
+      +'<div class="xs faint" style="margin-top:9px;border-top:1px solid var(--border);padding-top:7px">“On menu” means the examination is confirmed and appears in the sample wizard and every picker. Switching it off keeps it out of the way without losing history; deleting removes it from the catalogue altogether — samples already registered keep the name they were recorded with. The <b>pencil</b> corrects a name or a code: it follows the change into every sample that carries the examination, so a typo is fixed once instead of living in the register for ever. Sample numbers already issued are never rewritten.</div>',
     foot:'<span>Saving writes the targets here and re-reads them on every sample carrying the test.</span><span class="mono">'+activeCount+' active · '+all.length+' total</span>'});
 }
 function deleteTests(ids){
@@ -271,6 +272,35 @@ function addTestModal(){
         S.commit(d=>{ d.catalog.tests=d.catalog.tests||[]; d.catalog.tests.push(rec); },{action:'settings.test.add',entity:'catalog',entityId:rec.id,detail:name});
         close(); paint(); UI.toast('Examination added to the menu',{type:'ok'});
       };
+    }});
+}
+function renameTestModal(id){
+  if(!A.guard('staff')) return;
+  const t=S.allTests().find(x=>x.id===id);
+  if(!t) return UI.toast('That examination is no longer on the menu',{type:'warn'});
+  const used=(S.db().samples||[]).filter(s=>s.test===t.name||(Array.isArray(s.tests)&&s.tests.indexOf(t.name)>=0)).length;
+  UI.modal({title:'Rename '+(t.name.length>38?t.name.slice(0,38)+'…':t.name),
+    sub:'The new name is written into every sample that carries this examination — past and future.',width:'min(520px,100%)',
+    body:'<div class="form-grid"><div class="field span2"><label>Name</label><input class="input" id="renTestName" value="'+U.esc(t.name)+'"></div>'
+      +'<div class="field"><label>Code</label><input class="input mono" id="renTestCode" value="'+U.esc(t.code||'')+'" maxlength="6"></div>'
+      +'<div class="field"><label>Category</label><input class="input" id="renTestCat" list="renTestCats" value="'+U.esc(t.cat||'General')+'"><datalist id="renTestCats">'+U.uniq(S.allTests().map(x=>x.cat||'General')).map(c=>'<option>'+U.esc(c)+'</option>').join('')+'</datalist></div></div>'
+      +'<div class="xs" style="margin-top:10px;padding:8px 10px;background:var(--surface-inset);border-radius:8px;color:var(--text-muted)">'
+      +'<b>'+used+'</b> registered sample'+(used===1?'':'s')+' carr'+(used===1?'ies':'y')+' this examination today'
+      +(used?' — the name changes on all of them, and so do the figures already typed for it on the monthly return.':'')
+      +' Sample numbers and manifest numbers that were already issued are <b>never</b> rewritten: an ID is a label that went out with a specimen.</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Save name</button>',
+    onMount:(el,close)=>{
+      const nameEl=el.querySelector('#renTestName'); nameEl.focus(); nameEl.select();
+      const save=()=>{
+        const res=S.renameTest(id,{name:nameEl.value,
+          code:el.querySelector('#renTestCode').value,
+          cat:el.querySelector('#renTestCat').value});
+        if(!res.ok){ UI.toast(res.reason,{type:'warn'}); return; }
+        close(); LS.shell.refresh(); paint();
+        UI.toast('Renamed to “'+res.name+'”'+(res.samples?' · '+res.samples+' sample'+(res.samples===1?'':'s')+' follow':'')+(res.months?' · '+res.months+' monthly return'+(res.months===1?'':'s')+' kept their figures':''),{type:'ok',duration:7000});
+      };
+      el.querySelector('[data-save]').onclick=save;
+      nameEl.onkeydown=e=>{ if(e.key==='Enter') save(); };
     }});
 }
 function settingsView(){
@@ -384,14 +414,35 @@ function tallies(){
   const t=SY.localTally();
   const rows=[['Samples','samples'],['Staff records','staff'],['Leave records','leaves'],
     ['Referred samples','referrals'],['Equipment','equipment'],['Trainings','trainings'],
+    ['Training revenue rows','trainingSessions'],['Expense lines','trainingExpenses'],['Reimbursement lines','trainingReimbursements'],
     ['PBF visits','pbfVisits'],['PBF marks entered','pbfMarks'],['PBF questions','pbfQuestions']];
   return '<div class="dt-scroll"><table class="dt"><thead><tr><th>Register</th><th class="num">This browser</th><th class="num">The shared copy</th></tr></thead><tbody>'
     +rows.map(([l,k])=>'<tr><td class="small">'+l+'</td><td class="num mono" data-local="'+k+'">'+(t[k]|0)+'</td><td class="num mono faint" data-remote="'+k+'">—</td></tr>').join('')
     +'</tbody></table></div>';
 }
+/* What this browser still owes the shared copy. A record typed while the cloud was
+   refused lives here and nowhere else, so it is said out loud instead of being left
+   for the user to discover by comparing two screens. */
+function pendingLine(){
+  const n=(S.pendingChanges&&S.pendingChanges())||0;
+  if(!n) return '';
+  const t=SY.localTally();
+  const bits=[['trainings','training session'],['trainingSessions','revenue row'],
+    ['trainingExpenses','expense line'],['samples','sample'],['staff','staff record'],
+    ['leaves','leave record'],['pbfMarks','PBF mark']]
+    .filter(([k])=>t[k]>0).slice(0,4)
+    .map(([k,l])=>'<b class="mono">'+(t[k]|0)+'</b> '+l+(t[k]===1?'':'s'));
+  return '<div class="hint" style="margin-top:10px;border-left:2px solid var(--warn);padding-left:9px">'
+    +UI.ic('upload',12)+' <b>'+n+'</b> change'+(n===1?'':'s')+' typed on this browser '+(n===1?'has':'have')
+    +' not reached the shared copy yet'
+    +(bits.length?' — including '+bits.join(', '):'')
+    +'. Everything here is saved on this device and nothing is lost; <b>Push everything now</b> publishes it.'
+    +'</div>';
+}
 function sharedCopyCard(){
   return UI.card({title:'Two browsers, one register',sub:'What this browser holds, and what the cloud holds',icon:'monitor-smartphone',
     body:tallies()
+    +pendingLine()
     +'<div id="scStatus" class="hint" style="margin-top:10px">'
       +(SY.configured()?'Press <b>Compare</b> to read the shared copy.':'This browser has no project URL or key yet, so it shows the built-in seed — which is why a fresh or incognito window looks empty of everything you typed. Use <b>Paste setup code</b> or fill the fields above.')
     +'</div>'
@@ -582,6 +633,7 @@ function wire(){
     if(!ok) return;
     deleteTests(ids);
   };
+  U.$$('[data-rename-test]',r).forEach(b=>b.onclick=()=>renameTestModal(b.dataset.renameTest));
   U.$$('[data-del-test]',r).forEach(b=>b.onclick=async()=>{
     const t=S.allTests().find(x=>x.id===b.dataset.delTest); if(!t) return;
     const ok=await UI.confirm({title:'Delete '+t.name+'?',body:'It leaves the test menu, the sample wizard and every picker. Registered samples keep the name they were recorded with.',confirm:'Delete examination',danger:true});

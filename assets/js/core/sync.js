@@ -318,6 +318,28 @@ async function headers(extra){
   return Object.assign(h, extra||{});
 }
 /* One retry with a fresh token: access tokens expire after an hour. */
+/* A device can carry its own key, pasted once into Settings, and that key can be
+   wrong — one character misread from a screenshot and every request answers
+   401 "Invalid API key" for ever. The deployment ships a known-good publishable key,
+   so a rejected device key is dropped in favour of it and the request is retried once.
+   Only the exact "invalid key" answer triggers this: a key that is merely not allowed
+   to write stays, and says so. */
+function dropDeviceKey(){
+  try{
+    const c=S.settings().cloud||{};
+    if(!(c.anonKey||c.endpoint)) return false;
+    const dep=deployment();
+    if(!dep||!dep.key) return false;
+    if(String(c.anonKey||'').trim()===String(dep.key||'').trim()) return false;
+    S.commit(d=>{ d.settings.cloud=d.settings.cloud||{}; d.settings.cloud.anonKey=''; d.settings.cloud.endpoint=''; },
+      {action:'sync.key.builtin',entity:'settings',detail:'A saved key was rejected by the project — this device now uses the built-in shared key'});
+    forgetSession();
+    try{ S.save(true); }catch(e){}
+    setState({keyRepairedAt:U.nowISO(),
+      keyRepairedNote:'The key saved on this device was rejected by the project. It has been replaced with the built-in shared key.'});
+    return true;
+  }catch(e){ return false; }
+}
 async function request(path, opts){
   opts=opts||{};
   const send=async()=>fetch(endpoint(path), Object.assign({},opts,{headers:await headers(opts.extra)}));
@@ -325,7 +347,23 @@ async function request(path, opts){
   if((r.status===401||r.status===403) && ((cfg().email&&cfg().password)||cfg().anonAuth)){
     try{ forgetSession(); await signIn(true); r=await send(); }catch(e){}
   }
+  if(r.status===401||r.status===403){
+    let body='';
+    try{ body=await r.clone().text(); }catch(e){}
+    if(/invalid api key|invalid jwt|no api key|jwt malformed/i.test(body) && dropDeviceKey()) r=await send();
+  }
   return r;
+}
+/* The one sentence a person can act on when the project refuses the key. */
+function keyRefusal(status, body){
+  const k=cfg();
+  if(/invalid api key|no api key|jwt malformed/i.test(body||'')){
+    return 'The project refused the API key ('+status+' Invalid API key). This device is using '
+      +(k.source==='device'?'the key saved under Settings → Cloud sync':'the built-in shared key')
+      +' — '+keyFingerprint(k.key)+'. A publishable key is case-sensitive: O and 0, p and P, Z and z are different characters. Publishable keys can be re-copied from the Supabase dashboard → Project Settings → API Keys.';
+  }
+  if(/invalid jwt/i.test(body||'')) return 'The project refused the sign-in token ('+status+'). The saved Supabase login has probably been changed or deleted — clear it, or leave it empty so the shared key is used.';
+  return null;
 }
 function endpoint(path){ return cfg().url+'/rest/v1/'+path; }
 
@@ -368,7 +406,11 @@ SY.pull=async function(){
     body=(await r.text())||'';
     if(missingColumn(r,body)){
       r=await request(q(COLS_LEAN));
-      if(!r.ok) throw new Error('Pull failed ('+r.status+') '+((await r.text())||'').slice(0,140));
+      if(!r.ok){
+        const lean=(await r.text())||'';
+        const human=keyRefusal(r.status, lean);
+        throw new Error(human||('Pull failed ('+r.status+') '+lean.slice(0,140)));
+      }
       const rows=await r.json();
       setState({schemaNote:'The table is missing the client_id column — run supabase/schema.sql again to add it.'});
       return noteRow(rows[0]||null);
@@ -376,7 +418,7 @@ SY.pull=async function(){
     body=body.slice(0,140);
   }
   if(r.status===404) throw new Error('The lab_registers table does not exist yet');
-  if(!r.ok) throw new Error('Pull failed ('+r.status+') '+body);
+  if(!r.ok){ const human=keyRefusal(r.status, body); throw new Error(human||('Pull failed ('+r.status+') '+body)); }
   const rows=await r.json();
   return noteRow(rows[0]||null);
 };
@@ -393,7 +435,15 @@ SY.pullBare=async function(){
   let r=await send(COLS_FULL), body='';
   if(!r.ok){
     body=(await r.text())||'';
-    if(missingColumn(r,body)){ r=await send(COLS_LEAN); if(!r.ok) throw new Error('Read failed ('+r.status+') '+((await r.text())||'').slice(0,140)); return noteRow((await r.json())[0]||null); }
+    if(missingColumn(r,body)){
+      r=await send(COLS_LEAN);
+      if(!r.ok){
+        const lean=(await r.text())||'';
+        const human=keyRefusal(r.status, lean);
+        throw new Error(human||('Read failed ('+r.status+') '+lean.slice(0,140)));
+      }
+      return noteRow((await r.json())[0]||null);
+    }
     if(r.status===404) throw new Error('The lab_registers table does not exist yet');
     throw new Error('Read failed ('+r.status+') '+body.slice(0,140));
   }
@@ -423,10 +473,11 @@ SY.push=async function(opts){
     extra:{'Prefer':'resolution=merge-duplicates,return=representation'},
     body:JSON.stringify(payload)
   });
-  if(!r.ok) throw new Error('Push failed ('+r.status+') '+((await r.text())||'').slice(0,160));
+  if(!r.ok){ const body=(await r.text())||''; const human=keyRefusal(r.status, body); throw new Error(human||('Push failed ('+r.status+') '+body.slice(0,160))); }
   const rows=await r.json();
   const row=rows[0]||{};
-  setState({lastPushAt:U.nowISO(), lastRevision:row.revision||null, pushedRevision:row.revision||null, lastError:null});
+  setState({lastPushAt:U.nowISO(), lastRevision:row.revision||null, pushedRevision:row.revision||null,
+    lastRemoteAt:row.updated_at||state().lastRemoteAt||null, lastError:null});
   if(S.clearPending) S.clearPending();
   const st=S.settings(); st.cloud.lastSync=U.nowISO(); S.save(true);
   return row;
@@ -460,7 +511,8 @@ SY.visitorRead=async function(){
     const before=SY.tally(S.db());
     applyRemote(row);
     const after=SY.tally(S.db());
-    setState({lastPullAt:U.nowISO(), lastRevision:row.revision||null, lastError:null});
+    setState({lastPullAt:U.nowISO(), lastRevision:row.revision||null,
+      lastRemoteAt:row.updated_at||null, lastError:null});
     return {ok:true, before:before, after:after, revision:row.revision||null,
       updated_at:row.updated_at||null, updated_by:row.updated_by||null};
   }catch(e){
@@ -474,7 +526,8 @@ SY.visitorRead=async function(){
         if(row&&row.data){
           const before=SY.tally(S.db());
           applyRemote(row);
-          setState({lastPullAt:U.nowISO(), lastRevision:row.revision||null, lastError:null, plainRead:true});
+          setState({lastPullAt:U.nowISO(), lastRevision:row.revision||null,
+            lastRemoteAt:row.updated_at||null, lastError:null, plainRead:true});
           return {ok:true, plain:true, before:before, after:SY.tally(S.db()), revision:row.revision||null,
             updated_at:row.updated_at||null, updated_by:row.updated_by||null};
         }
@@ -531,11 +584,10 @@ SY.freshness=function(){
    document every fifteen seconds would be wasteful and would fight the browser cache. */
 SY.visitorSync=async function(){
   if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor())) return {ok:false, reason:'not a visitor'};
-  const seen=Number(state().lastRevision||0);
   let v=null;
   try{ v=await SY.remoteVersion(); }catch(e){ return {ok:false, reason:(e&&e.message)||'Could not reach the shared copy'}; }
   if(!v) return {ok:true, action:'noop'};
-  if(Number(v.revision||0)<=seen) { setState({lastCheckAt:U.nowISO()}); return {ok:true, action:'noop'}; }
+  if(!remoteMoved(v)) { setState({lastCheckAt:U.nowISO()}); return {ok:true, action:'noop'}; }
   return SY.visitorRead();
 };
 SY.visitorReady=function(){ return !!sharedForVisitor(); };
@@ -553,17 +605,26 @@ SY.tally=function(db){
     Object.keys(a).forEach(k=>{ if(a[k]!=null&&a[k]!=='') t++; });
     return t;
   },0);
+  /* The training ledger is two lists — the sessions in the roster, and the revenue rows
+     that carry the expenses and the reimbursements. Both are counted, because "my
+     training is not synced" and "its expenses are not synced" were reported as one. */
+  const ledger=(db.trainingExpenses)||[];
+  const lines=ledger.reduce((t,r)=>t+((r.expenses||[]).length),0);
+  const reimb=ledger.reduce((t,r)=>t+((r.reimbursements||[]).length),0);
   return {samples:n(db.samples), staff:n(db.staff), leaves:n(db.leaves), referrals:n(db.referrals),
-    equipment:n(db.equipment), trainings:n(db.trainings), pbfVisits:n(db.pbfVisits),
-    pbfMarks:marks, pbfQuestions:n(db.pbfQuestions), audit:n(db.audit)};
+    equipment:n(db.equipment), trainings:n(db.trainings), trainingSessions:n(ledger),
+    trainingExpenses:lines, trainingReimbursements:reimb,
+    pbfVisits:n(db.pbfVisits), pbfMarks:marks, pbfQuestions:n(db.pbfQuestions), audit:n(db.audit)};
 };
 SY.localTally=function(){ return SY.tally(S.db()); };
 
-/* The shared copy, read in full once, for the comparison table. */
+/* The shared copy, read in full once, for the comparison table. This runs on
+   Compare, so it must only *read*: it goes through the bare fetch, never through the
+   path that applies, merges or publishes. Pressing Compare can never change either copy. */
 SY.remoteTally=async function(){
   const c=cfg(); if(!c.url||!c.key) return {ok:false, reason:'Cloud sync is off — add the project URL and the API key.', counts:null};
   try{
-    const row=await SY.pull();
+    const row=(SY.pullBare?await SY.pullBare():await SY.pull());
     if(!row||!row.data) return {ok:true, empty:true, counts:SY.tally(null), revision:null, updated_at:null};
     return {ok:true, counts:SY.tally(row.data), revision:row.revision||null,
       updated_at:row.updated_at||null, updated_by:row.updated_by||null,
@@ -720,7 +781,8 @@ function applyRemote(remote){
        stale revision in its sync state — and would then sit for ever on a register with
        fewer records than the cloud, telling itself it is up to date. The counts are how
        that is caught instead of guessed at. */
-    setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null, lastError:null,
+    setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null,
+      lastRemoteAt:remote.updated_at||null, lastError:null,
       appliedCounts:SY.tally(S.db())});
   }finally{ applyingRemote=false; }
   SY.emit('pulled');
@@ -753,12 +815,23 @@ if(typeof document!=='undefined'){
 }
 SY.applyRemote=applyRemote;
 
-function newer(remote){
+/* Has the shared copy moved since this device last read it? The revision is the first
+   answer, but it is not the only one: a table built from an older schema carries the
+   `revision` column without the trigger that increments it, so the number stays at 1
+   for ever while the document underneath changes on every write. Trusting the number
+   alone is how a training published from one device stayed invisible on the other and
+   looked like "not synced". The server stamps `updated_at` on every insert and update,
+   so the exact timestamp is the second, independent answer — compared for equality, not
+   for order, so a device with a wrong clock is not fooled. */
+function remoteMoved(remote){
   if(!remote) return false;
   const st=state();
   if(!st.lastRevision) return true;
-  return Number(remote.revision||0) > Number(st.lastRevision||0);
+  if(Number(remote.revision||0) > Number(st.lastRevision||0)) return true;
+  if(st.lastRemoteAt && remote.updated_at && String(remote.updated_at)!==String(st.lastRemoteAt)) return true;
+  return false;
 }
+function newer(remote){ return remoteMoved(remote); }
 
 /* ——— Is this device still what the shared copy gave it? ————————
    Everything the console holds is one document in localStorage, and that document can be
@@ -767,7 +840,7 @@ function newer(remote){
    has lost the visits, samples or marks that revision carried. Comparing the recorded
    counts with what is actually here makes that visible, and the only way back is to take
    the shared copy again — which is safe, because this only ever reports a *loss*. */
-const COUNTED=['samples','staff','leaves','referrals','equipment','trainings','pbfVisits','pbfMarks'];
+const COUNTED=['samples','staff','leaves','referrals','equipment','trainings','trainingSessions','trainingExpenses','pbfVisits','pbfMarks'];
 function losses(){
   const was=state().appliedCounts; if(!was) return {total:0, parts:{}};
   const now=SY.tally(S.db()); const parts={}; let total=0;
@@ -778,6 +851,100 @@ function losses(){
   return {total, parts, was, now};
 }
 SY.losses=losses;
+
+/* Is this device still only showing the built-in sample register? The seed carries
+   staff, samples and everything else, so counting records answers nothing. Two honest
+   tests: something here was typed and has not reached the cloud (`pending`), or the
+   register has moved away from the seed it was installed with. */
+function hasOwnWork(){
+  try{ if(S.pendingChanges&&S.pendingChanges()>0) return true; }catch(e){}
+  try{
+    const seed=window.LS_SEED;
+    if(!seed) return true;
+    const now=(S.db().samples||[]).map(x=>x&&x.id).join(',');
+    const was=(seed.samples||[]).map(x=>x&&x.id).join(',');
+    if(now!==was) return true;
+    const nt=(S.db().trainings||[]).map(x=>x&&x.id).join(',');
+    const wt=(seed.trainings||[]).map(x=>x&&x.id).join(',');
+    if(nt!==wt) return true;
+    const ne=(S.db().trainingExpenses||[]).map(x=>x&&x.id).join(',');
+    const we=(seed.trainingExpenses||[]).map(x=>x&&x.id).join(',');
+    return ne!==we;
+  }catch(e){ return true; }
+}
+
+/* ——— Two registers, both with real work in them ————————————————
+   The console used to answer this one way: the newer copy wins, whole. That is safe for
+   a device that has only ever shown the sample register, and it is wrong for a device
+   that recorded a training and its expenses while the shared copy was unreachable —
+   replacing it would have thrown that work into restore points where nobody looks. So
+   when this device holds unpushed work, the two documents are *combined* instead:
+   local records win where the same record exists on both sides, and records only the
+   cloud has are added rather than lost. Deletions are the one thing a union cannot see,
+   which is why the result is pushed immediately and the copy that was here is kept as a
+   restore point. */
+function isPlainObj(x){ return !!x && typeof x==='object' && !Array.isArray(x); }
+function rowKey(x){
+  if(!isPlainObj(x)) return null;
+  if(x.id!=null) return 'id:'+x.id;
+  if(x.key!=null) return 'key:'+x.key;
+  if(x.ts!=null) return 'ts:'+x.ts+'|'+(x.action||'');
+  if(x.name!=null) return 'name:'+x.name;
+  return null;
+}
+function unionRows(local, remote){
+  const out=(local||[]).slice(); const seen={};
+  out.forEach(x=>{ const k=rowKey(x); if(k) seen[k]=1; });
+  (remote||[]).forEach(y=>{ const k=rowKey(y); if(!k){ if(!out.some(x=>JSON.stringify(x)===JSON.stringify(y))) out.push(y); return; } if(seen[k]) return; seen[k]=1; out.push(y); });
+  return out;
+}
+function mergeDoc(local, remote){
+  if(!isPlainObj(local)) return remote;
+  if(!isPlainObj(remote)) return local;
+  const out=Object.assign({},remote,local);
+  Object.keys(remote).forEach(k=>{
+    const l=local[k], r=remote[k];
+    if(Array.isArray(l)&&Array.isArray(r)) out[k]=unionRows(l,r);
+  });
+  if(isPlainObj(local.catalog)&&isPlainObj(remote.catalog)){
+    out.catalog=Object.assign({},remote.catalog,local.catalog);
+    ['tests','healthCenters'].forEach(k=>{
+      if(Array.isArray(local.catalog[k])&&Array.isArray(remote.catalog[k])) out.catalog[k]=unionRows(local.catalog[k],remote.catalog[k]);
+    });
+  }
+  /* the questionnaire and the domains are lists of objects with a key: same rule */
+  ['pbfQuestions','pbfDomains','services'].forEach(k=>{
+    if(Array.isArray(local[k])&&Array.isArray(remote[k])) out[k]=unionRows(local[k],remote[k]);
+  });
+  return out;
+}
+SY.mergeDoc=mergeDoc;
+/* Combine this device with a shared-copy row, keep a restore point, and publish the
+   result — so from the next second on both copies hold everything. */
+SY.combine=async function(remote){
+  if(!remote||!remote.data) return {ok:false, reason:'The shared copy is empty'};
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return {ok:false, reason:'This is a read-only visitor view.'};
+  const before=SY.tally(S.db());
+  const merged=mergeDoc(S.db(), remote.data);
+  try{ S.restorePoint(); }catch(e){}
+  S.importJSON(merged);
+  try{ S.save(true); }catch(e){}
+  /* The device has just proved it holds the laboratory's own work, so it is no longer
+     "showing the sample register" and may publish the combined copy. The revision it
+     read is recorded first, so the very next quiet check does not think the cloud moved
+     again and start over. */
+  setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null,
+    lastRemoteAt:remote.updated_at||null, lastError:null,
+    appliedCounts:SY.tally(S.db())});
+  const after=SY.tally(S.db());
+  let pushed=null;
+  try{ pushed=await SY.push({allowPristine:true}); }
+  catch(e){ setState({lastError:(e&&e.message)||'The combined register could not be published'}); }
+  setState({conflictAt:U.nowISO(), combinedAt:U.nowISO(),
+    conflictNote:'Both copies held records the other did not, so they were combined: what this device recorded was kept, and what only the shared copy had was added.'});
+  refreshScreen();
+  return {ok:true, before, after, merged:true, pushed:!!pushed, revision:pushed&&pushed.revision};
+};
 
 /* Does this device hold edits the cloud has not seen? The store tracks a dirty
    counter on every commit; we compare it with the last successful push. */
@@ -820,7 +987,7 @@ SY.remoteVersion=async function(){
     if(missingColumn(r,body)) r=await request(q(COLS_VERSION_LEAN));
   }
   if(r.status===404) return null;
-  if(!r.ok) throw new Error('Version check failed ('+r.status+')');
+  if(!r.ok){ const body=await r.text().catch(()=>''); const human=keyRefusal(r.status, body); throw new Error(human||('Version check failed ('+r.status+')')); }
   const rows=await r.json();
   return noteRow(rows[0]||null);
 };
@@ -851,8 +1018,7 @@ SY.sync=async function(opts){
         if(hasLocalChanges()) { await SY.push(); return {ok:true, action:'created'}; }
         return {ok:true, action:'noop'};
       }
-      const seen=Number(state().lastRevision||0);
-      if(Number(v.revision||0)<=seen && !hasLocalChanges()){
+      if(!remoteMoved(v) && !hasLocalChanges()){
         /* Nothing moved in the cloud and nothing is waiting to go up — but this device
            may no longer hold what the cloud last gave it. Nothing typed here is at risk
            (there are no unpushed edits in this branch), so it takes the shared copy
@@ -888,12 +1054,18 @@ SY.sync=async function(opts){
         /* A background tick must never stop and ask: an edit typed here is the one the
            person can see, so it is published, and the other copy stays in restore points. */
         if(!state().lastPullAt){
-          /* This browser has never received the shared register. What it holds is either
-             the built-in sample copy or edits made while it was on its own — and the
-             shared copy is the laboratory's real record. So it takes that copy, and the
-             one it was showing is put in restore points first, where it can still be
-             brought back. Publishing the sample register over the cloud is the one
-             mistake that cannot be undone from here, and it never happens. */
+          /* This browser has never received the shared register, and it holds work of
+             its own — a training recorded while the network was down, and the expenses
+             that go with it. Neither copy may be thrown away, so they are combined:
+             this device keeps what it recorded, the shared copy's records it never had
+             are added, and the result is published. A device with nothing of its own
+             still simply takes the shared copy (the branch below). */
+          const hasWork=hasOwnWork();
+          if(hasWork){
+            const res=await SY.combine(remote);
+            if(!quiet) UI.toast('This device and the shared copy were combined — your work is kept and theirs was added',{type:'ok',duration:7000});
+            return {ok:true, action:'combined', counts:res&&res.after};
+          }
           applyRemote(remote);
           setState({conflictAt:U.nowISO(),
             conflictNote:'This device had not yet received the shared register. It now shows it; what it was showing was kept in restore points.'});
@@ -901,10 +1073,11 @@ SY.sync=async function(opts){
           return {ok:true, action:'pulled', adopted:true};
         }
         if(opts.auto){
-          setState({conflictAt:U.nowISO(), conflictNote:'This device published over a newer cloud copy ('+(remote.updated_by||'another device')+').'});
-          await SY.push();
-          if(!quiet) UI.toast('Published this device — the other copy is in restore points',{type:'warn',duration:6000});
-          return {ok:true, action:'pushed', conflict:true};
+          /* Both copies moved. Combining keeps the work from both sides; the version
+             that was here is still in restore points before anything is written. */
+          const res=await SY.combine(remote);
+          if(!quiet) UI.toast('Both copies had new records, so they were combined — nothing typed here was lost',{type:'warn',duration:7000});
+          return {ok:true, action:'combined', conflict:true, counts:res&&res.after};
         }
         const choice=await conflictChoice(remote);
         if(choice==='remote'){ applyRemote(remote); UI.toast('Register updated from the other device',{type:'ok'}); return {ok:true, action:'pulled'}; }

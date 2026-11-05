@@ -13,7 +13,12 @@
    ========================================================================== */
 window.LS_SHARED = {
   endpoint: 'https://lkjwztvhmzhasclmlocx.supabase.co',
-  key: 'sb_publishable_60QVktnGsJo_RPPzFGtITQ_pt3NC',
+  /* Read this key from the project, never re-typed from a screenshot: a publishable
+     key is base62 and two characters that look alike (O and 0, p and P, Z and z) are
+     enough for Supabase to answer 401 "Invalid API key" to every read and every write.
+     That is what this line was wrong about until v6.9.106 — the register, the visitor
+     copy and every sync on every device were all refused, silently, for a week. */
+  key: 'sb_publishable_6OQVktnGsJo_RPpZfGtITQ_pt3NCdgJ',
   /* A visitor never pushes, so this is the only mode it may use. */
   mode: 'pull',
   label: 'Ruli DH · shared register',

@@ -2360,6 +2360,17 @@ S.reportLines=function(){
      on the whole normalised name: “Blood Culture” and “Blood cultures transferred
      (referred out)” are different examinations and stay apart. */
   const norm=x=>String(x||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+  /* An examination that was renamed here must not appear twice on the form — once
+     under the name the district has always seen and once under the new one. The
+     renames are remembered when the name is changed, so the form keeps the line it
+     already had and the figures typed against it stay where they were typed. */
+  const renames=(db.reporting&&db.reporting.renames)||{};
+  const resolveName=function(n){
+    let out=n;
+    for(let i=0;i<6 && renames[out];i++) out=renames[out];
+    return out;
+  };
+  rows.forEach(r=>{ if(r.test) r.test=resolveName(r.test); });
   const seen={};
   rows.forEach(r=>{
     seen[norm(r.label)]=1;
@@ -2442,6 +2453,72 @@ S.reportRemoveLine=function(id){
     Object.keys(r.months||{}).forEach(k=>{ if(r.months[k].values) delete r.months[k].values[id]; });
   },{action:'report.line.delete',entity:'reporting',entityId:id,detail:'Line removed from the monthly report'});
 };
+/* ——— Renaming an examination ————————————————————————————
+   The name on the menu is written into every sample that carries it, so a typo
+   lives in the register for ever unless it can be corrected once, everywhere. This
+   changes the name (and the code, if one is given), then follows it through the
+   records that quote it: the samples already registered, the target turnaround that
+   was typed for the old name, and the figures already on the monthly return. The
+   identifiers that were issued — RDH sample numbers, manifest numbers — are never
+   rewritten: an ID is a label that was printed and sent, not a description. */
+S.renameTest=function(id, patch){
+  const d=patch||{};
+  const db=S.db();
+  const t=(db.catalog.tests||[]).find(x=>x.id===id);
+  if(!t) return {ok:false, reason:'That examination is no longer on the menu.'};
+  const name=String(d.name==null?t.name:d.name).trim();
+  if(!name) return {ok:false, reason:'An examination needs a name.'};
+  const code=(d.code==null?t.code:String(d.code)).trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+  const cat=(d.cat==null?(t.cat||'General'):String(d.cat)).trim()||'General';
+  if(name===t.name && code===t.code && cat===(t.cat||'General')) return {ok:false, reason:'Nothing was changed.'};
+  if((db.catalog.tests||[]).some(x=>x.id!==id && !x.deleted &&
+      String(x.name||'').trim().toLowerCase()===name.toLowerCase()))
+    return {ok:false, reason:'Another examination on the menu is already called “'+name+'”.'};
+  const old=t.name;
+  const slug=n=>'auto:'+String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  let samples=0, months=0;
+  S.commit(x=>{
+    const tt=(x.catalog.tests||[]).find(y=>y.id===id); if(!tt) return;
+    tt.name=name; tt.code=code; tt.cat=cat;
+    const newCode=String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3)||'GEN';
+    (x.samples||[]).forEach(s=>{
+      if(!s) return;
+      let hit=false;
+      if(s.test===old){ s.test=name; hit=true; }
+      if(Array.isArray(s.tests)){
+        if(s.tests.indexOf(old)>=0){ s.tests=s.tests.map(v=>v===old?name:v); hit=true; }
+      } else if(typeof s.tests==='string' && s.tests){
+        const parts=s.tests.split(' · ');
+        if(parts.indexOf(old)>=0){ s.tests=parts.map(v=>v===old?name:v).join(' · '); hit=true; }
+      }
+      /* the code printed beside the sample follows the code on the menu, unless a
+         person typed one on that sample by hand */
+      if(hit){ samples++; if(!s.testCodeManual) s.testCode=newCode; }
+    });
+    const tat=x.settings&&x.settings.tat;
+    if(tat && tat[old]!=null && tat[name]==null){ tat[name]=tat[old]; delete tat[old]; }
+    /* the monthly return: figures typed against the old name move to the new one,
+       and the form line that was counting the old name counts the new one */
+    x.reporting=x.reporting||{lines:[],months:{}};
+    x.reporting.renames=x.reporting.renames||{};
+    const from=slug(old), to=slug(name);
+    Object.keys(x.reporting.months||{}).forEach(k=>{
+      const vals=x.reporting.months[k]&&x.reporting.months[k].values;
+      if(!vals||!vals[from]) return;
+      const v=vals[to]||{};
+      Object.keys(vals[from]).forEach(f=>{ if(v[f]==null) v[f]=vals[from][f]; });
+      vals[to]=v; delete vals[from]; months++;
+    });
+    (x.reporting.lines||[]).forEach(l=>{
+      if(l.test===old){ l.test=name; if(l.label===old) l.label=name; }
+    });
+    if(old!==name) x.reporting.renames[old]=name;
+  },{action:'settings.test.rename',entity:'catalog',entityId:id,
+     detail:old+' → '+name+(code?' ('+code+')':'')+' · '+samples+' sample'+(samples===1?'':'s')});
+  try{ S.reapplyTAT(); }catch(e){}
+  return {ok:true, old, name, code, cat, samples, months};
+};
+
 /* One row, read back: what was typed, and the total that follows from it. */
 S.reportRow=function(m,line){
   const v=((m&&m.values)||{})[line.id]||{};

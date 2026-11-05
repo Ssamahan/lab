@@ -43,6 +43,22 @@ drop trigger if exists lab_registers_touch on public.lab_registers;
 create trigger lab_registers_touch before insert or update on public.lab_registers
 for each row execute function public.touch_lab_register();
 
+-- The revision is the number every device polls to find out whether the shared copy
+-- moved. The column has always been described as "incremented by the server on every
+-- write", but for a while nothing incremented it: it sat at 1 from the first push,
+-- so a device that had read revision 1 kept believing it was up to date while the
+-- document changed underneath it. This is that missing step.
+create or replace function public.bump_lab_register_revision()
+returns trigger language plpgsql as $$
+begin
+  new.revision = coalesce(old.revision, 1) + 1;
+  return new;
+end $$;
+
+drop trigger if exists lab_registers_revision on public.lab_registers;
+create trigger lab_registers_revision before update on public.lab_registers
+for each row execute function public.bump_lab_register_revision();
+
 -- ---------------------------------------------------------------- repair ------
 -- Re-running this file must also heal a table created by an older version of it.
 -- (An early build selected a `device_id` column that never existed; the client now
