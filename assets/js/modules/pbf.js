@@ -270,10 +270,41 @@ function domainMarks(k){
   return {count:qs.length, max:U.sum(qs,q=>+q.max||0)};
 }
 function declaredWeightTotal(){ return U.sum(domains(),d=>+d.weight||0); }
+/* ——— A visit is scored on the sheet it was actually marked against ——————
+   The questionnaire is edited between quarters: a question is retired, another is
+   added, a retired one is restored. Until now the index of every visit was computed
+   against whichever questions happened to be live at the moment the page was drawn,
+   so adding one question to the form blanked the score of every supervision ever
+   recorded — six complete visits read as “marks pending” for questions nobody had
+   ever marked them on, and the centres looked unassessed. A visit now carries the
+   list of questions it was marked on (`qids`) with the marks each was worth, and its
+   index is earned over available on that list. Nothing is estimated: a question that
+   was not on the sheet is not counted for or against the centre, and the page says
+   how many questions have been added since. */
+function bankById(id){ return (S.db().pbfQuestions||[]).find(q=>q.id===id)||null; }
+function liveQuestionIds(){ return questions().map(q=>q.id); }
+/* The sheet a visit was marked on. Older visits predate qids: their sheet is the
+   questions they hold marks for — the only statement the record makes about itself. */
+function sheetOf(visit){
+  if(visit&&Array.isArray(visit.qids)&&visit.qids.length) return visit.qids.slice();
+  const a=(visit&&visit.answers)||{};
+  return Object.keys(a).filter(k=>a[k]!=null&&a[k]!=='');
+}
+/* The marks a question was worth on that visit's sheet. A stored snapshot wins over
+   the edited maximum, so re-weighting a question later cannot rewrite an old score. */
+function maxOnSheet(visit,id){
+  const snapshot=visit&&visit.qmax?+visit.qmax[id]:NaN;
+  if(snapshot>0) return snapshot;
+  const q=bankById(id);
+  return q&&+q.max>0?+q.max:0;
+}
 function scorecardOf(visit){
-  const qs=questions();
-  const answered=qs.filter(q=>visit&&visit.answers&&visit.answers[q.id]!=null&&visit.answers[q.id]!=='').length;
-  return {answered, total:qs.length, complete:qs.length>0&&answered===qs.length, missing:qs.filter(q=>!(visit&&visit.answers&&visit.answers[q.id]!=null&&visit.answers[q.id]!==''))};
+  const sheet=sheetOf(visit);
+  const a=(visit&&visit.answers)||{};
+  const marked=id=>a[id]!=null&&a[id]!=='';
+  const answered=sheet.filter(marked).length;
+  return {answered, total:sheet.length, complete:sheet.length>0&&answered===sheet.length,
+    missing:sheet.filter(id=>!marked(id)).map(id=>bankById(id)||{id,text:'(question since removed)'})};
 }
 /* ——— Marks, domain percentages and the index ————————————————
    Every question is marked out of its own maximum (they add up to 25), so 25/25 is
@@ -283,15 +314,17 @@ function scorecardOf(visit){
    earned over the marks available, converted to 100. The domain weights are the
    wording of the report; they never move the index. */
 function domainMarksFor(visit,k){
-  const qs=domainQuestions(k);
-  let got=0,max=0,answered=0;
-  qs.forEach(q=>{
-    max+=+q.max||0;
-    const v=visit&&visit.answers?visit.answers[q.id]:null;
+  const sheet=sheetOf(visit), a=(visit&&visit.answers)||{};
+  let got=0,max=0,answered=0,count=0;
+  sheet.forEach(id=>{
+    const q=bankById(id); if(!q||q.domain!==k) return;
+    const m=maxOnSheet(visit,id); if(!(m>0)) return;
+    count++; max+=m;
+    const v=a[id];
     if(v==null||v==='') return;
-    answered++; got+=U.clamp(+v,0,+q.max||0);
+    answered++; got+=U.clamp(+v,0,m);
   });
-  return {got,max,answered,count:qs.length,complete:qs.length>0&&answered===qs.length,
+  return {got,max,answered,count,complete:count>0&&answered===count,
     pct:max?Math.round(got/max*100):null};
 }
 function visitScore(visit){
@@ -302,16 +335,21 @@ function visitScore(visit){
 /* The index: marks earned across every question in use, out of the marks those
    questions are worth, ×100. No weights, no renormalising. */
 function visitMarks(visit){
-  const qs=questions();
-  let got=0,max=0,answered=0;
-  qs.forEach(q=>{
-    max+=+q.max||0;
-    const v=visit&&visit.answers?visit.answers[q.id]:null;
+  const sheet=sheetOf(visit), a=(visit&&visit.answers)||{};
+  let got=0,max=0,answered=0,count=0;
+  sheet.forEach(id=>{
+    const m=maxOnSheet(visit,id); if(!(m>0)) return;
+    count++; max+=m;
+    const v=a[id];
     if(v==null||v==='') return;
-    answered++; got+=U.clamp(+v,0,+q.max||0);
+    answered++; got+=U.clamp(+v,0,m);
   });
-  return {got,max,answered,total:qs.length,complete:qs.length>0&&answered===qs.length,
-    pct:max?Math.round(got/max*100):null};
+  const onForm=liveQuestionIds();
+  const addedSince=onForm.filter(id=>sheet.indexOf(id)<0);
+  const droppedSince=sheet.filter(id=>{ const q=bankById(id); return !q||q.deleted; });
+  return {got,max,answered,total:count,complete:count>0&&answered===count,
+    pct:max?Math.round(got/max*100):null,
+    sheet,addedSince,droppedSince,onCurrentForm:addedSince.length===0};
 }
 function visitTotal(v){ const m=visitMarks(v); return m.complete?m.pct:null; }
 function visitsFor(name){
@@ -351,7 +389,13 @@ function centreState(name){
 }
 function statusLine(r){
   const st=r.state||{key:'due',label:'Not yet visited',detail:''};
-  if(st.key==='visited') return (r.assessor||'District PBF team')+' · '+U.fmtDate(r.submitted);
+  if(st.key==='visited'){
+    const m=r.visit?visitMarks(r.visit):null;
+    /* A form that has grown since the visit does not rewrite the visit: the line says
+       how many questions the score was marked on, and how many have been added since. */
+    const since=m&&m.addedSince.length?(' · '+m.addedSince.length+' question'+(m.addedSince.length===1?'':'s')+' added since'):'';
+    return (r.assessor||'District PBF team')+' · '+U.fmtDate(r.submitted)+(m&&m.total?(' · scored on '+m.total+' questions'):'')+since;
+  }
   return st.label+' · '+st.detail;
 }
 
@@ -523,7 +567,7 @@ function table(){
    +'<div class="seg">'+[['total','Score'],['delta','Momentum'],['name','Name']].map(([k,l])=>'<button class="'+(sort===k?'on':'')+'" data-sort="'+k+'">'+l+'</button>').join('')+'</div></div>'
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+liveDomains().map(d=>'<th class="num" title="'+U.esc(d.label)+'">'+U.esc(d.label.split(' ')[0])+'<span class="xs faint" style="display:block;font-weight:400">'+w[d.key]+'% weight</span></th>').join('')+'<th>Index</th><th>Prev</th><th>Δ</th><th></th></tr></thead>'
    +'<tbody id="pbfBody">'+rowsHTML()+'</tbody></table></div>'
-   +'<div class="card-foot"><span>A centre carries an index only when a recorded visit has every question marked. Nothing is estimated or carried over from an earlier sheet.</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
+   +'<div class="card-foot"><span>A centre carries an index only when a recorded visit has every question on its sheet marked. Each visit is scored on the questions it was marked on, so adding a question to the form never blanks an old score — the sheet it was assessed against is kept with the visit.</span><span class="mono" id="pbfCount">'+rowData().length+' of '+list().length+' centres</span></div></div>';
 }
 function matrix(){
   const rows=list().slice().sort((a,b)=>{ const ta=total(a), tb=total(b); if(ta==null&&tb==null) return a.name.localeCompare(b.name); if(ta==null) return 1; if(tb==null) return -1; return tb-ta; });
@@ -565,11 +609,16 @@ function drawer(id){
     +'<div><div class="row gap-sm">'+(t==null?'<span class="pill amber">Index not calculated</span>':'<span class="pill '+tone(t)+'">Index '+t+'%</span>')
     +(r.prior!=null?'<span class="pill slate">Previous '+r.prior+'%</span>':'')
     +(d!=null?'<span class="delta '+(d<0?'down':'')+'">'+UI.ic(d>=0?'arrow-up':'arrow-down',10)+(d>0?'+':'')+d+' pts</span>':'')+'</div>'
-    +'<div class="xs faint" style="margin-top:8px;max-width:380px">'+questions().length+' questions across '+liveDomains().length+' domains, '(r.marks?fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks':'marks pending')+'. The index is marks earned ÷ marks available ×100 — the only place the weights appear is the report wording. A partial scorecard is never ranked.</div></div></div>'
+    +'<div class="xs faint" style="margin-top:8px;max-width:380px">'+card.total+' questions on this visit’s sheet across '+liveDomains().length+' domains, '+(r.marks?fmtMarks(r.marks.got)+' of '+fmtMarks(r.marks.max)+' marks':'marks pending')+'. The index is marks earned ÷ marks available ×100 — the only place the weights appear is the report wording. A partial scorecard is never ranked.</div></div></div>'
     +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="row between"><span class="small">Scorecard completeness</span>'
     +'<span class="pill '+(card.complete?'teal':'amber')+'">'+card.answered+' / '+card.total+' marked</span></div>'
     +UI.meter(card.total?card.answered/card.total*100:0,card.complete?'teal':'amber')
-    +(card.complete?'':'<div class="xs faint" style="margin-top:6px">'+card.missing.length+' question'+(card.missing.length===1?'':'s')+' still blank — open the visit and mark them all to calculate the index.</div>')+'</div>'
+    +(card.complete?'':'<div class="xs faint" style="margin-top:6px">'+card.missing.length+' question'+(card.missing.length===1?'':'s')+' still blank — open the visit and mark them all to calculate the index.</div>')
+    +(function(){ if(!r.visit) return ''; const m=visitMarks(r.visit);
+      let out='';
+      if(m.addedSince.length) out+='<div class="xs faint" style="margin-top:6px">'+m.addedSince.length+' question'+(m.addedSince.length===1?' has':'s have')+' been added to the form since this visit and '+(m.addedSince.length===1?'is':'are')+' not scored against it. '+visitMarks(r.visit).total+' questions were on the sheet that was marked.</div>';
+      if(m.droppedSince.length) out+='<div class="xs faint" style="margin-top:6px">'+m.droppedSince.length+' question'+(m.droppedSince.length===1?'':'s')+' from this visit '+(m.droppedSince.length===1?'is':'are')+' no longer on the form; '+(m.droppedSince.length===1?'its mark still counts':'their marks still count')+' in this score.</div>';
+      return out; })()+'</div>'
     +liveDomains().map(d=>{ const v=r.scores?r.scores[d.key]:null; const m=r.dm?r.dm[d.key]:null;
       return '<div style="margin-bottom:14px"><div class="row between" style="margin-bottom:5px"><span class="small">'+U.esc(d.label)+' <span class="xs faint">· '+w[d.key]+'% of index weight · '+(m?fmtMarks(m.got)+'/'+fmtMarks(m.max)+' marks':'no marks')+'</span></span>'
       +'<span class="mono small idx-text '+bandOf(v)+'">'+(v==null?'—':v+'%')+'</span></div>'
@@ -704,12 +753,19 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
       const syncOther=()=>{ aOther.style.display=aSel.value==='__other'?'':'none'; if(aSel.value==='__other') aOther.focus(); };
       aSel.addEventListener('change',syncOther); syncOther();
       const inputs=()=>Array.from(el.querySelectorAll('[data-q]'));
+      const snapshotMaxes=()=>{ const m={}; qs.forEach(q=>{ m[q.id]=+q.max||0; }); return m; };
       /* Half marks are real: a 3.5-mark question can be scored 2.5. Anything typed is
          rounded to the nearest half mark and held inside the question's maximum. */
+      /* Marks already on the visit for questions that are no longer on the form stay
+         with the visit: the assessor cannot re-mark a question that is not printed any
+         more, and dropping the answer silently would change an old score. */
+      const carried=v&&v.answers?Object.keys(v.answers).filter(id=>v.answers[id]!=null&&v.answers[id]!==''):[];
       const currentAnswers=()=>{ const a={}; inputs().forEach(i=>{
         if(i.value==='') return;
         const m=+(i.max||Q_MARK_DEFAULT);
-        a[i.dataset.q]=U.clamp(Math.round(+i.value*2)/2,0,m); }); return a; };
+        a[i.dataset.q]=U.clamp(Math.round(+i.value*2)/2,0,m); });
+        carried.forEach(id=>{ if(!(id in a)) a[id]=v.answers[id]; });
+        return a; };
       const pct=i=>{ const cell=el.querySelector('[data-qpct="'+i.dataset.q+'"]'); if(!cell) return;
         const q=qById(i.dataset.q); const m=q?+q.max:Q_MARK_DEFAULT;
         /* the mark is held to the nearest half and inside the question's maximum, so
@@ -717,11 +773,17 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
         const v=i.value===''?null:U.clamp(Math.round(+i.value*2)/2,0,m);
         cell.textContent = v==null?'—':Math.round(v/m*100)+'%';
         cell.className='pill '+(v==null?'slate':'mono')+(v==null?'':' '+(v>=m?'teal':v>=m*0.5?'amber':'rose')); };
-      const preview=()=>{ const a=currentAnswers(); const n=Object.keys(a).length;
-        const card=scorecardOf({answers:a});
+      /* The form on screen IS the sheet this visit is being marked on, so it is handed
+         over explicitly: the preview and the completeness check must never fall back to
+         “what has an answer” while someone is still typing. */
+      const sheet=qs.map(q=>q.id).concat(carried.filter(id=>qs.every(q=>q.id!==id)));
+      const maxes=()=>Object.assign({},v&&v.qmax?v.qmax:{},snapshotMaxes());
+      const draft=()=>{ const a=currentAnswers(); return {answers:a,qids:sheet,qmax:maxes()}; };
+      const preview=()=>{ const a=currentAnswers(); const n=inputs().filter(i=>i.value!=='').length;
+        const card=scorecardOf(draft());
         el.querySelector('#pvPreview').textContent=n+' / '+qs.length+' marked';
         el.querySelector('#pvPreview').className='pill '+(card.complete?'teal':'amber');
-        const idx=visitMarks({answers:a});
+        const idx=visitMarks(draft());
         el.querySelector('#pvIndex').textContent='Index '+(card.complete&&idx.complete?idx.pct+'% — '+idx.got+' of '+idx.max+' marks':'—'); };
       inputs().forEach(i=>{ i.addEventListener('input',()=>{ pct(i); preview(); }); pct(i); });
       preview();
@@ -749,7 +811,11 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
       el.querySelector('[data-save]').onclick=()=>{
         const hcName=el.querySelector('#pvCentre').value;
         const answers=currentAnswers();
-        const card=scorecardOf({answers});
+        const qids=sheet.slice();
+        const qmax=maxes();
+        /* A visit edited today may still be scored on questions that have since been
+           retired: their marks stay on the sheet so the score does not move. */
+        const card=scorecardOf({answers,qids,qmax});
         if(!card.complete){
           const first=card.missing[0];
           const input=first?el.querySelector('[data-q="'+first.id+'"]'):null; if(input) input.focus();
@@ -768,7 +834,7 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
         if(assessor!=='__other') addAssessor(assessor);
         const rec2={hcName,quarter:el.querySelector('#pvQuarter').value.trim()||'Q1',fy:U.fyLabel(),
           date:el.querySelector('#pvDate').value,assessor,
-          answers,note:el.querySelector('#pvNote').value.trim(),recommendations:rec,previous:rec_previous,pending:false};
+          answers,qids,qmax,note:el.querySelector('#pvNote').value.trim(),recommendations:rec,previous:rec_previous,pending:false};
         const vid=v?v.id:U.uid('pbfv');
         S.commit(d=>{
           d.pbfVisits=d.pbfVisits||[];
@@ -794,10 +860,10 @@ function visitModal(id,presetCentre,presetQuarter,presetDate){
           if(slot){ slot.status='visited'; slot.visitId=vid; slot.visitedAt=rec2.date; stampCompliance(slot); }
           else d.pbfSchedule.push({id:U.uid('pbfs'),hcName,quarter:rec2.quarter,fy:rec2.fy,plannedDate:rec2.date,
             status:'visited',visitId:vid,visitedAt:rec2.date,compliance:'onTime',lateDays:0,assessor:rec2.assessor});
-        },{action:'pbf.visit.'+(v?'edit':'add'),entity:'pbf',entityId:v?v.id:hcName,detail:hcName+' · '+rec2.quarter+' · index '+visitMarks({answers}).pct+'%'});
+        },{action:'pbf.visit.'+(v?'edit':'add'),entity:'pbf',entityId:v?v.id:hcName,detail:hcName+' · '+rec2.quarter+' · index '+visitMarks(rec2).pct+'% · '+qids.length+' questions on the sheet'});
         const cslot=schedule().find(x=>x.hcName===hcName && x.quarter===rec2.quarter);
         const cl=cslot&&cslot.compliance==='late'?' · recorded '+cslot.lateDays+' day'+(cslot.lateDays===1?'':'s')+' late against the plan':cslot&&cslot.compliance==='onTime'?' · on schedule':'';
-        close(); LS.shell.refresh(); UI.toast('Visit saved · index '+visitMarks({answers}).pct+'%'+cl,{type:'ok'});
+        close(); LS.shell.refresh(); UI.toast('Visit saved · index '+visitMarks(rec2).pct+'%'+cl,{type:'ok'});
       };
     }});
 }
@@ -1415,6 +1481,17 @@ function printDistrict(){
     +'<tr><td colspan="2"><b>District average</b></td>'+liveDomains().map(d=>{ const vals=rows.map(r=>r.scores[d.key]).filter(v=>v!=null); return '<td>'+(vals.length?Math.round(U.avg(vals)):'—')+'</td>'; }).join('')+'<td><b>'+(rows.length?Math.round(U.avg(rows.map(total))):'—')+'</b></td><td></td><td></td></tr></tbody></table>',
     {landscape:true,meta:'<span>Gakenke District · PBF laboratory indicators</span><span>'+(list().length-rows.length)+' centres without a complete scorecard</span>'});
 }
+/* ——— The scorecard arithmetic, readable from outside ————————
+   The dashboard, the district report and the test harness all ask the same question
+   of a visit: what sheet was it marked on, and what does that sheet say? They ask it
+   here rather than re-deriving it, so an index cannot mean two things at once. */
+M.marks=visitMarks;          /* earned / available on the visit's own sheet      */
+M.sheetOf=sheetOf;           /* the questions that visit was marked on           */
+M.scorecardOf=scorecardOf;   /* how many of them carry a mark                    */
+M.questions=questions;       /* the questionnaire as it stands today             */
+M.list=list;                 /* one row per health centre                        */
+M.visitModal=visitModal;     /* the form, so a harness can open it directly      */
+
 M.render=function(root,params){
   rootEl=root; sort=params.sort||'total'; q=params.q||'';
   ensureSeeded();

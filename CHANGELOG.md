@@ -4,6 +4,52 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.104 — the PBF index that vanished when the questionnaire changed
+
+Reported: *"in previous versions, there were records of how health centres performed in PBF
+Evaluation, just those visited, and now no scores I can see."*
+
+**What happened.** Six supervision visits were recorded in October — Rwankuba, Muhondo, Coko,
+Nyange, Minazi and Ruli HC — every one with nine marks. The questionnaire was edited the same
+week: questions were retired, questions were added, and a retired question was restored. The
+index, though, was computed against *whatever questions were live when the page was drawn*, and
+a visit only counted once every one of those was marked. So the moment a question joined the
+form, all six complete visits became "marks pending" against a question nobody had ever marked
+them on, and every centre read `—`. One edit to the form erased the whole quarter's evidence
+without touching a single mark.
+
+**The fix: a visit is scored on the sheet it was marked on.** Each visit now stores the list of
+questions it was assessed against (`qids`) and what each was worth (`qmax`), so its index is
+marks earned over marks available *on that sheet*. Nothing is estimated — a question added after
+the visit is not counted for or against the centre; a question deleted after the visit keeps the
+mark that was given against it, because it was on the paper that day. Visits recorded before
+this build carry no `qids`; for them the sheet is the questions they hold marks for, which is the
+only statement such a record makes about itself.
+
+On screen:
+
+- The register prints "scored on 9 questions" beside the assessor, and "· 1 question added
+  since" when the form has moved on.
+- The drawer lists the questions that were marked, and says plainly how many have been added or
+  dropped since the visit.
+- The visit form keeps a visit's older marks when it is reopened, so re-saving cannot quietly
+  drop a question that is no longer printed.
+- **A crash in the health-centre drawer is fixed**: a lost `+` turned part of the scorecard text
+  into an attempt to call a string, so opening a centre threw before the questions and the visit
+  history could be drawn.
+
+Also in this release: the module now exposes the scorecard arithmetic (`marks`, `sheetOf`,
+`scorecardOf`, `list`, `visitModal`) so the dashboard, the district report and the test harness
+ask the same question instead of each re-deriving an index. The eight invented scorecards from
+the old builder (`pbf0 … pbf7`, assessor "District PBF team") stay deleted — they were never
+evidence, and they are not coming back.
+
+37 suites, 1,882 checks, all green — including `pbf103`, which reproduces the reported bug:
+a complete visit, then a question added, then a question retired, then a question restored,
+with the index unchanged through all three.
+
+---
+
 ## v6.9.103 — the patient names an Administrator could not see, or write
 
 Three separate faults were hiding behind one complaint. None of them was the cloud copy.
