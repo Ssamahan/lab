@@ -4,6 +4,22 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.107 — the publish button that refused the one device that needed it
+
+One correction to 6.9.106, found while walking the repair path end to end. A device that
+has never read the shared copy is deliberately not allowed to write over it — a fresh
+browser must never land the sample register on the laboratory's real one. But that same
+device is exactly the one holding a training recorded while the network was down, and
+**Push everything now** is the button a person presses then; it answered *"This device is
+still showing the sample register"*, which was both unhelpful and untrue.
+
+`SY.publishAll` now combines first and publishes the combined register when the device holds
+work of its own, so the button does what it says without overwriting anything. A device with
+nothing of its own still refuses, exactly as before. Six checks added to `harness/keys106.js`
+(73 in all); full sweep 39 suites, 1,995 checks green.
+
+---
+
 ## v6.9.106 — the key that was wrong, the name that could not be corrected, the training that never left
 
 Reported after 6.9.105, in three parts: *"Pull failed (401) {"message":"Invalid API key"}"* on

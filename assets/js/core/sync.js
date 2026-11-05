@@ -638,7 +638,25 @@ SY.remoteTally=async function(){
    The automatic loop already pushes the whole document; this exists because "is it
    really all up there?" deserves a button that answers with the revision it wrote. */
 SY.publishAll=async function(){
-  return SY.push();
+  try{
+    return await SY.push();
+  }catch(e){
+    /* A device that has never read the shared copy is, by design, not allowed to write
+       over it — the sample register must never land on the laboratory's real one. But
+       that same device may be the one holding a training recorded while the network was
+       down, and "Push everything now" is exactly what a person presses then. In that
+       case the two copies are combined first and the combined register is published, so
+       the button does what it says without overwriting anything. */
+    const blocked=/showing the sample register/i.test((e&&e.message)||'');
+    if(blocked && hasOwnWork()){
+      const remote=await SY.pull();
+      if(remote&&remote.data){
+        const res=await SY.combine(remote);
+        if(res&&res.ok) return {revision:res.revision!=null?res.revision:null, combined:true};
+      }
+    }
+    throw e;
+  }
 };
 
 /* The other direction, named for what it does: replace this browser with the cloud. */
