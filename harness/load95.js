@@ -16,7 +16,7 @@ const V=pkg.version;
   /* ── 1 · every asset is asked for at the build's own version ────────── */
   const core=indexHtml.slice(indexHtml.indexOf('<link rel="stylesheet"'),indexHtml.lastIndexOf('</body>'));
   const scripts=[...indexHtml.matchAll(/<script src="(assets\/[^"]+)"/g)].map(m=>m[1]);
-  ok(scripts.length>=12,'the page loads its own code ('+scripts.length+' files)');
+  ok(scripts.length>=15,'the page loads its own code ('+scripts.length+' files)');
   ok(scripts.every(u=>u.indexOf('?v='+V)>=0),'and every one of them carries the build version',
      scripts.filter(u=>u.indexOf('?v='+V)<0).join(' '));
   const css=[...indexHtml.matchAll(/<link rel="stylesheet" href="(assets\/[^"]+)"/g)].map(m=>m[1]);
@@ -30,7 +30,7 @@ const V=pkg.version;
   ok(/function isCurrentVersion/.test(sw),'it can tell a URL asked for at this build');
   ok(/searchParams\.get\('v'\)/.test(sw),'by reading the version out of the address');
   ok(/async function cacheFirst/.test(sw),'and it serves those from the cache first');
-  ok(/if \(hit\) return hit;/.test(sw),'handing the copy back at once, with nothing fetched behind it');
+  ok(/if \(hit\) \{ refresh; return hit; \}/.test(sw),'handing the copy back at once while the network refreshes it');
   const fetchBlock=sw.slice(sw.indexOf("self.addEventListener('fetch'"));
   const versionedAt=fetchBlock.indexOf('isCurrentVersion(url)');
   const networkAt=fetchBlock.indexOf('networkFirst(req, RUNTIME)');

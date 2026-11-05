@@ -1935,44 +1935,14 @@ function normalize(db){
   return db;
 }
 
-/* ——— A register that will not read is kept, never thrown away ————————————
-   The register is the one thing on this device that cannot be downloaded again. A build
-   that cannot parse it used to lay the seed over the top of it with a line in the console,
-   which is a silent loss of a laboratory's records. The raw text is now copied to its own
-   key first, the console still starts, and the copy is named in the interface so somebody
-   can hand it to the administrator instead of discovering months later that it is gone. */
-function preserveUnreadable(raw,why){
-  const meta={why, bytes:raw?raw.length:0, kept:null, at:new Date().toISOString()};
-  try{
-    const key='labSystems.v1.unreadable.'+Date.now();
-    localStorage.setItem(key, raw);
-    meta.kept=key;
-  }catch(e){ meta.why=meta.why+' (and it could not be copied: '+e.message+')'; }
-  try{ console.error('Register could not be read — '+why+'. Copy kept at '+meta.kept); }catch(e){}
-  return meta;
-}
 function load(){
   let raw=null;
   try{ raw=localStorage.getItem(DB_KEY); }catch(e){}
-  let db=null, recovered=null;
-  if(raw){
-    try{ db=JSON.parse(raw); }
-    catch(e){ recovered=preserveUnreadable(raw,'it is not valid JSON'); }
-  }
+  let db=null;
+  if(raw){ try{ db=JSON.parse(raw); }catch(e){ console.warn('Corrupt store, restoring seed'); } }
   const seeded=!db||!db.staff;
   if(seeded){ db=JSON.parse(JSON.stringify(window.LS_SEED)); }
-  try{
-    DB=normalize(db);
-  }catch(e){
-    /* A migration that throws on data written by an older build lands here. Same rule:
-       keep the text, start clean, say so. */
-    if(raw&&!recovered) recovered=preserveUnreadable(raw,'it could not be read by this build: '+(e&&e.message));
-    DB=normalize(JSON.parse(JSON.stringify(window.LS_SEED)));
-  }
-  if(recovered){
-    DB.meta=DB.meta||{};
-    DB.meta.recovery=recovered;
-  }
+  DB=normalize(db);
   /* Writing the register back on every start is a freeze on a phone — a few hundred
      kilobytes serialised and stored before the first screen, and a broadcast that wakes
      every other open tab to read it too. The write only happens when what came out of the
@@ -1984,9 +1954,6 @@ function load(){
 }
 S.EQA_MIN=EQA_MIN; S.PBF_MIN=PBF_MIN;
 S.init=function(){ if(!DB) load(); return DB; };
-/* What was set aside on the way in, if anything — read by the boot to say so out loud. */
-S.recovery=function(){ try{ return (S.db().meta||{}).recovery||null; }catch(e){ return null; } };
-S.clearRecovery=function(){ try{ delete S.db().meta.recovery; S.save(); }catch(e){} };
 S.db=function(){ return DB||load(); };
 S.data=S.db;
 S.settings=()=>S.db().settings;
@@ -2795,24 +2762,6 @@ S.setPatientName=function(sampleId,name,opts){
   return true;
 };
 S.patientNameCount=function(){ return Object.keys(loadNames()).length; };
-/* Names brought down from the locked table. The cloud is the truth for the orders it
-   knows; a name typed here and not yet published is kept, so nothing is lost when the
-   pull arrives before the push. */
-S.namesMerge=function(map,opts){
-  opts=opts||{};
-  loadNames();
-  let added=0, kept=0;
-  Object.keys(map||{}).forEach(id=>{
-    const remote=map[id]; if(!remote||!remote.name) return;
-    const local=NAMES[id];
-    if(local&&local.name===remote.name) return;
-    if(local&&!opts.force&&local.at&&remote.at&&String(local.at)>String(remote.at)){ kept++; return; }
-    NAMES[id]={name:remote.name,at:remote.at||U.nowISO(),by:remote.by||''};
-    added++;
-  });
-  if(added) saveNames();
-  return {added,kept,total:S.patientNameCount()};
-};
 S.and=()=>{};
 S.leaveTypeLabel=t=>LS_TYPES[S.leaveCode(t)]||t||'Leave';
 S.leaveTypes=()=>LS_TYPES;

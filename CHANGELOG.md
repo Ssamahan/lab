@@ -4,277 +4,34 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
-## What changed in 6.9.102
+## Withdrawn — 6.9.97 to 6.9.102
 
-**The single-file build: one page, nothing left to fetch.**
+**This build is v6.9.96, restored byte for byte.**
 
-Six releases went into the cache, the service worker, the deadlines and the chart engine, and
-the report came back the same: *landing opens, sign-in works, no screen loads.* Every layer I
-had been fixing was a layer that could fail. So this build removes the fetching itself.
+On a laboratory device the landing page stopped opening and no screen would load. Six releases
+between 6.9.97 and 6.9.102 tried to fix it — a locked cloud table for patient names, deferred
+loading of the chart and sheet engines, better failure panels, a repair page, stand-ins for the
+missing engines, and finally a single-file bundle — and none of them helped. A build that does
+not open is worth less than a build that does, so **the tree is rolled back to the last version
+that worked**, and the work is withdrawn rather than patched further.
 
-### `bundle.html`
-`https://ssamahan.github.io/lab/bundle.html` is **one page of 1.7 MB** with:
+What that means in practice:
 
-- **all four stylesheets inline** (with every `url()` rewritten so the fonts still resolve);
-- **all sixteen screens inline**, registered before the console asks for anything;
-- the chart engine, the sheet engine and the workbook reader inline — no on-demand loading;
-- the plan archive, the seed and every core file inline, in the order they require;
-- **no service worker registered at all** — a stored copy of any earlier build cannot touch it;
-- **no request to make** except the fonts and the favicon. Nothing to 404, nothing to time out,
-  nothing for a cache to answer wrongly.
+- **The app is exactly v6.9.96** — every file identical to what shipped, all 36 suites green.
+- **Patient names are back on the device only**: the password-gated column, fifteen minutes,
+  audited, never in the register or in any export. The `lab_patient_names` and `lab_staff`
+  tables remain in the database, unused by this client, ready for the work to return.
+- **Speed and recovery work from 6.9.98–6.9.102 is withdrawn too**, including the `?safe=1`
+  mode and the single-file bundle.
+- **One file is kept**: `reset.html`, which depends on nothing at all and clears a browser that
+  is holding an unusable copy of the build. It is not linked from the console; it is opened by
+  address when it is needed.
 
-A screen already in memory is now also never fetched again — `loadModule` checks
-`LS.modules[id]` before reaching for the network, which is what makes an inline bundle work
-and, separately, stops a second visit to a screen from depending on the network.
-
-### It cannot go stale
-`tools/build-bundle.js` regenerates it (`npm run bundle`), and a test **rebuilds it during the
-suite and fails if one byte differs**. A stale bundle would be worse than none.
-
-### Everywhere it is offered
-The landing footer, the six-second "still loading" note, the failure panel and the repair page
-all now carry **Single-file build** beside **Open without charts** — three doors, in the order
-of how much they give up to get you in.
-
-`npm test` now covers **42 suites and 2,006 checks**, including 39 in `harness/bundle102.js`
-that boot the bundle, check all sixteen screens are registered before anything is requested,
-open fifteen of them in turn, and confirm nothing throws.
-
----
-
-## What changed in 6.9.101
-
-**A missing chart can no longer cost you the screen.**
-
-The report: *"The landing page is functioning but once I try signing in, I get in but it fails
-to load any module fully."* That is a design fault of mine, not a network problem.
-
-### What was actually wrong
-In 6.9.98 I took three large helpers out of `index.html` — the chart engine, the sheet engine
-and the workbook reader — so the public page would open before they arrived. They are now
-fetched the first time a screen needs them, **before that screen's own file is loaded**.
-
-Every module in this console begins by capturing them:
-
-```js
-const C=LS.charts, SH=LS.sheets, S=LS.store;   // line 6 of almost every screen
-```
-
-So if either helper does not arrive — a slow connection hitting the deadline, a service worker
-answering from a half-written cache — `C` is `undefined`, and the first `C.spark(...)` throws.
-The screen dies on a drawing it never reached. And because every module does the same thing,
-**every screen failed the same way**, while the landing page (which needs none of it) worked
-perfectly. That is exactly the report.
-
-### Three ways out, in the order they happen
-1. **Stand-ins.** If the helpers cannot be had, `stubEngines()` installs a working chart API
-   (empty drawings), a sheet API that answers the shape its callers read, and a workbook reader
-   that explains itself — **before** the screen is evaluated. The screen opens with its
-   numbers, its tables and its worklist; only the drawings and exports are missing. A
-   laboratory can work without a graph; it cannot work without the register.
-2. **`?safe=1`** — an address that opens every screen with the stand-ins from the start, no
-   helpers requested at all. The quickest way in on a connection where 116 KB will not come.
-   Offered on the six-second note, on the failure panel, on the repair page, and as a link on
-   the landing page.
-3. **Retry.** A screen that fails twice is retried a third time with the stand-ins in place,
-   without asking. Nobody should have to know that an engine exists.
-
-### The deadlines were too short to be honest
-Twenty-five seconds replaced the ten I set in 6.9.99, with **three tries**, and only the files
-that are actually missing are asked for again. A deadline exists to stop a permanent hang, not
-to give up on a slow rural connection — ten seconds was a promise to a fast network.
-
-The helper loader also **never rejects** any more: it reports what is missing and lets the
-screen decide, which is why a failed helper can no longer blank a page on its own.
-
-`npm test` now covers **41 suites and 1,997 checks**, including 32 in `harness/modes101.js`
-that open **all fifteen screens** with nothing but stand-ins, and then confirm a normal visit
-still gets the real engines.
-
----
-
-## What changed in 6.9.100
-
-**When it will not open at all, there is now a way in — and the register is never the price.**
-
-A report came back as a single line: *"Not even loading at all."* I checked the deployment
-first — the live site answered with the v6.9.99 build and its scripts — so the problem was on
-the device, and the device had no way out. Three of them are now built.
-
-### `reset.html` — a repair page that depends on nothing
-`https://ssamahan.github.io/lab/reset.html` is a single file with **no stylesheet, no script,
-no font, no service worker** in it. It cannot be broken by anything the console stores.
-
-- It **unregisters the service worker** and **empties every cache** on the origin.
-- It **asks the site for `index.html` and for the console's own script**, and reports the
-  status, the bytes, the build and how long it took.
-- It **reads the register from local storage** — parses it, counts the orders, the months, the
-  staff, the audit entries — and offers it **as a file**. If it will not parse, it says so and
-  still saves the bytes.
-- It never writes and never deletes the register. It says so on the page, in those words.
-- Every step is a tick or a cross, so a screenshot is enough to diagnose it from a distance.
-
-### A navigation can no longer end in a blank error page
-The service worker answered a failed navigation with `Response.error()`, which is the browser's
-own *"this site can't be reached"* — indistinguishable from the site having gone away. It now
-looks for the shell in **every** cache, and if there is none, writes out a small self-contained
-page with the repair link. `reset.html` is precached, so the repair page is available offline too.
-
-### A register that will not parse is kept, not overwritten
-The store used to lay the seed over an unreadable register with a line in the console — a silent
-loss of a laboratory's records. Now the raw text is copied to `labSystems.v1.unreadable.<time>`
-**before** anything else happens, whether it failed to parse or failed to migrate, the console
-starts on a fresh register, and a warning names the reason, the size and the key, with the copy
-kept until somebody acknowledges it.
-
-### Smaller doors, all open
-- The inline failsafe in `index.html` fires at **six seconds** instead of ten and offers both
-  **Repair this device** and **Clear cache & reload**.
-- `?fresh=1` **always reloads**, even if a cache delete hangs (1.6 s at the most).
-- The boot-failure card offers **Save the register as a file**, then **Repair this device**, and
-  only then — behind a confirmation — a fresh register.
-- The seven-second watchdog card carries the repair link as well.
-
-`npm test` now covers **40 suites and 1,964 checks**, including 37 in `harness/recover100.js`
-that drive a corrupt register through a real boot and check the text survives byte for byte.
-
----
-
-## What changed in 6.9.99
-
-**A screen that does not arrive now says why — and offers the one action that fixes it.**
-
-A report came back from a real device:
-
-> Lab Systems **v6.9.88** · route: dash · *Module took longer than 25 seconds to render.*
-
-Two separate things were wrong in that line.
-
-### The tab was ten builds behind the site, and nothing said so
-v6.9.88 was live in September. A tab left open since then keeps running the JavaScript it
-loaded; the browser was holding an old copy of the console while the site had moved on. The
-failure panel never mentioned it, so the message read like a bug in the dashboard.
-
-- The panel now **asks the deployed page for its build** and, when the two disagree, says it in
-  numbers: *"This tab is running v6.9.88; the site is now v6.9.99."* It names that as the
-  usual cause of a screen not arriving.
-- It carries a **Clear cache & reload** button, written as a plain address (`?fresh=1`) so it
-  still works when the thing that failed to load is the script that would have drawn it.
-- It says what clearing does **not** touch: nothing stored on the device is deleted.
-
-### A script that never answers used to hang the screen
-A `<script>` can fail by firing `error` — or by firing nothing at all: a service worker
-holding a request, a connection that dies mid-download, a file that is no longer where the
-address says. Only the first was handled, so the second sat on a skeleton until the 25-second
-watchdog gave up.
-
-- The three deferred helpers have a **ten-second deadline**; a module has **fifteen**.
-- A module that does not arrive is asked for **once more, past the cache** (a different search
-  string is a different URL to the worker), which fixes most stale copies without anyone
-  needing to know that a service worker exists.
-- The failure is named by kind: *"This screen did not arrive"* rather than *"could not
-  render"*, because they are different problems with different cures.
-
-### A skeleton with nothing under it says what it is waiting for
-After **six seconds** a note appears above the skeleton — *still loading this screen* — with the
-same clear-and-reload action, and it disappears the moment the screen renders. A panel that
-looks like it is working while nothing is happening is the worst of both.
-
-`npm test` now covers **39 suites and 1,927 checks**, including 29 in `harness/load99.js`.
-
----
-
-## What changed in 6.9.98
-
-**The page opens first; the printer, the spreadsheet and the second download come after.**
-
-"It takes longer to load, and I am not sure the landing page will open at all" is not an
-impression to be argued with — it was three separate costs, and all three were real.
-
-### The overview no longer waits for what it does not use
-The public page is words, counts and two fonts. It was being made to download and parse
-**116 KB of JavaScript** first: the chart helper (23 KB), the sheet engine (93 KB, the second
-largest file in the build) and the workbook reader. All three are for printing a roster or
-importing a district return — neither of which exists on the overview.
-
-- They are **no longer in `index.html`**. The shell fetches them, at the same version, in
-  order, the first time a screen asks for them, and never again after that.
-- Every one of the sixteen screens still works: the smoke run opens all of them, and the
-  monthly sheet still draws.
-
-### The service worker stopped downloading everything twice
-- The install step cached all **fifty-six** files with `cache: 'reload'`, which ignores the
-  copy the page had downloaded moments earlier — on a phone, **the whole bundle came down
-  twice, on every release**. It now caches the shell only, from the browser's own copy.
-- The sixteen screens are warmed **twelve seconds after activation**, four at a time, when
-  nobody is waiting for them.
-- Every versioned asset was also **re-requested in the background on every visit** — forty
-  requests for files that carry the build version in their address and therefore cannot
-  change. A cache hit is now final. That alone stops a phone from spending its connection
-  on redundant traffic while a page is being drawn.
-
-### A slow start now says so, with numbers
-When the start passes **2.6 seconds**, a small line appears in the corner — *started in
-3.4 s · 612 KB · 41 files* — with **details** listing each part of the start. It blocks
-nothing, it is dismissible, and `?diag=1` shows it always. A measured claim is fixable; a
-report of "slow" is not.
-
-### Fixed while explaining it: an anonymous account was on the allowlist
-The allowlist was first filled from every row of `auth.users`, which included the two
-**anonymous accounts** the visitor view signs in with. An account with no email has no person
-behind it and no password to prove one with, so neither belonged on a list that opens patient
-names. Both rows are gone, and a trigger (`lab_staff_guard`) now **refuses an account with no
-email or an anonymous one**, and fills in the email so nobody has to paste a UUID.
-
-### If the page still does not open
-That is a browser holding a half-written build, and it has its own answer: **add `?fresh=1`**
-to the address — `https://ssamahan.github.io/lab/?fresh=1`. It removes the service worker and
-every cache on that origin once, then reloads clean. The register stored on the device is
-untouched. The same button appears by itself if the console has not started after seven
-seconds.
-
-`npm test` now covers **38 suites and 1,898 checks**, including 32 new ones in
-`harness/load98.js` that pin the deferral, the single download and the timing readout.
-
----
-
-## What changed in 6.9.97
-
-**Patient names reach the cloud — but only through a door staff open themselves.**
-
-6.9.96 kept names in a vault on each device, which meant a name typed at the bench did not follow you to the phone,
-and a second device started empty. That was the right trade at the time — the register syncs as one document that
-anyone holding the publishable key can read, so a name inside it would have been public. The answer is not to hide
-names forever; it is to keep them in a table that has no public door at all.
-
-### A locked table, not a shared blob
-- **`lab_patient_names`** holds *one row per order*: `sample_id`, `name`, `updated_at`, `updated_by`. Row-level
-  security is on, every policy requires `lab_is_staff()`, and the `anon` role has **no grant and no policy** — a
-  fetch with the publishable key alone returns nothing, not even an empty list with a hint.
-- **`lab_staff`** is the allowlist: one row per person, keyed by their Supabase `auth.users.id`, with a `role`.
-  Being able to sign in is *not* enough. If your account is not on the list, the table stays shut.
-- **`lab_is_staff()`** is a `SECURITY DEFINER` helper the policies call, so the check cannot be spoofed by a client.
-- The migration and the admin steps are in `supabase/schema.sql`.
-
-### Behind the same password the names already asked for
-- The **Show patient names** dialog is unchanged in spirit: your own username, your own password, fifteen minutes,
-  every opening audited. It has one extra field — **cloud account email** — shown only when a backend is
-  configured, prefilled from the signed-in user.
-- The same password is tried against **Supabase Auth** (`grant_type=password`). Success stores a session
-  (`labSystems.authsession.v1`, access + refresh token) and the names kept online come down.
-- **Newer name wins.** A local name recorded at 09:12 beats a cloud copy from yesterday; a name edited on the phone
-  wins when it is pulled. Nothing is silently overwritten or deleted.
-- **Recording a name pushes it immediately** (upsert on `sample_id`), so the next device that unlocks sees it.
-- **The cloud failing never blocks the device.** If the network is down, the password is only local, or the
-  account is not on the allowlist, names still open locally and the toast says exactly what went wrong:
-  *"Names shown on this device — the cloud did not answer: this account is not on the staff allowlist."*
-
-### What did not change
-- The register still writes `Confidential`, and the `meta.patientNamesMasked` migration still wipes any name that
-  older builds left in the document. **No patient name is in the synced register or in any export.**
-- Only **Admin, Manager, Technologist** see the control; Reviewer, Viewer and visitors never do.
-- `npm test` now covers 37 suites and **1,866 checks**, including 48 new ones that mock a cloud which refuses reads
-  without a staff session.
+The lesson, recorded so it is not repeated: the console's screens had *always* been loaded as
+plain `<script>` tags in `index.html`. Moving them to on-demand loading was the single change
+that could make every screen fail at once while the landing page still worked, and I did not roll
+it back when the first report said exactly that. The next attempt at speed will be measured
+against the two-visit case on a phone before it is shipped.
 
 ---
 
