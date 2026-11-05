@@ -3,7 +3,7 @@
    ========================================================================== */
 (function(){
 'use strict';
-const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
+const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SY=LS.sync;
 const M={}; LS.modules.pbf=M;
 let rootEl=null, sort='total', q='';
 /* Domains are data, not constants: the district decides how many there are, what
@@ -498,6 +498,32 @@ function awaitingDrawer(){
       panel.querySelectorAll('[data-evaluate]').forEach(b=>b.onclick=()=>{ UI.closeAll(); visitModal(b.dataset.evaluate); });
       const nv=panel.querySelector('[data-new-visit]'); if(nv) nv.onclick=()=>{ UI.closeAll(); visitModal(null); };
     }});
+}
+/* ——— "There are no scores on this screen" ————————————————
+   A device that was reset, restored from an old snapshot or set up afresh carries the
+   supervision visits but not the marks in them, and the shared copy is where the marks
+   survive. Rather than leaving a screen full of dashes with no explanation, the page
+   says what it is missing and offers the one press that brings it back — without
+   replacing anything else on the device. */
+function noMarksCard(){
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return '';
+  if(SY.pbfMarks&&SY.pbfMarks()>0) return '';
+  const visits=(S.db().pbfVisits||[]).length;
+  const conf=!!(SY.configured&&SY.configured());
+  return '<div id="pbfRecover">'+UI.card({title:'No PBF marks on this device',
+    sub:visits?('the '+visits+' supervision visit'+(visits===1?'':'s')+' stored here carry no marks'):'no supervision has been marked here yet',
+    icon:'database',
+    body:'<div class="small muted" style="line-height:1.6">A score needs marks, and the marks recorded at a supervision live in the register this device holds. '
+      +'If the visits were marked on another device — or this one was reset, restored from an older backup or set up again — the shared copy still has them, and they can be brought back here on their own. Nothing else on this device is replaced.</div>'
+      +'<div class="row gap-sm wrap" style="margin-top:12px">'
+        +(conf?'<button class="btn primary sm" data-pbf-recover>'+UI.ic('download',13)+' Bring the marks back</button>'
+              +'<button class="btn sm" data-pbf-compare>'+UI.ic('refresh-cw',13)+' Check the shared copy</button>'
+             :'<button class="btn sm" data-pbf-sync>'+UI.ic('key-round',13)+' Open data &amp; sync</button>')
+        +'<button class="btn sm" data-new-visit>'+UI.ic('plus',13)+' Record a visit</button>'
+      +'</div>'
+      +'<div id="pbfRecoverMsg" class="hint" style="margin-top:10px">'
+        +(conf?'Nothing is changed until one of these is pressed.':'This device has no shared copy configured, so the marks can only be entered here.')+'</div>',
+    foot:'<span>Marks are never estimated — a centre is scored only from marks that were given</span><span class="mono">'+((S.db().pbfVisits||[]).filter(v=>scorecardOf(v).total>0).length)+' marked visits</span>'})+'</div>';
 }
 function hero(){
   const s=stats();
@@ -1497,6 +1523,7 @@ M.render=function(root,params){
   ensureSeeded();
   root.innerHTML='<div class="page-head"><div><h1>PBF evaluation</h1><div class="sub">Performance-based financing. Every centre is scored on the questions you keep in the bank, and a visit only counts once every question carries a mark.</div></div>'
    +'<div class="actions"><a class="btn" href="#/quality">'+UI.ic('shield-check',15)+' ISO readiness</a><button class="btn" data-district>'+UI.ic('printer',15)+' District report</button><button class="btn primary" data-new-visit>'+UI.ic('plus',15)+' Record visit</button></div></div>'
+   +noMarksCard()
    +kpis()
    /* The index and the quarter-on-quarter trend answer the same question from two
       sides, so they share a row: neither is left sitting alone above a wide band
@@ -1515,6 +1542,39 @@ M.render=function(root,params){
       change the questions; everyone else reads them. */
    +'<div class="section-head"><h2>Evaluation questions</h2><span class="more">The questionnaire every visit is scored against</span></div>'
    +questionBank();
+
+  /* the recovery controls on the "no marks" card */
+  const recBtn=root.querySelector('[data-pbf-recover]');
+  const recMsg=m=>{ const el=root.querySelector('#pbfRecoverMsg'); if(el) el.innerHTML=m; };
+  if(recBtn) recBtn.onclick=async()=>{
+    recBtn.disabled=true; recMsg('Reading the shared copy…');
+    try{
+      const res=await SY.recoverPbf();
+      if(!res.ok){ recBtn.disabled=false; recMsg(U.esc(res.reason||'The marks could not be brought back')); return; }
+      if(!res.added&&!res.filled){
+        recBtn.disabled=false;
+        recMsg('The shared copy holds no marks this device is missing. Every visit it has is already here with its marks.');
+        return;
+      }
+      UI.toast('Brought back '+res.marksAdded+' marks on '+(res.added+res.filled)+' visit'+((res.added+res.filled)===1?'':'s'),{type:'ok',duration:6000});
+      LS.shell.refresh();
+    }catch(e){ recBtn.disabled=false; recMsg(U.esc((e&&e.message)||'The shared copy could not be read')); }
+  };
+  const cmpBtn=root.querySelector('[data-pbf-compare]');
+  if(cmpBtn) cmpBtn.onclick=async()=>{
+    cmpBtn.disabled=true; recMsg('Reading the shared copy…');
+    try{
+      const res=await SY.remoteTally();
+      cmpBtn.disabled=false;
+      if(!res.ok){ recMsg(U.esc(res.reason||'The shared copy could not be read')); return; }
+      const t=res.counts||{};
+      recMsg('The shared copy holds <b>'+(t.pbfVisits|0)+'</b> PBF visit'+((t.pbfVisits|0)===1?'':'s')+' with <b>'+(t.pbfMarks|0)+'</b> marks'
+        +', read '+U.relTime(res.updated_at||U.nowISO())+(res.updated_by?' · written by '+U.esc(res.updated_by):'')
+        +'. This device holds <b>'+((S.db().pbfVisits||[]).length)+'</b> visits with <b>'+((SY.pbfMarks&&SY.pbfMarks())||0)+'</b> marks.');
+    }catch(e){ cmpBtn.disabled=false; recMsg(U.esc((e&&e.message)||'The shared copy could not be read')); }
+  };
+  const syncBtn=root.querySelector('[data-pbf-sync]');
+  if(syncBtn) syncBtn.onclick=()=>{ LS.shell.go('staff',{tab:'data'}); };
 
   const open=id=>drawer(id);
   function paintRows(){

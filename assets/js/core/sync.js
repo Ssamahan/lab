@@ -715,7 +715,13 @@ function applyRemote(remote){
     S.restorePoint();               // the local copy is never lost
     S.importJSON(remote.data);
     if(S.clearPending) S.clearPending();   // this device now matches the cloud exactly
-    setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null, lastError:null});
+    /* What the shared copy put on this device is recorded next to the revision. A
+       device that is later reset, restored from an old snapshot or re-seeded keeps a
+       stale revision in its sync state — and would then sit for ever on a register with
+       fewer records than the cloud, telling itself it is up to date. The counts are how
+       that is caught instead of guessed at. */
+    setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null, lastError:null,
+      appliedCounts:SY.tally(S.db())});
   }finally{ applyingRemote=false; }
   SY.emit('pulled');
   refreshScreen();
@@ -753,6 +759,25 @@ function newer(remote){
   if(!st.lastRevision) return true;
   return Number(remote.revision||0) > Number(st.lastRevision||0);
 }
+
+/* ——— Is this device still what the shared copy gave it? ————————
+   Everything the console holds is one document in localStorage, and that document can be
+   replaced by a restore point, a reset, or a fresh install. None of those touch the sync
+   state, so `lastRevision` keeps saying "I am on revision 1" while the register underneath
+   has lost the visits, samples or marks that revision carried. Comparing the recorded
+   counts with what is actually here makes that visible, and the only way back is to take
+   the shared copy again — which is safe, because this only ever reports a *loss*. */
+const COUNTED=['samples','staff','leaves','referrals','equipment','trainings','pbfVisits','pbfMarks'];
+function losses(){
+  const was=state().appliedCounts; if(!was) return {total:0, parts:{}};
+  const now=SY.tally(S.db()); const parts={}; let total=0;
+  COUNTED.forEach(k=>{
+    const d=(Number(was[k])||0)-(Number(now[k])||0);
+    if(d>0){ parts[k]=d; total+=d; }
+  });
+  return {total, parts, was, now};
+}
+SY.losses=losses;
 
 /* Does this device hold edits the cloud has not seen? The store tracks a dirty
    counter on every commit; we compare it with the last successful push. */
@@ -828,6 +853,21 @@ SY.sync=async function(opts){
       }
       const seen=Number(state().lastRevision||0);
       if(Number(v.revision||0)<=seen && !hasLocalChanges()){
+        /* Nothing moved in the cloud and nothing is waiting to go up — but this device
+           may no longer hold what the cloud last gave it. Nothing typed here is at risk
+           (there are no unpushed edits in this branch), so it takes the shared copy
+           again, and says so instead of reporting a quiet no-op. */
+        const lost=losses();
+        if(lost.total>0){
+          const again=await SY.pull();
+          if(again&&again.data){
+            applyRemote(again);
+            setState({conflictAt:U.nowISO(), restoredAt:U.nowISO(),
+              conflictNote:'This device had fewer records than the shared copy ('+lost.total+' missing) — the register was taken from the cloud again, and the copy it was showing is in restore points.'});
+            if(!quiet) UI.toast('The register on this device had lost records the shared copy still holds — it has been brought back',{type:'ok',duration:6000});
+            return {ok:true, action:'restored', lost};
+          }
+        }
         setState({lastCheckAt:U.nowISO(), running:false});
         return {ok:true, action:'noop'};
       }
@@ -889,6 +929,100 @@ SY.sync=async function(opts){
   }finally{
     busy=false; setState({running:false});
   }
+};
+
+/* ——— Bringing the PBF marks back, without replacing the register ————————
+   "Download the shared copy" replaces everything on this device, which is the right
+   tool when the device is empty and the wrong one when it holds real work. The marks a
+   supervisor entered live in the same document, so they can be lifted out on their own:
+   every visit the shared copy holds that this device does not, and every visit this
+   device has with no marks on it, takes the shared copy's answers. Nothing that already
+   carries marks here is touched, and a restore point is written first.
+
+   A question that a recovered mark refers to and this device no longer has is restored
+   to the bank as retired — it is not put back on the printed form, but the mark given
+   against it keeps its maximum, so the old score is still a real score. */
+function markCount(a){ return Object.keys(a||{}).filter(k=>a[k]!=null&&a[k]!=='').length; }
+SY.pbfMarks=function(db){ return ((db||S.db()).pbfVisits||[]).reduce((t,v)=>t+markCount(v.answers),0); };
+SY.recoverPbf=async function(row){
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return {ok:false, reason:'This is a read-only visitor view.'};
+  const c=cfg();
+  let remote=row||null;
+  if(!remote){
+    if(!c.url||!c.key) return {ok:false, reason:'Cloud sync is not configured on this device.'};
+    try{ remote=await SY.pull(); }
+    catch(e){
+      /* The sign-in route is refused on some projects while the register itself still
+         answers a request that carries only the key — the same fallback the visitor view
+         uses, so a recovery is not blocked by a session problem. */
+      const looksAuth=e&&(e.auth||e.keyRejected||/\b40[13]\b|api key|jwt|not signed in|permission denied/i.test(String(e.message||'')));
+      if(!looksAuth) return {ok:false, reason:(e&&e.message)||'Could not read the shared copy'};
+      try{ remote=await SY.pullBare(); }
+      catch(e2){ return {ok:false, reason:(e2&&e2.message)||(e&&e.message)||'Could not read the shared copy'}; }
+    }
+  }
+  if(!remote||!remote.data) return {ok:false, reason:'The shared copy is empty — there is nothing to bring back.'};
+  const src=remote.data;
+  const remoteVisits=Array.isArray(src.pbfVisits)?src.pbfVisits:[];
+  if(!remoteVisits.length) return {ok:false, reason:'The shared copy holds no PBF visits.'};
+  const bank={}; (src.pbfQuestions||[]).forEach(q=>{ if(q&&q.id) bank[q.id]=q; });
+  const before=SY.pbfMarks();
+  let added=0, filled=0, marksAdded=0, questionsAdded=0, slotsAdded=0;
+  try{ S.restorePoint(); }catch(e){}
+  S.commit(d=>{
+    d.pbfVisits=d.pbfVisits||[]; d.pbfQuestions=d.pbfQuestions||[]; d.pbfSchedule=d.pbfSchedule||[];
+    remoteVisits.forEach(v=>{
+      const answers=v.answers||{};
+      const remoteMarks=markCount(answers);
+      if(!remoteMarks) return;                       // an empty visit adds nothing
+      /* the marks need a maximum to be worth anything: restore any question they name */
+      Object.keys(answers).forEach(id=>{
+        if(answers[id]==null||answers[id]==='') return;
+        if(d.pbfQuestions.some(q=>q.id===id)) return;
+        const q=bank[id]; if(!q) return;
+        d.pbfQuestions.push(Object.assign({},q,{deleted:true,recoveredFromShared:true}));
+        questionsAdded++;
+      });
+      /* Three ways to recognise the same supervision: the id it was saved under, the
+         centre + quarter + date, or — for a placeholder written by the seed with no date
+         and no marks — the centre and quarter alone. Without the last one, a recovered
+         visit would sit beside the empty placeholder for the same supervision and the
+         centre would read as visited twice. */
+      const same=d.pbfVisits.find(x=>x.id===v.id)
+        || d.pbfVisits.find(x=>x.hcName===v.hcName&&String(x.quarter||'')===String(v.quarter||'')&&String(x.date||'')===String(v.date||''))
+        || d.pbfVisits.find(x=>x.hcName===v.hcName&&String(x.quarter||'')===String(v.quarter||'')
+             &&!String(x.date||'')&&markCount(x.answers)===0);
+      if(!same){
+        d.pbfVisits.push(Object.assign({},v));
+        added++; marksAdded+=remoteMarks;
+      } else if(markCount(same.answers)===0){
+        same.answers=Object.assign({},answers);
+        if(Array.isArray(v.qids)&&v.qids.length) same.qids=v.qids.slice();
+        if(v.qmax&&typeof v.qmax==='object') same.qmax=Object.assign({},v.qmax);
+        if(v.recommendations) same.recommendations=v.recommendations;
+        if(v.assessor) same.assessor=v.assessor;
+        if(v.date) same.date=v.date;
+        same.pending=false;
+        filled++; marksAdded+=remoteMarks;
+      }
+      /* a recovered visit gets the plan slot that says it happened */
+      const slot=d.pbfSchedule.find(x=>x.hcName===v.hcName&&String(x.quarter||'')===String(v.quarter||''));
+      if(slot){ if(slot.status!=='visited'){ slot.status='visited'; slot.visitedAt=v.date||slot.visitedAt; slot.assessor=v.assessor||slot.assessor; slotsAdded++; } }
+      else {
+        d.pbfSchedule.push({id:U.uid('pbfs'),hcName:v.hcName,quarter:v.quarter||'Q1',fy:v.fy||U.fyLabel(),
+          plannedDate:String(v.date||'').slice(0,10)||null,status:'visited',visitId:v.id,visitedAt:String(v.date||'').slice(0,10),
+          compliance:'onTime',lateDays:0,assessor:v.assessor||''});
+        slotsAdded++;
+      }
+    });
+    /* the domains the shared copy reports, only if this device has none of its own */
+    if(Array.isArray(src.pbfDomains)&&src.pbfDomains.length&&!(d.pbfDomains||[]).length) d.pbfDomains=src.pbfDomains.slice();
+  },{action:'pbf.recover',entity:'pbf',
+     detail:'PBF marks brought back from the shared copy · '+added+' visit'+(added===1?'':'s')+' added, '+filled+' filled in, '+marksAdded+' marks'});
+  try{ S.save(true); }catch(e){}
+  const after=SY.pbfMarks();
+  return {ok:true, added, filled, questionsAdded, slotsAdded, marksAdded, before, after,
+    revision:remote.revision||null, updated_at:remote.updated_at||null, updated_by:remote.updated_by||null};
 };
 
 /* ——— The month vault ————————————————————————————————
