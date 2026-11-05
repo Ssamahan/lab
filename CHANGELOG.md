@@ -4,6 +4,51 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.103 — the patient names an Administrator could not see, or write
+
+Three separate faults were hiding behind one complaint. None of them was the cloud copy.
+
+**1 · Names were only visible inside a fifteen-minute window nobody had opened.** Every
+screen read the name through `U.ptName`, which answers `Confidential` unless
+`LS.auth.namesOpen()` is true — and that window opened only from the Samples button. Signed in
+as an Administrator, the register, the drawer, the wizard and the manifest all said
+`Confidential`, which is exactly what was reported. The gate is still there and still audited
+(the column opens for fifteen minutes, the opening is written to the trail), but the surfaces
+that have to *identify* a specimen — the record view, the manifest preview, the printed
+manifest, the exports — now read the recorded name directly with `S.recordedName`, which
+refuses anyone without the `patient_names` permission. A visitor still gets nothing.
+
+**2 · The wizard threw the typed name away.** Registration stored `sample.patientName` and
+never called `S.setPatientName`, so the name never reached the name store and never printed.
+The form now always shows the Patient name field, the name goes to the device name store
+after the commit, and the register row carries the mask — a name never enters the record that
+syncs. The recording is audited as `sample.name_recorded`.
+
+**3 · A password set in Security Center was lost on reload.** `persistRoles()` saved only the
+role and the two-factor flag, so `A.setPassword` never survived a restart and the unlock prompt
+then refused the password the person had just chosen. The saved roles now include the hash (and
+`applySavedRoles` refuses anything that is not a 64-character hash).
+
+Also in this release:
+
+- **Harvest on read.** `S.harvestNames` runs on every load and on import: any `patientName` found
+  in an incoming register is moved into the device name store and replaced with `Confidential`.
+  It is a guard, not a migration — the old mask migration ran once and never again, and the
+  shared copy still held six named samples from 30 October.
+- **Record names in bulk.** A `Record names` button on the register lists up to 120 orders
+  without a name, so the past can be typed in one sitting instead of a drawer at a time.
+- **The manifest carries the name.** The Patient name cell on the printed sheet and in the
+  manifest's copied data prints the recorded name for a signed-in member of staff, so the sheet
+  a specimen travels with identifies the patient. No name, no mask: a dash.
+- **A switch for shared machines.** Security Center → *Patient names* sets
+  `security.askNamesPassword`. Off (the default) opens on one press; on requires the account
+  password at every opening. Either way each opening is audited. The link on a forgotten
+  password now says plainly that older builds were not saving it.
+
+36 suites, 1,849 checks, all green.
+
+---
+
 ## Withdrawn — 6.9.97 to 6.9.102
 
 **This build is v6.9.96, restored byte for byte.**

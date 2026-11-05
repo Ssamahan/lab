@@ -63,7 +63,7 @@ function filtered(){
   if(s.q){
     const q=s.q.toLowerCase();
     list=list.filter(x=>[x.sampleId,x.test,x.healthFacility,x.hospital,x.transporter,x.patientId,
-      (U.canSeeNames()?x.patientName:'')].join(' ').toLowerCase().indexOf(q)>=0);
+      (namesUnlockable()?(S.recordedName(x)||''):'')].join(' ').toLowerCase().indexOf(q)>=0);
   }
   const dir=s.dir==='asc'?1:-1;
   if(s.sort==='collected') list.sort((a,b)=>String(a.collectionAt||a.collectionDate).localeCompare(String(b.collectionAt||b.collectionDate))*dir);
@@ -84,11 +84,16 @@ function counts(){
     overdue:all.filter(x=>!x.resultedAt&&S.tatFor(x).breached).length, resulted:all.filter(x=>!!x.resultedAt).length,
     rbc:all.filter(x=>/NRL|RBC/i.test(x.hospital||'')).length, register:all.filter(x=>x.source!=='telemetry').length};
 }
-/* ——— The name column ————————————————————————————————
-   A visitor sees the word Confidential and nothing else — no button, no hint that there
-   is anything to open. Signed-in bench staff see a mask and a lock: pressing it asks for
-   their own username and password, and only then does the column fill in. Every unlock is
-   written to the audit trail, and it closes by itself. */
+/* ——— Showing, and recording, the patient names ————————————————
+   Two different questions, and they were being answered as one:
+
+     · READING the column — who does this specimen belong to — is the sensitive one.
+       It opens for fifteen minutes, every opening is audited, and on a shared bench PC
+       it can be set to ask for the password again (Security Center).
+     · RECORDING a name — typing what is on the request form — is ordinary work. It used
+       to be refused unless the column happened to be open, which is why a name typed at
+       registration was silently thrown away. It is always allowed now, for any signed-in
+       member of staff, and it always lands in the name store. */
 function namesUnlockable(){ return LS.auth.can('patient_names'); }
 function nameCell(s){
   if(!namesUnlockable()) return '<span class="xs faint" title="Visible to laboratory staff only">'+U.CONFIDENTIAL+'</span>';
@@ -102,8 +107,20 @@ function nameCell(s){
 function namesButton(){
   if(!namesUnlockable()) return '';
   const open=LS.auth.namesOpen();
-  return '<button class="btn sm'+(open?'':' ')+'" data-names-toggle>'
+  return '<button class="btn sm" data-names-toggle>'
     +UI.ic(open?'eye-off':'eye',13)+(open?' Hide names':' Show names')+'</button>';
+}
+/* The name of a specimen for anything that has to identify it — the record view, the
+   printed manifest, an export. Recorded names come from the device name store and need no
+   unlock; a visitor still gets the mask, and where no name was ever recorded the old
+   behaviour stands (a dash for staff, Confidential for everyone else). */
+function patientNameFor(s){ return S.recordedName(s)||U.ptName(s); }
+function openNamesNow(by){
+  LS.auth.openNames();
+  S.audit({action:'sample.names_open',entity:'samples',
+    detail:'Patient names shown to '+by.name+' ('+by.role+') for fifteen minutes'});
+  UI.toast('Names shown for fifteen minutes',{type:'ok'});
+  LS.shell.refresh();
 }
 function namesModal(){
   if(!namesUnlockable()) return UI.toast('Patient names are for laboratory staff','warn');
@@ -112,27 +129,60 @@ function namesModal(){
     S.audit({action:'sample.names_hide',entity:'samples',detail:'Patient names hidden again'});
     UI.toast('Names hidden',{type:'ok'}); LS.shell.refresh(); return;
   }
-  UI.modal({title:'Show patient names',sub:'This needs your own username and password, not just the open session.',
+  /* The default: one press. The account is already identified and the session is open;
+     asking again is only worth it on a machine other people can walk up to. */
+  if(!LS.auth.askNamesPassword()) return openNamesNow(LS.auth.user);
+  UI.modal({title:'Show patient names',sub:'This device is set to ask for your password again.',
     body:'<div class="hint" style="margin-bottom:12px">Names are kept apart from the register: they never travel to the shared copy. They will show for fifteen minutes, and each time they are opened the audit trail records it.</div>'
-      +'<div class="form-grid"><div class="field"><label>Username</label><input class="input" id="nmUser" autocomplete="username" value="'+U.esc(LS.auth.user.username||'')+'"></div>'
+      +'<div class="form-grid"><div class="field"><label>Username</label><input class="input" id="nmUser" value="'+U.esc(LS.auth.user.username||'')+'" readonly style="opacity:.7"></div>'
       +'<div class="field"><label>Password</label><input class="input" id="nmPass" type="password" autocomplete="current-password"></div></div>'
       +'<div class="hint" id="nmErr" style="margin-top:8px;color:var(--crit);display:none"></div>',
-    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-unlock>'+UI.ic('unlock',14)+'Show names</button>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-unlock>'+UI.ic('eye',14)+'Show names</button>',
     onMount:(el,close)=>{
       const fail=m=>{ const x=el.querySelector('#nmErr'); x.style.display=''; x.textContent=m; };
       const go=()=>{
-        const res=LS.auth.verifyCredentials(el.querySelector('#nmUser').value,el.querySelector('#nmPass').value);
-        if(!res.ok) return fail(res.reason);
-        if(!LS.auth.can('patient_names')) return fail('That account may not see patient names.');
-        LS.auth.openNames();
-        S.audit({action:'sample.names_open',entity:'samples',
-          detail:'Patient names shown to '+res.user.name+' ('+res.user.role+') for fifteen minutes'});
-        close(); UI.toast('Names shown for fifteen minutes',{type:'ok'});
-        LS.shell.refresh();
+        const res=LS.auth.verifyCredentials(LS.auth.user.username,el.querySelector('#nmPass').value);
+        if(!res.ok){
+          return fail(res.reason+' If you changed your password in Security Center on an older build, it was not being saved — set it once more in Security Center, then try again.');
+        }
+        close(); openNamesNow(res.user);
       };
       el.querySelector('[data-unlock]').onclick=go;
       el.querySelector('#nmPass').onkeydown=ev=>{ if(ev.key==='Enter') go(); };
       setTimeout(()=>{ const p=el.querySelector('#nmPass'); if(p) p.focus(); },120);
+    }});
+}
+/* ——— Recording the names of orders that have none —————————————
+   The names of the past cannot be invented, but they can be typed in one sitting
+   instead of one drawer at a time: every order in the current filter that has no name
+   gets a line here, and one press saves them all. */
+function recordNamesBulk(){
+  if(!LS.auth.user||LS.auth.isVisitor()) return UI.toast('Sign in to record patient names','warn');
+  const list=filtered().filter(s=>!S.recordedName(s)).slice(0,120);
+  if(!list.length) return UI.toast('Every order in this list already has a name',{type:'ok'});
+  const row=s=>'<div class="row" style="gap:9px;padding:7px 0;border-bottom:1px solid var(--border)">'
+    +'<span class="mono xs" style="width:150px;flex:0 0 auto">'+U.esc(s.sampleId)+'</span>'
+    +'<span class="xs faint" style="width:120px;flex:0 0 auto">'+U.esc(s.test||'')+'</span>'
+    +'<input class="input" data-nm-for="'+U.esc(s.id)+'" placeholder="MUKAMANA Alice" autocomplete="off" style="flex:1;min-width:130px">'
+    +'</div>';
+  UI.modal({title:'Record patient names',width:'min(720px,100%)',
+    sub:list.length+' order'+(list.length===1?'':'s')+' on this filter without a name — type what is on the request form, then save once.',
+    body:'<div class="hint" style="margin-bottom:10px">Names are kept in their own store on this device: never in the register that syncs, never in a file export. They do print on the referral manifest, because the manifest has to identify the specimen.</div>'
+      +'<div style="max-height:52vh;overflow:auto">'+list.map(row).join('')+'</div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-all>'+UI.ic('check',14)+'Save names</button>',
+    onMount:(el,close)=>{
+      el.querySelector('[data-save-all]').onclick=()=>{
+        let n=0;
+        el.querySelectorAll('[data-nm-for]').forEach(inp=>{
+          const v=(inp.value||'').trim(); if(!v) return;
+          S.setPatientName(inp.dataset.nmFor,v,{actor:LS.auth.user.name}); n++;
+        });
+        if(!n) return UI.toast('No name was typed','warn');
+        S.audit({action:'sample.name_recorded',entity:'samples',detail:n+' patient name'+(n===1?'':'s')+' recorded'});
+        S.save(true); close(); UI.toast(n+' name'+(n===1?'':'s')+' recorded',{type:'ok'});
+        LS.shell.refresh();
+      };
+      setTimeout(()=>{ const f=el.querySelector('[data-nm-for]'); if(f) f.focus(); },120);
     }});
 }
 function rowHTML(s,sel){
@@ -175,6 +225,7 @@ function tableHTML(){
      +'<div class="filters">'+FILTERS.map(f=>'<button class="filter-tab '+(s.filter===f.k?'on':'')+'" data-filter="'+f.k+'">'+f.label+'<span class="cnt">'+cnt[f.k]+'</span></button>').join('')+'</div>'
      +'<span class="grow"></span>'
      +'<div class="row gap-sm">'
+     +(namesUnlockable()?'<button class="btn sm" data-names-bulk title="Record the names of orders that have none">'+UI.ic('pencil',13)+' Record names'+(function(){ const miss=S.db().samples.filter(x=>!S.recordedName(x)).length; return miss?(' · '+miss):''; })()+'</button>':'')
        +namesButton()
        +'<button class="btn sm" data-saved>'+UI.ic('book-marked',13)+' Saved views</button>'
        +'<button class="btn sm" data-export>'+UI.ic('download',13)+'<span class="hide-sm">Export</span></button>'
@@ -376,9 +427,9 @@ function openSample(id){
      +'<div class="row between" style="margin-bottom:10px"><div><div class="eyebrow">Sample ID</div><div class="mono" style="font-size:15px;color:var(--text-strong);letter-spacing:.02em;margin-top:2px">'+U.esc(s.sampleId)+'</div></div>'+UI.barcode(s.sampleId)+'</div>'
      +'<div class="thread" style="margin:10px 0"></div>'
      +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
-       +[['Patient',U.ptName(s)==='—'&&U.canSeeNames()
+       +[['Patient',patientNameFor(s)==='—'&&U.canSeeNames()
             ?'<button class="btn xs" data-name-add>'+UI.ic('plus',11)+' Record a name</button>'
-            :U.ptName(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Received at reception',s.receivedAt?U.fmtDT(s.receivedAt):'not yet received'],['TAT clock',t.awaitingReception?'not started — starts at reception':(t.startFrom==='reception'?'from the reception stamp':'from collection — this record has no reception stamp')],['Target TAT',(s.tatTargetDays!=null?s.tatTargetDays:S.tatTarget(s.test))+' days'+(s.tatManual?' · set by hand':(S.testNamesOf(s).length>1?' · longest of the '+S.testNamesOf(s).length+' tests on it':' · from '+s.test))]].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px"'+(k==='Patient'?' id="ptCell"':'')+'>'+(k==='Patient'?v:U.esc(v))+'</div></div>').join('')
+            :patientNameFor(s)],['Patient ID',s.patientId||'—'],['Sex',s.sex||'—'],['Date of birth',s.dob?U.fmtDate(s.dob):'—'],['Age',(s.age!==''&&s.age!=null)?(s.age+' yrs'):'—'],['Origin',s.healthFacility||'—'],['Tests',orderedTests(s).join(' · ')],['Receiving lab',s.hospital||'Ruli DH'],['Collected',U.fmtDate(s.collectionDate)],['Received at reception',s.receivedAt?U.fmtDT(s.receivedAt):'not yet received'],['TAT clock',t.awaitingReception?'not started — starts at reception':(t.startFrom==='reception'?'from the reception stamp':'from collection — this record has no reception stamp')],['Target TAT',(s.tatTargetDays!=null?s.tatTargetDays:S.tatTarget(s.test))+' days'+(s.tatManual?' · set by hand':(S.testNamesOf(s).length>1?' · longest of the '+S.testNamesOf(s).length+' tests on it':' · from '+s.test))]].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px"'+(k==='Patient'?' id="ptCell"':'')+'>'+(k==='Patient'?v:U.esc(v))+'</div></div>').join('')
      +'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('timer',14,'ic')+'Turnaround</div><div class="card-sub">'+(s.resultedAt?'Completed in '+Math.round(t.elapsedH)+'h of a '+Math.round(t.targetH)+'h target':'Due '+U.fmtDate(U.isoLocal(t.dueAt)))+'</div></div>'
      +'<span class="pill '+(t.breached?'rose':t.ratio>.8?'amber':'teal')+'">'+(t.breached?'Breached':t.ratio>.8?'At risk':'On track')+'</span></div>'
@@ -414,7 +465,7 @@ function openSample(id){
        +'<button class="btn primary sm" data-save-result style="margin-top:10px">'+UI.ic('check',14)+' Verify & release result</button>'
      +'</div></div>'
    +'<div class="card pad" style="background:var(--surface-inset)"><div class="row between"><div class="xs faint">Created by '+U.esc(s.collector||'Register')+' · '+U.fmtDate(s.collectionDate)+'</div><div class="xs faint mono">'+U.esc(s.source||'register')+' · '+U.esc(s.id)+'</div></div></div>';
-  const d=UI.drawer({title:U.ptName(s),eyebrow:'Sample record',sub:s.sampleId+' · '+s.test,wide:true,body:body,
+  const d=UI.drawer({title:patientNameFor(s),eyebrow:'Sample record',sub:s.sampleId+' · '+s.test,wide:true,body:body,
     foot:'<button class="btn" data-close>Close</button><button class="btn" data-edit-rec>'+UI.ic('pencil',15)+'Edit record</button>'
       +(s.manifestId?'<button class="btn" data-print-manifest>'+UI.ic('clipboard-list',15)+'View manifest</button>':'<button class="btn" data-add-manifest>'+UI.ic('clipboard-list',15)+'Add to manifest</button>')
       +(s.resultedAt?'':'<button class="btn" data-quick-result>'+UI.ic('check',15)+'Quick result</button>')});
@@ -517,7 +568,7 @@ function editSample(id){
     body:'<div class="form-grid">'
       +'<div class="field"><label>Sample ID</label><input class="input mono" id="edSid" value="'+U.esc(s.sampleId)+'"></div>'
       +(U.canSeeNames()
-        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(U.ptName(s))+'"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to every signed-in member of staff. A dash means no name was ever recorded for it.</div></div>'
+        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(patientNameFor(s))+'"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to every signed-in member of staff. A dash means no name was ever recorded for it.</div></div>'
         : '<div class="field"><label>Patient</label><input class="input" id="edName" value="'+U.CONFIDENTIAL+'" readonly></div>')
       +'<div class="field"><label>Patient ID</label><input class="input mono" id="edPid" value="'+U.esc(s.patientId||'')+'"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="edSex">'+opts(['Female','Male','Other','Unknown'],s.sex||'Unknown')+'</select></div>'
@@ -583,7 +634,7 @@ function addToManifest(ids){
   UI.modal({title:'Add to manifest',sub:'Select samples travelling to the same receiving laboratory. The manifest ID is built from the test code and today\'s date: code + YYMMDD + four alphanumeric characters (BC261027A001).',
     width:'min(680px,100%)',
     body:'<div class="field" style="margin-bottom:12px"><label>Receiving laboratory</label><select class="select" id="manHosp">'+U.uniq(candidates.map(s=>s.hospital||'Ruli DH')).map(h=>'<option>'+U.esc(h)+'</option>').join('')+'</select></div>'
-      +'<div style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:9px">'+(candidates.length?candidates.map(s=>'<label class="row" style="padding:8px 11px;border-bottom:1px solid var(--border);gap:9px;cursor:pointer"><input type="checkbox" data-man-pick value="'+s.id+'" '+(ids.includes(s.id)?'checked':'')+' style="accent-color:#C9A84C"><span class="grow"><span class="small mono">'+U.esc(s.sampleId)+'</span> <span class="xs faint">'+U.esc(U.ptName(s))+' · '+U.esc(s.test)+'</span></span><span class="pill slate">'+U.esc(s.healthFacility||'—')+'</span></label>').join(''):'<div class="empty" style="padding:24px"><p class="xs muted">No unmanifested active samples.</p></div>')+'</div>',
+      +'<div style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:9px">'+(candidates.length?candidates.map(s=>'<label class="row" style="padding:8px 11px;border-bottom:1px solid var(--border);gap:9px;cursor:pointer"><input type="checkbox" data-man-pick value="'+s.id+'" '+(ids.includes(s.id)?'checked':'')+' style="accent-color:#C9A84C"><span class="grow"><span class="small mono">'+U.esc(s.sampleId)+'</span> <span class="xs faint">'+U.esc(patientNameFor(s))+' · '+U.esc(s.test)+'</span></span><span class="pill slate">'+U.esc(s.healthFacility||'—')+'</span></label>').join(''):'<div class="empty" style="padding:24px"><p class="xs muted">No unmanifested active samples.</p></div>')+'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-gen>'+UI.ic('clipboard-list',15)+'Generate manifest</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-gen]').onclick=()=>{
@@ -645,7 +696,11 @@ function manifestDocHTML(man,opts){
     +'<td style="'+td+'">'+(i+1)+'</td>'
     +'<td style="'+td+';font-weight:700;font-family:ui-monospace,Menlo,monospace;white-space:nowrap">'+U.esc(x.sampleId)+'</td>'
     +'<td style="'+td+'">'+U.esc([x.healthFacility||'',x.district||'Gakenke'].filter(Boolean).join(', '))+'</td>'
-    +'<td style="'+td+'">'+U.esc(U.ptName(x))+'</td>'
+    /* The manifest is the document a specimen travels with: it has to identify the
+       patient or the reference laboratory cannot match the sample to the request. So it
+       carries the recorded name whether or not the register column is open. Where no
+       name has been recorded it says so rather than printing the mask. */
+    +'<td style="'+td+'"><b>'+U.esc(S.recordedName(x)||'—')+'</b></td>'
     +'<td style="'+td+'">'+U.esc(x.patientId||'—')+'</td>'
     +'<td style="'+td+'">'+U.esc(x.dob?U.fmtDate(x.dob):'—')+'</td>'
     +'<td style="'+td+'">'+U.esc(x.sex||'—')+'</td>'
@@ -717,7 +772,7 @@ function manifestPreviewModal(man){
       el.querySelector('[data-print-man]').onclick=()=>printManifest(man,el.querySelector('#manDoc'));
       el.querySelector('[data-copy-man]').onclick=async()=>{
         const ok=await U.copy(U.toCSV([['No','Sample ID','Health facility','Patient','Patient ID','DOB','Sex','Test','Collection date']]
-          .concat(samples.map((x,i)=>[i+1,x.sampleId,[x.healthFacility||'',x.district||''].filter(Boolean).join(', '),U.ptName(x),x.patientId||'',x.dob||'',x.sex||'',x.test,x.collectionDate||'']))));
+          .concat(samples.map((x,i)=>[i+1,x.sampleId,[x.healthFacility||'',x.district||''].filter(Boolean).join(', '),patientNameFor(x),x.patientId||'',x.dob||'',x.sex||'',x.test,x.collectionDate||'']))));
         UI.toast(ok?'Manifest copied as CSV':'Copy failed',{type:ok?'ok':'err'});
       };
     }});
@@ -766,7 +821,7 @@ function exportManifestList(){
   const rows=[['Manifest ID','Title','Receiving laboratory','Samples','Patient names','Tests','Generated','Generated by']]
     .concat(list.map(m=>{ const sm=manifestSamples(m);
       return [m.manifestId,m.title||'Sample Referral Manifest',m.testingHospital||'',sm.length,
-        U.uniq(sm.map(x=>U.ptName(x))).filter(n=>n&&n!==U.CONFIDENTIAL).join(', ')||U.CONFIDENTIAL,U.uniq(sm.map(x=>x.test)).join(' · '),U.fmtDate(m.createdAt||''),m.createdBy||'']; }));
+        U.uniq(sm.map(x=>patientNameFor(x))).filter(n=>n&&n!==U.CONFIDENTIAL).join(', ')||U.CONFIDENTIAL,U.uniq(sm.map(x=>x.test)).join(' · '),U.fmtDate(m.createdAt||''),m.createdBy||'']; }));
   U.exportCSV('manifests-'+U.todayISO()+'.csv',rows,{title:'Generated manifests',actor:LS.auth.user.name});
   UI.toast(list.length+' manifests exported',{type:'ok'});
 }
@@ -872,9 +927,7 @@ function newWizard(){
   const stepHTML=()=>{
     if(state.step===1) return '<div class="wizard-step">'
       +'<div class="form-grid">'
-      +(U.canSeeNames()
-        ? '<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to every signed-in member of staff. Only the public visitor reads <b>'+U.CONFIDENTIAL+'</b>.</div></div>'
-        : '<div class="field span2"><label>Patient</label><div class="card pad" style="background:var(--surface-inset);padding:9px 11px"><b class="small">'+U.CONFIDENTIAL+'</b><div class="xs faint" style="margin-top:3px">Only the public visitor reads the masked value. Sign in to record and read a name.</div></div></div>')
+      +'<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name===U.CONFIDENTIAL?'':state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Written to the name store on this device, never to the register that syncs, and printed on the referral manifest. Reading it back in the register takes the Show names button.</div></div>'
       +'<div class="field"><label>Patient / insurance ID</label><input class="input mono" id="wPid" value="'+U.esc(state.patient.pid)+'" placeholder="430129"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="wSex">'+['Female','Male'].map(x=>'<option '+(state.patient.sex===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Date of birth</label><input class="input mono" type="date" id="wDob" value="'+U.esc(state.patient.dob)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">The age below is calculated from it.</div></div>'
@@ -909,7 +962,7 @@ function newWizard(){
       const capture=()=>{
         if(state.step===1){
           const nm=el.querySelector('#wName');
-          state.patient.name=(nm&&U.canSeeNames())?(nm.value||'').trim():U.CONFIDENTIAL;
+          state.patient.name=(nm?(nm.value||'').trim():'')||U.CONFIDENTIAL;
           state.patient.pid=(el.querySelector('#wPid')||{}).value||'';
           state.patient.sex=(el.querySelector('#wSex')||{}).value||'Female';
           state.patient.dob=(el.querySelector('#wDob')||{}).value||'';
@@ -981,8 +1034,9 @@ function newWizard(){
           const ordered=orderedTests({tests:testObjs.map(t=>t.name)});
           const first=testObjs.find(t=>t.name==='Blood Culture')||testObjs[0];
           const today=U.todayISO();
-          const name=(state.patient.name&&state.patient.name!==U.CONFIDENTIAL)?state.patient.name:U.CONFIDENTIAL;
-          const sample={id:U.uid('sm'),sampleId:'',patientName:name,patientId:state.patient.pid,
+          /* The register row always carries the mask. The name the clerk typed goes to the
+             device name store after the commit, never into a record that syncs. */
+          const sample={id:U.uid('sm'),sampleId:'',patientName:U.CONFIDENTIAL,patientId:state.patient.pid,
             dob:state.patient.dob||'',age:state.patient.age||'',
             sex:state.patient.sex,
             test:first.name,testCode:first.code,cat:first.cat,hospital:state.hospital,healthFacility:state.origin,district:'Gakenke',
@@ -1004,6 +1058,13 @@ function newWizard(){
             drawn=S.drawBottle(d,sample); },
             {action:'sample.register',entity:'samples',entityId:sample.id,
              detail:'Registered '+sid+' · '+first.name+' · '+state.priority+' → '+state.hospital+(drawn?' · 1 '+(drawn.ageGroup||'')+' bottle drawn':'')});
+          /* The name the clerk typed is kept in the name store, whether or not the column
+             happens to be open. The sample itself carries the mask. */
+          if(state.patient.name && state.patient.name!==U.CONFIDENTIAL){
+            S.setPatientName(sample.id,state.patient.name,{actor:LS.auth.user.name});
+            S.audit({action:'sample.name_recorded',entity:'samples',entityId:sample.id,detail:'Patient name recorded at registration for '+sample.sampleId});
+            S.save(true);
+          }
           close();
           UI.toast('Sample '+sid+' registered · barcode ready'+(drawn?' · 1 '+(drawn.ageGroup||'')+' bottle drawn':''),
             {type:'ok',actions:[{label:'Open record',onClick:()=>openSample(sample.id)}]});
@@ -1045,6 +1106,7 @@ function wire(){
   r.querySelectorAll('[data-saved]').forEach(b=>b.onclick=savedViews);
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=exportCSV);
   const nt=r.querySelector('[data-names-toggle]'); if(nt) nt.onclick=namesModal;
+  const nb=r.querySelector('[data-names-bulk]'); if(nb) nb.onclick=recordNamesBulk;
   r.querySelectorAll('[data-name-add]').forEach(b=>b.onclick=ev=>{
     ev.stopPropagation();
     const rec=(S.db().samples||[]).find(x=>x.id===b.dataset.nameAdd); if(!rec) return;
@@ -1056,7 +1118,6 @@ function wire(){
         el2.querySelector('[data-save-name]').onclick=()=>{
           const v=(el2.querySelector('#nmVal').value||'').trim();
           if(!v) return UI.toast('Type the name first',{type:'warn'});
-          if(!LS.auth.namesOpen()) return UI.toast('Open the names first','warn');
           S.setPatientName(rec.id,v,{actor:LS.auth.user.name});
           S.audit({action:'sample.name_recorded',entity:'samples',entityId:rec.id,detail:'Patient name recorded'});
           close2(); UI.toast('Name recorded',{type:'ok'}); LS.shell.refresh();
@@ -1072,7 +1133,7 @@ function wire(){
   r.querySelectorAll('[data-bulk-clear]').forEach(b=>b.onclick=()=>{ st.selected.clear(); paintTable(); });
   r.querySelectorAll('[data-bulk-delete]').forEach(b=>b.onclick=()=>deleteSamples(Array.from(st.selected)));
   r.querySelectorAll('[data-bulk-manifest]').forEach(b=>b.onclick=()=>addToManifest(Array.from(st.selected)));
-  r.querySelectorAll('[data-bulk-export]').forEach(b=>b.onclick=()=>{ const rows=[['Sample ID','Patient','Test','Origin','Hospital','Priority','Status','Collected']].concat(S.db().samples.filter(s=>st.selected.has(s.id)).map(s=>[s.sampleId,U.ptName(s),orderedTests(s).join(' · '),s.healthFacility,s.hospital,s.priority,s.status,s.collectionDate])); U.exportCSV('samples-selection-'+U.todayISO()+'.csv',rows,{title:'Referred samples — selection',actor:LS.auth.user.name}); UI.toast(rows.length-1+' samples exported',{type:'ok'}); });
+  r.querySelectorAll('[data-bulk-export]').forEach(b=>b.onclick=()=>{ const rows=[['Sample ID','Patient','Test','Origin','Hospital','Priority','Status','Collected']].concat(S.db().samples.filter(s=>st.selected.has(s.id)).map(s=>[s.sampleId,patientNameFor(s),orderedTests(s).join(' · '),s.healthFacility,s.hospital,s.priority,s.status,s.collectionDate])); U.exportCSV('samples-selection-'+U.todayISO()+'.csv',rows,{title:'Referred samples — selection',actor:LS.auth.user.name}); UI.toast(rows.length-1+' samples exported',{type:'ok'}); });
   // infinite scroll
   const scroll=r.querySelector('#smpScroll');
   if(scroll){ onScroll=U.throttle(()=>{ if(!st.limit) return; if(scroll.scrollTop+scroll.clientHeight>scroll.scrollHeight-120){ const list=filtered(); if(st.limit<list.length){ st.limit=0; const keep=scroll.scrollTop; paintTable(); const ns=rootEl.querySelector('#smpScroll'); if(ns) ns.scrollTop=keep; } } },300); scroll.addEventListener('scroll',onScroll); }
@@ -1087,7 +1148,7 @@ function syncURL(){
 function exportCSV(){
   const list=filtered();
   const rows=[['Sample ID','Patient','Patient ID','Sex','Test','Category','Priority','Status','Origin facility','Receiving lab','Collected','TAT target (d)','Result','Flag','Collector']]
-    .concat(list.map(s=>[s.sampleId,U.ptName(s),s.patientId,s.sex,orderedTests(s).join(' · '),s.cat,s.priority,s.status,s.healthFacility,s.hospital,s.collectionDate,s.tatTargetDays,s.resultValue||'',s.flag||'',s.collector||'']));
+    .concat(list.map(s=>[s.sampleId,patientNameFor(s),s.patientId,s.sex,orderedTests(s).join(' · '),s.cat,s.priority,s.status,s.healthFacility,s.hospital,s.collectionDate,s.tatTargetDays,s.resultValue||'',s.flag||'',s.collector||'']));
   U.exportCSV('referred-samples-'+U.todayISO()+'.csv',rows,{title:'Referred samples register',actor:LS.auth.user.name});
   UI.toast(list.length+' samples exported with letterhead metadata',{type:'ok'});
 }
