@@ -97,6 +97,17 @@ const TYPO='sb_publishable_60QVktnGsJo_RPPzFGtITQ_pt3NC';   /* what the screensh
   ok(quiet2.ok===true&&quiet2.action==='pulled','a write that left the revision number alone is still picked up',quiet2.action);
   ok(!!(S.db().samples||[]).find(x=>x.id==='sm-cloud-107'),'and the record it carried is now on this device');
 
+  /* "Push everything now" on a device that has never read the shared copy but does hold
+     work of its own: it must combine and publish, not refuse and not overwrite. */
+  w.localStorage.removeItem('labSystems.syncState.v1');
+  ok(!SY.state().lastPullAt&&!SY.state().lastRevision,'a device with no sync history at all');
+  ok(!!(S.db().trainings||[]).find(t=>t.id==='tr-test-106'),'that still holds the training recorded offline');
+  const pub=await SY.publishAll();
+  ok(!!pub,'the publish button finishes instead of refusing',JSON.stringify(pub));
+  ok(pub&&pub.combined===true,'by combining first, so nothing is overwritten');
+  ok((S.db().trainings||[]).some(t=>t.id==='tr-test-106'),'and the local training is still here afterwards');
+  ok((S.db().trainings||[]).some(t=>t.id==='tr-cloud-106'),'together with the record only the other copy had');
+
   /* the same code path, compared: two rows with the same id keep the local version */
   const merged=SY.mergeDoc({samples:[{id:'a',note:'typed here'}],settings:{lab:'this device'}},
                            {samples:[{id:'a',note:'from the cloud'},{id:'b',note:'cloud only'}],settings:{lab:'cloud'}});
