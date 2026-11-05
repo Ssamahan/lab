@@ -4,6 +4,53 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.105 — the marks are in the shared copy, not on the device
+
+Reported after 6.9.104: *"no scores still."* The scoring was fixed, so the remaining answer
+is a different one: **this device holds no marks to score.** The shared copy was read again —
+revision 1, written by Kelvin SAMAHANI on 30 October, six supervision visits, all six marked —
+so the evidence exists. It is just not on the browser that is being looked at.
+
+**Why a device can hold visits without marks, and never notice.**
+The whole register is one document in `localStorage`. A restore point, a reset, a fresh
+install or a re-seed replaces that document — and none of them touch the sync state. So
+`lastRevision` keeps saying "I am already on revision 1", the live loop asks the cloud
+whether anything moved, hears "no", and goes back to sleep. A device can therefore sit for
+ever on a register with fewer records than the copy it was given, quietly reporting itself as
+up to date.
+
+**What is now in place.**
+
+- **The sync loop can see a loss.** A pull records the counts it delivered (samples, staff,
+  leave, referrals, equipment, trainings, PBF visits, PBF marks). If the register afterwards
+  holds fewer of them and there is nothing unpushed, the device is no longer what it was
+  given — it takes the shared copy again (restore point first) and says so, instead of
+  reporting a quiet no-op. Counting only ever reports a *loss*; a device that has grown is
+  left alone.
+- **A targeted recovery, so nothing else is replaced.** `SY.recoverPbf()` lifts the PBF
+  visits out of the shared copy on their own: a visit this device never had is added, a visit
+  it holds without marks is filled in, and a visit that already carries marks here is never
+  touched. A question a recovered mark refers to and the device no longer has is restored to
+  the bank as retired, so the old mark keeps its maximum and the printed form does not change.
+  Audited as `pbf.recover`, restore point first, second press changes nothing.
+- **The screen says what is missing.** When no PBF marks are on the device, the PBF page
+  opens with a card that says so — "the 4 supervision visits stored here carry no marks" —
+  and offers *Bring the marks back*, *Check the shared copy* (which prints what the cloud
+  holds against what this device holds) and *Record a visit*. The dashes on the table are no
+  longer unexplained.
+- **Also reachable from Data & sync**, beside the existing push/pull buttons, where the
+  "Two browsers, one register" comparison already lives.
+
+Scores are still never invented: a centre carries an index only when marks were actually
+given, and the recovery only ever moves marks that were recorded somewhere else.
+
+38 suites, 1,922 checks, all green — including `pbf104`, which empties a device's marks and
+brings them back from a shared copy, checks that a marked visit is never overwritten, that a
+duplicate supervision is not created, and that a question the bank has lost is restored as
+retired rather than put back on the form.
+
+---
+
 ## v6.9.104 — the PBF index that vanished when the questionnaire changed
 
 Reported: *"in previous versions, there were records of how health centres performed in PBF

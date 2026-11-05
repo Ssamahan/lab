@@ -399,11 +399,13 @@ function sharedCopyCard(){
       +'<button class="btn sm primary" data-cloud-pushall>'+UI.ic('upload',13)+' Push everything now</button>'
       +'<button class="btn sm" data-cloud-counts>'+UI.ic('refresh-cw',13)+' Compare</button>'
       +'<button class="btn sm" data-cloud-pull>'+UI.ic('download',13)+' Download the shared copy</button>'
+      +'<button class="btn sm" data-cloud-pbf>'+UI.ic('clipboard-list',13)+' Bring back the PBF marks</button>'
       +'<button class="btn sm" data-cloud-code>'+UI.ic('key-round',13)+' Copy setup code</button>'
       +'<button class="btn sm" data-cloud-paste>'+UI.ic('clipboard-list',13)+' Paste setup code</button>'
     +'</div>'
     +'<div class="hint" style="margin-top:12px">'
       +'<b>Push everything now</b> publishes this browser\'s whole register — samples, rosters, leave, EQA and every PBF mark — and reports the revision Supabase stored. '
+      +'<b>Bring back the PBF marks</b> takes the supervision marks out of the cloud copy on their own — visits this browser never had, and visits it holds without marks — and leaves everything else here untouched. '
       +'<b>Download the shared copy</b> replaces this browser with the cloud version and keeps a restore point of what was here. '
       +'<b>Setup code</b> carries the address and publishable key to another browser as text; it never contains a password.'
     +'</div>'});
@@ -501,6 +503,16 @@ function wire(){
   };
   const cmp=r.querySelector('[data-cloud-counts]');
   if(cmp) cmp.onclick=()=>paintShared();
+  const pb=r.querySelector('[data-cloud-pbf]'); if(pb) pb.onclick=async()=>{
+    const okk=await UI.confirm({title:'Bring the PBF marks back?',body:'Supervision marks the shared copy holds will be written into this browser: visits it never had are added, and visits it holds without marks are filled in. A visit that already carries marks here is never changed, and a restore point is written first.',confirm:'Bring them back'});
+    if(!okk) return;
+    pb.disabled=true;
+    const res=await SY.recoverPbf().catch(e=>({ok:false,reason:(e&&e.message)||'Could not read the shared copy'}));
+    pb.disabled=false;
+    if(!res.ok){ UI.toast(res.reason||'The marks could not be brought back',{type:'err',duration:7000}); return; }
+    UI.toast((res.added+res.filled)?('Brought back '+res.marksAdded+' marks on '+(res.added+res.filled)+' visit'+((res.added+res.filled)===1?'':'s')):'The shared copy holds no marks this browser is missing',{type:'ok',duration:6000});
+    paintShared(); paint();
+  };
   const dl=r.querySelector('[data-cloud-pull]');
   if(dl) dl.onclick=async()=>{
     if(!SY.configured()) return UI.toast('Add the project URL and key first',{type:'warn'});
