@@ -112,60 +112,25 @@ function namesModal(){
     S.audit({action:'sample.names_hide',entity:'samples',detail:'Patient names hidden again'});
     UI.toast('Names hidden',{type:'ok'}); LS.shell.refresh(); return;
   }
-  const cloudOn=!!(LS.sync&&LS.sync.configured&&LS.sync.configured());
-  const signedIn=!!(LS.sync&&LS.sync.cloudSignedIn&&LS.sync.cloudSignedIn());
   UI.modal({title:'Show patient names',sub:'This needs your own username and password, not just the open session.',
-    body:'<div class="hint" style="margin-bottom:12px">Names are kept apart from the register: the shared copy never carries one. They show for fifteen minutes, and every time they are opened the audit trail records it.</div>'
+    body:'<div class="hint" style="margin-bottom:12px">Names are kept apart from the register: they never travel to the shared copy. They will show for fifteen minutes, and each time they are opened the audit trail records it.</div>'
       +'<div class="form-grid"><div class="field"><label>Username</label><input class="input" id="nmUser" autocomplete="username" value="'+U.esc(LS.auth.user.username||'')+'"></div>'
-      +'<div class="field"><label>Password</label><input class="input" id="nmPass" type="password" autocomplete="current-password"></div>'
-      +(cloudOn?'<div class="field span2"><label>Cloud account email <span class="faint">(for names from your other devices)</span></label>'
-        +'<input class="input mono" id="nmMail" autocomplete="username" value="'+U.esc((LS.sync.cloudUser()&&LS.sync.cloudUser().email)||LS.auth.user.email||'')+'">'
-        +'<div class="hint" style="margin-top:5px">The same password is tried against the cloud account. '
-          +(signedIn?'This device is already signed in to the cloud.':'If it is accepted, the names kept online come down and follow you to your phone.')
-        +'</div></div>':'')
-      +'</div>'
+      +'<div class="field"><label>Password</label><input class="input" id="nmPass" type="password" autocomplete="current-password"></div></div>'
       +'<div class="hint" id="nmErr" style="margin-top:8px;color:var(--crit);display:none"></div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-unlock>'+UI.ic('unlock',14)+'Show names</button>',
     onMount:(el,close)=>{
       const fail=m=>{ const x=el.querySelector('#nmErr'); x.style.display=''; x.textContent=m; };
-      const btn=el.querySelector('[data-unlock]');
-      const go=async()=>{
-        const pass=el.querySelector('#nmPass').value;
-        const res=LS.auth.verifyCredentials(el.querySelector('#nmUser').value,pass);
+      const go=()=>{
+        const res=LS.auth.verifyCredentials(el.querySelector('#nmUser').value,el.querySelector('#nmPass').value);
         if(!res.ok) return fail(res.reason);
         if(!LS.auth.can('patient_names')) return fail('That account may not see patient names.');
         LS.auth.openNames();
         S.audit({action:'sample.names_open',entity:'samples',
           detail:'Patient names shown to '+res.user.name+' ('+res.user.role+') for fifteen minutes'});
-        /* then, and only then, the names kept online */
-        let cloud=null;
-        if(cloudOn&&LS.sync){
-          btn.disabled=true; btn.textContent='Reading the cloud…';
-          try{
-            if(!LS.sync.cloudSignedIn()){
-              const mail=(el.querySelector('#nmMail')||{}).value||LS.auth.user.email||'';
-              cloud=await LS.sync.cloudSignIn(mail,pass);
-            } else cloud={ok:true, already:true};
-            if(cloud.ok){
-              const map=await LS.sync.namesPull();
-              const merged=S.namesMerge(map);
-              cloud.pulled=merged.added; cloud.total=merged.total;
-            }
-          }catch(e){
-            cloud=cloud||{ok:false};
-            cloud.reason=e&&e.message==='NOT_ALLOWED'?'this account is not on the staff allowlist'
-              :e&&e.message==='NOT_SIGNED_IN'?'the cloud session ended — enter the password again'
-              :e&&e.message==='NAMES_TABLE_MISSING'?'the names table is missing — run supabase/schema.sql'
-              :(e&&e.message)||'the cloud could not be read';
-          }
-        }
-        close();
-        if(cloud&&cloud.ok) UI.toast('Names shown for fifteen minutes'+(cloud.pulled?(' · '+cloud.pulled+' brought down from the cloud'):''),{type:'ok',duration:4000});
-        else if(cloud&&!cloud.ok) UI.toast('Names shown on this device — the cloud did not answer: '+cloud.reason,{type:'warn',duration:6000});
-        else UI.toast('Names shown for fifteen minutes',{type:'ok'});
+        close(); UI.toast('Names shown for fifteen minutes',{type:'ok'});
         LS.shell.refresh();
       };
-      btn.onclick=go;
+      el.querySelector('[data-unlock]').onclick=go;
       el.querySelector('#nmPass').onkeydown=ev=>{ if(ev.key==='Enter') go(); };
       setTimeout(()=>{ const p=el.querySelector('#nmPass'); if(p) p.focus(); },120);
     }});
@@ -468,7 +433,6 @@ function openSample(id){
              patient-identifying can travel in the copy that syncs */
           S.setPatientName(s.id,v,{actor:LS.auth.user.name});
           S.audit({action:'sample.name_recorded',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+s.sampleId});
-          if(LS.sync&&LS.sync.namesPushOne) LS.sync.namesPushOne(s.id,v).catch(()=>{});
           close(); UI.toast('Name recorded',{type:'ok'});
           /* the record updates in place — no second drawer stacked on the first */
           const cell=panel.querySelector('#ptCell'); if(cell) cell.textContent=v;
@@ -593,7 +557,6 @@ function editSample(id){
         if(typedName && typedName!==U.CONFIDENTIAL && LS.auth.namesOpen()){
           S.setPatientName(s.id,typedName,{actor:LS.auth.user.name});
           S.audit({action:'sample.name_recorded',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+sampleId});
-          if(LS.sync&&LS.sync.namesPushOne) LS.sync.namesPushOne(s.id,typedName).catch(()=>{});
         }
         /* The target follows the test unless a person overrides it on this one
            record — and an override is remembered as an override, so a later change
@@ -1096,9 +1059,6 @@ function wire(){
           if(!LS.auth.namesOpen()) return UI.toast('Open the names first','warn');
           S.setPatientName(rec.id,v,{actor:LS.auth.user.name});
           S.audit({action:'sample.name_recorded',entity:'samples',entityId:rec.id,detail:'Patient name recorded'});
-          if(LS.sync&&LS.sync.namesPushOne) LS.sync.namesPushOne(rec.id,v).then(r=>{
-            if(r&&r.ok===false) UI.toast('Saved here — not yet online: '+r.reason,{type:'warn',duration:5000});
-          }).catch(()=>{});
           close2(); UI.toast('Name recorded',{type:'ok'}); LS.shell.refresh();
         };
       }});

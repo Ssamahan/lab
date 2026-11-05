@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.102** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.96** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -122,38 +122,30 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.102`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.96`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
 selection bar (Admin only). The confirmation names the IDs, warns when one is on a manifest, unlinks
 it from that manifest, writes an audit entry, and the toast offers **Undo**.
 
+## Repairing a browser that will not open the console
+
+`reset.html` is a single file with no stylesheet, no script and no font of its own. Open it by
+address — `https://ssamahan.github.io/lab/reset.html` — when the console will not start. It
+unregisters the service worker, empties the caches for this site, checks that `index.html`
+answers, and reads the register out of local storage to say whether it parses and to save it as
+a file. It never writes to the register and never deletes it.
+
 ## Patient identity
 
-Names are the one field the register deliberately does not carry. The register is a single document
-that syncs, exports and prints; a name inside it would be readable by anyone holding the public
-publishable key. So the register stores the word `Confidential`, and the name lives on its own:
-
-- **On the device** in `labSystems.names.v1`, keyed by order.
-- **In the cloud** in `lab_patient_names`, one row per order, under row-level security that has **no
-  policy and no grant for `anon`**. A read with the publishable key alone returns nothing.
-- **In the synced register and in every export** — never, and the `meta.patientNamesMasked`
-  migration wipes any name an older build left behind.
-
-A **visitor** sees `Confidential` and no control at all. **Admin, Manager and Technologist** see
-`•••• hidden` and **Show names**, which asks for their own username and password, opens the column
-for fifteen minutes, and writes an audit line naming who opened it. While it is open the same
-password is tried against Supabase Auth; if the account is on the `lab_staff` allowlist, the names
-kept online come down and are merged newest-first, so a name typed at the bench is on the phone the
-next time it is unlocked. If the cloud cannot be reached, the names on the device still open and the
-toast says why. **Being signed in is not enough** — the account must also be on the allowlist.
-
-`U.ptName(record)` answers with the recorded name to anyone signed in (behind that gate); the word
-`Confidential` is reserved for the public visitor, the read-only session opened from the landing
-without an account. Where a record holds no name, staff see **—** and the record offers **Record a
-name**, which writes it to the name store and pushes it upward. **Age is calculated** from a date of
-birth (`LSU.ageFromDob`), never typed while a date is present.
+`U.ptName(record)` answers with the recorded name to **anyone signed in** — every staff role records
+it on the order and reads it in the register, the drawer, the manifest and the exports. The word
+`Confidential` is reserved for the **public visitor**, the read-only session opened from the landing
+without an account; a signed-in user never meets it. Where a record holds no name (the 6.9.30 mask
+erased what was there), staff see **—** and the record offers **Record a name**, which writes it back
+on the order in place. **Age is calculated** from a date of birth (`LSU.ageFromDob`), never typed
+while a date is present.
 
 ## Seeing the same register on the phone
 
@@ -163,58 +155,6 @@ The register is one list: **every order of every month is drawn, newest first** 
 as a restore point first. A device that has been asleep catches up when the screen opens or becomes
 visible, and a cloud change repaints the screen by itself — including on a visitor session, which now
 keeps polling the shared copy instead of showing the snapshot it read when it entered.
-
-## What the page loads, and in what order
-
-The public overview is drawn from `index.html`, four stylesheets and thirteen scripts. Three
-helpers are deliberately **not** among them — the chart builder, the sheet engine and the
-workbook reader (116 KB between them) — because printing a roster and importing a district
-return are not things the overview does. `LS.shell.ensureDeps()` fetches them, at the build's
-version and in order, the first time a screen needs them.
-
-The service worker caches the shell from the browser's own copy of those files (never
-re-downloading them), warms the sixteen screens twelve seconds after it takes control, and
-answers a versioned asset from the cache without asking the network again — the version is in
-the address, so a hit cannot be stale.
-
-Three helpers — the chart engine, the sheet engine and the workbook reader — are fetched the
-first time a screen needs them. **A screen must never depend on them arriving:** if they cannot
-be had, `stubEngines()` supplies working stand-ins before the module is evaluated, so the screen
-opens with its numbers, tables and worklist and only the drawings are absent. `?safe=1` opens
-every screen that way from the start, and a screen that fails is retried a third time with the
-stand-ins in place without asking.
-
-A screen that does not arrive is treated as its own kind of failure: the deferred helpers
-have a ten-second deadline, a module has fifteen, and a module that misses it is asked for
-once more past the cache. The panel then names the two builds — *this tab is running v6.9.88;
-the site is now v6.9.102* — and offers **Clear cache & reload** (`?fresh=1`) without ever
-touching what is stored. A skeleton that is still empty after six seconds says what it is
-waiting for rather than looking busy.
-
-When a start passes 2.6 s, a corner line reports what it cost — *started in 3.4 s · 612 KB ·
-41 files* — with the breakdown on **details**. Add `?diag=1` to always see it, and `?fresh=1`
-to clear a browser that is holding a half-written build.
-
-## The single-file build
-
-`bundle.html` carries the whole console — four stylesheets, sixteen screens, every engine — in
-one page with nothing to fetch and no service worker. It is generated by
-`tools/build-bundle.js` (`npm run bundle`) and a test fails if it is not byte-identical to what
-the sources produce, so it can never be stale. If the ordinary build will not open on a device,
-this one has no moving parts left to fail.
-
-## When it will not open at all
-
-`reset.html` is a single file with no stylesheet, no script and no font of its own — the one
-page that still works when the console's stored copy is unusable. It unregisters the service
-worker, empties the caches, checks that `index.html` and the console's scripts actually answer,
-and reads the register out of local storage to say whether it parses and to save it as a file.
-It never writes to the register and never deletes it.
-
-Around it: a navigation is never answered with a blank error page, a register that will not
-parse is copied to `labSystems.v1.unreadable.<time>` before anything else happens, and the
-inline failsafe in `index.html` offers both **Repair this device** and **Clear cache & reload**
-after six seconds.
 
 ## Security, stated plainly
 
