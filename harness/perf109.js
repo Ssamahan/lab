@@ -23,17 +23,21 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||200));
   const cssBytes=css.reduce((t,u)=>t+size(u),0);
 
   ok(jsBytes<620*1024,'the code needed to open the console is under 620 KB',Math.round(jsBytes/1024)+' KB');
-  ok(cssBytes<95*1024,'and the stylesheets it must wait for are under 95 KB',Math.round(cssBytes/1024)+' KB');
-  ok((jsBytes+cssBytes+size('index.html'))<760*1024,
-    'a first screen is under 760 KB in total',Math.round((jsBytes+cssBytes+size('index.html'))/1024)+' KB');
+  ok(cssBytes<155*1024,'and the stylesheets it must wait for stay under 155 KB',Math.round(cssBytes/1024)+' KB');
+  ok((jsBytes+cssBytes+size('index.html'))<800*1024,
+    'a first screen is under 800 KB in total',Math.round((jsBytes+cssBytes+size('index.html'))/1024)+' KB');
   ok(!blocking.some(u=>/sheets\.js/.test(u)),'the 91 KB export engine is not in the boot list');
   ok(!blocking.some(u=>/xlsxread\.js/.test(u)),'nor the spreadsheet reader');
   ok(blocking.some(u=>/store\.js/.test(u))&&blocking.some(u=>/boot\.js/.test(u)),'the register and the boot still are');
 
-  /* ── the console stylesheet no longer holds the public page hostage ── */
-  ok(!/<link rel="stylesheet" href="assets\/css\/modules\.css/.test(noScript),'the console stylesheet is not render-blocking');
-  ok(/<link rel="preload" href="assets\/css\/modules\.css[^>]+as="style"[^>]+onload=/.test(html),'it is fetched at low priority instead');
-  ok(/<noscript><link rel="stylesheet" href="assets\/css\/modules\.css/.test(html),'and still arrives with JavaScript switched off');
+  /* ── the console stylesheet is blocking, on purpose ─────────────────
+     6.9.109 deferred it to save 71 KB of waiting; 6.9.110 puts it back, because a
+     deferred stylesheet that never swaps produces an unstyled console, and an unstyled
+     console is an unreadable one. The bytes saved are worth less than that risk. */
+  ok(/^<link rel="stylesheet" href="assets\/css\/modules\.css/m.test(noScript.trim().split('\n').filter(l=>/modules\.css/.test(l))[0]||''),
+    'the console stylesheet is applied before the first screen is drawn');
+  ok(!/rel="preload"[^>]+modules\.css/.test(html),'not deferred behind a script that might not run');
+  ok(css.some(u=>/modules\.css/.test(u)),'and it is in the stylesheet list the browser waits for');
 
   /* ── the address shape: a hash, and why ────────────────────────────── */
   ok(/#\//.test(html+read('assets/js/core/shell.js')),'screens are addressed after a #');
