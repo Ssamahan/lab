@@ -223,21 +223,27 @@ window.addEventListener('load',()=>{
 (function watchVersion(){
   if(!navigator.onLine) return;
   const mine=LS.shell&&LS.shell.version?LS.shell.version():null;
-  let asked=false;
+  /* Asked again every ten minutes, not once. A tab can stay open for weeks — a phone
+     that is never closed — and the point of this check is exactly that tab. */
+  let lastAsk=0, warned=null;
   const check=async()=>{
-    if(asked||document.hidden) return;
-    asked=true;
+    if(document.hidden) return;
+    if(Date.now()-lastAsk<10*60*1000) return;
+    lastAsk=Date.now();
     try{
       const res=await fetch('index.html?build='+Date.now(),{cache:'no-store'});
       if(!res.ok) return;
       const txt=await res.text();
       const m=/v(\d+\.\d+\.\d+)/.exec(txt);
       if(!m||!mine||m[1]===mine) return;
-      LS.ui.toast('A newer build (v'+m[1]+') is live — this tab is running v'+mine+'. Reload to see it.',{type:'info',duration:15000,
+      if(warned===m[1]) return;               /* said once, not every ten minutes */
+      warned=m[1];
+      LS.ui.toast('A newer build (v'+m[1]+') is live — this tab is running v'+mine+'. Reload to see it.',{type:'info',duration:20000,
         actions:[{label:'Reload now',onClick:()=>location.reload()}]});
     }catch(e){}
   };
   setTimeout(check,4000);
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ asked=false; setTimeout(check,1500); } });
+  setInterval(check,10*60*1000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ lastAsk=0; setTimeout(check,1500); } });
 })();
 })();

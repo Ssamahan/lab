@@ -97,6 +97,16 @@ const TYPO='sb_publishable_60QVktnGsJo_RPPzFGtITQ_pt3NC';   /* what the screensh
   ok(quiet2.ok===true&&quiet2.action==='pulled','a write that left the revision number alone is still picked up',quiet2.action);
   ok(!!(S.db().samples||[]).find(x=>x.id==='sm-cloud-107'),'and the record it carried is now on this device');
 
+  /* an expense typed into a revenue row that already existed is work of its own, even
+     though it changes no top-level record at all */
+  ok(SY.hasOwnWork()===true,'a device with a recorded training says it holds work of its own');
+  const anyRow=(S.db().trainingExpenses||[]).find(r=>r&&r.id);
+  const nestedId='x-nested-106';
+  S.commit(d=>{ const r=(d.trainingExpenses||[]).find(x=>x.id===anyRow.id);
+    r.expenses=(r.expenses||[]).concat([{id:nestedId,cat:'transport',desc:'Taxi to the venue',amount:5000,date:'2026-11-04'}]); },
+    {action:'revenue.expense',entity:'trainingExpenses',entityId:anyRow.id,detail:'Taxi 5,000 RWF'});
+  ok(SY.hasOwnWork()===true,'and so does one whose only new record is an expense line inside an older row');
+
   /* "Push everything now" on a device that has never read the shared copy but does hold
      work of its own: it must combine and publish, not refuse and not overwrite. */
   w.localStorage.removeItem('labSystems.syncState.v1');

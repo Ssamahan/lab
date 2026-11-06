@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.107';
+const APP_VERSION='6.9.108';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -50,20 +50,42 @@ SH.params=()=>parse().params;
 SH.current=()=>parse().id;
 
 /* ——— Module loading (code-split per route) ——————— */
+/* Downloading one screen's own code is a network step of its own, and it can stall
+   without ever failing: the request sits open, no error fires, and the skeleton stays
+   for ever with nothing said. Twenty seconds of a *pending* request is not fast, so it
+   is turned into a sentence — and the script tag is removed, so pressing Retry really
+   does ask again instead of waiting on the same stuck request. */
+const MODULE_WAIT=20000;
 function loadModule(id){
   const r=ROUTES[id];
   if(loaded[id]) return Promise.resolve();
   return new Promise((resolve,reject)=>{
     const sc=document.createElement('script');
+    let settled=false;
+    const give=(msg,ok)=>{
+      if(settled) return; settled=true;
+      clearTimeout(timer);
+      if(ok){ resolve(); return; }
+      try{ sc.remove(); }catch(e){}
+      reject(new Error(msg));
+    };
+    const wait=Number(SH.moduleWaitMs)||MODULE_WAIT;
+    const timer=setTimeout(()=>give('The code for '+r.title+' did not arrive within '+(Math.round(wait/100)/10)+' seconds. '
+      +'That screen loads its own file, and the request never completed — usually a connection that dropped, '
+      +'or a network that blocks the file. The register on this device is untouched; press Retry.',false),wait);
     /* The version is part of the URL: after a deploy a cached module can never be served
        in place of the one that goes with this shell. */
     sc.src='assets/js/modules/'+r.file+'.js?v='+encodeURIComponent(APP_VERSION);
     sc.async=true;
-    sc.onload=()=>{ loaded[id]=true; resolve(); };
-    sc.onerror=()=>reject(new Error('Could not load module: '+id));
+    sc.onload=()=>{ loaded[id]=true; give('',true); };
+    sc.onerror=()=>give('The file that draws '+r.title+' could not be loaded. '
+      +'Nothing in the register is affected: the screen is code, not data. Check the connection and press Retry.',false);
     document.head.appendChild(sc);
   });
 }
+/* A module whose file failed to execute stays "loaded" even though it registered nothing,
+   which would make Retry fail the same way for ever. Retry drops it first. */
+function reloadModule(id){ delete loaded[id]; }
 
 /* ——— Render nav ————————————————————————— */
 function navHTML(){
@@ -250,6 +272,96 @@ SH.toggleDensity=function(){
 };
 
 /* ——— Router ——————————————————————————— */
+/* ——— Patience, measured in time the tab was actually awake ————————————
+   This used to be a plain 25-second timer from the moment a route began, and when it
+   expired the panel was replaced by "This panel could not render". That measured the
+   wall clock, not the work: a laptop that was shut, a tab Chrome froze to save memory,
+   a phone that came back from the lock screen, or a backgrounded tab that was not
+   drawing anything all made the clock run out while the module had done nothing wrong —
+   and the one thing the user could see was an error card over a screen that had, in
+   fact, rendered. So the clock now counts only seconds in which the page was visible
+   and ticking; a gap longer than a few seconds means the machine slept or the tab was
+   frozen and is forgiven rather than blamed. When the budget really does run out the
+   screen is not destroyed — a notice appears above it, the skeleton keeps waiting, and
+   the moment the module arrives the notice removes itself. */
+const RENDER_BUDGET=25000, GUARD_TICK=1000, WAKE_GAP=4000, COUNT_CAP=2000;
+let guardTimer=null;
+function guardHost(){
+  let el=document.getElementById('routeGuard');
+  if(el) return el;
+  el=document.createElement('div');
+  el.id='routeGuard'; el.className='route-guard'; el.setAttribute('role','status');
+  el.setAttribute('aria-live','polite');
+  (document.getElementById('content')||document.body).appendChild(el);
+  return el;
+}
+function endGuard(t){
+  if(t&&t.done) return;
+  if(t) t.done=true;
+  if(guardTimer){ clearInterval(guardTimer); guardTimer=null; }
+  const el=document.getElementById('routeGuard'); if(el) el.remove();
+  if(SH._guard===t) SH._guard=null;
+}
+function guardNotice(t){
+  const el=guardHost();
+  const secs=Math.round(t.visibleMs/1000);
+  const hidden=Math.round(t.hiddenMs/1000);
+  el.innerHTML='<div class="rg-ic">'+U.ic('hourglass',16)+'</div>'
+    +'<div class="rg-main"><div class="rg-title">Still drawing '+U.esc(ROUTES[t.id]?ROUTES[t.id].title:t.id)+'</div>'
+    +'<div class="rg-sub">Nothing is lost — the register is on this device and no record is half-written. '
+    +'A screen that has not appeared after '+secs+' seconds is nearly always waiting on something outside the app: '
+    +(hidden>3?'this tab was in the background or the machine was asleep for about '+hidden+' seconds of that, so the screen was never being drawn. ':'')
+    +'a frozen tab, a sleeping computer, or a connection that dropped while the screen\'s own file was downloading.</div>'
+    +'<div class="rg-act"><button class="btn xs" data-rg-wait>Keep waiting</button>'
+    +'<button class="btn xs" data-rg-reload>'+U.ic('refresh-cw',12)+'Reload</button>'
+    +'<button class="btn xs" data-rg-home>'+U.ic('layout-dashboard',12)+'Command Center</button>'
+    +'<button class="btn xs" data-rg-diag>'+U.ic('copy',12)+'Copy diagnostics</button></div></div>';
+  const q=s=>el.querySelector(s);
+  if(q('[data-rg-wait]')) q('[data-rg-wait]').onclick=()=>{ el.remove(); };
+  if(q('[data-rg-reload]')) q('[data-rg-reload]').onclick=()=>location.reload();
+  if(q('[data-rg-home]')) q('[data-rg-home]').onclick=()=>{ endGuard(t); SH.go('dash'); };
+  if(q('[data-rg-diag]')) q('[data-rg-diag]').onclick=async()=>{
+    const ok=await U.copy('Lab Systems v'+APP_VERSION+'\nroute: '+t.id
+      +'\nvisible: '+secs+'s · hidden/asleep: '+hidden+'s · module load: '+(t.loadMs==null?'pending':t.loadMs+'ms')
+      +'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString());
+    UI.toast(ok?'Diagnostics copied to clipboard':'Copy failed',{type:ok?'ok':'err'});
+  };
+}
+function beginGuard(id,page){
+  endGuard(SH._guard);
+  const t={id,page,visibleMs:0,hiddenMs:0,loadMs:null,fired:false,done:false,
+    last:Date.now(),started:Date.now()};
+  SH._guard=t;
+  const step=()=>{
+    if(t.done) return;
+    const now=Date.now();
+    const gap=now-t.last;
+    t.last=now;
+    if(document.hidden){ t.hiddenMs+=Math.max(0,gap); return; }
+    /* A gap far longer than the tick means the timer did not run for that long: the
+       machine slept or the tab was frozen. Time that never happened is not spent. */
+    if(gap>WAKE_GAP){ t.hiddenMs+=gap; return; }
+    t.visibleMs+=Math.min(gap,COUNT_CAP);
+    /* Fires while this route is still the current one and its module has not returned —
+       whether it is still fetching, or drawing, or waiting on something that never came. */
+    if(t.visibleMs>=RENDER_BUDGET && !t.fired && !t.done && page.dataset.route===id){
+      t.fired=true;
+      guardNotice(t);
+    }
+  };
+  t.tick=step;
+  guardTimer=setInterval(step,GUARD_TICK);
+  return t;
+}
+/* A hidden tab is not a slow screen: when it comes back, the clock restarts from now,
+   so the minutes spent in the background are never charged to the module. */
+document.addEventListener('visibilitychange',()=>{
+  const t=SH._guard;
+  if(!t||t.done) return;
+  t.last=Date.now();
+});
+SH._patience=()=>(SH._guard?{visibleMs:SH._guard.visibleMs,hiddenMs:SH._guard.hiddenMs,fired:SH._guard.fired,id:SH._guard.id}:null);
+
 SH.route=async function(opts){
   const {id,params}=parse();
   const r=ROUTES[id];
@@ -280,18 +392,25 @@ SH.route=async function(opts){
   try{ UI.closeAll(); }catch(e){}
   page.dataset.route=id;
   page.innerHTML='<div class="page">'+UI.skel(3,'kpi')+'<div style="height:16px"></div>'+UI.skel(1,'table')+'</div>';
-  clearTimeout(SH._failTimer);
-  SH._failTimer=setTimeout(()=>{ if(page.dataset.route===id && page.querySelector('.skeleton')) SH.fail(new Error('Module took longer than 25 seconds to render. The local register is intact — try reloading, or open another module.'),id,page); }, 25000);
+  const guard=beginGuard(id,page);
   if(document.body.classList.contains('rail-open')) document.body.classList.remove('rail-open');
   document.querySelector('.app')?.classList.remove('rail-open');
   try{
+    const tLoad=Date.now();
     await loadModule(id);
+    guard.loadMs=Date.now()-tLoad;
+    /* A navigation that started while this one was still fetching owns the screen now:
+       writing here would paint the old screen over the new one. */
+    if(page.dataset.route!==id){ return; }
     const mod=LS.modules[id];
     if(!mod||!mod.render) throw new Error('Module not registered');
     page.innerHTML='<div class="page" id="pageInner"></div>';
     const root=page.querySelector('#pageInner');
+    const tRender=Date.now();
     await mod.render(root, params);
-    clearTimeout(SH._failTimer);
+    guard.renderMs=Date.now()-tRender;
+    endGuard(guard);
+    SH.timings[id]={loadMs:guard.loadMs, renderMs:guard.renderMs, at:new Date().toISOString()};
     UI.animateCounts(root); UI.observeReveals(root);
     /* tables size to their content, everywhere, on every route */
     try{ U.fitTables(root); setTimeout(()=>U.fitTables(root),240); }catch(e){}
@@ -303,6 +422,7 @@ SH.route=async function(opts){
     // scroll restore / top
     if(!opts||!opts.keepScroll) window.scrollTo({top:0,behavior:U.reduced()?'auto':'smooth'});
   }catch(err){
+    endGuard(guard);
     console.error('Route error',id,err);
     SH.fail(err,id,page);
   }
@@ -316,19 +436,31 @@ SH.go=function(id,params){
   if(location.hash===target) SH.route(); else location.hash=target;
 };
 SH.refresh=function(){ SH.route({keepScroll:true}); };
+/* What each screen cost the last time it was drawn. Cheap to keep, and the only honest
+   way to answer "is it slow, or did the tab stop?" after the fact. */
+SH.timings={};
 SH.fail=function(err,id,host){
   const box=host||document.getElementById('page');
   if(!box) return;
-  const diag='Lab Systems v'+APP_VERSION+'\nroute: '+id+'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()+'\nerror: '+(err&&err.stack||err&&err.message||err);
+  const tm=SH.timings[id];
+  const pat=SH._patience();
+  const diag='Lab Systems v'+APP_VERSION+'\nroute: '+id
+    +'\nUA: '+navigator.userAgent+'\ntime: '+new Date().toISOString()
+    +(tm?'\nlast draw: '+tm.loadMs+'ms to load · '+tm.renderMs+'ms to render':'')
+    +(pat?'\npatience: '+Math.round(pat.visibleMs/1000)+'s visible · '+Math.round(pat.hiddenMs/1000)+'s hidden':'')
+    +'\nerror: '+(err&&err.stack||err&&err.message||err);
   box.innerHTML='<div class="page"><div class="card pad" style="max-width:620px;margin:5vh auto">'
    +'<div class="row" style="gap:12px;margin-bottom:10px"><div class="kpi-ic" style="width:36px;height:36px;color:var(--crit);background:var(--crit-soft);border-color:var(--crit-border)">'+U.ic('alert-triangle',18)+'</div>'
    +'<div><div class="serif" style="font-size:1.2rem;color:var(--text-strong)">This panel could not render</div><div class="xs faint">Your data is safe — nothing was written.</div></div></div>'
-   +'<p class="small muted" style="line-height:1.6;margin-bottom:14px">A recoverable error was caught by the module boundary. Retry the panel, or continue to the Command Center. If it repeats, copy the diagnostics for the lab systems administrator.</p>'
+   +'<p class="small" style="line-height:1.6;margin-bottom:10px;color:var(--text)">'+U.esc((err&&err.message)||'The screen stopped before it finished drawing.')+'</p>'
+   +'<p class="small muted" style="line-height:1.6;margin-bottom:14px">Everything you recorded is saved. Retry the panel, or continue to the Command Center — and if it repeats, copy the diagnostics for the lab systems administrator.</p>'
    +'<div class="row wrap"><button class="btn primary" data-retry>'+U.ic('refresh-cw',15)+' Retry</button>'
    +'<button class="btn" data-home>'+U.ic('layout-dashboard',15)+' Command Center</button>'
    +'<button class="btn" data-diag>'+U.ic('copy',15)+' Copy diagnostics</button></div></div></div>';
   const q=s=>box.querySelector(s);
-  if(q('[data-retry]')) q('[data-retry]').onclick=()=>SH.route();
+  /* Retry must re-fetch the screen's file: a module that failed to execute stays
+     "loaded" in memory and would fail again in exactly the same way. */
+  if(q('[data-retry]')) q('[data-retry]').onclick=()=>{ reloadModule(id); SH.route(); };
   if(q('[data-home]')) q('[data-home]').onclick=()=>SH.go('dash');
   if(q('[data-diag]')) q('[data-diag]').onclick=async()=>{ const ok=await U.copy(diag); UI.toast(ok?'Diagnostics copied to clipboard':'Copy failed',{type:ok?'ok':'err'}); };
 };

@@ -401,6 +401,13 @@ html.scroll-lock, body.scroll-lock{overflow:hidden!important; overscroll-behavio
 
 /* ——— 13. Toasts ——————————————————————————————— */
 .toasts{position:fixed; top:14px; right:14px; z-index:120; display:flex; flex-direction:column; gap:8px; width:min(370px,calc(100vw - 28px)); pointer-events:none}
+.route-guard{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom)); z-index:290; width:min(680px,calc(100vw - 24px)); display:flex; gap:11px; align-items:flex-start; padding:12px 13px; border-radius:12px; border:1px solid var(--border-strong); background:var(--surface-glass); backdrop-filter:blur(18px) saturate(1.4); box-shadow:var(--shadow-3); animation:toastIn var(--dur-3) var(--spring)}
+.route-guard .rg-ic{flex:0 0 auto; width:24px; height:24px; border-radius:7px; display:flex; align-items:center; justify-content:center; background:var(--warn-soft); color:var(--warn)}
+.route-guard .rg-main{flex:1 1 auto; min-width:0}
+.route-guard .rg-title{font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.route-guard .rg-sub{font-size:11.4px; line-height:1.55; color:var(--text-muted); margin-top:3px}
+.route-guard .rg-act{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px}
+@media(max-width:640px){ .route-guard{bottom:calc(76px + env(safe-area-inset-bottom))} }
 .toast{position:relative; pointer-events:auto; display:flex; gap:10px; align-items:flex-start; padding:11px 12px 13px; border-radius:11px; border:1px solid var(--border-strong); background:var(--surface-glass); backdrop-filter:blur(18px) saturate(1.4); box-shadow:var(--shadow-3); overflow:hidden; animation:toastIn var(--dur-3) var(--spring)}
 .toast.out{animation:toastOut .22s var(--ease) forwards}
 @keyframes toastIn{from{opacity:0; transform:translateX(22px) scale(.98)}to{opacity:1; transform:none}}
