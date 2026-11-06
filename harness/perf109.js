@@ -10,23 +10,29 @@ const fs=require('fs'), path=require('path');
 const {boot,ok,done}=require('./env');
 const ROOT=path.resolve(__dirname,'..');
 const read=f=>fs.readFileSync(path.join(ROOT,f),'utf8');
+const shellSrcHasDepGate=src=>/MODULE_DEPS\s*=\s*\{/.test(src)||/await Promise\.all\(deps\.map/.test(src);
 const size=f=>fs.statSync(path.join(ROOT,f.split('?')[0])).size;
 const tick=ms=>new Promise(r=>setTimeout(r,ms||200));
 
 (async()=>{
   /* ── what a first visit has to download before anything is readable ── */
   const html=read('index.html');
+  const shellSrcEarly=read('assets/js/core/shell.js');
   const blocking=[...html.matchAll(/<script src="([^"]+)"/g)].map(m=>m[1]);
   const noScript=html.replace(/<noscript>[\s\S]*?<\/noscript>/g,'');
   const css=[...noScript.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
   const jsBytes=blocking.reduce((t,u)=>t+size(u),0);
   const cssBytes=css.reduce((t,u)=>t+size(u),0);
 
-  ok(jsBytes<620*1024,'the code needed to open the console is under 620 KB',Math.round(jsBytes/1024)+' KB');
+  ok(jsBytes<720*1024,'the code needed to open the console is under 720 KB',Math.round(jsBytes/1024)+' KB');
   ok(cssBytes<155*1024,'and the stylesheets it must wait for stay under 155 KB',Math.round(cssBytes/1024)+' KB');
-  ok((jsBytes+cssBytes+size('index.html'))<800*1024,
-    'a first screen is under 800 KB in total',Math.round((jsBytes+cssBytes+size('index.html'))/1024)+' KB');
-  ok(!blocking.some(u=>/sheets\.js/.test(u)),'the 91 KB export engine is not in the boot list');
+  ok((jsBytes+cssBytes+size('index.html'))<900*1024,
+    'a first screen is under 900 KB in total',Math.round((jsBytes+cssBytes+size('index.html'))/1024)+' KB');
+  /* 6.9.111 — the export engine is back in the boot list. Deferring it made thirteen
+     screens WAIT for 91 KB before their own file started; when that request hung, the
+     screen never drew at all. A slow file must only slow itself. */
+  ok(blocking.some(u=>/sheets\.js/.test(u)),'the export engine loads with the shell, in parallel, not in front of a screen');
+  ok(!shellSrcHasDepGate(shellSrcEarly),'and no screen waits for an optional file before drawing');
   ok(!blocking.some(u=>/xlsxread\.js/.test(u)),'nor the spreadsheet reader');
   ok(blocking.some(u=>/store\.js/.test(u))&&blocking.some(u=>/boot\.js/.test(u)),'the register and the boot still are');
 
@@ -51,10 +57,20 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||200));
   ok(/sample|referr/i.test((head&&head.textContent)||'')||/Referred Samples/.test(w.document.body.textContent),
     'which is the samples screen',(head&&head.textContent)||'');
 
+  /* ── the check page: a way to name the failure on a hostile network ── */
+  const check=read('check.html');
+  ok(/Connection check/.test(check),'there is a standalone connection check page');
+  ok(!/<script src=/.test(check)&&!/<link rel="stylesheet"/.test(check),'that loads no script and no stylesheet of its own');
+  ok(/assets\/js\/core\/shell\.js/.test(check)&&/assets\/js\/modules\/dash\.js/.test(check),'it asks for the files the console needs, one at a time');
+  ok(/AbortController/.test(check),'and gives up on one that never answers, instead of waiting for ever');
+  ok(/caches\.delete/.test(check)&&/unregister/.test(check),'with one press that clears the cache and the old worker');
+  ok(!/labSystems\.v1[^)]*removeItem/.test(check),'and it never touches the register stored on the device');
+  ok(check.length<20000,'in a file small enough to arrive on a broken connection',Math.round(check.length/1024)+' KB');
+
   /* ── the lazy core: export code arrives when a screen needs it ─────── */
   const SY=w.LS.store, SH=w.LS.shell, doc=w.document;
   ok(!!SH.ensureCore,'the shell can fetch extra core code on demand');
-  ok(typeof w.LS.sheets==='undefined'||!!w.LS.sheets,'sheets.js may be absent until needed');
+  ok(!!w.LS.sheets,'the export engine is loaded with the shell');
   const before=!!w.LS.sheets;
   const t0=Date.now();
   await SH.ensureCore('sheets');
@@ -69,10 +85,10 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||200));
   try{ await SH.ensureCore('nonsense'); }catch(e){ failed=true; }
   ok(!failed,'asking for something that does not exist is quietly ignored');
 
-  /* roster reads LS.sheets as it executes, so the screen must be gated on it */
-  const deps=shellSrc.slice(shellSrc.indexOf('const MODULE_DEPS'),shellSrc.indexOf('const MODULE_DEPS')+700);
-  ok(/roster:\['sheets'\]/.test(deps),'the roster screen is gated on the export engine');
-  ok(/report:\['sheets','xlsx'\]/.test(deps),'and the monthly report on both');
+  /* the export engine is part of the shell again, so a screen may read LS.sheets as it
+     executes — no gate, and nothing to wait for */
+  ok(typeof w.LS.sheets==='object'&&typeof w.LS.sheets.monthlyXLSX==='function',
+    'the export engine is present before any screen runs');
 
   /* a real roster visit still renders, and its export button still works */
   await go('#/roster'); await tick(500);
@@ -87,7 +103,7 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||200));
   const laterList=sw.slice(sw.indexOf('const LATER = ['),sw.indexOf('const MODULES = ['));
   ok(!/modules\//.test(coreList),'no screen is precached during install');
   ok(/store\.js/.test(coreList)&&/index\.html/.test(coreList),'the shell and the register are, because boot needs them offline');
-  ok(!/sheets\.js/.test(coreList),'and the export engine is not');
+  ok(/sheets\.js/.test(coreList),'and the export engine is, because boot needs it');
   const coreCount=(coreList.match(/'\.\//g)||[]).length;
   ok(coreCount<32,'the install list is short enough to land on a phone connection',String(coreCount)+' files');
   ok(/const MODULES = \[/.test(sw)&&/moduleUrl/.test(sw),'the screens are still known by name');
