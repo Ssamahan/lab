@@ -83,9 +83,15 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||180));
   ok(doc.querySelector('#wRecvT').value.match(/^\d\d:\d\d$/),'with the clock already in it',doc.querySelector('#wRecvT').value);
   const recv=doc.querySelector('#wRecv'); recv.value=w.LSU.addDays(w.LSU.todayISO(),-1);
   doc.querySelector('#wRecvT').value='07:45';
+  /* Identify the new record by what the wizard was told, not by the clock: a sample
+     registered at 07:45 on another day would otherwise have made this comparison count
+     two records and fail for no reason. */
+  const beforeIds=db().samples.map(x=>x.id);
   click(doc.querySelector('[data-wnext]')); await tick(400);
-  const made=db().samples.filter(s=>String(s.receivedAt||'').indexOf('T07:45')>=0);
-  ok(made.length===1,'a registered sample stores the reception date and time it was given');
+  const made=db().samples.filter(s=>beforeIds.indexOf(s.id)<0)
+    .filter(s=>String(s.patientId||'')==='4309'||String(s.receivedAt||'').indexOf('T07:45')>=0);
+  ok(made.length===1,'a registered sample stores the reception date and time it was given',String(made.length));
+  ok(made.length&&/T07:45/.test(String(made[0].receivedAt||'')),'the time it was told, not the clock',made[0]&&made[0].receivedAt);
   ok(/^Received$/.test(made[0].status),'and is marked received');
 
   /* the drawer can correct both */

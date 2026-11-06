@@ -3,44 +3,58 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.108';
+const VERSION = 'v6.9.109';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
+/* What the console needs to *open*: the shell, the four stylesheets, the twelve core
+   modules, the two icons and the two fonts the first screen actually draws.
+   Everything else — the sixteen screens (847 KB), the export engine (91 KB), the
+   register sheets and the nine remaining font files — is fetched the first time it is
+   used, and kept by the runtime cache from then on. Precache used to include all of it,
+   which meant a first visit downloaded about 2.5 MB in the background while the page
+   itself was still arriving: on a slow link that is what "the site takes very long"
+   looks like. The warm-up below brings the rest in *after* the first screen, when the
+   connection is no longer being competed for, and only if the device is not on a
+   metered or save-data connection. */
 const CORE = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/tokens.css?v=6.9.108',
-  './assets/css/app.css?v=6.9.108',
-  './assets/css/modules.css?v=6.9.108',
-  './assets/css/landing.css?v=6.9.108',
-  './assets/data/plan-archive.js?v=6.9.108',
-  './assets/js/core/icons.js?v=6.9.108',
-  './assets/js/core/seed.js?v=6.9.108',
-  './assets/js/core/utils.js?v=6.9.108',
-  './assets/js/core/store.js?v=6.9.108',
-  './assets/js/core/ui.js?v=6.9.108',
-  './assets/js/core/charts.js?v=6.9.108',
-  './assets/js/core/sheets.js?v=6.9.108',
-  './assets/js/core/xlsxread.js?v=6.9.108',
-  './assets/js/core/i18n.js?v=6.9.108',
-  './assets/js/core/auth.js?v=6.9.108',
-  './assets/js/core/landing.js?v=6.9.108',
-  './assets/js/core/shared.js?v=6.9.108',
-  './assets/js/core/shell.js?v=6.9.108',
-  './assets/js/core/sync.js?v=6.9.108',
-  './assets/js/core/boot.js?v=6.9.108',
+  './assets/css/tokens.css?v=6.9.109',
+  './assets/css/app.css?v=6.9.109',
+  './assets/css/modules.css?v=6.9.109',
+  './assets/css/landing.css?v=6.9.109',
+  './assets/data/plan-archive.js?v=6.9.109',
+  './assets/js/core/icons.js?v=6.9.109',
+  './assets/js/core/seed.js?v=6.9.109',
+  './assets/js/core/utils.js?v=6.9.109',
+  './assets/js/core/store.js?v=6.9.109',
+  './assets/js/core/ui.js?v=6.9.109',
+  './assets/js/core/charts.js?v=6.9.109',
+  './assets/js/core/i18n.js?v=6.9.109',
+  './assets/js/core/auth.js?v=6.9.109',
+  './assets/js/core/landing.js?v=6.9.109',
+  './assets/js/core/shared.js?v=6.9.109',
+  './assets/js/core/shell.js?v=6.9.109',
+  './assets/js/core/sync.js?v=6.9.109',
+  './assets/js/core/boot.js?v=6.9.109',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
   './assets/favicon.svg',
-  './assets/fonts/fraunces-latin-300-normal.woff2',
   './assets/fonts/fraunces-latin-400-normal.woff2',
+  './assets/fonts/inter-latin-400-normal.woff2'
+];
+
+/* The rest, brought in after the first screen is open (see the WARM message). */
+const LATER = [
+  './assets/js/core/sheets.js?v=6.9.109',
+  './assets/js/core/xlsxread.js?v=6.9.109',
+  './assets/fonts/fraunces-latin-300-normal.woff2',
   './assets/fonts/fraunces-latin-400-italic.woff2',
   './assets/fonts/fraunces-latin-500-normal.woff2',
   './assets/fonts/fraunces-latin-600-normal.woff2',
-  './assets/fonts/inter-latin-400-normal.woff2',
   './assets/fonts/inter-latin-500-normal.woff2',
   './assets/fonts/inter-latin-600-normal.woff2',
   './assets/fonts/inter-latin-700-normal.woff2',
@@ -49,25 +63,30 @@ const CORE = [
   './assets/fonts/ibm-plex-mono-latin-600-normal.woff2'
 ];
 
+/* The sixteen console screens, by name. Their URLs carry the version, so they are the
+   same strings the shell asks for and a cached copy can never answer with the wrong one. */
 const MODULES = [
   'dash', 'samples', 'stock', 'reports', 'training', 'revenue', 'roster',
   'leave', 'eqa', 'pbf', 'quality', 'equipment', 'staff',
   'security', 'design', 'roadmap'
-].map(m => './assets/js/modules/' + m + '.js');
+];
+const moduleUrl = m => './assets/js/modules/' + m + '.js?v=' + VERSION.replace(/^v/, '');
+
+/* One downloader for both passes: four at a time, never the whole list at once, and a
+   failed file is skipped rather than failing the install. */
+async function precache(list, cacheName, size){
+  const cache = await caches.open(cacheName);
+  const step = size || 4;
+  for (let i = 0; i < list.length; i += step) {
+    await Promise.all(list.slice(i, i + step).map(url =>
+      cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
+    ));
+  }
+}
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
-    const cache = await caches.open(SHELL);
-    /* A few at a time, not fifty at once. Firing every file together saturates a phone's
-       connection while the page itself is still loading — which is the "it takes longer
-       to load" part that has nothing to do with the code. Six at a time keeps the cache
-       warm without competing with what the person is waiting for. */
-    const list = CORE.concat(MODULES);
-    for (let i = 0; i < list.length; i += 6) {
-      await Promise.all(list.slice(i, i + 6).map(url =>
-        cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
-      ));
-    }
+    await precache(CORE, SHELL, 4);
     self.skipWaiting();
   })());
 });
@@ -83,8 +102,17 @@ self.addEventListener('activate', event => {
   })());
 });
 
+/* Screens are brought in when the page says the first screen is open and the device is
+   idle — not during install. Until then the runtime cache picks up whatever is visited,
+   so the app is complete offline for everything that has been used. */
 self.addEventListener('message', event => {
   const data = event.data || {};
+  if (data.type === 'WARM') {
+    event.waitUntil((async () => {
+      const targets = MODULES.map(moduleUrl).concat(LATER);
+      await precache(targets, SHELL, 3);
+    })());
+  }
   if (data.type === 'SKIP_WAITING') self.skipWaiting();
   if (data.type === 'CLEAR_CACHE') {
     event.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))));

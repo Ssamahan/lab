@@ -92,9 +92,14 @@ const fileLike=buf=>({name:'HMIS workbook.xlsx',size:buf.length,
   const click=el=>el.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   const page=d.querySelector('#app');
   ok(!errors.length,'the console boots without console errors',errors.join(' | '));
-  ok(typeof w.LSXLSX==='object'&&typeof w.LSXLSX.readWorkbook==='function','the workbook reader is loaded');
-  ok(idx.indexOf('core/xlsxread.js')>0,'and it is on the page in index.html');
-  ok(/'\.\/assets\/js\/core\/xlsxread\.js(\?v=[\d.]+)?'/.test(sw),'and precached by the service worker');
+  /* v6.9.109 — the reader is no longer downloaded by every visit: it arrives when a
+     screen that reads a workbook is opened, and is kept by the cache from then on. */
+  ok(typeof w.LSXLSX==='undefined','the workbook reader is not downloaded with the shell');
+  await w.LS.shell.ensureCore('xlsx');
+  ok(typeof w.LSXLSX==='object'&&typeof w.LSXLSX.readWorkbook==='function','and loads the moment a screen asks for it');
+  ok(idx.indexOf('core/xlsxread.js')<0,'it is not in the boot list in index.html');
+  ok(/xlsxread\.js/.test(w.LS.shell?require('fs').readFileSync(require('path').resolve(__dirname,'..','assets/js/core/shell.js'),'utf8'):''),'but the shell knows where to get it');
+  ok(/xlsxread\.js\?v=/.test(sw),'and the service worker still keeps it for offline use');
 
   /* ── 1 · the workbook, read from its own bytes ─────────────────────── */
   const sheets=await w.LSXLSX.readWorkbook(fileLike(buf));
