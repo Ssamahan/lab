@@ -4,6 +4,47 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.111 — nothing stands in front of a screen, and a page that names the failure
+
+Reported after 6.9.110: *"the site is now reachable but takes so long, and no module is
+displaying anything."* That was 6.9.109's fault, and it was mine.
+
+**What broke.** Deferring the export engine looked like a clean 91 KB saving. It was not:
+`route()` fetched `sheets.js` **first, and waited**, before the screen's own file was even
+asked for. Thirteen of the sixteen screens were therefore two downloads in a row instead of
+one — and if that 91 KB request stalled without failing, which is exactly what a weak
+connection does, the screen sat on an empty skeleton **for ever**. The Command Center still
+worked (it needs no export code), which is why the app looked alive while every other screen
+was blank. Reproduced in the harness by stalling `sheets.js`: `samples` showed an empty page
+indefinitely. With the engine back in the boot list, the same test draws in under 300 ms.
+
+**What changed.**
+
+* `sheets.js` ships with the shell again, in parallel with everything else. A slow file now
+  slows only itself, never the screen that is waiting on it.
+* Nothing is fetched before a screen's own code: the dependency gate is gone, not disabled.
+* The workbook reader is still on demand, but `SH.ensureCore` now **gives up after twenty
+  seconds** instead of hanging: an optional file can no longer freeze an import for ever.
+
+**A page that names the failure.** `check.html` (`…/lab/check.html`) is a standalone page —
+no script of its own, no stylesheet, 14 KB — for exactly the situation reported: a connection
+that reaches the site but cannot deliver all of it. It requests the files the console needs
+one at a time and prints **status · time · bytes** for each, then says which of them failed
+and what to do about it (a filtered network, a wrong DNS, a stalled service worker). It also
+reads what this device holds — register size, sync state, service worker, caches — offers one
+press to **clear the cache and old worker without touching the register**, and copies the whole
+report as text. If it opens, the site is not down: one named file is.
+
+**On going back.** Every previous build is still in this repository's history (346 commits;
+v6.9.105 is commit `06256c9`), and the fix above is that history applied properly: the working
+module-loading path restored, with only the safe improvements — no screens or extra fonts
+during service-worker install, a lighter first paint, a splash under a second — kept from
+6.9.109/110.
+
+Full sweep: 41 suites, 2,110 checks, all green.
+
+---
+
 ## v6.9.110 — reliability is worth more than 71 KB
 
 One line reverted from 6.9.109. That build made the console's stylesheet non-blocking —

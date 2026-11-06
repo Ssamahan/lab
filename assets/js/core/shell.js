@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.110';
+const APP_VERSION='6.9.111';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -69,31 +69,20 @@ SH.ensureCore=function(kind){
   if(coreLoading[kind]) return coreLoading[kind];
   coreLoading[kind]=new Promise((resolve,reject)=>{
     const sc=document.createElement('script');
+    let settled=false;
+    const end=fn=>{ if(settled) return; settled=true; clearTimeout(timer); fn(); };
+    /* Whatever asks for this is optional work — an import, an export — and must never be
+       left waiting for a request that never completes. */
+    const timer=setTimeout(()=>{ try{ sc.remove(); }catch(e){} delete coreLoading[kind];
+      end(()=>reject(new Error('That code did not arrive within 20 seconds — check the connection and try again.'))); },20000);
     sc.src=file+'?v='+encodeURIComponent(APP_VERSION);
     sc.async=true;
-    sc.onload=()=>resolve();
-    sc.onerror=()=>{ delete coreLoading[kind]; reject(new Error('The export code could not be loaded — check the connection and try again.')); };
+    sc.onload=()=>end(resolve);
+    sc.onerror=()=>{ delete coreLoading[kind]; end(()=>reject(new Error('That code could not be loaded — check the connection and try again.'))); };
     document.head.appendChild(sc);
   });
   return coreLoading[kind];
 };
-/* Which screen needs which of them. Anything not listed here draws from the core alone. */
-const MODULE_DEPS={
-  roster:['sheets'],
-  report:['sheets','xlsx'],
-  design:['sheets'],
-  staff:['sheets'],
-  leave:['sheets'],
-  samples:['sheets'],
-  training:['sheets'],
-  revenue:['sheets'],
-  stock:['sheets'],
-  pbf:['sheets'],
-  quality:['sheets'],
-  equipment:['sheets'],
-  eqa:['sheets']
-};
-
 /* Downloading one screen's own code is a network step of its own, and it can stall
    without ever failing: the request sits open, no error fires, and the skeleton stays
    for ever with nothing said. Twenty seconds of a *pending* request is not fast, so it
@@ -441,12 +430,10 @@ SH.route=async function(opts){
   document.querySelector('.app')?.classList.remove('rail-open');
   try{
     const tLoad=Date.now();
-    /* Whatever this screen needs beyond the core is fetched first — in parallel with
-       nothing else, because the module's own file may read it as it executes. */
-    const deps=MODULE_DEPS[id]||[];
-    if(deps.length){
-      try{ await Promise.all(deps.map(k=>SH.ensureCore(k))); }catch(e){ /* the screen still draws without exports */ }
-    }
+    /* Nothing is fetched *before* the screen's own file any more. 6.9.109 made thirteen
+       screens wait for the 91 KB export engine first; when that request hung, the screen
+       showed an empty skeleton for ever, and on a slow link it turned one download into
+       two in a row. The engine ships with the shell again, so this is simply the module. */
     await loadModule(id);
     guard.loadMs=Date.now()-tLoad;
     /* A navigation that started while this one was still fetching owns the screen now:

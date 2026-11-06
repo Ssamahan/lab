@@ -18,7 +18,7 @@ const V=pkg.version;
   const scripts=[...indexHtml.matchAll(/<script src="(assets\/[^"]+)"/g)].map(m=>m[1]);
   /* v6.9.109 — the shell's own code, minus the two files that are fetched on demand:
      sheets.js (91 KB) and xlsxread.js. Fourteen requests, not sixteen. */
-  ok(scripts.length>=12&&scripts.length<=14,'the page loads its own code ('+scripts.length+' files)');
+  ok(scripts.length>=14&&scripts.length<=16,'the page loads its own code ('+scripts.length+' files)');
   ok(scripts.every(u=>u.indexOf('?v='+V)>=0),'and every one of them carries the build version',
      scripts.filter(u=>u.indexOf('?v='+V)<0).join(' '));
   const css=[...indexHtml.matchAll(/<link rel="stylesheet" href="(assets\/[^"]+)"/g)].map(m=>m[1]);
