@@ -4,6 +4,62 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.108 — patience measured in time the tab was awake
+
+Reported from a Windows Chrome tab still running v6.9.105, with the Command Center open:
+
+> `Module took longer than 25 seconds to render. The local register is intact — try
+> reloading, or open another module.`
+
+Nothing was wrong with the register, and nothing was wrong with the module either. The
+timer that produced that message measured the **wall clock from the moment the route
+began**, so a laptop that was shut, a tab Chrome froze to save memory, a phone coming back
+from the lock screen, or simply a tab left in the background used up the twenty-five
+seconds while the screen was doing nothing at all — and the answer was to replace the page
+with an error card.
+
+**What changed.**
+
+* Patience is now counted in seconds the tab was **visible and ticking**. A tick that
+  arrives more than four seconds late is treated as a gap — the machine slept or the tab
+  was frozen — and that time is forgiven, not charged. Only awake time counts towards the
+  budget, and when the tab is hidden the clock stops.
+* When the budget genuinely runs out, the screen is **not destroyed**. A notice appears
+  above it — *Still drawing Monthly Reports* — that says nothing is lost, names the likely
+  cause, reports how many seconds were spent awake and how many asleep, and offers
+  **Keep waiting · Reload · Command Center · Copy diagnostics**. The moment the module
+  arrives, the notice removes itself.
+* Each screen's own file is a network step of its own and can stall without ever failing,
+  leaving a skeleton for ever with nothing said. That is now its own sentence after twenty
+  seconds — *"The code for Design System did not arrive within 20 seconds… the register on
+  this device is untouched; press Retry"* — with the script tag removed so Retry asks
+  again. **Retry also forgets the failed module**, which it previously did not: a module
+  that failed to execute stayed "loaded" in memory and Retry reproduced the same failure.
+* The error card now **repeats the reason in words** instead of only offering to copy
+  diagnostics, and its diagnostics carry the last draw times (load and render) plus how
+  long this route waited, visible and hidden.
+* A navigation that lands while an older module is still fetching can no longer paint the
+  old screen over the new one.
+* A tab left open for weeks is told about a newer build **every ten minutes**, not once:
+  that check gave up after the first ask, which is precisely why a tab sat on v6.9.105
+  while v6.9.107 was live.
+
+**One correction to 6.9.106–107 on the way through.** "Does this device hold work of its
+own?" was answered from the store's pending counter, which a fresh install writes to during
+its first boot — so a brand-new browser would have *combined* the sample register into the
+real one and added six invented samples to the laboratory's register. It is now answered by
+comparing record ids against the seed, including the expense and reimbursement lines inside
+the training ledger, so an expense typed into an older revenue row counts and a pristine
+device still simply takes the shared copy. `sync89`'s own pristine-device test caught it.
+
+**Tests.** `harness/guard108.js` — 58 checks: two minutes asleep is not charged, a frozen
+tab is not charged, twenty-five awake seconds do raise the notice, the notice keeps the
+screen alive and goes away on its own, a stalled download says so by name, Retry re-fetches,
+a real exception still fails with the reason in words, and the old wall-clock message no
+longer exists anywhere in the build. Full sweep: 40 suites, 2,055 checks, all green.
+
+---
+
 ## v6.9.107 — the publish button that refused the one device that needed it
 
 One correction to 6.9.106, found while walking the repair path end to end. A device that

@@ -870,26 +870,53 @@ function losses(){
 }
 SY.losses=losses;
 
-/* Is this device still only showing the built-in sample register? The seed carries
-   staff, samples and everything else, so counting records answers nothing. Two honest
-   tests: something here was typed and has not reached the cloud (`pending`), or the
-   register has moved away from the seed it was installed with. */
+/* Is this device still only showing the built-in sample register — or does it hold
+   records of its own? Counting records answers nothing (the seed carries staff, samples
+   and a training ledger), and asking the store whether anything is "pending" answers
+   wrongly in both directions: a fresh install writes a few upgrade records on its first
+   boot, and an expense added to an existing revenue row changes no top-level record at
+   all. So the question is asked the only way it can be asked honestly: **is there a
+   record here that the seed did not install?** Ids are compared, including the ones
+   inside the training ledger, because the ledger's expense and reimbursement lines are
+   records a person typed even when the row around them is the seed's. A device that
+   has only lost records is *not* treated as having work: the shared copy is what
+   brings those back. */
+function idSet(list){
+  const out={};
+  (list||[]).forEach(x=>{ const k=(x&&(x.id!=null?x.id:x.key!=null?x.key:x.ts))||null; if(k!=null) out[String(k)]=1; });
+  return out;
+}
+function addedIds(now, seed){
+  const was=idSet(seed), out=[];
+  Object.keys(now).forEach(k=>{ if(!was[k]) out.push(k); });
+  return out;
+}
+function ledgerIds(list){
+  const out={};
+  (list||[]).forEach(r=>{
+    const rk=(r&&r.id!=null)?String(r.id):null;
+    (r&&r.expenses||[]).forEach(x=>{ if(x&&x.id!=null) out['x:'+x.id]=1; else if(rk) out['x@'+rk]=1; });
+    (r&&r.reimbursements||[]).forEach(x=>{ if(x&&x.id!=null) out['r:'+x.id]=1; else if(rk) out['r@'+rk]=1; });
+    (r&&r.attendees||[]).forEach(()=>{});
+  });
+  return out;
+}
 function hasOwnWork(){
-  try{ if(S.pendingChanges&&S.pendingChanges()>0) return true; }catch(e){}
   try{
     const seed=window.LS_SEED;
     if(!seed) return true;
-    const now=(S.db().samples||[]).map(x=>x&&x.id).join(',');
-    const was=(seed.samples||[]).map(x=>x&&x.id).join(',');
-    if(now!==was) return true;
-    const nt=(S.db().trainings||[]).map(x=>x&&x.id).join(',');
-    const wt=(seed.trainings||[]).map(x=>x&&x.id).join(',');
-    if(nt!==wt) return true;
-    const ne=(S.db().trainingExpenses||[]).map(x=>x&&x.id).join(',');
-    const we=(seed.trainingExpenses||[]).map(x=>x&&x.id).join(',');
-    return ne!==we;
+    const db=S.db();
+    const lists=['samples','staff','leaves','referrals','equipment','trainings','trainingExpenses','pbfVisits'];
+    for(let i=0;i<lists.length;i++){
+      const k=lists[i];
+      if(addedIds(idSet(db[k]), idSet(seed[k])).length) return true;
+    }
+    /* expense and reimbursement lines typed into a revenue row that already existed */
+    if(addedIds(ledgerIds(db.trainingExpenses), ledgerIds(seed.trainingExpenses)).length) return true;
+    return false;
   }catch(e){ return true; }
 }
+SY.hasOwnWork=hasOwnWork;
 
 /* ——— Two registers, both with real work in them ————————————————
    The console used to answer this one way: the newer copy wins, whole. That is safe for
