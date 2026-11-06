@@ -16,7 +16,9 @@ const V=pkg.version;
   /* ── 1 · every asset is asked for at the build's own version ────────── */
   const core=indexHtml.slice(indexHtml.indexOf('<link rel="stylesheet"'),indexHtml.lastIndexOf('</body>'));
   const scripts=[...indexHtml.matchAll(/<script src="(assets\/[^"]+)"/g)].map(m=>m[1]);
-  ok(scripts.length>=15,'the page loads its own code ('+scripts.length+' files)');
+  /* v6.9.109 — the shell's own code, minus the two files that are fetched on demand:
+     sheets.js (91 KB) and xlsxread.js. Fourteen requests, not sixteen. */
+  ok(scripts.length>=12&&scripts.length<=14,'the page loads its own code ('+scripts.length+' files)');
   ok(scripts.every(u=>u.indexOf('?v='+V)>=0),'and every one of them carries the build version',
      scripts.filter(u=>u.indexOf('?v='+V)<0).join(' '));
   const css=[...indexHtml.matchAll(/<link rel="stylesheet" href="(assets\/[^"]+)"/g)].map(m=>m[1]);
@@ -38,11 +40,12 @@ const V=pkg.version;
   ok(/networkFirst\(req, RUNTIME\)/.test(fetchBlock),'an unversioned URL still goes to the network first');
   ok(/if \(req\.mode === 'navigate'\)/.test(fetchBlock),'and a navigation is still network-first, so a deploy is seen at once');
   ok(/\.\/assets\/js\/core\/store\.js\?v=/.test(sw),'the precache list is versioned too — the next visit finds everything');
-  ok(/i \+= 6/.test(sw),'and the cache fills six files at a time, so it never competes with the page');
+  ok(/async function precache\(list, cacheName, size\)/.test(sw),'and one downloader fills the cache from both lists');
+  ok(/precache\(CORE, SHELL, 4\)/.test(sw),'four files at a time, so it never competes with the page');
   ok(!/await Promise\.all\(CORE\.concat\(MODULES\)/.test(sw),'not all fifty at once, which is what saturated the connection');
 
   /* ── 3 · the splash is a first-run courtesy ─────────────────────────── */
-  ok(/FIRST_RUN=2100/.test(bootJs)&&/RETURNING=380/.test(bootJs),'a first visit gets the animation, a returning one gets a moment');
+  ok(/FIRST_RUN=900/.test(bootJs)&&/RETURNING=220/.test(bootJs),'a first visit is under a second, a returning one barely anything');
   ok(/hasOpenedBefore/.test(bootJs)&&/labSystems\.opened\.v1/.test(bootJs),'the device remembers that it has opened the console');
   {
     /* driven for real: a device that has opened before must not wait for a first-run splash */

@@ -13,6 +13,9 @@ const css=fs.readFileSync(path.join(root,'assets/css/modules.css'),'utf8');
 
 (async()=>{
   const {w,go,errors}=await boot('#/reports');
+  /* v6.9.109 — the sheet engine is fetched when a screen that exports is opened, so the
+     suite asks for it the same way the console does. */
+  await w.LS.shell.ensureCore('sheets');
   const d=w.document, S=w.LS.store, U=w.LSU, SH=w.LS.sheets;
   const tick=n=>new Promise(r=>setTimeout(r,n||200));
   const click=el=>el.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));

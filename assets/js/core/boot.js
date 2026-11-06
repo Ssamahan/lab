@@ -39,7 +39,10 @@ const LINES=['Calibrating QC engines…','Verifying chain of custody…','Loadin
 /* The splash is a first-run courtesy, not a toll gate. A device that has opened the
    console before shows it for a moment; a first visit gets the full animation. The
    difference is what "it takes longer to load" actually was on a phone. */
-const FIRST_RUN=2100, RETURNING=380;
+/* How long the opening animation is allowed to hold the page. It is an animation, not a
+   loader — the console is ready long before it ends — so it must not be a reason to wait
+   on a phone. A returning device barely sees it at all. */
+const FIRST_RUN=900, RETURNING=220;
 function hasOpenedBefore(){
   try{ return localStorage.getItem('labSystems.opened.v1')==='1'; }catch(e){ return false; }
 }
@@ -206,6 +209,28 @@ if(navigator.serviceWorker && location.protocol!=='file:'){
     }).catch(e=>console.warn('SW registration failed',e.message));
   });
 }
+/* ——— Bring the rest of the app down once the first screen is open ————————
+   The service worker used to download every screen, the export engine and eleven fonts
+   during install — about 2.5 MB on a first visit, competing with the page the person was
+   waiting for. That is what a slow connection felt like. Now the shell arrives alone, and
+   this asks for the rest a few seconds later, when nothing is being waited on, and only
+   when the device is not on a metered connection or asking for less data. A device that
+   never gets there has simply been online and offline in the old way: every screen it did
+   visit is already cached. */
+function warmTheRest(){
+  try{
+    const c=navigator.connection||{};
+    if(c.saveData||/^(slow-)?2g$/.test(c.effectiveType||'')) return;
+  }catch(e){}
+  const send=()=>{ try{
+    if(navigator.serviceWorker&&navigator.serviceWorker.controller)
+      navigator.serviceWorker.controller.postMessage({type:'WARM'});
+  }catch(e){} };
+  if('requestIdleCallback' in window) setTimeout(()=>window.requestIdleCallback(send,{timeout:8000}),5000);
+  else setTimeout(send,5000);
+}
+window.addEventListener('load',()=>{ setTimeout(warmTheRest,4000); });
+
 /* Version / update prompt */
 window.addEventListener('load',()=>{
   setTimeout(()=>{

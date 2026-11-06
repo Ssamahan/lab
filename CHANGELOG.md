@@ -4,6 +4,62 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.109 — the first screen, and nothing it does not need
+
+Reported after 6.9.108: *"website not readable still, or taking very long"* — and, separately,
+*"why do the links have such a # before the module name?"*
+
+**Why it was slow: the page was competing with a download nobody asked for.** Every first
+visit installed the service worker, and the install pulled **the entire console** — the
+sixteen screens (847 KB), the export engine (91 KB), the spreadsheet reader, the register
+sheets and eleven of the twelve font files — in the background, *while* the page the reader
+was waiting for was still arriving on the same connection. Together with the page itself
+that was about **2.5 MB on a first visit**. On a phone connection in Gakenke that is not a
+slow site; it is a site that appears not to work.
+
+Four changes, measured rather than guessed:
+
+* **The install list is the shell only.** index.html, four stylesheets, the twelve core
+  modules, two icons and the two fonts the first screen actually draws: 30 files instead of
+  46, and no console screen at all. Everything else is fetched the first time it is used and
+  kept by the runtime cache from then on — so the app is offline-complete for everything
+  that has been opened, which is what the promise always meant in practice.
+* **The rest arrives after the first screen, not during it.** Once the page has loaded and
+  the browser is idle (four seconds later, `requestIdleCallback`), the page sends `WARM` and
+  the worker brings in the screens and the remaining fonts three at a time — and never on a
+  save-data or 2G connection.
+* **Two files left the boot list.** `sheets.js` (91 KB — the layout engine behind
+  PNG/PDF/XLSX) and `xlsxread.js` do nothing until a document is exported or a workbook is
+  read. They load when a screen that needs them opens (`SH.ensureCore`, gated per screen in
+  `MODULE_DEPS`), once per visit: two screens asking at once cost one download.
+* **The public page stopped waiting for the console's stylesheet.** `modules.css` is 71 KB
+  the overview never uses; it is now fetched at low priority and applied when it lands, with
+  a `<noscript>` fallback. The stylesheets the first screen *must* wait for are 74 KB, not
+  145 KB.
+
+A first visit now needs **711 KB** to be readable, down from **2.5 MB** — and the opening
+animation is 0.9 s on a first visit and 0.2 s on every one after it, because it is an
+animation, not a loader.
+
+**About the `#`.** `https://ssamahan.github.io/lab/#/samples` is deliberate, and it is the
+only shape that works here. The `#` starts the *fragment* — the part of an address a browser
+never sends to the server. The console has one HTML file and no server behind it (GitHub
+Pages serves static files and nothing else), so `…/lab/samples` would be a request for a file
+that does not exist: it would 404 the moment somebody refreshed the page or shared the link.
+With the hash, moving between screens is instant and offline, a link can be bookmarked and
+sent to a colleague, the service worker can serve the same single document for every deep
+link, and reloading never loses the page. The `#/` is not a mistake to be tidied away — it is
+what makes a static, offline-first console behave like an application.
+
+**Tests.** `harness/perf109.js` — 48 checks: the budget in bytes for the first screen, the
+export engine out of the boot list, the lazy core loading once and only once, roster gated on
+it and still producing XLSX, the install list short and screen-free, `WARM` wired both ends
+with save-data respected, the splash under a second, and every screen's measured draw time.
+Three suites that had encoded the old diet (`load95`, `history85`, `report83`) were corrected
+to test the new one. Full sweep: 41 suites, 2,102 checks, all green.
+
+---
+
 ## v6.9.108 — patience measured in time the tab was awake
 
 Reported from a Windows Chrome tab still running v6.9.105, with the Command Center open:

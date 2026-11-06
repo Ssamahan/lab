@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.108';
+const APP_VERSION='6.9.109';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -50,6 +50,50 @@ SH.params=()=>parse().params;
 SH.current=()=>parse().id;
 
 /* ——— Module loading (code-split per route) ——————— */
+/* ——— Code that only some screens need ————————————————————————
+   Two files do nothing until a document is exported or a spreadsheet is imported:
+   sheets.js (91 KB — the sheet layout engine behind PNG/PDF/XLSX) and xlsxread.js.
+   Putting them in the boot list meant every visit on every phone downloaded and parsed
+   97 KB for work it would never do. They are fetched when a screen that needs them is
+   opened, once per visit, and the promise is remembered so two taps cost one download. */
+const CORE_LAZY={
+  sheets:'assets/js/core/sheets.js',
+  xlsx:'assets/js/core/xlsxread.js'
+};
+const coreLoading={};
+SH.ensureCore=function(kind){
+  const file=CORE_LAZY[kind];
+  if(!file) return Promise.resolve();
+  if(kind==='sheets'&&window.LS&&LS.sheets) return Promise.resolve();
+  if(kind==='xlsx'&&window.LSXLSX) return Promise.resolve();
+  if(coreLoading[kind]) return coreLoading[kind];
+  coreLoading[kind]=new Promise((resolve,reject)=>{
+    const sc=document.createElement('script');
+    sc.src=file+'?v='+encodeURIComponent(APP_VERSION);
+    sc.async=true;
+    sc.onload=()=>resolve();
+    sc.onerror=()=>{ delete coreLoading[kind]; reject(new Error('The export code could not be loaded — check the connection and try again.')); };
+    document.head.appendChild(sc);
+  });
+  return coreLoading[kind];
+};
+/* Which screen needs which of them. Anything not listed here draws from the core alone. */
+const MODULE_DEPS={
+  roster:['sheets'],
+  report:['sheets','xlsx'],
+  design:['sheets'],
+  staff:['sheets'],
+  leave:['sheets'],
+  samples:['sheets'],
+  training:['sheets'],
+  revenue:['sheets'],
+  stock:['sheets'],
+  pbf:['sheets'],
+  quality:['sheets'],
+  equipment:['sheets'],
+  eqa:['sheets']
+};
+
 /* Downloading one screen's own code is a network step of its own, and it can stall
    without ever failing: the request sits open, no error fires, and the skeleton stays
    for ever with nothing said. Twenty seconds of a *pending* request is not fast, so it
@@ -397,6 +441,12 @@ SH.route=async function(opts){
   document.querySelector('.app')?.classList.remove('rail-open');
   try{
     const tLoad=Date.now();
+    /* Whatever this screen needs beyond the core is fetched first — in parallel with
+       nothing else, because the module's own file may read it as it executes. */
+    const deps=MODULE_DEPS[id]||[];
+    if(deps.length){
+      try{ await Promise.all(deps.map(k=>SH.ensureCore(k))); }catch(e){ /* the screen still draws without exports */ }
+    }
     await loadModule(id);
     guard.loadMs=Date.now()-tLoad;
     /* A navigation that started while this one was still fetching owns the screen now:
