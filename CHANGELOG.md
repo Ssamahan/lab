@@ -4,6 +4,28 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.110 — reliability is worth more than 71 KB
+
+One line reverted from 6.9.109. That build made the console's stylesheet non-blocking —
+fetched at low priority and swapped in by a script when it arrived — to save 71 KB before
+the public page could be read. It is a standard trick and it is the wrong one here: on a
+device where the deferred swap does not happen (an interrupted load, an in-app browser, a
+cache that answers with an empty body), the console draws **without any of its own styles**
+and the result is a page that looks broken — which is indistinguishable from a site that is
+down. `modules.css` is a plain blocking stylesheet again, before the first screen is
+drawn, every time.
+
+Everything else from 6.9.109 stands, because that is where the real weight was: the service
+worker no longer downloads sixteen screens and eleven fonts during install, `sheets.js` and
+`xlsxread.js` load when a screen needs them, and the opening animation is under a second.
+A first screen is still **782 KB**, down from **2.5 MB**.
+
+`harness/perf109.js` now asserts the opposite of what it asserted in 6.9.109 — the
+stylesheet blocks, and is not deferred — so this cannot quietly regress to "clever" again.
+Full sweep: 41 suites, 2,102 checks, all green.
+
+---
+
 ## v6.9.109 — the first screen, and nothing it does not need
 
 Reported after 6.9.108: *"website not readable still, or taking very long"* — and, separately,
