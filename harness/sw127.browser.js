@@ -2,6 +2,7 @@
    npm i --no-save --no-package-lock playwright-core @sparticuz/chromium */
 const {chromium:pw}=require('playwright-core'), chromium=require('@sparticuz/chromium').default;
 const {spawn}=require('child_process'), assert=require('assert');
+const version=require('../package.json').version;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{let browser;const server=spawn('python3',['-m','http.server','18767','--bind','127.0.0.1'],{cwd:require('path').resolve(__dirname,'..'),stdio:'ignore'});
 try{
@@ -11,7 +12,7 @@ try{
  const page=await ctx.newPage();await page.goto('http://127.0.0.1:18767/',{waitUntil:'load'});
  await page.waitForFunction(()=>window.__lsBooted===true);await page.evaluate(()=>navigator.serviceWorker.ready);await page.waitForFunction(()=>navigator.serviceWorker.controller);
  const details=await page.evaluate(async()=>({version:await (await fetch('sw.js',{cache:'no-store'})).text(),keys:await caches.keys()}));
- assert(details.version.includes("const VERSION = 'v6.9.127'"));assert(details.keys.includes('lab-shell-v6.9.127'));
+ assert(details.version.includes("const VERSION = 'v"+version+"'"));assert(details.keys.includes('lab-shell-v'+version));
  console.log('✓ actual browser installs and activates the complete current worker');
  await page.evaluate(()=>localStorage.setItem('test-preserve','keep'));
  await ctx.setOffline(true);await page.reload({waitUntil:'domcontentloaded',timeout:15000});await page.waitForFunction(()=>window.__lsBooted===true,{timeout:12000});

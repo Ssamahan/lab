@@ -2,7 +2,9 @@
    Uses isolated browser storage, synthetic data, and a local HTTP server. */
 const {chromium:pw}=require('playwright-core'), chromium=require('@sparticuz/chromium').default;
 const {spawn}=require('child_process'), assert=require('assert');
-const asset=process.argv[2]==='style'?'/assets/css/modules.css':'/assets/js/core/store.js';
+// The stylesheet gate was withdrawn in v6.9.128 to restore v6.9.121 startup.
+if(process.argv[2]==='style'){console.log('Stylesheet paint safeguard is not present in this build.');process.exit(0);}
+const asset='/assets/js/core/store.js';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
  const server=spawn('python3',['-m','http.server','18766','--bind','127.0.0.1'],{cwd:require('path').resolve(__dirname,'..'),stdio:'ignore'});let browser;

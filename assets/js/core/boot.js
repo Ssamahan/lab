@@ -180,13 +180,9 @@ setTimeout(()=>{
   else recover(firstError||'the console did not finish starting within seven seconds');
 },7000);
 
-function beginWhenStylesReady(){
-  const gate=window.__lsStyleGate;
-  if(gate) gate.then(()=>setTimeout(init,60));
-  else setTimeout(init,60);
-}
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',beginWhenStylesReady);
-else beginWhenStylesReady();
+// v6.9.121's startup path: no additional style-gate promise before init.
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(init,60));
+else setTimeout(init,60);
 
 /* Service worker updates do not reload an open tab: unfinished forms and the
    private-name session belong to the user, who decides when it is safe to reload. */
