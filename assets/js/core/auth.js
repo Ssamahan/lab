@@ -250,6 +250,7 @@ A.logAttempt=function(ok,u){
   }catch(e){}
 };
 A.logout=function(){
+  if(LS.privateNames) LS.privateNames.signOut();
   const who=A.user&&A.user.name;
   A.user=null; A.session=null;
   try{ localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); }catch(e){}

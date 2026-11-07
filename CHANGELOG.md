@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.120 — Separate private patient-name sync
+
+Kelvin can sign in separately to the private-names Supabase project from Referred Samples. Password and access token are kept only in memory; the normal register sync is unchanged. Names are appended to a restricted store, with atomic compare-before-write and explicit conflict review. The old local name is retained in device history when a name is changed. Automatic retries occur while the private session is active; signing out or reloading requires a fresh private sign-in. Normal register exports still exclude names. Authenticated end-to-end testing on the user's devices and recovery/backups remain necessary; this is not end-to-end encryption and does not fix old-project exposure or existing register sync timeouts.
+
+---
+
 ## v6.9.119 — Patient name visibility for Kelvin
 
 While signed in as Kelvin, locally recorded patient names are shown without the separate fifteen-minute reveal. Other roles retain their existing visibility rules. A regression test verifies that a name present on the device appears in both manifest preview and the HTML sent to Print / PDF. Names are still device-only: secure cross-device name syncing is not yet implemented. The application login is client-side and is not a server-enforced security boundary.

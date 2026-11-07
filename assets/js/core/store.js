@@ -2891,8 +2891,14 @@ S.setPatientName=function(sampleId,name,opts){
   loadNames();
   const old=NAMES[sampleId];
   if(!v) delete NAMES[sampleId];
-  else NAMES[sampleId]={name:v,at:U.nowISO(),by:(opts.actor||(LS.auth&&LS.auth.user&&LS.auth.user.name)||'')};
+  else {
+    const previous=(old&&Array.isArray(old.previousNames)?old.previousNames.slice():[]);
+    if(old&&old.name&&old.name!==v&&!previous.includes(old.name)) previous.push(old.name);
+    NAMES[sampleId]={name:v,at:U.nowISO(),by:(opts.actor||(LS.auth&&LS.auth.user&&LS.auth.user.name)||'')};
+    if(previous.length) NAMES[sampleId].previousNames=previous;
+  }
   if(!saveNames()){ if(old) NAMES[sampleId]=old; else delete NAMES[sampleId]; return false; }
+  if(LS.privateNames&&LS.privateNames.schedule) LS.privateNames.schedule();
   return true;
 };
 S.patientNameCount=function(){ return Object.keys(loadNames()).length; };

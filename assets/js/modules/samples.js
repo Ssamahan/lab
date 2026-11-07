@@ -110,6 +110,35 @@ function namesButton(){
   return '<button class="btn sm" data-names-toggle>'
     +UI.ic(open?'eye-off':'eye',13)+(open?' Hide names':' Show names')+'</button>';
 }
+/* Private name connection uses a separate real Supabase account, not the local app login. */
+function privateNamesModal(){
+  const P=LS.privateNames;
+  if(!P||!LS.auth.user||LS.auth.user.id!=='u1') return;
+  const list=P.conflicts();
+  const rows=list.map(c=>'<div style="border-top:1px solid var(--border);padding:10px 0">'
+    +'<b>Sample '+U.esc(c.sampleId)+'</b>'
+    +(c.remote===null?'<p class="small">The shared copy changed during sync. Press Check now to review it.</p>'
+      :'<p class="small">On this device: <b>'+U.esc(c.local)+'</b><br>Private copy: <b>'+U.esc(c.remote)+'</b></p>'
+      +'<div class="row gap-sm"><button class="btn xs" data-pn-local="'+U.esc(c.id)+'">Use device name</button>'
+      +'<button class="btn xs" data-pn-remote="'+U.esc(c.id)+'">Use private copy</button></div>')+'</div>').join('');
+  UI.modal({title:'Private patient names',width:'min(650px,100%)',
+    sub:'A separate Supabase project for patient names. The register continues using its existing project.',
+    body:'<div class="hint" style="margin-bottom:12px">'+U.esc(P.status())+'</div>'
+      +(P.connected()?'':'<div class="field"><label>Private project email</label><input class="input" id="pnEmail" type="email" autocomplete="username"></div>'
+        +'<div class="field"><label>Private project password</label><input class="input" id="pnPassword" type="password" autocomplete="current-password"></div>'
+        +'<p class="xs faint">This is your Supabase Authentication user, not your Supabase dashboard password. The password is not saved. You will sign in again after a reload or session expiry.</p>')
+      +(list.length?'<p class="small"><b>Check the request form before choosing a name.</b> Neither version is silently discarded.</p>'+rows:'')
+      +'<p class="xs faint">Names stay on this device as well. The ordinary register backup does not include them. The existing register queue is separate.</p>',
+    foot:'<button class="btn" data-close>Close</button>'+(P.connected()?'<button class="btn" data-pn-disconnect>Disconnect</button><button class="btn primary" data-pn-sync>Check now</button>':'<button class="btn primary" data-pn-login>Sign in &amp; sync names</button>'),
+    onMount:(el,close)=>{
+      const run=async(button,fn)=>{button.disabled=true;try{const r=await fn();close();UI.toast(r&&r.conflicts?r.conflicts+' name conflict(s) need review':'Private names checked',{type:r&&r.conflicts?'warn':'ok',duration:7000});LS.shell.refresh();if(r&&r.conflicts)privateNamesModal();}catch(e){UI.toast(e.message||'Private names could not sync',{type:'err',duration:8000});}finally{button.disabled=false;}};
+      const login=el.querySelector('[data-pn-login]');if(login)login.onclick=()=>{const email=el.querySelector('#pnEmail').value, field=el.querySelector('#pnPassword'), password=field.value;field.value='';run(login,()=>P.signIn(email,password));};
+      const sync=el.querySelector('[data-pn-sync]');if(sync)sync.onclick=()=>run(sync,()=>P.sync());
+      const dis=el.querySelector('[data-pn-disconnect]');if(dis)dis.onclick=()=>{P.signOut();close();LS.shell.refresh();};
+      el.querySelectorAll('[data-pn-local]').forEach(b=>b.onclick=()=>run(b,()=>P.resolve(b.dataset.pnLocal,'local')));
+      el.querySelectorAll('[data-pn-remote]').forEach(b=>b.onclick=()=>run(b,()=>P.resolve(b.dataset.pnRemote,'remote')));
+    }});
+}
 /* The name of a specimen for anything that has to identify it — the record view, the
    printed manifest, an export. Recorded names come from the device name store and need no
    unlock; a visitor still gets the mask, and where no name was ever recorded the old
@@ -168,7 +197,7 @@ function recordNamesBulk(){
     +'</div>';
   UI.modal({title:'Record patient names',width:'min(720px,100%)',
     sub:list.length+' of '+missing.length+' orders without a name on this filter — match the patient ID to the request form, then save. Save this batch to see the next.',
-    body:'<div class="hint" style="margin-bottom:10px">Names are kept in their own store on this device: never in the register that syncs, never in a file export. They do print on the referral manifest, because the manifest has to identify the specimen.</div>'
+    body:'<div class="hint" style="margin-bottom:10px">Names are kept separately from the register. Kelvin can connect the private names store to sync them. The normal register export does not include names. They print on the referral manifest.</div>'
       +'<div style="max-height:52vh;overflow:auto">'+list.map(row).join('')+'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-all>'+UI.ic('check',14)+'Save names</button>',
     onMount:(el,close)=>{
@@ -228,6 +257,8 @@ function tableHTML(){
      +'<span class="grow"></span>'
      +'<div class="row gap-sm">'
      +(namesUnlockable()?'<button class="btn sm" data-names-bulk title="Record the names of orders that have none">'+UI.ic('pencil',13)+' Record names'+(function(){ const miss=S.db().samples.filter(x=>!S.recordedName(x)).length; return miss?(' · '+miss):''; })()+'</button>':'')
+       +(LS.privateNames&&LS.auth.user&&LS.auth.user.id==='u1'?'<button class="btn sm" data-private-names title="Sign in to the separate patient name store">Private names</button>':'')
+       +(LS.privateNames&&LS.auth.user&&LS.auth.user.id==='u1'?'<span class="xs faint" data-private-status>'+U.esc(LS.privateNames.status())+'</span>':'')
        +namesButton()
        +'<button class="btn sm" data-saved>'+UI.ic('book-marked',13)+' Saved views</button>'
        +'<button class="btn sm" data-export>'+UI.ic('download',13)+'<span class="hide-sm">Export</span></button>'
@@ -930,7 +961,7 @@ function newWizard(){
   const stepHTML=()=>{
     if(state.step===1) return '<div class="wizard-step">'
       +'<div class="form-grid">'
-      +'<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name===U.CONFIDENTIAL?'':state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Written to the name store on this device, never to the register that syncs, and printed on the referral manifest. Kelvin sees it while signed in; other permitted staff can use Show names.</div></div>'
+      +'<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name===U.CONFIDENTIAL?'':state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Saved on this device and printed on the referral manifest. Kelvin can sync names using Private names. Kelvin sees it while signed in; other permitted staff can use Show names.</div></div>'
       +'<div class="field"><label>Patient / insurance ID</label><input class="input mono" id="wPid" value="'+U.esc(state.patient.pid)+'" placeholder="430129"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="wSex">'+['Female','Male'].map(x=>'<option '+(state.patient.sex===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Date of birth</label><input class="input mono" type="date" id="wDob" value="'+U.esc(state.patient.dob)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">The age below is calculated from it.</div></div>'
@@ -1111,6 +1142,7 @@ function wire(){
   r.querySelectorAll('[data-new]').forEach(b=>b.onclick=newWizard);
   r.querySelectorAll('[data-saved]').forEach(b=>b.onclick=savedViews);
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=exportCSV);
+  const pn=r.querySelector('[data-private-names]'); if(pn) pn.onclick=privateNamesModal;
   const nt=r.querySelector('[data-names-toggle]'); if(nt) nt.onclick=namesModal;
   const nb=r.querySelector('[data-names-bulk]'); if(nb) nb.onclick=recordNamesBulk;
   r.querySelectorAll('[data-name-add]').forEach(b=>b.onclick=ev=>{
