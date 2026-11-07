@@ -5,7 +5,7 @@
 'use strict';
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.training=M;
-let rootEl=null, tab='fifo', q='';
+let rootEl=null, tab='fifo', q='', mapTrainingId='';
 
 /* In-house sessions held at Ruli DH do not reset a person's place in the queue:
    the FIFO is about who gets the next sponsored seat elsewhere, so only external
@@ -89,6 +89,34 @@ function previousGap(s, last){
   return Math.max(0,U.daysBetween(from,last.start));
 }
 const sessionKey=t=>t?String(t.start)+'|'+String(t.title||''):'';
+/* Map searches use the entered place, not assumed coordinates. A broad district is
+   explicitly labelled approximate; a third-party map may resolve a different place. */
+function trainingMapView(){
+  const all=(S.db().trainings||[]).filter(t=>String(t.facilityName||t.location||'').trim()).slice()
+    .sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
+  const selected=all.find(t=>t.id===mapTrainingId)||all[0];
+  if(selected) mapTrainingId=selected.id;
+  const query=selected?[selected.facilityName,selected.location,'Rwanda'].filter(Boolean).join(', '):'';
+  const routes=selected?(S.db().trainingExpenses||[]).filter(x=>x.linkedTraining===selected.id)
+    .flatMap(x=>(x.expenses||[]).filter(e=>e.cat==='Transport'&&e.routeFrom&&e.routeTo)):[];
+  const totals=new Map(); let unknown=0;
+  (S.db().trainings||[]).forEach(t=>{ const name=String(t.fundingPartner||'').trim();
+    if(!name){ unknown++; return; }
+    const key=name.toLocaleLowerCase(); const item=totals.get(key)||{name,count:0}; item.count++; totals.set(key,item);
+  });
+  const partners=Array.from(totals.values()).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
+  const max=partners.length?partners[0].count:1;
+  const chart=partners.length?'<div role="img" aria-label="Recorded trainings by funding partner">'+partners.map(p=>'<div style="margin-bottom:12px"><div class="row between"><span class="small">'+U.esc(p.name)+'</span><b class="mono xs">'+p.count+'</b></div><div class="meter gold" style="margin-top:5px"><i style="width:'+(p.count/max*100)+'%"></i></div></div>').join('')+'</div>'
+    :'<p class="small faint">No funding partners recorded yet. Edit a training to add its funding partner.</p>';
+  const map=selected?'<label class="small" for="trMapSelect">Choose a training</label><select class="select" id="trMapSelect" style="margin:6px 0 8px">'+all.map(t=>'<option value="'+U.esc(t.id)+'"'+(t.id===selected.id?' selected':'')+'>'+U.esc(t.title||'Untitled')+' · '+U.esc(t.facilityName||t.location||'')+'</option>').join('')+'</select>'
+    +'<div class="xs faint" style="margin-bottom:8px">'+(selected.facilityName?'Searching for the recorded facility':'Only a general location is recorded; this is not a confirmed venue')+': '+U.esc(query)+'. Confirm the result on the map.</div>'
+    +'<iframe title="Training location on Google Maps" data-training-map loading="lazy" referrerpolicy="no-referrer" src="https://maps.google.com/maps?q='+encodeURIComponent(query)+'&amp;output=embed" style="width:100%;height:320px;border:0;border-radius:10px;background:var(--surface-inset)"></iframe>'
+    +'<div class="hint">Map requires internet and sends the place name to Google. If it does not load, <a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent(query)+'">open the location in Google Maps ↗</a>.</div>'
+    +(routes.length?'<div style="margin-top:12px"><b class="small">Recorded ticket legs</b>'+routes.map(e=>'<div class="small" style="margin-top:8px">'+U.esc(e.routeFrom)+' → '+U.esc(e.routeTo)+' <button class="btn xs" data-map-route data-from="'+U.esc(e.routeFrom)+'" data-to="'+U.esc(e.routeTo)+'">Show route on map</button> · <a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&amp;origin='+encodeURIComponent(e.routeFrom)+'&amp;destination='+encodeURIComponent(e.routeTo)+'&amp;travelmode=driving">Open in Google Maps ↗</a></div>').join('')+'<button class="btn xs" data-map-venue style="margin-top:8px">Back to venue map</button>'+'<div class="hint">Google suggests roads; it does not know the exact road the bus or taxi took.</div></div>':'<div class="hint" style="margin-top:8px">No complete ticket stops linked to this training yet. Add transport tickets in Training Revenue to see their routes.</div>')
+    :'<p class="small faint">No training location recorded yet. Record a training with a location to show it on the map.</p>';
+  return '<div class="grid-12" style="margin-bottom:16px"><div class="c8">'+UI.card({title:'Training locations & travel',sub:'Choose a training to see its venue and ticket legs',icon:'map-pin',body:map})+'</div>'
+    +'<div class="c4">'+UI.card({title:'Trainings by funding partner',sub:'Count of training records with an explicitly recorded funder',icon:'chart-bar',body:chart+'<div class="hint">'+unknown+' training'+(unknown===1?'':'s')+' without a recorded funding partner. An organizer is not automatically assumed to be the funder.</div>'})+'</div></div>';
+}
 function fifoView(){
   const all=S.activeStaff().map(s=>{ const last=lastNameTraining(s.id); const days=waitingDays(s);
     const all=allTrainingOf(s.id);
@@ -111,7 +139,7 @@ function fifoView(){
       return String(a.s.name).localeCompare(String(b.s.name));
     });
   const nextName=all.length?all[0].s.name:'';
-  return '<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Longest wait first · days served waiting, counted from the day they returned',icon:'git-branch',
+  return trainingMapView()+'<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Longest wait first · days served waiting, counted from the day they returned',icon:'git-branch',
       tools:'<button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
       body:'<div class="xs faint" style="margin:0 0 8px">Everyone active stands in one queue, whichever post they hold — a post only decides who is <b>called by name</b> when a session is aimed at it, not who waits. Read from the history: a training of three days or more, held away from Ruli DH, is a turn served.</div>'
         +'<div style="display:flex;flex-direction:column;gap:2px">'+all.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
@@ -194,6 +222,7 @@ function trainingDrawer(id){
   UI.drawer({title:t.title,eyebrow:'Training record',sub:(t.organizer||'Internal')+' · '+U.fmtDate(t.start),body:
     '<div class="row wrap" style="gap:6px;margin-bottom:14px">'+certPill(t)+(isInHouse(t)?'<span class="pill amber">in-house · does not count for FIFO</span>':'')+'<span class="pill slate">'+(t.end&&t.end!==t.start?U.daysBetween(t.start,t.end)+1+' days':'1 day')+'</span><span class="pill gold">'+U.esc(t.location||'—')+'</span></div>'
     +(t.facilityName?'<div class="card pad" style="margin-bottom:14px"><div class="eyebrow">Host facility</div><div class="small strong">'+U.esc(t.facilityName)+'</div><div class="xs faint">'+U.esc(t.facilityType||'Facility')+' · '+U.esc(t.location||'Location not recorded')+'</div><a class="btn sm" style="margin-top:8px" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent(t.facilityName+' '+(t.location||'')+' Rwanda')+'">Find on Google Maps ↗</a><div class="hint">Confirm the correct result in Google Maps; the name has not been verified automatically.</div></div>':'')
+    +'<div class="hint" style="margin-bottom:10px">Funding partner: '+U.esc(t.fundingPartner||'Not recorded')+'</div>'
     +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px;padding:12px"><div class="row between"><div><div class="small strong">Certificates issued?</div><div class="xs faint">Not every session provides one — record it here rather than assuming.</div></div>'
     +'<button class="btn sm'+(certGiven(t)?' danger':' primary')+'" data-cert-toggle>'+(certGiven(t)?'Mark not certified':'Mark certificates issued')+'</button></div></div>'
     +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="eyebrow">Description</div><p class="small" style="margin-top:4px;line-height:1.6">'+U.esc(t.description||t.note||'No description recorded.')+'</p></div>'
@@ -244,6 +273,7 @@ function scheduleModal(id, opts){
        +organisers.map(o=>'<option value="'+U.esc(o)+'"'+(orgNow===o?' selected':'')+'>'+U.esc(o)+'</option>').join('')
        +'<option value="__new">＋ Add a new organiser…</option></select>'
        +'<input class="input" id="trOrgNew" placeholder="Organiser name" style="margin-top:6px;display:none"></div>'
+     +'<div class="field"><label for="trFunder">Funding partner (optional)</label><input class="input" id="trFunder" value="'+U.esc(t&&t.fundingPartner||'')+'" placeholder="Who funded this training?"><div class="hint">Enter only if known; the organizer may be different.</div></div>'
      +'<div class="field"><label>Location</label><input class="input" id="trLoc" list="trLocList" value="'+U.esc(t?t.location||'':'Ruli DH')+'">'
        +'<datalist id="trLocList">'+U.uniq(['Ruli DH','Kigali','Musanze','Bugesera District','Huye District','Gakenke District']).map(l=>'<option value="'+U.esc(l)+'">').join('')+'</datalist>'
        +'<div class="xs faint" style="margin-top:4px">Held at Ruli DH or online here? Then it does not serve a turn in the queue.</div></div>'
@@ -294,6 +324,7 @@ function scheduleModal(id, opts){
         const audKey=el.querySelector('#trAudience')?el.querySelector('#trAudience').value:'';
         const audLabel=(AUDIENCE.find(a=>a[0]===audKey)||[])[1]||'';
         const rec={title,organizer:organiser,location:el.querySelector('#trLoc').value,
+          fundingPartner:el.querySelector('#trFunder').value.trim(),
           facilityType:el.querySelector('#trFacilityType').value,facilityName:el.querySelector('#trFacilityName').value.trim(),
           start:el.querySelector('#trStart').value,end:el.querySelector('#trEnd').value,
           description:el.querySelector('#trDesc').value,attendees,
@@ -322,17 +353,20 @@ function scheduleModal(id, opts){
 }
 function paint(){
   const host=rootEl.querySelector('#trBody'); if(!host) return;
-  host.innerHTML=tab==='fifo'?fifoView():tab==='registry'?registryView():historyView();
+  host.innerHTML=tab==='fifo'?fifoView():tab==='map'?trainingMapView():tab==='registry'?registryView():historyView();
   U.$$('[data-tr-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.trTab===tab));
   UI.animateCounts(host);
   wireBody();
 }
 function wireBody(){
   const r=rootEl;
+  const mapSelect=r.querySelector('#trMapSelect'); if(mapSelect) mapSelect.onchange=()=>{ mapTrainingId=mapSelect.value; paint(); };
+  r.querySelectorAll('[data-map-route]').forEach(b=>b.onclick=()=>{ const frame=r.querySelector('[data-training-map]'); if(frame){ frame.src='https://maps.google.com/maps?saddr='+encodeURIComponent(b.dataset.from)+'&daddr='+encodeURIComponent(b.dataset.to)+'&output=embed'; frame.title='Suggested road route on Google Maps'; } });
+  const venue=r.querySelector('[data-map-venue]'); if(venue) venue.onclick=()=>paint();
   r.querySelectorAll('[data-schedule]').forEach(b=>b.onclick=()=>scheduleModal());
   r.querySelectorAll('[data-history]').forEach(b=>b.onclick=()=>scheduleModal(null,{history:true}));
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>{
-    const rows=[['Title','Organizer','Location','Host facility type','Host facility name','Start','End','Attendees','Certificate','Counts for FIFO']].concat(S.db().trainings.map(t=>[t.title,t.organizer,t.location,t.facilityType||'',t.facilityName||'',t.start,t.end,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join('; '),certLabel(t),isInHouse(t)?'no':'yes']));
+    const rows=[['Title','Organizer','Funding partner','Location','Host facility type','Host facility name','Start','End','Attendees','Certificate','Counts for FIFO']].concat(S.db().trainings.map(t=>[t.title,t.organizer,t.fundingPartner||'',t.location,t.facilityType||'',t.facilityName||'',t.start,t.end,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join('; '),certLabel(t),isInHouse(t)?'no':'yes']));
     U.exportCSV('training-register-'+U.todayISO()+'.csv',rows,{title:'Training registry',actor:LS.auth.user.name}); UI.toast('Training register exported',{type:'ok'});
   });
   r.querySelectorAll('[data-tr]').forEach(tr=>tr.onclick=()=>trainingDrawer(tr.dataset.tr));
@@ -364,7 +398,7 @@ M.render=function(root,params){
   root.innerHTML='<div class="page-head"><div><h1>Training roster</h1><div class="sub">Competency is a controlled asset: a FIFO queue that is visibly fair, a registry that survives staff turnover, and certificates on file.</div></div>'
    +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-history>'+UI.ic('history',15)+' Record past training</button><button class="btn primary" data-schedule>'+UI.ic('plus',15)+' Schedule training</button></div></div>'
    +kpis()
-   +'<div class="filters" style="margin-bottom:12px">'+[['fifo','FIFO queue'],['registry','Registry'],['history','History']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-tr-tab="'+k+'">'+l+'</button>').join('')+'</div>'
+   +'<div class="filters" style="margin-bottom:12px">'+[['fifo','FIFO queue'],['map','Map & partners'],['registry','Registry'],['history','History']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-tr-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="trBody"></div>';
   U.$$('[data-tr-tab]',root).forEach(b=>b.onclick=()=>{ tab=b.dataset.trTab; paint(); });
   paint();
