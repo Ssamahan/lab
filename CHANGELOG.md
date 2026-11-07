@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.128 — Restore the v6.9.121 startup path
+
+- Restore v6.9.121's direct startup scheduling and stylesheet handling, removing the additional style gate introduced in v6.9.127. The core script order and screen loader already matched v6.9.121.
+- Keep the early warning (without changing stylesheet loading), cache preservation, no automatic form reload, and the newer private-name, equipment, sync and layout changes. This is a targeted startup rollback, not a byte-for-byte rollback of the whole application.
+- A stalled stylesheet can still delay painting; a connection that cannot deliver the page or its required assets can prevent startup. This release alone does not prove the original issue is resolved.
+
 ## v6.9.127 — Safer startup and offline updates
 
 - Start a dependency-free watchdog before the stylesheets and parser-blocking scripts; a stalled core file can no longer prevent that warning from being scheduled. It disappears when a screen starts and does not clear data.

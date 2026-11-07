@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.127';
+const APP_VERSION='6.9.128';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
