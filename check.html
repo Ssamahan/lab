@@ -73,6 +73,10 @@
     endpoint: 'https://lkjwztvhmzhasclmlocx.supabase.co',
     key: 'sb_publishable_6OQVktnGsJo_RPpZfGtITQ_pt3NCdgJ'
   };
+  var PRIVATE = {
+    endpoint: 'https://xakoyknvkktpcmyecoxx.supabase.co',
+    key: 'sb_publishable_LP464vGRnwj3g-i6FtgxcA_WOU1R3k7'
+  };
   var results = [];
   var listEl = document.getElementById('checks');
   var verdictEl = document.getElementById('verdict');
@@ -136,18 +140,16 @@
     var coreBad = core.filter(function(r){ return !r.ok; });
     if(!results.length) return;
     if(coreBad.length){
-      verdictEl.innerHTML = '<b>Nothing will open on this connection.</b> The files that draw the first screen could not be fetched: '
+      verdictEl.innerHTML = '<b>Some files needed by the console did not arrive.</b> '
         + coreBad.map(function(r){ return '<b>'+esc(r.name)+'</b> ('+esc(r.detail)+')'; }).join(', ')
-        + '. That is a filter or a firewall between this device and <span class="mono">github.io</span>, not the app. '
-        + 'Change the DNS to <b>1.1.1.1</b> and <b>8.8.8.8</b>, or open the site on mobile data, and run this check again.';
-    } else if(bad.length === 1 && /supabase/.test(bad[0].name)){
-      verdictEl.innerHTML = '<b>The console will open.</b> Only the shared copy is unreachable (' + esc(bad[0].detail) + ') — every screen still works, and everything typed is saved on this device until the shared copy answers again.';
+        + '. This check does not identify the cause. Share the report; do not clear this device’s data.';
     } else if(bad.length){
-      verdictEl.innerHTML = '<b>Partly reachable.</b> ' + bad.length + ' file' + (bad.length===1?'':'s') + ' did not arrive: '
+      verdictEl.innerHTML = '<b>Some checks failed.</b> '
         + bad.map(function(r){ return '<b>'+esc(r.name)+'</b> ('+esc(r.detail)+')'; }).join(', ')
-        + '. A screen whose own file is missing shows an error card with a Retry; the rest of the console works. Send this report to the laboratory manager.';
+        + '. A timeout does not identify the cause or tell whether a previous write arrived.';
     } else {
-      verdictEl.innerHTML = '<b>Everything arrived.</b> This connection can load the console. If a screen still does not draw, open it once and press <b>Copy diagnostics</b> on the card that appears.';
+      verdictEl.innerHTML = '<b>Both services answered these read-only checks.</b> '
+        + 'This does not test sign-in, write permission, or whether either device’s changes synced.';
     }
   }
 
@@ -175,8 +177,14 @@
   }).then(function(){
     return probe('samples.js (the sample register)', 'assets/js/modules/samples.js?v=' + VERSION.slice(1));
   }).then(function(){
-    return probe('The shared copy (Supabase)', SHARED.endpoint + '/rest/v1/lab_registers?id=eq.ruli-dh&select=id',
-      {headers:{'apikey':SHARED.key}});
+    /* The two independent services are checked at the same time. No patient data,
+       user credentials, authenticated sessions or writes are used by either check. */
+    return Promise.all([
+      probe('The shared register (Supabase)', SHARED.endpoint + '/rest/v1/lab_registers?id=eq.ruli-dh&select=id',
+        {headers:{'apikey':SHARED.key}}),
+      probe('Private names authentication (Supabase)', PRIVATE.endpoint + '/auth/v1/settings',
+        {headers:{'apikey':PRIVATE.key}})
+    ]);
   }).then(function(){
     /* ── this device ─────────────────────────────────────────────── */
     var d = document.getElementById('device');
