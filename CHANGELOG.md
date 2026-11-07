@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.116 — Replace the blank training map
+
+The keyless Google iframe could appear blank and browsers cannot reliably report why a cross-origin iframe failed. Replaced it with a locally bundled, lazy-loaded Leaflet map using OpenStreetMap tiles. It begins with a Rwanda overview, supports manual venue search with an explicit result choice, and gives visible errors and a Google Maps link if services cannot be reached. No venue coordinates are invented or saved. Linked ticket legs can request a suggested OSRM driving route, drawn with a short animation (respecting reduced motion); search matches and the fact that it is not a GPS trace are displayed. Route endpoints are not exposed to roles without revenue access. Online services receive place names when searched, and tiles require internet. Nominatim requests are explicitly initiated and rate limited; this is not Google Places autocomplete. The map remains compact on phones.
+
+---
+
 ## v6.9.115 — A visible training map and funding chart
 
 The training landing page and its new Map & partners tab show an embedded Google map for the selected recorded venue (or the general location when no venue is known). Linked transport ticket legs can be viewed on the map or opened in Google Maps. Suggested roads are not a GPS trace or a guarantee of the route taken. The map needs internet; place names are sent to Google, and an external link is provided if the embedded map cannot load.

@@ -865,3 +865,10 @@
 .rev-lines-tot b{font-weight:600}
 .rev-lines-tot .pos b{color:var(--pos)}
 .rev-lines-tot .crit b{color:var(--crit)}
+
+/* A compact map that does not consume the whole training screen. */
+.training-map-toolbar { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.training-map-wrap { position:relative; overflow:hidden; border:1px solid var(--border); border-radius:10px; background:var(--surface-inset); }
+.training-map { height:280px; width:100%; z-index:0; }
+.training-map-result { display:block; width:100%; margin-top:5px; text-align:left; white-space:normal; }
+@media (max-width:600px) { .training-map { height:230px; } }
