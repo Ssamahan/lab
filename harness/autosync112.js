@@ -117,7 +117,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(/\d+ waiting/.test(say),'naming how many changes are waiting',say);
   ok(/retrying in \d+ s/.test(say),'and when the next attempt is',say);
   ok(chip.classList.contains('bad'),'in the warning colour while it cannot get through');
-  ok(/refused the last attempt/i.test(chip.title),'with the reason in the tooltip',chip.title.slice(0,60));
+  ok(/last sync attempt failed/i.test(chip.title),'with the reason in the tooltip',chip.title.slice(0,60));
 
   /* the connection comes back: the chip clears itself and says so */
   accept=true;

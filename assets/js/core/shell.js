@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.116';
+const APP_VERSION='6.9.117';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -843,8 +843,8 @@ function paintSyncChip(){
   if(info.waiting){
     const n=info.count;
     if(info.lastError){ tone='bad';
-      say=n+' waiting · retrying in '+Math.max(1,Math.round((info.retryIn||0)/1000))+' s';
-      tip='The shared copy refused the last attempt: '+info.lastError+'.\n'
+      say=n+' waiting · '+(info.retryIn>0?'retrying in '+Math.max(1,Math.ceil(info.retryIn/1000))+' s':(info.running?'retrying now…':(!info.live?'auto-retry off':'retry due')));
+      tip='The last sync attempt failed: '+info.lastError+'.\n'
         +'The '+n+' change'+(n===1?' is':'s are')+' safe on this device and will go by itself when the shared copy accepts them.\nPress to try now.';
     } else {
       tone='warn';
