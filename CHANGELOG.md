@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.123 — Choose or register equipment backups during off-site repair
+
+- Both equipment status and curative shipment forms list other equipment, identify unavailable items, and allow a new backup to be registered as part of the same save.
+- Backup assignments retain the equipment's role and previous status; replacing, removing, or returning the backup releases it appropriately. Legacy assignments use a role-based fallback where the prior status was not recorded.
+- Revalidate availability before saving and retain replacement history; cancelling a form creates no equipment.
+
 ## v6.9.122 — Clear stale register connection errors after a successful check
 
 A background check that successfully reads an unchanged shared revision with no pending register edits now clears the old error and retry backoff. It does not publish, replace the register or touch the pending queue. The indicator says “Last sync failed” rather than diagnosing every failure as a connectivity problem; its tooltip also explains that a read does not test writes or private-name sync. Real current errors and failed writes remain visible, and pending edits are not cleared by a read. This fixes one possible stale-red-status path, not the underlying cause of every connection failure.
