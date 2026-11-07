@@ -4,6 +4,14 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.117 — Retry no longer stuck at “1 s”
+
+A failed sync could show “retrying in 1 s” indefinitely after its scheduled time had already passed. The header now says retry due, retrying now, or auto-retry off as appropriate; it still shows the actual last error in the tooltip and Data & sync.
+
+Sync and sign-in requests now abort after 25 seconds without a response, releasing the sync lock and retaining pending edits. An interrupted request does not prove that a server did not receive it; it remains pending until a confirmed response. A failed write after a merge is now reported as a failure and retried rather than silently reported as success. Edits made during a send are not cleared by the earlier response, and background flush is skipped while a sync is in progress. This does not diagnose a particular device's network failure or guarantee connectivity.
+
+---
+
 ## v6.9.116 — Replace the blank training map
 
 The keyless Google iframe could appear blank and browsers cannot reliably report why a cross-origin iframe failed. Replaced it with a locally bundled, lazy-loaded Leaflet map using OpenStreetMap tiles. It begins with a Rwanda overview, supports manual venue search with an explicit result choice, and gives visible errors and a Google Maps link if services cannot be reached. No venue coordinates are invented or saved. Linked ticket legs can request a suggested OSRM driving route, drawn with a short animation (respecting reduced motion); search matches and the fact that it is not a GPS trace are displayed. Route endpoints are not exposed to roles without revenue access. Online services receive place names when searched, and tiles require internet. Nominatim requests are explicitly initiated and rate limited; this is not Google Places autocomplete. The map remains compact on phones.

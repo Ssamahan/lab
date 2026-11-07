@@ -21,6 +21,17 @@ const ROW_ID='ruli-dh';
 const DEVICE_KEY='labSystems.deviceId.v1';
 const STATE_KEY='labSystems.syncState.v1';
 let busy=false, timer=null, listeners=[];
+/* A network that never answers must not hold the sync lock forever. Aborting a write
+   does not prove the server rejected it: leave the local queue intact until a later
+   confirmed response. */
+async function syncFetch(url, opts){
+  opts=opts||{};
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),25000);
+  try{ return await fetch(url,Object.assign({},opts,{signal:controller.signal})); }
+  catch(e){ if(controller.signal.aborted) throw new Error('The shared copy did not answer within 25 seconds. Check this device’s connection.'); throw e; }
+  finally{ clearTimeout(timer); }
+}
 
 /* The only thing the console needs is the PROJECT address:
      https://abcdefgh.supabase.co
@@ -203,7 +214,7 @@ SY.authSettings=async function(force){
   if(!c.url||!c.key) return null;
   if(!force && settingsCache.val && Date.now()-settingsCache.at<60000) return settingsCache.val;
   try{
-    const r=await fetch(c.url+'/auth/v1/settings',{headers:{'apikey':c.key}});
+    const r=await syncFetch(c.url+'/auth/v1/settings',{headers:{'apikey':c.key}});
     if(!r.ok) return settingsCache.val;
     const j=await r.json();
     settingsCache={at:Date.now(), val:j};
@@ -222,7 +233,7 @@ async function anonymousSignIn(force){
       +(SY.authProvidersUrl()||'Supabase dashboard → Authentication → Sign In / Providers')
       +' (the switch is called “Allow anonymous sign-ins”; it takes effect immediately). Or use the other route: create a user in Authentication → Users and type its email and password above.');
   }
-  const attempt=async(extra)=>fetch(c.url+'/auth/v1/signup',{
+  const attempt=async(extra)=>syncFetch(c.url+'/auth/v1/signup',{
     method:'POST',
     headers:Object.assign({'apikey':c.key,'Content-Type':'application/json'},extra||{}),
     body:'{}'
@@ -252,7 +263,7 @@ async function refreshSession(){
   const c=cfg();
   if(!session.refresh) return null;
   try{
-    const r=await fetch(c.url+'/auth/v1/token?grant_type=refresh_token',{
+    const r=await syncFetch(c.url+'/auth/v1/token?grant_type=refresh_token',{
       method:'POST',
       headers:{'apikey':c.key,'Content-Type':'application/json'},
       body:JSON.stringify({refresh_token:session.refresh})
@@ -272,7 +283,7 @@ async function signIn(force){
   }
   if(c.anonAuth) return anonymousSignIn(force);
   if(!c.email||!c.password) return null;
-  const r=await fetch(c.url+'/auth/v1/token?grant_type=password',{
+  const r=await syncFetch(c.url+'/auth/v1/token?grant_type=password',{
     method:'POST',
     headers:{'apikey':c.key,'Content-Type':'application/json'},
     /* A password pasted from a note can carry a trailing space or newline; Supabase
@@ -345,7 +356,7 @@ function dropDeviceKey(){
 }
 async function request(path, opts){
   opts=opts||{};
-  const send=async()=>fetch(endpoint(path), Object.assign({},opts,{headers:await headers(opts.extra)}));
+  const send=async()=>syncFetch(endpoint(path), Object.assign({},opts,{headers:await headers(opts.extra)}));
   let r=await send();
   if((r.status===401||r.status===403) && ((cfg().email&&cfg().password)||cfg().anonAuth)){
     try{ forgetSession(); await signIn(true); r=await send(); }catch(e){}
@@ -470,6 +481,7 @@ SY.push=async function(opts){
     }
   }
   const db=S.db();
+  const pendingAtSend=S.pendingChanges?S.pendingChanges():null;
   const payload=[{id:ROW_ID, data:db, client_id:deviceId(), updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}];
   const r=await request(TABLE+'?on_conflict=id',{
     method:'POST',
@@ -482,7 +494,9 @@ SY.push=async function(opts){
   const row=rows[0]||{};
   setState({lastPushAt:U.nowISO(), lastRevision:row.revision||null, pushedRevision:row.revision||null,
     lastRemoteAt:row.updated_at||state().lastRemoteAt||null, lastError:null});
-  if(S.clearPending) S.clearPending();
+  /* Never acknowledge edits made after the snapshot was serialized. Keeping the
+     whole count in that case is conservative: the next cycle sends them all. */
+  if(S.clearPending && (pendingAtSend===null || S.pendingChanges()===pendingAtSend)) S.clearPending();
   const st=S.settings(); st.cloud.lastSync=U.nowISO(); S.save(true);
   return row;
 };
@@ -719,7 +733,7 @@ SY.diagnose=async function(){
 
   let settings=null;
   try{
-    const r=await fetch(c.url+'/auth/v1/settings',{headers:{'apikey':c.key}});
+    const r=await syncFetch(c.url+'/auth/v1/settings',{headers:{'apikey':c.key}});
     if(r.ok){ settings=await r.json(); row('Auth service reachable',true,''); }
     else row('Auth service reachable',false,'GET '+c.url+'/auth/v1/settings answered '+r.status+'. Check the project address and the publishable key.');
   }catch(e){ row('Auth service reachable',false,'Network: '+e.message); }
@@ -998,9 +1012,9 @@ SY.combine=async function(remote){
     lastRemoteAt:remote.updated_at||null, lastError:null,
     appliedCounts:SY.tally(S.db())});
   const after=SY.tally(S.db());
-  let pushed=null;
-  try{ pushed=await SY.push({allowPristine:true}); }
-  catch(e){ setState({lastError:(e&&e.message)||'The combined register could not be published'}); }
+  /* A failed write is not a successful sync. Let the caller record the error and
+     retry; the combined local register and its pending counter remain on the device. */
+  const pushed=await SY.push({allowPristine:true});
   setState({conflictAt:U.nowISO(), combinedAt:U.nowISO(),
     conflictNote:'Both copies held records the other did not, so they were combined: what this device recorded was kept, and what only the shared copy had was added.'});
   refreshScreen();
@@ -1445,7 +1459,7 @@ SY.pendingInfo=function(){
     lastRemoteBy:st.lastRemoteBy||null, remoteIsMine:st.remoteIsMine===undefined?null:st.remoteIsMine,
     remoteAge:ago(st.lastRemoteAt), nextTryAt:nextTryAt||null,
     retryIn:nextTryAt?Math.max(0,nextTryAt-Date.now()):0,
-    failCount:Number(st.failCount)||0, live:!!liveTimer,
+    failCount:Number(st.failCount)||0, live:!!liveTimer, running:busy,
     waiting:count>0};
 };
 
@@ -1494,7 +1508,7 @@ SY.writeTest=async function(){
    stays in the queue, and the next open publishes it. */
 SY.flush=function(){
   try{
-    if(!SY.configured()) return false;
+    if(!SY.configured()||busy) return false;
     if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return false;
     if(typeof navigator!=='undefined'&&navigator.onLine===false) return false;
     if(!(S.pendingChanges?S.pendingChanges():0)) return false;
