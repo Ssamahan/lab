@@ -387,10 +387,26 @@ function dataView(){
      +'<div class="field" style="margin-top:10px"><label>Live sync</label>'
        +'<label class="choice '+(cl.live!==false?'on':'')+'" style="width:auto"><input type="checkbox" id="cloudLive" '+(cl.live!==false?'checked':'')+' style="margin-right:8px"><span class="ct">Push every change, pull the other device\'s changes</span></label>'
        +'<div class="xs faint" style="margin-top:5px">A change leaves this device in about a second and the other device picks it up within about three. Off means sync only when you press Sync now.</div></div>'
-     +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-check>'+UI.ic('shield-question',13)+'Check setup</button><button class="btn sm" data-cloud-sql>'+UI.ic('file-text',13)+'Copy the table SQL</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button></div>'
+     +'<div class="row gap-sm wrap" style="margin-top:12px"><button class="btn sm" data-cloud-test>'+UI.ic('plug',13)+'Test connection</button><button class="btn sm primary" data-cloud-save>Save</button><button class="btn sm" data-cloud-check>'+UI.ic('shield-question',13)+'Check setup</button><button class="btn sm" data-cloud-sql>'+UI.ic('file-text',13)+'Copy the table SQL</button><button class="btn sm" data-cloud-sync>'+UI.ic('refresh-cw',13)+'Sync now</button><button class="btn sm" data-cloud-write title="Proves this device can actually WRITE, not only read">'+UI.ic('upload',13)+'Test a write</button></div>'
      +'<div class="row between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><span class="xs faint">Pending local changes</span><span class="mono xs">'+(S.pendingChanges?S.pendingChanges():0)+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last push</span><span class="mono xs">'+(SY.state().lastPushAt?U.relTime(SY.state().lastPushAt):'never')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last pull</span><span class="mono xs">'+(SY.state().lastPullAt?U.relTime(SY.state().lastPullAt):'never')+'</span></div>'
+     /* A date from last week and a device that has been checking every two seconds are both
+        true at once, and printing only the first made the card look broken. All three facts
+        are shown, because together they say whether the fault is here or in the cloud. */
+     +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last check</span><span class="mono xs">'+(SY.state().lastCheckAt?U.relTime(SY.state().lastCheckAt):'never')+'</span></div>'
+     +'<div class="row between" style="padding:4px 0"><span class="xs faint">Shared copy last changed</span><span class="mono xs">'+((function(){
+        const a=SY.sharedAge?SY.sharedAge():{known:false};
+        if(!a.known) return 'never';
+        return U.relTime(a.at)+(a.mine===true?' · this device':(a.by?' · '+U.esc(a.by):''));
+      })())+'</span></div>'
+     +(SY.state().lastError?'<div class="row between" style="padding:4px 0"><span class="xs faint">Last error</span><span class="mono xs" style="color:var(--crit);max-width:60%;text-align:right">'+U.esc(String(SY.state().lastError).slice(0,90))+'</span></div>':'')
+     +(function(){ const a=SY.sharedAge?SY.sharedAge():{known:false};
+        if(!a.known||a.days<=3) return '';
+        return '<div class="hint" style="margin-top:8px;border-left:2px solid var(--warn);padding-left:9px">'+UI.ic('clock',12)
+          +' The shared copy has not changed for <b>'+Math.round(a.days)+' days</b> ('+U.relTime(a.at)+(a.mine===true?' by this device':(a.by?' by '+U.esc(a.by):''))+'). '
+          +'If another device has recorded something since then, it has not reached the cloud — open that device and look at its sync button.</div>';
+     })()
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Live loop</span><span class="mono xs">'+(SY.liveState().on?'running · checks every '+(Math.round((cl.pollMs||2500)/100)/10)+' s':'off')+'</span></div>'
      +'<div class="row between" style="padding:4px 0"><span class="xs faint">Last start</span><span class="mono xs">'+(function(){
         const t=(typeof window!=='undefined'&&window.LS_TIMINGS)||[];
@@ -742,6 +758,26 @@ function wire(){
         +'</div></div>').join('')+'</div>'
         +'<div class="hint" style="margin-top:12px">This asked your project four things: is the address right, does the key work, can a session be created, and does the table answer. No patient data was read.</div>',
       foot:'<button class="btn primary" data-close>Close</button>'});
+  });
+  /* Reading works, writing does not — a project that allows SELECT and refuses INSERT
+     looks perfectly healthy to every check that only reads. This one writes, and reports
+     the exact answer with the step it failed at. */
+  r.querySelectorAll('[data-cloud-write]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true; const old=b.innerHTML; b.textContent='Writing…';
+    const res=await SY.writeTest().catch(e=>({ok:false,reason:e.message,steps:[]}));
+    b.disabled=false; b.innerHTML=old;
+    UI.modal({title:'Writing to the shared copy',
+      sub:res.ok?'a write reached the cloud':(res.step==='newer'?'stopped before it could lose anything':'it cannot write'),
+      body:'<div class="stack" style="gap:9px">'+(res.steps||[]).map(x=>
+        '<div class="row" style="gap:10px;align-items:flex-start;padding:9px 11px;border-radius:9px;background:var(--surface-inset)">'
+        +'<span style="color:'+(x.ok?'var(--ok)':'var(--crit)')+';flex:none;margin-top:1px">'+UI.ic(x.ok?'circle-check':'circle-x',15)+'</span>'
+        +'<div><div class="small strong">'+U.esc(x.name)+'</div>'
+        +(x.detail?'<div class="xs muted" style="margin-top:2px;line-height:1.55">'+U.esc(x.detail)+'</div>':'')+'</div></div>').join('')+'</div>'
+        +(res.ok?'<div class="hint" style="margin-top:12px">This device can read <b>and</b> write. If another device is still not seeing a change, the fault is on that device — look at the sync button in its own top bar.</div>'
+          :'<div class="hint" style="margin-top:12px">'+U.esc(res.reason||'The write did not complete')+'<br><br>'
+            +(res.step==='write'?'A refused write is a database permission problem, not a network one: the project’s row-level security is not letting this key update the register. See <b>Check setup</b> and the policies in the schema.':'Nothing was written, and nothing here was changed.')+'</div>'),
+      foot:'<button class="btn" data-close>Close</button>'});
+    paint();
   });
   r.querySelectorAll('[data-cloud-sync]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;

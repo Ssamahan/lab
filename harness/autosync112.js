@@ -115,9 +115,9 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(!chip.hidden,'and it is shown on a device that is configured for sync');
   const say=chip.textContent.replace(/\s+/g,' ').trim();
   ok(/\d+ waiting/.test(say),'naming how many changes are waiting',say);
-  ok(/retrying in \d+s/.test(say),'and when the next attempt is',say);
+  ok(/retrying in \d+ s/.test(say),'and when the next attempt is',say);
   ok(chip.classList.contains('bad'),'in the warning colour while it cannot get through');
-  ok(/last attempt failed/i.test(chip.title),'with the reason in the tooltip',chip.title.slice(0,60));
+  ok(/refused the last attempt/i.test(chip.title),'with the reason in the tooltip',chip.title.slice(0,60));
 
   /* the connection comes back: the chip clears itself and says so */
   accept=true;
@@ -128,7 +128,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(SY.pendingInfo().waiting===false,'the queue reports itself empty');
   SH.updateNet();
   const after=doc.getElementById('syncChip');
-  ok(/Synced|Not synced/.test(after.textContent),'the chip goes back to saying it is synced',after.textContent.trim());
+  ok(/Up to date|No change in cloud/.test(after.textContent),'the chip goes back to saying this device is level with the cloud',after.textContent.trim());
   ok(!after.classList.contains('bad'),'and leaves the warning colour');
   ok(!!(sent[sent.length-1].trainings||[]).find(t=>t.id==='tr-112b'),'the change typed during the outage is now in the shared copy');
 

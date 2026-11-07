@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.112';
+const APP_VERSION='6.9.113';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -822,24 +822,75 @@ function paintSyncChip(){
   try{ info=SY.pendingInfo?SY.pendingInfo():null; }catch(e){}
   if(!info){ chip.hidden=true; chip.classList.remove('on'); return; }
   const txt=chip.querySelector('#syncChipText');
-  chip.hidden=false;
-  chip.classList.add('on');
-  chip.classList.toggle('bad',!!info.lastError&&info.waiting);
-  chip.classList.toggle('ok',!info.waiting);
+  chip.hidden=false; chip.classList.add('on');
+
+  /* Three facts, kept apart on purpose:
+       · what this device still owes        → the count
+       · when this device last asked        → 'checked'
+       · when the shared copy last changed  → 'the cloud's own date', with who wrote it
+     Printing only the last *successful send* is what produced "Synced 30 Oct 2026" on a
+     computer that had in fact been checking every two seconds for a week. */
+  const sec=ms=>ms==null?'':(ms<60000?Math.max(1,Math.round(ms/1000))+' s ago'
+    :(ms<3600000?Math.round(ms/60000)+' m ago':U.relTime(new Date(Date.now()-ms).toISOString())));
+  const shared=SY.sharedAge?SY.sharedAge():{known:false};
+  const sharedWho=shared.known?(shared.mine?'by this device':(shared.by?'by '+shared.by:'by another device')):'';
+  const sharedLine=shared.known?('The shared copy was last changed '+U.relTime(shared.at)+' '+sharedWho+'.'):'The shared copy holds nothing yet.';
+  const checkedLine=info.checkedAgo==null?'This device has not checked the shared copy yet.':('This device checked '+sec(info.checkedAgo)+'.');
+  const staleCheck=info.checkedAgo==null||info.checkedAgo>180000;
+  const staleShared=shared.known&&shared.days>3;
+
+  let tone='ok', say='', tip='';
   if(info.waiting){
     const n=info.count;
-    let say=n+' change'+(n===1?'':'s')+' waiting';
-    if(info.lastError) say=n+' waiting · retrying in '+Math.max(1,Math.round(info.retryIn/1000))+'s';
-    else if(info.retryIn>0) say=n+' waiting · retrying in '+Math.max(1,Math.round(info.retryIn/1000))+'s';
-    else say=n+' waiting · sending…';
-    if(txt) txt.textContent=say;
-    chip.title=(info.lastError?('The last attempt failed: '+info.lastError+'. '):'')
-      +'Press to send '+n+' change'+(n===1?'':'s')+' to the shared copy now.';
+    if(info.lastError){ tone='bad';
+      say=n+' waiting · retrying in '+Math.max(1,Math.round((info.retryIn||0)/1000))+' s';
+      tip='The shared copy refused the last attempt: '+info.lastError+'.\n'
+        +'The '+n+' change'+(n===1?' is':'s are')+' safe on this device and will go by itself when the shared copy accepts them.\nPress to try now.';
+    } else {
+      tone='warn';
+      say=n+' waiting · '+(info.retryIn>0?('retrying in '+Math.max(1,Math.round(info.retryIn/1000))+' s'):'sending…');
+      tip=n+' change'+(n===1?'':'s')+' on this device '+(n===1?'is':'are')+' not in the shared copy yet.\n'+checkedLine+'\nPress to send now.';
+    }
+  } else if(info.lastError){
+    tone='bad';
+    say='Cannot reach shared copy';
+    tip='The last attempt failed: '+info.lastError+'\nNothing is lost — this device holds the register.\n'+checkedLine+'\n'+sharedLine+'\nPress to try again.';
+  } else if(staleCheck){
+    tone='warn';
+    say=info.checkedAgo==null?'Not checked yet':'Not checking · last '+(info.checkedAgo>86400000?U.relTime(info.lastCheckAt):sec(info.checkedAgo));
+    tip='The background check has not run recently, so this device does not know what the shared copy holds.\n'+sharedLine+'\nPress to check now.';
+  } else if(staleShared){
+    tone='warn';
+    say='No change in cloud · '+Math.round(shared.days)+' d';
+    tip=checkedLine+'\nThis device is checking normally and is level with the shared copy.\n'
+      +'But nothing has been published to the shared copy for '+Math.round(shared.days)+' days — '+sharedLine+'\n'
+      +'If another device recorded something in that time, it has not reached the cloud: open that device and look at its sync button.';
   } else {
-    const at=info.lastPushAt||info.lastPullAt;
-    if(txt) txt.textContent=at?('Synced '+U.relTime(at)):'Not synced yet';
-    chip.title=at?('Everything on this device is in the shared copy, as of '+U.fmtDate(at)+'.'):'This device has not exchanged with the shared copy yet.';
+    tone='ok';
+    say='Up to date · checked '+sec(info.checkedAgo);
+    tip='Everything on this device is in the shared copy.\n'+checkedLine+'\n'+sharedLine+'\nPress to check for changes from another device now.';
   }
+  chip.classList.toggle('bad',tone==='bad');
+  chip.classList.toggle('ok',tone==='ok');
+  chip.classList.toggle('warn',tone==='warn');
+  if(txt) txt.textContent=say;
+  chip.title=tip;
+
+  /* A failing device used to be silent — the queue simply never emptied and nothing said
+     why. After a few failed attempts it says it once, out loud, and then leaves the chip
+     to keep the count. */
+  try{
+    if(info.lastError&&info.failCount>=3){
+      const sig=info.lastError+'|'+info.failCount;
+      if(sig!==paintSyncChip.lastAlert){
+        paintSyncChip.lastAlert=sig;
+        const n=info.count||0;
+        UI.toast('This device cannot reach the shared copy. '+(n
+          ? n+' change'+(n===1?' stays':'s stay')+' safe on this device and will send when it is reachable again. '
+          : 'It is showing what it last received. ')+info.lastError, {type:'err', duration:12000});
+      }
+    }
+  }catch(e){}
 }
 function updateNet(){
   const online=navigator.onLine;

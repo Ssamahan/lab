@@ -576,6 +576,17 @@ SY.pullLatest=async function(){
     return {ok:false, reason:(e&&e.message)||'Could not read the shared copy'};
   }
 };
+/* How old is the shared copy itself — not this device, the copy in the cloud? A register
+   nobody has published to since a date is a different problem from a device that cannot
+   reach it, and they need different answers. */
+SY.sharedAge=function(){
+  const st=state();
+  if(!st.lastRemoteAt) return {known:false, ms:null, at:null};
+  const ms=Math.max(0,Date.now()-new Date(st.lastRemoteAt).getTime());
+  return {known:true, ms, at:st.lastRemoteAt, by:st.lastRemoteBy||null,
+    mine:st.remoteIsMine===undefined?null:st.remoteIsMine,
+    days:ms/86400000, text:U.relTime(st.lastRemoteAt)};
+};
 /* How stale is what is on this screen? Used by the header chip. */
 SY.freshness=function(){
   const st=state();
@@ -804,8 +815,9 @@ function applyRemote(remote){
        fewer records than the cloud, telling itself it is up to date. The counts are how
        that is caught instead of guessed at. */
     setState({lastPullAt:U.nowISO(), lastRevision:remote.revision||null,
-      lastRemoteAt:remote.updated_at||null, lastError:null,
-      appliedCounts:SY.tally(S.db())});
+      lastRemoteAt:remote.updated_at||null, lastRemoteBy:remote.updated_by||null,
+      remoteIsMine:remote.client_id?remote.client_id===deviceId():null,
+      lastError:null, appliedCounts:SY.tally(S.db())});
   }finally{ applyingRemote=false; }
   SY.emit('pulled');
   refreshScreen();
@@ -1107,7 +1119,11 @@ SY.sync=async function(opts){
             return {ok:true, action:'restored', lost};
           }
         }
-        setState({lastCheckAt:U.nowISO(), running:false});
+        setState({lastCheckAt:U.nowISO(), running:false,
+          lastRemoteAt:v.updated_at||state().lastRemoteAt||null,
+          lastRemoteBy:v.updated_by||state().lastRemoteBy||null,
+          remoteIsMine:v.client_id?v.client_id===deviceId():state().remoteIsMine,
+          remoteRevision:v.revision==null?state().remoteRevision:v.revision});
         return {ok:true, action:'noop'};
       }
     }
@@ -1167,7 +1183,8 @@ SY.sync=async function(opts){
       return {ok:true, action:row&&row.combined?'combined':'pushed'};
     }
     if(state().failCount||state().nextTryAt||state().lastError) setState({failCount:0, nextTryAt:null, lastError:null});
-    setState({lastCheckAt:U.nowISO(), running:false});
+    setState({lastCheckAt:U.nowISO(), running:false,
+      remoteRevision:remote.revision==null?state().remoteRevision:remote.revision});
     return {ok:true, action:'noop'};
   }catch(e){
     const msg=(e&&e.message)||'Sync did not finish';
@@ -1412,10 +1429,62 @@ SY.pendingInfo=function(){
   const st=state();
   const count=S.pendingChanges?S.pendingChanges():0;
   const nextTryAt=Number(st.nextTryAt||0);
+  const ago=iso=>iso?Math.max(0,Date.now()-new Date(iso).getTime()):null;
+  /* Three different facts were being shown as one, and that is what made the header look
+     like a lie: *when this device last sent or received*, *when it last asked*, and *when
+     the shared copy itself last changed*. A computer can be checking every two seconds and
+     still correctly print a date from a week ago — because nothing has been published to
+     the shared copy since. Separated, each one can be trusted. */
+  /* A successful send or receive is also proof the link works, so 'checked' is the most
+     recent of the three — otherwise a device that had just published would say it had
+     never checked anything. */
+  const contact=[st.lastCheckAt,st.lastPushAt,st.lastPullAt].filter(Boolean).sort().pop()||null;
   return {count, lastError:st.lastError||null, lastPushAt:st.lastPushAt||null,
-    lastPullAt:st.lastPullAt||null, nextTryAt:nextTryAt||null,
+    lastPullAt:st.lastPullAt||null, lastCheckAt:st.lastCheckAt||null,
+    lastContactAt:contact, checkedAgo:ago(contact), lastRemoteAt:st.lastRemoteAt||null,
+    lastRemoteBy:st.lastRemoteBy||null, remoteIsMine:st.remoteIsMine===undefined?null:st.remoteIsMine,
+    remoteAge:ago(st.lastRemoteAt), nextTryAt:nextTryAt||null,
     retryIn:nextTryAt?Math.max(0,nextTryAt-Date.now()):0,
+    failCount:Number(st.failCount)||0, live:!!liveTimer,
     waiting:count>0};
+};
+
+/* ——— Can this device actually WRITE to the shared copy? ————————————————
+   "Synced" only ever meant "I read the shared copy". A project that allows SELECT and
+   refuses INSERT/UPDATE looks exactly like a healthy one from the reading side, which is
+   how a device can report a date from a week ago and mean it. This does the one thing the
+   poll never does: it writes, and reports the exact answer. */
+SY.writeTest=async function(){
+  const out={ok:false, steps:[]};
+  if(!SY.configured()) return Object.assign(out,{step:'config', reason:'Cloud sync is off on this device — there is nowhere to write.'});
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return Object.assign(out,{step:'role', reason:'This is the read-only visitor view; it never writes.'});
+  if(S.pendingChanges&&S.pendingChanges()) return Object.assign(out,{step:'pending',
+    reason:'This device still has '+S.pendingChanges()+' change'+(S.pendingChanges()===1?'':'s')+' to send — press the sync button instead of testing.'});
+  let v=null;
+  try{ v=await SY.remoteVersion(); }
+  catch(e){ out.steps.push({name:'Read the shared copy',ok:false,detail:(e&&e.message)||'failed'});
+    return Object.assign(out,{step:'read', reason:(e&&e.message)||'Could not reach the shared copy'}); }
+  out.steps.push({name:'Read the shared copy', ok:true,
+    detail:v?('revision '+(v.revision==null?'—':v.revision)+' · last changed '+U.relTime(v.updated_at)+' by '+(v.updated_by||'another device')+(v.client_id&&v.client_id===deviceId()?' (this device)':''))
+           :'nothing has been published yet'});
+  /* Never write over a copy that is newer here: that is the one way this test could lose
+     somebody's work. The test refuses instead and says which button to press. */
+  if(v&&newer(v)) return Object.assign(out,{step:'newer',
+    reason:'The shared copy moved since this device last read it ('+U.relTime(v.updated_at)+'). Refresh first — then test.'});
+  out.steps.push({name:'Compare this device with the shared copy', ok:true, detail:'this device is level or ahead'});
+  try{
+    const row=await SY.push();
+    out.steps.push({name:'Write to the shared copy', ok:true,
+      detail:'stored as revision '+(row&&row.revision==null?'—':row&&row.revision)+' at '+new Date().toLocaleTimeString('en-GB',{timeZone:'Africa/Kigali'})});
+    out.ok=true;
+    setState({lastPushAt:U.nowISO(), lastCheckAt:U.nowISO(), lastError:null, failCount:0, nextTryAt:null,
+      lastRemoteAt:(row&&row.updated_at)||state().lastRemoteAt||null,
+      remoteIsMine:true, remoteRevision:(row&&row.revision)||state().remoteRevision});
+  }catch(e){
+    out.steps.push({name:'Write to the shared copy', ok:false, detail:(e&&e.message)||'refused'});
+    return Object.assign(out,{step:'write', reason:(e&&e.message)||'The shared copy refused the write'});
+  }
+  return out;
 };
 
 /* A phone is closed, locked, or the tab is swiped away — and the push scheduled 700 ms
@@ -1571,10 +1640,13 @@ SY.statusText=function(){
   const st=state();
   if(!SY.configured()) return 'Local only';
   if(st.running) return 'Syncing…';
-  if(st.lastError) return 'Sync error';
-  if(st.lastPushAt) return 'Synced '+U.relTime(st.lastPushAt);
-  if(st.lastPullAt) return 'Pulled '+U.relTime(st.lastPullAt);
-  return 'Connected · not yet synced';
+  if(st.lastError) return 'Cannot reach the shared copy';
+  /* 'Synced <date>' was the phrase that started this: it read as "your data is from that
+     day" when it only ever meant "this device last exchanged something then". */
+  if(st.lastCheckAt) return 'Checked '+U.relTime(st.lastCheckAt);
+  if(st.lastPushAt) return 'Sent '+U.relTime(st.lastPushAt);
+  if(st.lastPullAt) return 'Received '+U.relTime(st.lastPullAt);
+  return 'Connected · not yet checked';
 };
 /* One line for the header: what is true right now, not what happened last. */
 SY.liveLabel=function(){
@@ -1582,7 +1654,7 @@ SY.liveLabel=function(){
   const st=state();
   if(typeof navigator!=='undefined'&&navigator.onLine===false) return {tone:'warn', text:'Offline — queued'};
   if(st.running) return {tone:'teal', text:'Syncing…'};
-  if(st.lastError) return {tone:'rose', text:'Sync error'};
+  if(st.lastError) return {tone:'rose', text:'Cannot reach shared copy'};
   if(liveTimer) return {tone:'teal', text:'Live · '+SY.statusText()};
   return {tone:'slate', text:SY.statusText()};
 };
