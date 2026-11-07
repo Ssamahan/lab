@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.124 — Use warmed screen files without waiting for the network
+
+- The service worker checks both its runtime and prewarmed shell caches for an exact-version code file before waiting for a network request. Previously a file warmed into the shell cache could still hang on a stalled connection.
+- A first visit or a file not yet cached still needs a working network; this does not diagnose every timeout.
+
 ## v6.9.123 — Choose or register equipment backups during off-site repair
 
 - Both equipment status and curative shipment forms list other equipment, identify unavailable items, and allow a new backup to be registered as part of the same save.
