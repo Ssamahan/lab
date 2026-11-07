@@ -1,0 +1,23 @@
+const {boot,ok,done}=require('./env');
+const wait=ms=>new Promise(r=>setTimeout(r,ms||100));
+const click=e=>e.dispatchEvent(new e.ownerDocument.defaultView.MouseEvent('click',{bubbles:true,cancelable:true}));
+(async()=>{
+ let path=[],points=[];
+ const fake={map(){return {setView(){return this},fitBounds(){return this},removeLayer(){}}}, tileLayer(){return {addTo(){return this},on(name,cb){if(name==='tileload')setTimeout(cb,1);return this}}},marker(p){points.push(p);return {addTo(){return this},bindPopup(){return this},openPopup(){return this}}},polyline(p){path=p;return {addTo(){return this},getBounds(){return {}},getElement(){return null}}}};
+ const {w,go,errors}=await boot('#/training',{seed:w=>{w.L=fake;}}); const S=w.LS.store,d=w.document;
+ S.commit(db=>{db.trainings.unshift({id:'testmap116',title:'Venue test',facilityName:'Venue & Hall',location:'Musanze',start:'2026-11-07',attendees:[]});db.trainingExpenses.unshift({id:'testexpense116',linkedTraining:'testmap116',expenses:[{cat:'Transport',routeFrom:'Ruli',routeTo:'Musanze'}]});},{action:'test'});
+ let calls=[]; w.fetch=async url=>{calls.push(url); if(url.includes('nominatim')){let n=new URL(url).searchParams.get('q'); if(n.includes('Missing'))return {ok:true,json:async()=>[]}; return {ok:true,json:async()=>[{lat:'-1.5',lon:'29.6',display_name:n+' result'}]};} return {ok:true,json:async()=>({routes:[{geometry:{coordinates:[[29.6,-1.5],[29.7,-1.6]]}}]})};};
+ await go('#/training?tab=map'); await wait(); let sel=d.querySelector('#trMapSelect');sel.value='testmap116';sel.dispatchEvent(new w.Event('change',{bubbles:true}));await wait();
+ ok(!!d.querySelector('[data-training-map]')&&d.querySelector('[data-training-map]').tagName==='DIV','local interactive map replaces external iframe');
+ click(d.querySelector('[data-find-on-map]')); await wait(300);
+ ok(d.querySelector('[data-map-results] button')?.textContent.includes('Venue & Hall'),'search presents results for explicit confirmation');
+ click(d.querySelector('[data-map-results] button')); ok(points.length>0&&/not saved/.test(d.querySelector('[data-map-status]').textContent),'selected result places a marker without changing the register');
+ click(d.querySelector('[data-map-route]')); await wait(2600);
+ ok(path.length===2,'road route draws as a line');
+ ok(/not a GPS record/.test(d.querySelector('[data-map-status]').textContent),'suggested route is not presented as actual travel');
+ ok(calls.filter(x=>x.includes('nominatim')).length===3,'no unsolicited location search');
+ w.fetch=async()=>{throw new Error('network down')}; click(d.querySelector('[data-find-on-map]')); await wait(1300);
+ ok(/search failed/i.test(d.querySelector('[data-map-status]').textContent),'search network failure is visible');
+ ok(!![...d.querySelectorAll('a')].find(a=>a.textContent.includes('Open Google Maps')),'external fallback remains available');
+ ok(!errors.length,'no application errors',errors.join(' | ')); done('trainingmap116');
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -354,11 +354,14 @@ trace; use the ticket and local knowledge to check it. No background location is
 Maps require internet; opening a search or route sends the entered place names to Google.
 Existing training locations and expense records are not changed.
 
-The Training roster landing page and **Map & partners** tab display the selected
-training's location on an embedded Google map. Where linked transport tickets contain
-both stops, choose a leg to show suggested directions or open it in Google Maps.
-The map needs internet; Google receives the place names. A broad location is not a
-verified venue, and suggested directions are not a GPS record.
+The Training roster landing page and **Map & partners** tab show a compact
+OpenStreetMap map (Leaflet is bundled locally). Choose a training, press **Find venue
+on map**, and choose a search result; this does not save a verified venue. Where linked
+transport tickets contain both stops, choose a leg to show a suggested OSRM driving
+route, or open it in Google Maps. The map, search and routing services need internet.
+Place searches go to OpenStreetMap Nominatim and route coordinates go to OSRM.
+A broad location is not a verified venue, and suggested roads are not a GPS record.
+Google Places autocomplete is not included or required.
 
 The **funding partner** field is separate from organizer. The chart counts only
 explicitly recorded partners, and displays how many records have no funder recorded.
