@@ -353,3 +353,12 @@ pair. Google Maps provides driving directions, not a verified bus or taxi route 
 trace; use the ticket and local knowledge to check it. No background location is collected.
 Maps require internet; opening a search or route sends the entered place names to Google.
 Existing training locations and expense records are not changed.
+
+The Training roster landing page and **Map & partners** tab display the selected
+training's location on an embedded Google map. Where linked transport tickets contain
+both stops, choose a leg to show suggested directions or open it in Google Maps.
+The map needs internet; Google receives the place names. A broad location is not a
+verified venue, and suggested directions are not a GPS record.
+
+The **funding partner** field is separate from organizer. The chart counts only
+explicitly recorded partners, and displays how many records have no funder recorded.

@@ -4,6 +4,14 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.115 — A visible training map and funding chart
+
+The training landing page and its new Map & partners tab show an embedded Google map for the selected recorded venue (or the general location when no venue is known). Linked transport ticket legs can be viewed on the map or opened in Google Maps. Suggested roads are not a GPS trace or a guarantee of the route taken. The map needs internet; place names are sent to Google, and an external link is provided if the embedded map cannot load.
+
+Training records have an optional funding partner, separate from organizer. The new chart counts only explicitly recorded funders and reports records without one. Old records are not changed or inferred. The register export includes the funder.
+
+---
+
 ## v6.9.114 — Training venues and ticket routes
 
 Training records can now hold an optional host facility type and name alongside the existing district or location. A Google Maps search opens in a separate tab for manual verification; it does not use an API key or claim the facility was verified. Existing location and FIFO rules remain unchanged.
