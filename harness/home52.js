@@ -81,8 +81,19 @@ const tick=(ms)=>new Promise(r=>setTimeout(r,ms||200));
   ok(farState.source==='pattern','without a plan the contract pattern is the source',farState.source);
 
   /* ── leave still wins over everything ─────────────────────────────── */
-  const aurelie=S.staffByName('Aurelie YANSONEYE');
-  ok(['leave','off'].indexOf(S.shiftState(aurelie,today).kind)>=0,'leave is unaffected');
+  /* Date-independent: whoever the register has on leave, on a day inside their leave.
+     The sample register moves with the calendar, so pinning this to "today" would make
+     the test fail on a date nobody wrote leave for — the rule under test is unaffected. */
+  const rows=(S.db().leaves||[]).filter(l=>l.staffId&&l.from&&l.to);
+  const row=rows.find(l=>l.status!=='Cancelled')||rows[0];
+  ok(!!row,'the register holds a leave row to test against',String(rows.length));
+  if(row){
+    const person=(S.db().staff||[]).find(x=>x.id===row.staffId);
+    const day=String(row.from).slice(0,10);
+    ok(!!person,'that person is on the staff list',row.staffId);
+    const lv=person?S.shiftState(person,day):{kind:'?'};
+    ok(['leave','off'].indexOf(lv.kind)>=0,'leave is unaffected, on a day inside the leave',JSON.stringify({day,lv:lv.kind}));
+  }
 
   /* ── the leave screen explains the same thing ─────────────────────── */
   await go('#/leave');

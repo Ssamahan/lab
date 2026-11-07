@@ -401,6 +401,16 @@ html.scroll-lock, body.scroll-lock{overflow:hidden!important; overscroll-behavio
 
 /* ——— 13. Toasts ——————————————————————————————— */
 .toasts{position:fixed; top:14px; right:14px; z-index:120; display:flex; flex-direction:column; gap:8px; width:min(370px,calc(100vw - 28px)); pointer-events:none}
+.sync-chip{display:none; align-items:center; gap:6px; height:27px; padding:0 9px; border-radius:999px; border:1px solid var(--border-strong); background:var(--surface-2); color:var(--text-muted); font:500 11.4px/1 var(--font-mono); cursor:pointer; max-width:230px; white-space:nowrap}
+.sync-chip[hidden]{display:none}
+.sync-chip.on{display:inline-flex}
+.sync-chip .sc-dot{width:7px; height:7px; border-radius:50%; background:var(--warn); flex:0 0 auto}
+.sync-chip.ok .sc-dot{background:var(--pos)}
+.sync-chip.bad .sc-dot{background:var(--crit)}
+.sync-chip.bad{border-color:var(--crit-border); color:var(--crit)}
+.sync-chip .sc-txt{overflow:hidden; text-overflow:ellipsis}
+.sync-chip:active{transform:translateY(1px)}
+@media(max-width:640px){ .sync-chip{max-width:150px; font-size:10.6px; height:24px; padding:0 7px} }
 .route-guard{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom)); z-index:290; width:min(680px,calc(100vw - 24px)); display:flex; gap:11px; align-items:flex-start; padding:12px 13px; border-radius:12px; border:1px solid var(--border-strong); background:var(--surface-glass); backdrop-filter:blur(18px) saturate(1.4); box-shadow:var(--shadow-3); animation:toastIn var(--dur-3) var(--spring)}
 .route-guard .rg-ic{flex:0 0 auto; width:24px; height:24px; border-radius:7px; display:flex; align-items:center; justify-content:center; background:var(--warn-soft); color:var(--warn)}
 .route-guard .rg-main{flex:1 1 auto; min-width:0}

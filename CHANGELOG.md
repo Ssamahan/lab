@@ -4,6 +4,56 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.112 — a phone's day reaches the computer on its own, and the header says so
+
+Reported after 6.9.111: *"I record on the phone and the computer shows no records, even
+though the version is updated."* The version was never the problem — the data never left
+the phone. This release fixes four separate reasons why, and makes the fifth (silence)
+impossible.
+
+**1 · A device holding real work is never refused.** The publish path refuses to overwrite
+a shared register when the device has local edits but *no sync history at all* — a guard
+that protects a fresh device from flattening the cloud copy with the seeded sample. A phone
+that recorded a whole day offline is in exactly that shape: own work, `lastPullAt` empty,
+`lastRevision` zero. The guard refused it, the auto-push caught the refusal, logged nothing,
+and the poll retried the same refusal every 2.5 seconds. The computer's revision never
+moved. There is now one `publish()` used by every push site: on the pristine-guard refusal
+it pulls the shared copy, **combines** it with what the device holds, and publishes the
+combination — nothing is overwritten on either side. A device with *nothing* of its own is
+still refused, because then the sample register really is all it has.
+
+**2 · Failure is retried, not repeated.** Every refusal is now counted, and the next attempt
+waits 2 s, 4 s, 8 s … capped at 30 seconds, instead of the fixed 2.5-second tick hammering a
+project that is answering 401. The `online` event, a return to the tab, and a human pressing
+"send now" all clear the backoff, because a fresh link or a fresh instruction outranks a
+timer set by an old failure.
+
+**3 · The header states the queue.** The top bar had no sync element at all — `updateNet()`
+was writing to `[data-net]` and `#sysDot`, neither of which existed, so every sync state was
+invisible. There is now one chip: hidden when there is nothing to send, otherwise
+`3 changes waiting · retrying in 8s`, and `Synced 2m ago` when the queue is empty. Pressing
+it publishes immediately and says what happened in a sentence.
+
+**4 · Closing the phone still sends.** The push waits 700 ms after the last keystroke, which
+never arrives if the tab is closed or the phone is locked. `SY.flush()` now publishes on
+`pagehide`, `beforeunload`, and tab-hide, using a `keepalive` request that survives the page.
+It declines — deliberately — when there is no sync history yet (that case takes the careful
+pull-and-combine road next time the app opens), when the device is offline, or when it is a
+read-only visitor: the queue stays intact and goes on the next open.
+
+**Validation.** New `harness/autosync112.js` (53 checks) builds the exact reported scene — a
+phone with a day of trainings and expense rows, no sync history, and a shared copy that holds
+a sample the phone has never seen — and asserts that a single exchange publishes both without
+losing either, that a 401 produces a counted, lengthening backoff, that the chip shows the
+count and the countdown, that the connection returning empties the queue, and that a flush on
+page-hide sends exactly one keepalive write. Full sweep: 42 suites, 2,165 checks, green.
+
+`harness/home52.js` was made date-independent on the way through: it asserted a named person
+was on leave *today*, which stops being true as the sample register's calendar moves. It now
+picks a real leave row from the register and tests the day inside it.
+
+---
+
 ## v6.9.111 — nothing stands in front of a screen, and a page that names the failure
 
 Reported after 6.9.110: *"the site is now reachable but takes so long, and no module is

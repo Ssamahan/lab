@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.111** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.112** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -84,8 +84,26 @@ in the database and not only on the device that made it.
 
 A private window or a new PC starts from the built-in sample register, then pulls the shared one
 within a couple of seconds — the copy it was showing is written to restore points first, so nothing
-is lost either way. A browser that has never received the shared register can never publish its
-seed over it. **Settings → Data & sync → Two browsers, one register** still compares both copies
+is lost either way. A browser that has received nothing but that sample can never publish it over
+the shared register; a device that has **typed real records** and never pulled is a different case,
+and since 6.9.112 it pulls, combines, and publishes the combination rather than being refused —
+which is what used to strand a phone's whole day of work.
+
+### What the header tells you
+
+The circle in the top bar is the queue, and it is the honest answer to *"did my phone send it?"*:
+
+| it shows | it means |
+| --- | --- |
+| nothing | cloud sync is off on this device, or this is the read-only visitor view |
+| `Synced 2m ago` | everything on this device is in the shared copy |
+| `3 changes waiting · sending…` | queued, and a push is in flight |
+| `3 changes waiting · retrying in 8s` | the last attempt failed; the wait grows 2 s → 30 s |
+| a red dot | the last attempt was refused — the tooltip carries the reason |
+
+Press it to publish immediately; that clears any wait. Closing the browser, locking the phone and
+putting the tab in the background each flush the queue with a `keepalive` request, so work leaves
+the device at the moment you stop, not the next time you open it. **Settings → Data & sync → Two browsers, one register** still compares both copies
 (samples, staff, PBF visits, PBF marks), publishes the whole register on demand, brings the cloud
 copy down, and carries the address between browsers as text if you ever point one elsewhere.
 
@@ -122,7 +140,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.111`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.112`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the

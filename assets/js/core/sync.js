@@ -114,6 +114,9 @@ SY.deviceId=deviceId;
 function state(){ try{ return JSON.parse(localStorage.getItem(STATE_KEY)||'{}')||{}; }catch(e){ return {}; } }
 function setState(patch){ const next=Object.assign(state(),patch); try{ localStorage.setItem(STATE_KEY,JSON.stringify(next)); }catch(e){} SY.emit(); return next; }
 SY.state=state;
+/* The shell is allowed to clear the backoff when a person presses "send now": a fresh
+   instruction from a human outranks a timer set by a failure. */
+SY.setState=function(patch){ try{ setState(patch||{}); return true; }catch(e){ return false; } };
 
 /* Supabase row-level policies grant the table to the `authenticated` role, so the
    API key alone is not enough — the console needs a session. Two honest ways to get
@@ -471,7 +474,8 @@ SY.push=async function(opts){
   const r=await request(TABLE+'?on_conflict=id',{
     method:'POST',
     extra:{'Prefer':'resolution=merge-duplicates,return=representation'},
-    body:JSON.stringify(payload)
+    body:JSON.stringify(payload),
+    keepalive:!!opts.keepalive
   });
   if(!r.ok){ const body=(await r.text())||''; const human=keyRefusal(r.status, body); throw new Error(human||('Push failed ('+r.status+') '+body.slice(0,160))); }
   const rows=await r.json();
@@ -991,6 +995,30 @@ SY.combine=async function(remote){
   return {ok:true, before, after, merged:true, pushed:!!pushed, revision:pushed&&pushed.revision};
 };
 
+/* ——— Publishing must never be refused for a device that holds real work ——————
+   The pristine guard exists so a browser showing the built-in sample register cannot
+   write over the laboratory's. But a phone that recorded a full day offline is also
+   "never pulled" — it has no sync history at all — and it used to hit that guard on its
+   first exchange and fail, quietly, on every poll for ever. The work stayed on the phone
+   and the computer never saw it, which is exactly the complaint. So: if the guard refuses
+   and this device holds records of its own, the two copies are combined and published
+   instead. A device with nothing of its own is still refused, exactly as before. */
+async function publish(){
+  try{
+    return await SY.push();
+  }catch(e){
+    const blocked=/showing the sample register/i.test((e&&e.message)||'');
+    if(blocked && hasOwnWork()){
+      const remote=await SY.pull();
+      if(remote&&remote.data){
+        const res=await SY.combine(remote);
+        if(res&&res.ok) return {revision:res.revision==null?null:res.revision, combined:true};
+      }
+    }
+    throw e;
+  }
+}
+
 /* Does this device hold edits the cloud has not seen? The store tracks a dirty
    counter on every commit; we compare it with the last successful push. */
 function hasLocalChanges(){
@@ -1126,7 +1154,7 @@ SY.sync=async function(opts){
         }
         const choice=await conflictChoice(remote);
         if(choice==='remote'){ applyRemote(remote); UI.toast('Register updated from the other device',{type:'ok'}); return {ok:true, action:'pulled'}; }
-        if(choice==='local'){ await SY.push(); UI.toast('This device published its register',{type:'ok'}); return {ok:true, action:'pushed'}; }
+        if(choice==='local'){ await publish(); UI.toast('This device published its register',{type:'ok'}); return {ok:true, action:'pushed'}; }
         return {ok:false, reason:'Kept this device unchanged'};
       }
       applyRemote(remote);
@@ -1134,16 +1162,25 @@ SY.sync=async function(opts){
       return {ok:true, action:'pulled'};
     }
     if(hasLocalChanges() || opts.force){
-      await SY.push();
-      return {ok:true, action:'pushed'};
+      const row=await publish();
+      if(state().failCount||state().nextTryAt) setState({failCount:0, nextTryAt:null});
+      return {ok:true, action:row&&row.combined?'combined':'pushed'};
     }
+    if(state().failCount||state().nextTryAt||state().lastError) setState({failCount:0, nextTryAt:null, lastError:null});
     setState({lastCheckAt:U.nowISO(), running:false});
     return {ok:true, action:'noop'};
   }catch(e){
     const msg=(e&&e.message)||'Sync did not finish';
     const schemaIssue=/42703|column .* does not exist/i.test(msg);
-    setState({running:false, lastError:msg, schemaNote:schemaIssue?'The table does not match schema.sql — re-run it.':state().schemaNote});
-    return {ok:false, reason:msg, schemaIssue:schemaIssue, badCredentials:!!(e&&e.badCredentials), anonymousAllowed:(e&&e.anonymousAllowed)===undefined?null:e.anonymousAllowed};
+    /* A device that cannot reach the shared copy retries on its own — but not every
+       two seconds for ever on a dead link: the wait doubles from two seconds up to
+       thirty, and any success puts it back to the normal rhythm. The count of changes
+       still waiting is reported by SY.pendingInfo() so the header can say it. */
+    const fails=Math.min(6,(Number(state().failCount)||0)+1);
+    const wait=Math.min(30000,2000*Math.pow(2,fails-1));
+    setState({running:false, lastError:msg, failCount:fails, nextTryAt:Date.now()+wait,
+      schemaNote:schemaIssue?'The table does not match schema.sql — re-run it.':state().schemaNote});
+    return {ok:false, reason:msg, retryIn:wait, schemaIssue:schemaIssue, badCredentials:!!(e&&e.badCredentials), anonymousAllowed:(e&&e.anonymousAllowed)===undefined?null:e.anonymousAllowed};
   }finally{
     busy=false; setState({running:false});
   }
@@ -1367,6 +1404,43 @@ function conflictChoice(remote){
 }
 
 /* ——— Wiring ————————————————————————————————————— */
+/* ——— What is still owed to the shared copy, in words a person can act on ————
+   "Did my phone send it?" is the only question that matters when two devices disagree,
+   so it is answered from state rather than left to be inferred: how many edits are
+   waiting, when the next attempt is, and why the last one failed. */
+SY.pendingInfo=function(){
+  const st=state();
+  const count=S.pendingChanges?S.pendingChanges():0;
+  const nextTryAt=Number(st.nextTryAt||0);
+  return {count, lastError:st.lastError||null, lastPushAt:st.lastPushAt||null,
+    lastPullAt:st.lastPullAt||null, nextTryAt:nextTryAt||null,
+    retryIn:nextTryAt?Math.max(0,nextTryAt-Date.now()):0,
+    waiting:count>0};
+};
+
+/* A phone is closed, locked, or the tab is swiped away — and the push scheduled 700 ms
+   after the last keystroke never runs. `keepalive` lets the request finish after the page
+   is gone, so the record leaves the device at the moment the person stops working instead
+   of whenever they next open it. Nothing is retried here: if the send fails the change
+   stays in the queue, and the next open publishes it. */
+SY.flush=function(){
+  try{
+    if(!SY.configured()) return false;
+    if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return false;
+    if(typeof navigator!=='undefined'&&navigator.onLine===false) return false;
+    if(!(S.pendingChanges?S.pendingChanges():0)) return false;
+    const st=state();
+    /* With no sync history at all, a keepalive send could be the first write this device
+       ever makes. That case takes the careful road (pull, combine, publish) on the next
+       open instead of a fire-and-forget request at the moment the page is closing. */
+    if(!st.lastPullAt&&!st.lastPushAt) return false;
+    SY.push({keepalive:true}).then(row=>{
+      if(row&&row.revision!=null) setState({lastRevision:row.revision});
+    }).catch(()=>{});
+    return true;
+  }catch(e){ return false; }
+};
+
 /* Two rhythms keep a room of devices on one register:
 
    • push — a local commit schedules a push after `pushMs` (0.7 s by default), so the
@@ -1397,6 +1471,8 @@ SY.startLive=function(){
     if(busy) return;
     if(typeof navigator!=='undefined' && navigator.onLine===false) return;
     if(typeof document!=='undefined' && document.visibilityState==='hidden') return;
+    const nt=Number(state().nextTryAt||0);
+    if(nt && Date.now()<nt) return;                 /* waiting out a failure, not asleep */
     SY.sync({auto:true, quiet:true}).catch(()=>{});
   }, c.pollMs);
   SY.emit('live');
@@ -1439,12 +1515,23 @@ function idle(fn,fallbackMs){
 }
 SY.start=function(){
   if(SY._started) return; SY._started=true;
-  window.addEventListener('online',()=>{ if(SY.configured()){ SY.startLive(); SY.schedule(600); } });
+  window.addEventListener('online',()=>{
+    if(!SY.configured()) return;
+    setState({nextTryAt:null, failCount:0});      /* a fresh link deserves an immediate try */
+    SY.startLive(); SY.schedule(300);
+  });
   window.addEventListener('offline',()=>{});
+  /* Leaving the page — closed, backgrounded, or swiped away — is the last chance to
+     send what was just typed. See SY.flush. */
+  if(typeof window.addEventListener==='function'){
+    window.addEventListener('pagehide',()=>{ try{ SY.flush(); }catch(e){} });
+    window.addEventListener('beforeunload',()=>{ try{ SY.flush(); }catch(e){} });
+  }
   /* a tab that becomes visible again catches up immediately */
   if(typeof document!=='undefined'&&document.addEventListener){
     document.addEventListener('visibilitychange',()=>{
-      if(document.visibilityState==='visible'&&SY.configured()) SY.sync({auto:true, quiet:true}).catch(()=>{});
+      if(document.visibilityState==='visible'&&SY.configured()){ setState({nextTryAt:null, failCount:0}); SY.sync({auto:true, quiet:true}).catch(()=>{}); }
+      else if(document.visibilityState==='hidden'){ try{ SY.flush(); }catch(e){} }
     });
   }
   /* another tab of the same browser wrote to localStorage: take its copy */
