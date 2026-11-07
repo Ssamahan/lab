@@ -5,7 +5,7 @@
 'use strict';
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store, SH=LS.sheets;
 const M={}; LS.modules.roster=M;
-let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
+let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null, gridPage=0;
 /* The letters on the sheet. Leave and absence use the department's standard
    abbreviations: AL annual · ML maternal · PL paternal · SL sick · CL circumstantial ·
    AA authorised · H public holiday · WD work desertion / unauthorised absence. */
@@ -225,9 +225,9 @@ function gridView(){
     action:'<div class="row gap-sm" style="justify-content:center;flex-wrap:wrap"><button class="btn primary" data-empty-generate>'+UI.ic('sparkles',15)+' Generate draft</button><button class="btn" data-empty-blank>'+UI.ic('square-pen',15)+' Start a blank month</button></div>'
       +(S.planMonths().filter(k=>k!==mk).length?'<div class="row wrap gap-sm" style="justify-content:center;margin-top:14px"><span class="xs faint">Stored plans:</span>'+S.planMonths().filter(k=>k!==mk).map(k=>'<button class="btn xs" data-open-month="'+k+'">'+U.ic('calendar-days',12)+U.esc(U.monthLabel(k))+'</button>').join('')+'</div>':'')})+'</div>';
   const cov=coverage(p), rq=req();
-  const head='<thead><tr><th class="staff-cell" style="z-index:4">Staff / day</th>'+p.dates.map(iso=>{
+  const head='<thead><tr><th class="staff-cell" style="z-index:4">Staff / day</th>'+p.dates.map((iso,di)=>{
     const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
-    return '<th class="'+(dow>=5||hol?'wkend':'')+(hol?' holiday':'')+'" '+(hol?'data-tip="'+U.esc(hol.name)+'"':'')+' style="'+(today?'color:var(--gold)':'')+'">'+U.DOW1[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
+    return '<th data-plan-day="'+di+'" class="'+(dow>=5||hol?'wkend':'')+(hol?' holiday':'')+'" '+(hol?'data-tip="'+U.esc(hol.name)+'"':'')+' style="'+(today?'color:var(--gold)':'')+'">'+U.DOW1[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
   }).join('')+'</tr></thead>';
   const body=rowOrder(p).map(({s,si})=>{
     const st=S.staffByName(s.name)||{};
@@ -239,14 +239,14 @@ function gridView(){
         /* a hatched cell is a day before the person was employed — it is not a rest day
            and it is not blank space, so the diagonal hatch says so at a glance */
         const cls=['day',dow>=5?'wkend':'',today?'today':'',hol?'holiday':'',c==='OFF'?'off':'',c==='UO'?'uo':'',c==='BE'?'be':''].filter(Boolean).join(' ');
-        return '<td class="'+cls+'" data-cell="'+si+'-'+di+'" data-si="'+si+'" data-di="'+di+'" '+(c?'draggable="true"':'')+(lv?' data-tip="Approved leave — the stored plan is unchanged"':'')+(c==='BE'?' data-tip="Before employment — joined later this month"':'')+'><span class="shift-code '+show+'" style="pointer-events:none'+(lv?'':';')+'">'+U.esc(show||'·')+'</span>'
+        return '<td data-plan-day="'+di+'" class="'+cls+'" data-cell="'+si+'-'+di+'" data-si="'+si+'" data-di="'+di+'" '+(c?'draggable="true"':'')+(lv?' data-tip="Approved leave — the stored plan is unchanged"':'')+(c==='BE'?' data-tip="Before employment — joined later this month"':'')+'><span class="shift-code '+show+'" style="pointer-events:none'+(lv?'':';')+'">'+U.esc(show||'·')+'</span>'
           +(lv?'<i style="position:absolute;inset:2px;border:1px dashed var(--gold);border-radius:4px;pointer-events:none"></i>':'')+'</td>';
      }).join('')+'</tr>';
   }).join('');
   const footer='<tfoot><tr class="cov-footer"><td class="staff-cell" style="background:var(--surface-inset);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)">Day cover</td>'
-   +p.dates.map(iso=>{ const c=cov[iso], r=required(iso); return '<td class="'+(c.day<r.day?'low':'')+'" data-tip="'+c.day+' of '+r.day+' required">'+c.day+'</td>'; }).join('')+'</tr>'
+   +p.dates.map((iso,di)=>{ const c=cov[iso], r=required(iso); return '<td data-plan-day="'+di+'" class="'+(c.day<r.day?'low':'')+'" data-tip="'+c.day+' of '+r.day+' required">'+c.day+'</td>'; }).join('')+'</tr>'
    +'<tr class="cov-footer"><td class="staff-cell" style="background:var(--surface-inset);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)">Night cover</td>'
-   +p.dates.map(iso=>{ const c=cov[iso], r=required(iso); return '<td class="'+(c.night<r.night?'low':'')+'" data-tip="'+c.night+' of '+r.night+' required">'+c.night+'</td>'; }).join('')+'</tr></tfoot>';
+   +p.dates.map((iso,di)=>{ const c=cov[iso], r=required(iso); return '<td data-plan-day="'+di+'" class="'+(c.night<r.night?'low':'')+'" data-tip="'+c.night+' of '+r.night+' required">'+c.night+'</td>'; }).join('')+'</tr></tfoot>';
   const under=p.dates.filter(iso=>cov[iso].day<required(iso).day||cov[iso].night<required(iso).night);
   /* The table fits the page: every day of the run, from the first date the plan
      covers to the last, with no sideways scrolling and no second column of names
@@ -261,7 +261,7 @@ function gridView(){
       +'</div>';
   };
   return legend()
-   +'<div class="card table-card plan-fit"><div class="dt-scroll"><table class="cal">'+head+'<tbody>'+body+'</tbody>'+footer+'</table></div>'
+   +'<div class="card table-card plan-fit"><div class="plan-pager" aria-label="Navigate plan dates"><button class="btn sm" data-plan-prev aria-label="Previous dates">'+UI.ic('chevron-left',14)+' Previous</button><span data-plan-range aria-live="polite"></span><button class="btn sm" data-plan-next aria-label="Next dates">Next '+UI.ic('chevron-right',14)+'</button></div><div class="dt-scroll"><table class="cal">'+head+'<tbody>'+body+'</tbody>'+footer+'</table></div>'
    +'<div class="card-foot"><span>'+(p.meta&&p.meta.official?'Official published plan — edits are audited':p.meta&&p.meta.transcribed?'Transcribed record of the paper plan — not published':p.meta&&p.meta.generated?'Draft generated from staff patterns':'Edited plan')+' · '+p.dates.length+' days'
      +(p.meta&&p.meta.carriedFrom?' · takes over from '+U.fmtDateShort(p.meta.carriedFrom)+' (previous month)':'')
      +' · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div>'
@@ -1488,6 +1488,7 @@ function wireBody(){
   r.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ view=b.dataset.view; paint(); });
   r.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>{
     const d=+b.dataset.nav;
+    gridPage=0;
     if(d===0){ mk=U.monthKey(); } else { const [y,m]=mk.split('-').map(Number); const dt=new Date(y,m-1+d,1); mk=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'); }
     paint();
   });
@@ -1496,7 +1497,7 @@ function wireBody(){
   r.querySelectorAll('[data-leavefill]').forEach(b=>b.onclick=fillLeaves);
   r.querySelectorAll('[data-publish]').forEach(b=>b.onclick=publishMonth);
   r.querySelectorAll('[data-empty-generate]').forEach(b=>b.onclick=generateMonth);
-  r.querySelectorAll('[data-open-month]').forEach(b=>b.onclick=()=>{ mk=b.dataset.openMonth; paint(); });
+  r.querySelectorAll('[data-open-month]').forEach(b=>b.onclick=()=>{ mk=b.dataset.openMonth; gridPage=0; paint(); });
   r.querySelectorAll('[data-empty-blank]').forEach(b=>b.onclick=()=>{
     S.commit(d=>{ const key=mk; const days=U.monthRange(key);
       d.workingPlans[key]=d.workingPlans[key]||{versions:[]};
@@ -1556,6 +1557,20 @@ function wireBody(){
   r.querySelectorAll('[data-swap-decline]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ const sw=(d.swaps||[]).find(x=>x.id===b.dataset.swapDecline); if(sw) sw.status='Declined'; },{action:'roster.swap.decline',entity:'workingPlans',detail:'Swap declined'}); paint(); UI.toast('Swap declined',{type:'warn'}); });
   // grid interactions
   if(view==='grid'){
+    const p=plan(), pager=r.querySelector('.plan-pager');
+    if(p && pager){
+      const update=()=>{
+        gridPage=Math.max(0,Math.min(gridPage,Math.max(0,Math.ceil(p.dates.length/5)-1)));
+        const start=gridPage*5, end=Math.min(start+5,p.dates.length);
+        r.querySelectorAll('[data-plan-day]').forEach(cell=>cell.classList.toggle('plan-day-visible',+cell.dataset.planDay>=start && +cell.dataset.planDay<end));
+        pager.querySelector('[data-plan-range]').textContent=U.fmtDateShort(p.dates[start])+' – '+U.fmtDateShort(p.dates[end-1]);
+        pager.querySelector('[data-plan-prev]').disabled=start===0;
+        pager.querySelector('[data-plan-next]').disabled=end>=p.dates.length;
+      };
+      pager.querySelector('[data-plan-prev]').onclick=()=>{ gridPage--;update(); };
+      pager.querySelector('[data-plan-next]').onclick=()=>{ gridPage++;update(); };
+      update();
+    }
     r.querySelectorAll('[data-cell]').forEach(td=>{
       td.addEventListener('click',()=>{ if(suppressClick){ suppressClick=false; return; } shiftPicker(+td.dataset.si,+td.dataset.di); });
       td.addEventListener('dragstart',e=>{ drag={si:+td.dataset.si,di:+td.dataset.di}; e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',td.dataset.cell); });
@@ -1582,7 +1597,7 @@ function wireBody(){
   }
 }
 M.render=function(root,params){
-  rootEl=root; view=params.tab||'grid'; mk=params.month||U.monthKey();
+  rootEl=root; view=params.tab||'grid'; mk=params.month||U.monthKey(); gridPage=0;
   root.innerHTML='<div id="roHead">'+header()+'</div><div id="roBody"></div>';
   paint();
 };
