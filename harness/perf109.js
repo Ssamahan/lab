@@ -61,9 +61,9 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||200));
   const check=read('check.html');
   ok(/Connection check/.test(check),'there is a standalone connection check page');
   ok(!/<script src=/.test(check)&&!/<link rel="stylesheet"/.test(check),'that loads no script and no stylesheet of its own');
-  ok(/assets\/js\/core\/shell\.js/.test(check)&&/assets\/js\/modules\/dash\.js/.test(check),'it asks for the files the console needs, one at a time');
+  ok(/assets\/js\/core\/shell\.js/.test(check)&&/assets\/js\/modules\/dash\.js/.test(check),'it asks for selected files the console needs');
   ok(/AbortController/.test(check),'and gives up on one that never answers, instead of waiting for ever');
-  ok(/caches\.delete/.test(check)&&/unregister/.test(check),'with one press that clears the cache and the old worker');
+  ok(!/caches\.delete/.test(check)&&!/unregister\(\)/.test(check),'without offering cache deletion during diagnosis');
   ok(!/labSystems\.v1[^)]*removeItem/.test(check),'and it never touches the register stored on the device');
   ok(check.length<20000,'in a file small enough to arrive on a broken connection',Math.round(check.length/1024)+' KB');
 

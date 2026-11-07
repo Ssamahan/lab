@@ -41,16 +41,15 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||150));
     await tick(60);
     const text=bootEl.textContent;
     ok(/could not start the console/i.test(text),'the splash is replaced by a sentence, not left turning');
-    ok(/the address is answering/i.test(text),'it says the address works — the device is the problem');
-    ok(/stale cache/.test(text),'and names what actually failed',text.replace(/\s+/g,' ').slice(0,120));
-    ok(/does not touch the register|Nothing is deleted/i.test(text),'it reassures that the register is safe');
-    const fresh=bootEl.querySelector('[data-fresh]');
-    ok(!!fresh,'with one button that clears the cache and reloads');
-    ok(/Clear cache/.test(fresh.textContent),'labelled in plain words');
-    ok(bootEl.querySelectorAll('button').length===2,'and a plain reload beside it');
+    ok(/does not establish the cause/i.test(text),'it does not assert an unverified cause');
+    ok(/stale cache/.test(text),'and displays the supplied failure detail',text.replace(/\s+/g,' ').slice(0,120));
+    ok(/Do not clear browser data/i.test(text),'it warns against clearing browser data');
+    ok(!bootEl.querySelector('[data-fresh]'),'it does not offer cache clearing as a first step');
+    ok(!!bootEl.querySelector('a[href="check.html"]'),'it offers the connection check');
+    ok(bootEl.querySelectorAll('button').length===1,'it offers a plain retry');
   }
 
-  /* ── 3 · ?fresh=1 is the guaranteed way in ─────────────────────────── */
+  /* ── 3 · legacy opt-in recovery still exists (not guaranteed) ─────────────────────────── */
   {
     ok(/\[.\?&.fresh=1/.test(srcBoot)||/\[\?&\]fresh=1/.test(srcBoot)||/fresh=1\\b/.test(srcBoot),
        'boot watches for the fresh-start flag');
@@ -83,10 +82,10 @@ const tick=ms=>new Promise(r=>setTimeout(r,ms||150));
   /* ── 4 · the inline fallback, for when no script arrives at all ────── */
   {
     ok(/__lsBooted/.test(indexHtml),'the page itself checks whether the console started');
-    const inline=indexHtml.slice(indexHtml.lastIndexOf('<script>')-0);
-    ok(/setTimeout/.test(indexHtml)&&/10000/.test(indexHtml),'after ten seconds it acts');
-    ok(/did not load on this device/.test(indexHtml),'saying the console did not load, in the page, with no dependency');
-    ok(/href="\?fresh=1"/.test(indexHtml),'and it offers the same clean reload as a plain link');
+    ok(indexHtml.indexOf('window.__lsBootWatchClear')<indexHtml.indexOf('<link rel="stylesheet"'),'the independent watchdog starts before blocking styles and scripts');
+    ok(/12000/.test(indexHtml),'the watchdog runs after twelve seconds');
+    ok(/Lab Systems is still loading/.test(indexHtml),'the message does not claim a diagnosis');
+    ok(/href="check.html"/.test(indexHtml),'it offers the independent connection check');
     ok(/<noscript>/.test(indexHtml)&&/JavaScript/.test(indexHtml),'a browser with JavaScript off is told why');
   }
 

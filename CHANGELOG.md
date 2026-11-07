@@ -4,6 +4,13 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.127 — Safer startup and offline updates
+
+- Start a dependency-free watchdog before the stylesheets and parser-blocking scripts; a stalled core file can no longer prevent that warning from being scheduled. It disappears when a screen starts and does not clear data.
+- Keep existing caches on service-worker activation, use exact-version cached files for older open tabs, bound precache requests, and refuse activation of an incomplete core build. Do not reload an open form automatically on an update.
+- Diagnostics bypass the new worker's cache on explicit no-store requests, test the Working Plan file, and no longer offer cache clearing as a first step. Older workers may still intercept a check.
+- These changes require the device to receive the new build first and cannot establish or fix every network or browser failure.
+
 ## v6.9.126 — Bound stalled navigation when an installed shell is available
 
 - If a navigation request or navigation preload stalls for eight seconds, the service worker tries the current build's already-cached shell rather than waiting indefinitely. If no shell is cached, it returns a network error.

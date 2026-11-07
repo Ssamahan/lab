@@ -66,6 +66,7 @@ window.addEventListener('unhandledrejection',ev=>{
 function finish(){
   if(done) return; done=true;
   window.__lsBooted=true;
+  if(window.__lsBootWatchClear) window.__lsBootWatchClear();
   const boot=document.getElementById('boot');
   if(boot){ boot.classList.add('done'); setTimeout(()=>boot.remove(),700); }
 }
@@ -161,17 +162,14 @@ function recover(reason){
   const why=reason?'<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin:10px 0 0;word-break:break-word">'+U.esc(reason)+'</div>':'';
   boot.innerHTML='<div style="max-width:460px;text-align:center;padding:24px">'
     +'<div style="font-family:var(--font-display);font-size:1.5rem;color:var(--text-strong);margin-bottom:8px">This device could not start the console</div>'
-    +'<p style="color:var(--text-muted);font-size:12.6px;line-height:1.65;margin:0">The address is answering — it is this browser that is holding an old or half-written copy of the build. Clearing it takes a second and does not touch the register stored on this device.</p>'
+    +'<p style="color:var(--text-muted);font-size:12.6px;line-height:1.65;margin:0">A required part of the console did not start. This does not establish the cause. Do not clear browser data or reset the register.</p>'
     +why
     +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">'
-      +'<button type="button" data-fresh style="padding:9px 14px;border-radius:8px;background:#C9A84C;color:#241A06;font-weight:600;border:0;cursor:pointer">Clear cache &amp; reload</button>'
-      +'<button type="button" onclick="location.reload()" style="padding:9px 14px;border-radius:8px;background:none;color:var(--text);border:1px solid var(--border-strong);cursor:pointer">Reload</button>'
+      +'<button type="button" onclick="location.reload()" style="padding:9px 14px;border-radius:8px;background:none;color:var(--text);border:1px solid var(--border-strong);cursor:pointer">Try again</button>'
+      +'<a href="check.html" style="padding:9px 14px;border-radius:8px;color:var(--gold)">Connection check</a>'
     +'</div>'
-    +'<div style="font-size:10.4px;color:var(--text-faint);margin-top:12px">Your register stays on this device. Nothing is deleted by clearing the cache.</div>'
   +'</div>';
   boot.classList.remove('done');
-  const b=boot.querySelector('[data-fresh]');
-  if(b) b.onclick=()=>{ location.href=location.pathname+'?fresh=1'; };
 }
 window.__lsRecover=recover;
 window.LS_TIMINGS=timings;
@@ -182,18 +180,20 @@ setTimeout(()=>{
   else recover(firstError||'the console did not finish starting within seven seconds');
 },7000);
 
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(init,60));
-else setTimeout(init,60);
+function beginWhenStylesReady(){
+  const gate=window.__lsStyleGate;
+  if(gate) gate.then(()=>setTimeout(init,60));
+  else setTimeout(init,60);
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',beginWhenStylesReady);
+else beginWhenStylesReady();
 
-/* Service worker — offline-first, and never stale. The new build takes control
-   as soon as it installs; the page reloads once so the user is not left running
-   yesterday's JavaScript (that is what makes a fixed Close button look broken). */
+/* Service worker updates do not reload an open tab: unfinished forms and the
+   private-name session belong to the user, who decides when it is safe to reload. */
 if(navigator.serviceWorker && location.protocol!=='file:'){
-  let reloading=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(reloading) return; reloading=true;
-    UI.toast('Lab Systems updated — reloading',{type:'info',duration:1200});
-    setTimeout(()=>location.reload(),900);
+    // Never interrupt an unfinished form or private-name session with a reload.
+    try{ LS.ui.toast('An update is ready. Save your work and check pending changes before reloading.',{type:'info',duration:12000}); }catch(e){}
   });
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{

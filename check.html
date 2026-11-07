@@ -38,7 +38,7 @@
 <body>
 <div class="wrap">
   <h1>Connection check</h1>
-  <p class="lede">This page asks the site for each file the console needs, one at a time, and tells you which one your connection cannot deliver. It loads nothing else — no fonts, no scripts, no stylesheet — so it works where the console does not.</p>
+  <p class="lede">This page checks selected site files and both services. A timeout does not identify its cause; an older service worker may answer from cache. It loads nothing else — no fonts, no scripts, no stylesheet — so it works where the console does not.</p>
 
   <div class="card">
     <h2>What this connection does</h2>
@@ -50,10 +50,9 @@
     <p class="verdict" id="verdict">Running the checks…</p>
     <div class="row">
       <a class="btn" href="index.html?build=now" id="open">Open the console</a>
-      <button class="btn ghost" id="fresh" type="button">Clear the cache and reload</button>
       <button class="btn ghost" id="copy" type="button">Copy this report</button>
     </div>
-    <p class="note">Clearing the cache never deletes the register: that is stored separately on this device, and it is kept.</p>
+    <p class="note">Do not clear browser data or reset the app while device work may be pending.</p>
     <pre id="out" hidden></pre>
   </div>
 
@@ -68,7 +67,7 @@
    If this page runs, the failure is not "the site is down" — it is one named file. */
 (function(){
   'use strict';
-  var VERSION = 'v6.9.122';
+  var VERSION = 'v6.9.127';
   var SHARED = {
     endpoint: 'https://lkjwztvhmzhasclmlocx.supabase.co',
     key: 'sb_publishable_6OQVktnGsJo_RPpZfGtITQ_pt3NCdgJ'
@@ -157,29 +156,30 @@
   var chain = Promise.resolve();
 
   chain = chain.then(function(){
-    return probe('index.html (the page itself)', 'index.html?check=' + Date.now()).then(function(r){
-      html.index = r;
-      if(r.ok){
-        var m = /v(\d+\.\d+\.\d+)/.exec(r.text || '');
-        var li = row('Build named in that page');
-        settle(li, m ? 'ok' : 'warn', m ? 'v' + m[1] : 'no version found');
-        record('build', !!m, m ? 'v'+m[1] : 'none');
-      }
-    });
-  }).then(function(){
-    return probe('tokens.css (the look of it)', 'assets/css/tokens.css?v=' + VERSION.slice(1));
-  }).then(function(){
-    return probe('shell.js (the console itself)', 'assets/js/core/shell.js?v=' + VERSION.slice(1));
-  }).then(function(){
-    return probe('sheets.js (printing and export)', 'assets/js/core/sheets.js?v=' + VERSION.slice(1));
-  }).then(function(){
-    return probe('dash.js (the first screen)', 'assets/js/modules/dash.js?v=' + VERSION.slice(1));
-  }).then(function(){
-    return probe('samples.js (the sample register)', 'assets/js/modules/samples.js?v=' + VERSION.slice(1));
-  }).then(function(){
-    /* The two independent services are checked at the same time. No patient data,
-       user credentials, authenticated sessions or writes are used by either check. */
+    // Small batches prevent one stalled file from blocking every other check.
     return Promise.all([
+      probe('index.html (the page itself)', 'index.html?check=' + Date.now()).then(function(r){
+        html.index = r;
+        if(r.ok){
+          var m = /v(\d+\.\d+\.\d+)/.exec(r.text || '');
+          var li = row('Build named in that page');
+          settle(li, m ? 'ok' : 'warn', m ? 'v' + m[1] : 'no version found');
+          record('build', !!m, m ? 'v'+m[1] : 'none');
+        }
+      }),
+      probe('dash.js (the first screen)', 'assets/js/modules/dash.js?v=' + VERSION.slice(1)),
+      probe('roster.js (the working plan)', 'assets/js/modules/roster.js?v=' + VERSION.slice(1))
+    ]);
+  }).then(function(){
+    return Promise.all([
+      probe('tokens.css (the look of it)', 'assets/css/tokens.css?v=' + VERSION.slice(1)),
+      probe('shell.js (the console itself)', 'assets/js/core/shell.js?v=' + VERSION.slice(1)),
+      probe('sheets.js (printing and export)', 'assets/js/core/sheets.js?v=' + VERSION.slice(1))
+    ]);
+  }).then(function(){
+    /* No patient data, user credentials, authenticated sessions or writes. */
+    return Promise.all([
+      probe('samples.js (the sample register)', 'assets/js/modules/samples.js?v=' + VERSION.slice(1)),
       probe('The shared register (Supabase)', SHARED.endpoint + '/rest/v1/lab_registers?id=eq.ruli-dh&select=id',
         {headers:{'apikey':SHARED.key}}),
       probe('Private names authentication (Supabase)', PRIVATE.endpoint + '/auth/v1/settings',
@@ -251,23 +251,7 @@
     verdictEl.innerHTML = '<b>The check itself failed</b> — ' + esc(e && (e.message||e)) + '. That is unusual: send this to the laboratory manager.';
   });
 
-  document.getElementById('fresh').onclick = function(){
-    var btn = this;
-    btn.disabled = true;
-    btn.textContent = 'Clearing…';
-    var done = function(){ location.href = 'index.html?fresh=' + Date.now(); };
-    try{
-      if(window.caches && caches.keys){
-        caches.keys().then(function(keys){
-          return Promise.all(keys.map(function(k){ return caches.delete(k); }));
-        }).then(function(){
-          return navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? navigator.serviceWorker.getRegistrations() : [];
-        }).then(function(rs){
-          return Promise.all(rs.map(function(r){ return r.unregister(); }));
-        }).then(done, done);
-      } else { done(); }
-    }catch(e){ done(); }
-  };
+
 })();
 </script>
 </body>
