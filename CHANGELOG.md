@@ -4,6 +4,16 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.118 — Preserve old patient names and stop blind writes
+
+Fix a migration-order defect: old unmasked sample names must be durably copied into this device's separate name store before the register is masked. If that store cannot be written, the original remains on the device and sync refuses to publish it. Existing masked names cannot be recreated by this change. Conflicting historical name values are retained in the local name store. Recording a name now reports storage failure rather than silently claiming success. The bulk form shows patient IDs and explains its 120-record batches. Names remain device-local and are not part of the normal register export or sync.
+
+Remove the unconditional background privacy-migration write and the blind page-exit keepalive write: either could publish an outdated whole register without first comparing the shared copy. Pending work stays queued for the ordinary checked sync. This reduces those risks but does not guarantee conflict-free merges or repair existing network failures.
+
+The signed November 2026 plan was compared read-only with the shared revision 5, including the live leave overlay. No changes were made to either plan. Maps use separate third-party requests and are not a demonstrated cause of the Supabase timeout.
+
+---
+
 ## v6.9.117 — Retry no longer stuck at “1 s”
 
 A failed sync could show “retrying in 1 s” indefinitely after its scheduled time had already passed. The header now says retry due, retrying now, or auto-retry off as appropriate; it still shows the actual last error in the tooltip and Data & sync.

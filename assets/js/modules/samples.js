@@ -158,25 +158,27 @@ function namesModal(){
    gets a line here, and one press saves them all. */
 function recordNamesBulk(){
   if(!LS.auth.user||LS.auth.isVisitor()) return UI.toast('Sign in to record patient names','warn');
-  const list=filtered().filter(s=>!S.recordedName(s)).slice(0,120);
+  const missing=filtered().filter(s=>!S.recordedName(s));
+  const list=missing.slice(0,120);
   if(!list.length) return UI.toast('Every order in this list already has a name',{type:'ok'});
   const row=s=>'<div class="row" style="gap:9px;padding:7px 0;border-bottom:1px solid var(--border)">'
     +'<span class="mono xs" style="width:150px;flex:0 0 auto">'+U.esc(s.sampleId)+'</span>'
-    +'<span class="xs faint" style="width:120px;flex:0 0 auto">'+U.esc(s.test||'')+'</span>'
+    +'<span class="xs faint" style="width:150px;flex:0 0 auto">Patient ID: '+U.esc(s.patientId||'not recorded')+'<br>'+U.esc(s.test||'')+'</span>'
     +'<input class="input" data-nm-for="'+U.esc(s.id)+'" placeholder="MUKAMANA Alice" autocomplete="off" style="flex:1;min-width:130px">'
     +'</div>';
   UI.modal({title:'Record patient names',width:'min(720px,100%)',
-    sub:list.length+' order'+(list.length===1?'':'s')+' on this filter without a name — type what is on the request form, then save once.',
+    sub:list.length+' of '+missing.length+' orders without a name on this filter — match the patient ID to the request form, then save. Save this batch to see the next.',
     body:'<div class="hint" style="margin-bottom:10px">Names are kept in their own store on this device: never in the register that syncs, never in a file export. They do print on the referral manifest, because the manifest has to identify the specimen.</div>'
       +'<div style="max-height:52vh;overflow:auto">'+list.map(row).join('')+'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-all>'+UI.ic('check',14)+'Save names</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save-all]').onclick=()=>{
-        let n=0;
+        let n=0, failed=0;
         el.querySelectorAll('[data-nm-for]').forEach(inp=>{
           const v=(inp.value||'').trim(); if(!v) return;
-          S.setPatientName(inp.dataset.nmFor,v,{actor:LS.auth.user.name}); n++;
+          if(S.setPatientName(inp.dataset.nmFor,v,{actor:LS.auth.user.name})) n++; else failed++;
         });
+        if(failed) return UI.toast(failed+' name(s) could not be saved on this device. Check storage and retry; the form remains open.',{type:'err',duration:8000});
         if(!n) return UI.toast('No name was typed','warn');
         S.audit({action:'sample.name_recorded',entity:'samples',detail:n+' patient name'+(n===1?'':'s')+' recorded'});
         S.save(true); close(); UI.toast(n+' name'+(n===1?'':'s')+' recorded',{type:'ok'});
@@ -482,7 +484,7 @@ function openSample(id){
           if(!v) return UI.toast('Type the name first',{type:'warn'});
           /* the name goes to its own store; the register keeps the mask, so nothing
              patient-identifying can travel in the copy that syncs */
-          S.setPatientName(s.id,v,{actor:LS.auth.user.name});
+          if(!S.setPatientName(s.id,v,{actor:LS.auth.user.name})) return UI.toast('Name could not be saved on this device. Check storage and retry.',{type:'err',duration:8000});
           S.audit({action:'sample.name_recorded',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+s.sampleId});
           close(); UI.toast('Name recorded',{type:'ok'});
           /* the record updates in place — no second drawer stacked on the first */
@@ -568,7 +570,7 @@ function editSample(id){
     body:'<div class="form-grid">'
       +'<div class="field"><label>Sample ID</label><input class="input mono" id="edSid" value="'+U.esc(s.sampleId)+'"></div>'
       +(U.canSeeNames()
-        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(patientNameFor(s))+'"><div class="xs faint" style="margin-top:4px">Stored with the order and shown to every signed-in member of staff. A dash means no name was ever recorded for it.</div></div>'
+        ? '<div class="field"><label>Patient name</label><input class="input" id="edName" value="'+U.esc(patientNameFor(s))+'"><div class="xs faint" style="margin-top:4px">Stored only on this device. A missing name may be entered from the original request form.</div></div>'
         : '<div class="field"><label>Patient</label><input class="input" id="edName" value="'+U.CONFIDENTIAL+'" readonly></div>')
       +'<div class="field"><label>Patient ID</label><input class="input mono" id="edPid" value="'+U.esc(s.patientId||'')+'"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="edSex">'+opts(['Female','Male','Other','Unknown'],s.sex||'Unknown')+'</select></div>'
@@ -596,7 +598,7 @@ function editSample(id){
         if(S.db().samples.some(x=>x.id!==s.id && x.sampleId===sampleId)) return UI.toast('Another sample already uses that ID',{type:'err'});
         const dobV=g('#edDob');
         const changes={
-          sampleId, patientName:U.CONFIDENTIAL, patientId:g('#edPid').trim(), sex:g('#edSex'),
+          sampleId, patientName:s.patientName||U.CONFIDENTIAL, patientId:g('#edPid').trim(), sex:g('#edSex'),
           dob:dobV, age:(U.ageFromDob(dobV)===''?g('#edAge'):String(U.ageFromDob(dobV))),
           test:g('#edTest'), priority:g('#edPri'), healthFacility:g('#edFac'), hospital:g('#edLab'),
           collectionDate:g('#edColl'), sentDate:g('#edSent')||null, transporter:g('#edTrans').trim(),
@@ -606,7 +608,8 @@ function editSample(id){
         /* a name typed on this form goes to its own store, never into the register */
         const typedName=(g('#edName')||'').trim();
         if(typedName && typedName!==U.CONFIDENTIAL && LS.auth.namesOpen()){
-          S.setPatientName(s.id,typedName,{actor:LS.auth.user.name});
+          if(!S.setPatientName(s.id,typedName,{actor:LS.auth.user.name})) return UI.toast('Name could not be saved on this device. Check storage and retry.',{type:'err',duration:8000});
+          changes.patientName=U.CONFIDENTIAL;
           S.audit({action:'sample.name_recorded',entity:'samples',entityId:s.id,detail:'Patient name recorded for '+sampleId});
         }
         /* The target follows the test unless a person overrides it on this one
@@ -1051,6 +1054,10 @@ function newWizard(){
                the longest of them, because the sample is not back until the last one is. */
             tatTargetDays:S.tatTargetForTests(testObjs.map(t=>t.name)),notes:state.notes,transporter:state.transporter,
             collector:LS.auth.user.name,source:'register',manifestId:null,tests:ordered};
+          /* Save the name before creating the sample: if device storage fails, leave
+             the form open rather than silently dropping what the clerk typed. */
+          if(state.patient.name && state.patient.name!==U.CONFIDENTIAL && !S.setPatientName(sample.id,state.patient.name,{actor:LS.auth.user.name}))
+            return UI.toast('Name could not be saved on this device. Check storage and retry.',{type:'err',duration:8000});
           /* The ID is taken inside the commit, from the test chosen and this month. */
           let sid='', drawn=null;
           S.commit(d=>{ sid=S.takeSampleId(first.name,today,d); sample.sampleId=sid; d.samples.push(sample);
@@ -1061,7 +1068,6 @@ function newWizard(){
           /* The name the clerk typed is kept in the name store, whether or not the column
              happens to be open. The sample itself carries the mask. */
           if(state.patient.name && state.patient.name!==U.CONFIDENTIAL){
-            S.setPatientName(sample.id,state.patient.name,{actor:LS.auth.user.name});
             S.audit({action:'sample.name_recorded',entity:'samples',entityId:sample.id,detail:'Patient name recorded at registration for '+sample.sampleId});
             S.save(true);
           }
@@ -1118,7 +1124,7 @@ function wire(){
         el2.querySelector('[data-save-name]').onclick=()=>{
           const v=(el2.querySelector('#nmVal').value||'').trim();
           if(!v) return UI.toast('Type the name first',{type:'warn'});
-          S.setPatientName(rec.id,v,{actor:LS.auth.user.name});
+          if(!S.setPatientName(rec.id,v,{actor:LS.auth.user.name})) return UI.toast('Name could not be saved on this device. Check storage and retry.',{type:'err',duration:8000});
           S.audit({action:'sample.name_recorded',entity:'samples',entityId:rec.id,detail:'Patient name recorded'});
           close2(); UI.toast('Name recorded',{type:'ok'}); LS.shell.refresh();
         };
