@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.111';
+const APP_VERSION='6.9.112';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -807,8 +807,43 @@ SH.logout=async function(){
 };
 
 /* ——— Status bar ————————————————————— */
+/* ——— The queue chip ————————————————————————————
+   "I typed it on the phone and the computer knows nothing about it" has one honest
+   answer only if the phone says what it still owes. This chip is that answer: nothing
+   while everything is published, otherwise the number of changes waiting, or the reason
+   the last attempt failed — and one press to send them now instead of waiting. */
+function paintSyncChip(){
+  const chip=document.getElementById('syncChip');
+  if(!chip) return;
+  const SY=window.LS&&LS.sync;
+  if(!SY||!SY.configured||!SY.configured()){ chip.hidden=true; chip.classList.remove('on'); return; }
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()){ chip.hidden=true; chip.classList.remove('on'); return; }
+  let info=null;
+  try{ info=SY.pendingInfo?SY.pendingInfo():null; }catch(e){}
+  if(!info){ chip.hidden=true; chip.classList.remove('on'); return; }
+  const txt=chip.querySelector('#syncChipText');
+  chip.hidden=false;
+  chip.classList.add('on');
+  chip.classList.toggle('bad',!!info.lastError&&info.waiting);
+  chip.classList.toggle('ok',!info.waiting);
+  if(info.waiting){
+    const n=info.count;
+    let say=n+' change'+(n===1?'':'s')+' waiting';
+    if(info.lastError) say=n+' waiting · retrying in '+Math.max(1,Math.round(info.retryIn/1000))+'s';
+    else if(info.retryIn>0) say=n+' waiting · retrying in '+Math.max(1,Math.round(info.retryIn/1000))+'s';
+    else say=n+' waiting · sending…';
+    if(txt) txt.textContent=say;
+    chip.title=(info.lastError?('The last attempt failed: '+info.lastError+'. '):'')
+      +'Press to send '+n+' change'+(n===1?'':'s')+' to the shared copy now.';
+  } else {
+    const at=info.lastPushAt||info.lastPullAt;
+    if(txt) txt.textContent=at?('Synced '+U.relTime(at)):'Not synced yet';
+    chip.title=at?('Everything on this device is in the shared copy, as of '+U.fmtDate(at)+'.'):'This device has not exchanged with the shared copy yet.';
+  }
+}
 function updateNet(){
   const online=navigator.onLine;
+  try{ paintSyncChip(); }catch(e){}
   /* When a shared register is configured the pill reports sync, not just the cable. */
   const live=(window.LS&&LS.sync&&LS.sync.configured&&LS.sync.configured())?LS.sync.liveLabel():null;
   U.$$('[data-net]').forEach(e=>{
@@ -821,6 +856,15 @@ function updateNet(){
   U.$$('[data-offline-banner]').forEach(e=>e.hidden=online);
 }
 if(window.LS&&LS.sync&&LS.sync.onChange) LS.sync.onChange(()=>{ try{ updateNet(); }catch(e){} });
+/* The queue changes on every commit and every attempt, so the chip is repainted on the
+   same events the rest of the chrome listens to — and once a second while something is
+   waiting, because that is what makes "retrying in 8s" count down instead of lie. */
+window.addEventListener('ls:changed',()=>{ try{ paintSyncChip(); }catch(e){} });
+window.addEventListener('ls:saved',()=>{ try{ paintSyncChip(); }catch(e){} });
+setInterval(()=>{ try{
+  const chip=document.getElementById('syncChip');
+  if(chip&&!chip.hidden) paintSyncChip();
+}catch(e){} },1000);
 window.addEventListener('online',()=>{ updateNet(); UI.toast('Connection restored — syncing local changes',{type:'ok'}); });
 window.addEventListener('offline',()=>{ updateNet(); UI.toast('Offline. Every action still saves locally and queues for sync.',{type:'warn',duration:6000}); });
 
@@ -830,6 +874,8 @@ function wireGlobal(){
   document.addEventListener('click',e=>{
     const nav=e.target.closest('[data-tab]');
     if(nav){ const id=nav.dataset.tab; if(ROUTES[id]) SH.go(id); if(nav.classList.contains('bnav-item')) document.querySelector('.app')?.classList.remove('rail-open'); return; }
+    const syncNow=e.target.closest('[data-sync-now]');
+    if(syncNow){ e.preventDefault(); SH.syncNow(); return; }
     const go=e.target.closest('[data-go]'); if(go){ SH.go(go.dataset.go); return; }
     if(e.target.closest('[data-more]')){ openMoreSheet(); return; }
     if(e.target.closest('[data-rail-close]')){ document.querySelector('.app')?.classList.remove('rail-open'); return; }
@@ -927,6 +973,24 @@ function wireGlobal(){
   // install prompt
   window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); SH._installEvent=e; });
 }
+/* Send now, and say what happened in a sentence — never a silent spinner. */
+SH.syncNow=async function(){
+  const SY=window.LS&&LS.sync;
+  if(!SY||!SY.configured||!SY.configured()) return UI.toast('Cloud sync is off on this device',{type:'warn'});
+  if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return UI.toast('This is a read-only visitor view',{type:'warn'});
+  if(navigator.onLine===false){ UI.toast('This device is offline — the changes stay queued and go by themselves when the connection returns',{type:'warn',duration:6500}); return; }
+  try{ SY.setState?SY.setState({nextTryAt:null,failCount:0}):null; }catch(e){}
+  UI.toast('Sending changes to the shared copy…',{type:'info',duration:1500});
+  const res=await SY.sync({auto:false,quiet:false}).catch(e=>({ok:false,reason:e.message}));
+  paintSyncChip();
+  if(res&&res.ok){
+    const info=SY.pendingInfo?SY.pendingInfo():{count:0};
+    UI.toast(info.count?info.count+' change'+(info.count===1?'':'s')+' are still waiting':'Everything on this device is in the shared copy',{type:info.count?'warn':'ok',duration:5000});
+  } else {
+    UI.toast((res&&res.reason)||'The shared copy did not accept the changes',{type:'err',duration:8000});
+  }
+  return res;
+};
 SH.install=async function(){
   if(SH._installEvent){ SH._installEvent.prompt(); const r=await SH._installEvent.userChoice; if(r.outcome==='accepted'){ UI.toast('Lab Systems installed — works offline from your home screen',{type:'ok'}); } SH._installEvent=null; }
   else if(window.matchMedia('(display-mode: standalone)').matches){ UI.toast('Already running as an installed app',{type:'info'}); }
