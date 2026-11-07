@@ -15,14 +15,47 @@
 <meta name="apple-mobile-web-app-title" content="Lab Systems">
 <link rel="preload" href="assets/fonts/fraunces-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.126">
-<link rel="stylesheet" href="assets/css/app.css?v=6.9.126">
-<link rel="stylesheet" href="assets/css/landing.css?v=6.9.126">
+<!-- Starts before stylesheets and blocking scripts, so a stalled core file cannot
+     prevent the recovery message itself from running. It never clears device data. -->
+<script>
+(function(){
+  var panel=null, poll=null;
+  function visibleScreen(){
+    return ['landing','auth','app'].some(function(id){var el=document.getElementById(id);return el&&!el.hidden&&el.getClientRects().length>0;});
+  }
+  function clear(){ if(poll) clearInterval(poll); poll=null; if(panel){panel.remove();panel=null;} }
+  window.__lsBootWatchClear=clear;
+  setTimeout(function(){
+    if(window.__lsBooted || visibleScreen() || !document.body) return;
+    // A still-pending render-blocking stylesheet can prevent even this warning
+    // from painting. Temporarily mark only pending sheets non-render-blocking;
+    // boot waits for their load/error events before showing the application.
+    var pending=Array.prototype.filter.call(document.querySelectorAll('link[data-boot-style]'),function(link){return !link.dataset.lsSettled;});
+    if(pending.length){
+      window.__lsStyleGate=Promise.all(pending.map(function(link){return new Promise(function(resolve){
+        var media=link.media;
+        function settled(){link.media=media;resolve();}
+        link.addEventListener('load',settled,{once:true});link.addEventListener('error',settled,{once:true});
+        link.media='not all';
+      });}));
+    }
+    panel=document.createElement('div');
+    panel.setAttribute('role','alert'); panel.id='earlyBootWarning';
+    panel.style.cssText='position:fixed;inset:0;z-index:9999;background:#14120e;color:#efe7d6;display:flex;align-items:center;justify-content:center;padding:24px;font:15px/1.5 system-ui,sans-serif;text-align:center';
+    panel.innerHTML='<div style="max-width:440px"><h1 style="font-size:22px;margin:0 0 12px">Lab Systems is still loading</h1><p>A required file has not finished loading. This does not tell us why. Your device data has not been cleared by this screen.</p><p>Keep this tab open, check your connection, and try again. Do not clear browser data.</p><a href="check.html" style="display:inline-block;color:#f2d487;padding:12px">Connection check</a></div>';
+    document.body.appendChild(panel);
+    poll=setInterval(function(){ if(window.__lsBooted || visibleScreen()) clear(); },250);
+  },12000);
+})();
+</script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.127" data-boot-style onload="this.dataset.lsSettled='1'" onerror="this.dataset.lsSettled='1'">
+<link rel="stylesheet" href="assets/css/app.css?v=6.9.127" data-boot-style onload="this.dataset.lsSettled='1'" onerror="this.dataset.lsSettled='1'">
+<link rel="stylesheet" href="assets/css/landing.css?v=6.9.127" data-boot-style onload="this.dataset.lsSettled='1'" onerror="this.dataset.lsSettled='1'">
 <!-- Blocking, deliberately. It was made non-blocking in 6.9.122 to save 71 KB of waiting,
      and that is exactly the sort of cleverness that produces an unstyled, unreadable
      console on a device where the deferred swap does not happen. Reliability first: the
      stylesheet is there before the first screen is drawn, every time. -->
-<link rel="stylesheet" href="assets/css/modules.css?v=6.9.126">
+<link rel="stylesheet" href="assets/css/modules.css?v=6.9.127" data-boot-style onload="this.dataset.lsSettled='1'" onerror="this.dataset.lsSettled='1'">
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
@@ -50,7 +83,7 @@
   <div class="boot-sub">Ruli District Hospital · Laboratory</div>
   <div class="boot-thread"><i></i></div>
   <div class="boot-status" id="bootStatus">Calibrating QC engines…</div>
-  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.126</span></div>
+  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.127</span></div>
 </div>
 
 
@@ -256,7 +289,7 @@
     <span>© 2026 Ruli District Hospital · Laboratory Department · Data residency: Rwanda</span>
     <span class="row" style="gap:12px">
       <button class="land-back" type="button" id="landConsole" hidden>Back to the console</button>
-      <span class="mono">Lab Systems v6.9.126</span>
+      <span class="mono">Lab Systems v6.9.127</span>
     </span>
   </footer>
 </section>
@@ -355,7 +388,7 @@
       </div>
       <div class="auth-foot">
         Accounts are issued by the laboratory manager in Security Center.<br>
-        Lab Systems v6.9.126 · © 2026 Ruli District Hospital · Laboratory Department
+        Lab Systems v6.9.127 · © 2026 Ruli District Hospital · Laboratory Department
       </div>
     </div>
   </div>
@@ -459,50 +492,30 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <noscript><div style="padding:40px;text-align:center;font-family:system-ui">Lab Systems requires JavaScript. Contact the laboratory manager for an offline APK build.</div></noscript>
 
-<script src="assets/js/core/icons.js?v=6.9.126"></script>
-<script src="assets/js/core/seed.js?v=6.9.126"></script>
-<script src="assets/data/plan-archive.js?v=6.9.126"></script>
-<script src="assets/js/core/utils.js?v=6.9.126"></script>
-<script src="assets/js/core/store.js?v=6.9.126"></script>
-<script src="assets/js/core/ui.js?v=6.9.126"></script>
-<script src="assets/js/core/charts.js?v=6.9.126"></script>
+<script src="assets/js/core/icons.js?v=6.9.127"></script>
+<script src="assets/js/core/seed.js?v=6.9.127"></script>
+<script src="assets/data/plan-archive.js?v=6.9.127"></script>
+<script src="assets/js/core/utils.js?v=6.9.127"></script>
+<script src="assets/js/core/store.js?v=6.9.127"></script>
+<script src="assets/js/core/ui.js?v=6.9.127"></script>
+<script src="assets/js/core/charts.js?v=6.9.127"></script>
 <!-- The sheet layout engine (sheets.js) is loaded with everything else, in parallel.
      6.9.109 deferred it and made thirteen screens *wait* for it before their own file
      even started: on a slow link that is an extra 91 KB of stall on every first visit to
      every screen, and if the request hangs the screen never draws at all. Back in the
      list, where a slow file only slows its own download — not the whole console. -->
-<script src="assets/js/core/sheets.js?v=6.9.126"></script>
+<script src="assets/js/core/sheets.js?v=6.9.127"></script>
 <!-- The workbook reader is still on demand (SH.ensureCore('xlsx')): nothing renders
      without it, and only an import needs it. -->
-<script src="assets/js/core/i18n.js?v=6.9.126"></script>
-<script src="assets/js/core/auth.js?v=6.9.126"></script>
-<script src="assets/js/core/landing.js?v=6.9.126"></script>
-<script src="assets/js/core/shell.js?v=6.9.126"></script>
-<script src="assets/js/core/shared.js?v=6.9.126"></script>
-<script src="assets/js/core/sync.js?v=6.9.126"></script>
-<script src="assets/js/core/private-names.js?v=6.9.126"></script>
-<script src="assets/js/core/boot.js?v=6.9.126"></script>
-<script>
-/* ——— The last line of defence ————————————————————————————————
-   Written inline, and deliberately dependent on nothing: if the console's own scripts
-   never arrive — a cache with half a build in it, a phone that dropped the connection
-   mid-update — this still runs, and it says so instead of leaving a splash turning for
-   ever, which is indistinguishable from a site that is down. */
-(function(){
-  window.setTimeout(function(){
-    if(window.__lsBooted) return;
-    var boot=document.getElementById('boot');
-    if(!boot) return;
-    boot.innerHTML='<div style="max-width:440px;text-align:center;padding:24px">'
-      +'<div style="font-family:Georgia,serif;font-size:1.4rem;color:#EFE7D6;margin-bottom:8px">The console did not load on this device</div>'
-      +'<p style="color:#B9AE99;font-size:12.5px;line-height:1.65;margin:0">The address is answering — this browser is holding an old or incomplete copy of the build. Clearing it takes a second and does not touch the register stored here.</p>'
-      +'<div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">'
-        +'<a href="?fresh=1" style="padding:9px 14px;border-radius:8px;background:#C9A84C;color:#241A06;font-weight:600;font-size:13px;text-decoration:none">Clear cache &amp; reload</a>'
-        +'<a href="" style="padding:9px 14px;border-radius:8px;color:#EFE7D6;border:1px solid #4A4335;font-size:13px;text-decoration:none">Reload</a>'
-      +'</div></div>';
-  },10000);
-})();
-</script>
+<script src="assets/js/core/i18n.js?v=6.9.127"></script>
+<script src="assets/js/core/auth.js?v=6.9.127"></script>
+<script src="assets/js/core/landing.js?v=6.9.127"></script>
+<script src="assets/js/core/shell.js?v=6.9.127"></script>
+<script src="assets/js/core/shared.js?v=6.9.127"></script>
+<script src="assets/js/core/sync.js?v=6.9.127"></script>
+<script src="assets/js/core/private-names.js?v=6.9.127"></script>
+<script src="assets/js/core/boot.js?v=6.9.127"></script>
+
 <noscript><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#14120E;color:#EFE7D6;font-family:system-ui,sans-serif;padding:24px;text-align:center;z-index:400"><div><b style="font-size:1.1rem">JavaScript is switched off</b><p style="color:#B9AE99;font-size:13px;margin-top:8px">The laboratory console runs in this browser and needs JavaScript enabled. Nothing has been lost.</p></div></div></noscript>
 </body>
 </html>

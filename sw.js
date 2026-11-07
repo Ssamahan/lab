@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.126';
+const VERSION = 'v6.9.127';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -21,26 +21,26 @@ const CORE = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/tokens.css?v=6.9.126',
-  './assets/css/app.css?v=6.9.126',
-  './assets/css/modules.css?v=6.9.126',
-  './assets/css/landing.css?v=6.9.126',
-  './assets/data/plan-archive.js?v=6.9.126',
-  './assets/js/core/icons.js?v=6.9.126',
-  './assets/js/core/seed.js?v=6.9.126',
-  './assets/js/core/utils.js?v=6.9.126',
-  './assets/js/core/store.js?v=6.9.126',
-  './assets/js/core/ui.js?v=6.9.126',
-  './assets/js/core/charts.js?v=6.9.126',
-  './assets/js/core/sheets.js?v=6.9.126',
-  './assets/js/core/i18n.js?v=6.9.126',
-  './assets/js/core/auth.js?v=6.9.126',
-  './assets/js/core/landing.js?v=6.9.126',
-  './assets/js/core/shared.js?v=6.9.126',
-  './assets/js/core/shell.js?v=6.9.126',
-  './assets/js/core/sync.js?v=6.9.126',
-  './assets/js/core/private-names.js?v=6.9.126',
-  './assets/js/core/boot.js?v=6.9.126',
+  './assets/css/tokens.css?v=6.9.127',
+  './assets/css/app.css?v=6.9.127',
+  './assets/css/modules.css?v=6.9.127',
+  './assets/css/landing.css?v=6.9.127',
+  './assets/data/plan-archive.js?v=6.9.127',
+  './assets/js/core/icons.js?v=6.9.127',
+  './assets/js/core/seed.js?v=6.9.127',
+  './assets/js/core/utils.js?v=6.9.127',
+  './assets/js/core/store.js?v=6.9.127',
+  './assets/js/core/ui.js?v=6.9.127',
+  './assets/js/core/charts.js?v=6.9.127',
+  './assets/js/core/sheets.js?v=6.9.127',
+  './assets/js/core/i18n.js?v=6.9.127',
+  './assets/js/core/auth.js?v=6.9.127',
+  './assets/js/core/landing.js?v=6.9.127',
+  './assets/js/core/shared.js?v=6.9.127',
+  './assets/js/core/shell.js?v=6.9.127',
+  './assets/js/core/sync.js?v=6.9.127',
+  './assets/js/core/private-names.js?v=6.9.127',
+  './assets/js/core/boot.js?v=6.9.127',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -51,7 +51,7 @@ const CORE = [
 
 /* The rest, brought in after the first screen is open (see the WARM message). */
 const LATER = [
-  './assets/js/core/xlsxread.js?v=6.9.126',
+  './assets/js/core/xlsxread.js?v=6.9.127',
   './assets/fonts/fraunces-latin-300-normal.woff2',
   './assets/fonts/fraunces-latin-400-italic.woff2',
   './assets/fonts/fraunces-latin-500-normal.woff2',
@@ -73,29 +73,44 @@ const MODULES = [
 ];
 const moduleUrl = m => './assets/js/modules/' + m + '.js?v=' + VERSION.replace(/^v/, '');
 
-/* One downloader for both passes: four at a time, never the whole list at once, and a
-   failed file is skipped rather than failing the install. */
+/* Bound every download. A stalled connection must not leave installation or the
+   warm pass waiting forever. Failed downloads never replace an existing cache entry. */
 async function precache(list, cacheName, size){
   const cache = await caches.open(cacheName);
-  const step = size || 4;
+  const step = size || 4, failed = [];
   for (let i = 0; i < list.length; i += step) {
-    await Promise.all(list.slice(i, i + step).map(url =>
-      cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
-    ));
+    await Promise.all(list.slice(i, i + step).map(async url => {
+      const controller = new AbortController();
+      let timer;
+      try {
+        const request = new Request(url, {cache:'reload',signal:controller.signal});
+        await Promise.race([(async()=>{
+          const response = await fetch(request);
+          if (!response.ok) throw new Error('HTTP '+response.status);
+          await cache.put(request, response);
+        })(), new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('timed out'));},8000);})]);
+      } catch(e) { failed.push(url); }
+      finally { clearTimeout(timer); }
+    }));
   }
+  return failed;
 }
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
-    await precache(CORE, SHELL, 4);
-    self.skipWaiting();
+    const failed = await precache(CORE, SHELL, 4);
+    // Keep the previous worker active if any app code, stylesheet or index is
+    // missing. Optional fonts/icons must not block an otherwise usable upgrade.
+    if(failed.some(url => /(?:index\.html|assets\/(?:js|css|data)\/)/.test(url)))
+      throw new Error('The new build is incomplete; the previous worker remains active.');
+    await self.skipWaiting();
   })());
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== SHELL && k !== RUNTIME).map(k => caches.delete(k)));
+    // Do not remove older caches: an open tab may still depend on their exact
+    // versioned scripts, and they can be the only offline copy on this device.
     if (self.registration.navigationPreload) {
       try { await self.registration.navigationPreload.enable(); } catch (e) {}
     }
@@ -174,6 +189,8 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;          // never cache third-party
   if (url.pathname.endsWith('/sw.js')) return;
+  // Explicit diagnostics and version checks must really reach the network.
+  if (req.cache === 'no-store') return;
 
   // Navigations: network first, fall back to cached shell (deep links included)
   if (req.mode === 'navigate') {
@@ -201,6 +218,16 @@ self.addEventListener('fetch', event => {
   // Code pinned to this build's version: from the cache, instantly, refreshed behind it.
   if (/\.(?:css|js|json|webmanifest)$/.test(url.pathname) && isCurrentVersion(url)) {
     event.respondWith(cacheFirst(req, RUNTIME));
+    return;
+  }
+
+  // An already-open older tab may request its own exact-version files after an
+  // update. Use an exact cached response, never a different version by pathname.
+  if (/\.(?:css|js|json|webmanifest)$/.test(url.pathname) && url.searchParams.has('v')) {
+    event.respondWith((async()=>{
+      const hit = await caches.match(req);
+      return hit || fetch(req);
+    })());
     return;
   }
 
