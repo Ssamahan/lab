@@ -8,6 +8,10 @@ const KEY='sb_publishable_LP464vGRnwj3g-i6FtgxcA_WOU1R3k7'; // public key, NOT a
 const META='labSystems.privateNames.baseline.v1';
 let token=null, expires=0, busy=null, timer=null, ticker=null, resolving=false, rerun=false, conflicts=[], message='Private name sync: not signed in';
 function showStatus(){document.querySelectorAll('[data-private-status]').forEach(el=>{el.textContent=message;});}
+/* Only unmistakable display placeholders are treated as missing, never arbitrary names. */
+function missingName(value){
+  return value==null || (typeof value==='string' && (!value.trim() || /^[-–—]$/.test(value.trim()) || value.trim()===window.LSU.CONFIDENTIAL));
+}
 function allowed(){ return !!(LS.auth.user && LS.auth.user.id==='u1' && !(LS.auth.isVisitor&&LS.auth.isVisitor())); }
 function baselines(){ try{const m=JSON.parse(localStorage.getItem(META)||'{}'); return m&&typeof m==='object'?m:{};}catch(e){return {};}}
 function saveBase(m){ try{localStorage.setItem(META,JSON.stringify(m));return true;}catch(e){return false;} }
@@ -57,6 +61,7 @@ P.signOut=function(){token=null;expires=0;conflicts=[];message='Private name syn
 P.connected=()=>allowed()&&!!token&&Date.now()<expires;
 P.status=()=>message;
 P.conflicts=()=>conflicts.map(c=>Object.assign({},c));
+P.isMissingName=missingName;
 P.sync=async function(){
   guard(); if(resolving) throw Error('A name conflict is being reviewed.'); if(busy) return busy;
   const session=token;
@@ -68,11 +73,23 @@ P.sync=async function(){
       guard();if(session!==token) throw Error('Private names session changed.');
       if(!sample||!sample.id) continue;
       const id=String(sample.id), r=byId.get(id), local=S.patientName(sample), prior=base[id];
-      if(!local && r){
-        if(!S.setPatientName(id,r.patient_name,{actor:'private names sync'})) throw Error('Could not save a name on this device; check storage.');
-        base[id]={entry:r.entry_id,name:r.patient_name}; if(!saveBase(base)) throw Error('Could not save sync state on this device.');pulled++;continue;
+      if(missingName(local)){
+        if(r && !missingName(r.patient_name)){
+          /* A previous real baseline plus a placeholder might be an intentional edit;
+             do not silently overwrite it. A placeholder with no real baseline is missing. */
+          const localEntry=S.names()[id];
+          const previous=(localEntry&&Array.isArray(localEntry.previousNames)?localEntry.previousNames.slice():[]);
+          if(prior&&prior.name&&!previous.includes(prior.name)) previous.push(prior.name);
+          const historical=previous.filter(n=>!missingName(n)&&n!==r.patient_name);
+          if((local && prior && !missingName(prior.name)) || historical.length){
+            issues.push({id,sampleId:sample.sampleId||id,local,remote:r.patient_name,entry:r.entry_id,previous:historical});continue;
+          }
+          if(!S.setPatientName(id,r.patient_name,{actor:'private names sync'})) throw Error('Could not save a name on this device; check storage.');
+          base[id]={entry:r.entry_id,name:r.patient_name}; if(!saveBase(base)) throw Error('Could not save sync state on this device.');pulled++;
+        }
+        /* Never upload a dash or masking marker as a patient name. */
+        continue;
       }
-      if(!local) continue;
       if(r && local===r.patient_name){base[id]={entry:r.entry_id,name:r.patient_name}; if(!saveBase(base)) throw Error('Could not save sync state on this device.');continue;}
       if(r && (!prior||prior.entry!==r.entry_id||prior.name!==r.patient_name)){
         issues.push({id, sampleId:sample.sampleId||id,local,remote:r.patient_name,entry:r.entry_id});continue;
@@ -95,11 +112,13 @@ P.resolve=async function(id,choice){
   const session=token, c=conflicts.find(x=>x.id===id), sample=(S.db().samples||[]).find(x=>x.id===id);
   if(!c||!sample||!c.entry||S.patientName(sample)!==c.local) throw Error('The record changed. Sync and review it again.');
   if(choice==='local'){
+    if(missingName(c.local)) throw Error('The device value is a placeholder, not a name. Review the request form.');
     const result=await append(id,c.local,c.entry);
     guard(); if(session!==token) throw Error('Private names session changed.');
     if(result.status==='conflict') throw Error('The private copy changed. Sync and review it again.');
     const base=baselines();base[id]={entry:result.entry_id,name:c.local};if(!saveBase(base)) throw Error('Name saved remotely, but local sync state could not be saved.');
   }else if(choice==='remote'){
+    if(missingName(c.remote)) throw Error('The private value is a placeholder, not a name. Review the request form.');
     const now=await heads(), current=now.find(x=>x.sample_id===id);
     guard(); if(session!==token) throw Error('Private names session changed.');
     if(!current||current.entry_id!==c.entry||S.patientName(sample)!==c.local) throw Error('The record changed. Sync and review it again.');
