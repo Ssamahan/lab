@@ -105,7 +105,7 @@ function nameCell(s){
   return '<span class="xs faint">•••• hidden</span>';
 }
 function namesButton(){
-  if(!namesUnlockable()) return '';
+  if(!namesUnlockable() || (LS.auth.user&&LS.auth.user.id==='u1')) return '';
   const open=LS.auth.namesOpen();
   return '<button class="btn sm" data-names-toggle>'
     +UI.ic(open?'eye-off':'eye',13)+(open?' Hide names':' Show names')+'</button>';
@@ -476,7 +476,7 @@ function openSample(id){
   if(nameBtn) nameBtn.onclick=()=>{
     UI.modal({title:'Record the patient name',sub:s.sampleId+' · shown to signed-in staff only',
       body:'<div class="field"><label>Patient name</label><input class="input" id="nmVal" autocomplete="off" placeholder="MUKAMANA Alice"></div>'
-        +'<div class="hint" style="margin-top:8px">This writes the name to the order and to its manifest. It is never put in a file export.</div>',
+        +'<div class="hint" style="margin-top:8px">The name is saved on this device and appears on the printed manifest. The normal register export does not include the name store.</div>',
       foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-name>Save name</button>',
       onMount:(el,close)=>{
         el.querySelector('[data-save-name]').onclick=()=>{
@@ -930,7 +930,7 @@ function newWizard(){
   const stepHTML=()=>{
     if(state.step===1) return '<div class="wizard-step">'
       +'<div class="form-grid">'
-      +'<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name===U.CONFIDENTIAL?'':state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Written to the name store on this device, never to the register that syncs, and printed on the referral manifest. Reading it back in the register takes the Show names button.</div></div>'
+      +'<div class="field span2"><label>Patient name</label><input class="input" id="wName" value="'+U.esc(state.patient.name===U.CONFIDENTIAL?'':state.patient.name)+'" placeholder="MUKAMANA Alice" autocomplete="off"><div class="xs faint" style="margin-top:4px">Written to the name store on this device, never to the register that syncs, and printed on the referral manifest. Kelvin sees it while signed in; other permitted staff can use Show names.</div></div>'
       +'<div class="field"><label>Patient / insurance ID</label><input class="input mono" id="wPid" value="'+U.esc(state.patient.pid)+'" placeholder="430129"></div>'
       +'<div class="field"><label>Sex</label><select class="select" id="wSex">'+['Female','Male'].map(x=>'<option '+(state.patient.sex===x?'selected':'')+'>'+x+'</option>').join('')+'</select></div>'
       +'<div class="field"><label>Date of birth</label><input class="input mono" type="date" id="wDob" value="'+U.esc(state.patient.dob)+'" max="'+U.todayISO()+'"><div class="xs faint" style="margin-top:4px">The age below is calculated from it.</div></div>'

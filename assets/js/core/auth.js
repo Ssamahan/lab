@@ -206,6 +206,8 @@ A.setNamesPasswordPolicy=function(on){
 };
 A.namesOpen=function(){
   if(!A.can('patient_names')) return false;
+  /* Kelvin requested names remain visible for his signed-in session. */
+  if(A.user&&A.user.id==='u1') return true;
   if(!(namesUntil>Date.now())){ namesUntil=0; namesBy=null; return false; }
   return true;
 };
