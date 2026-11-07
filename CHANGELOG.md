@@ -4,6 +4,13 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.125 — Phone-width controls and plan navigation
+
+- Wrap toolbar, card and dialog controls on narrower screens rather than allowing them to push beyond the page width.
+- The Working Plan shift grid uses five-day Previous/Next controls on narrow screens (and touch devices with tablet-sized viewports); the complete plan and its underlying day indexes remain unchanged. Desktop layouts keep the full grid.
+- Scale horizontal charts to include target markers, preventing markers beyond the chart from being clipped.
+- Wide data tables and the official sheet preview may still need their own horizontal scrolling; their contents are not hidden or deleted.
+
 ## v6.9.124 — Use warmed screen files without waiting for the network
 
 - The service worker checks both its runtime and prewarmed shell caches for an exact-version code file before waiting for a network request. Previously a file warmed into the shell cache could still hang on a stalled connection.
