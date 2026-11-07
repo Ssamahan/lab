@@ -4,6 +4,14 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.114 — Training venues and ticket routes
+
+Training records can now hold an optional host facility type and name alongside the existing district or location. A Google Maps search opens in a separate tab for manual verification; it does not use an API key or claim the facility was verified. Existing location and FIFO rules remain unchanged.
+
+Transport expense lines can record the starting and ending stop on each ticket. The revenue drawer offers Google Maps driving directions for each complete ticket. These are suggested roads, not GPS recordings or a guarantee of the bus or taxi's actual route. No location tracking is performed. Google Maps requires connectivity, and the search terms or stops are sent to Google only when a link is opened.
+
+---
+
 ## v6.9.113 — "Synced 30 Oct" said out loud on the 7th of November
 
 Reported immediately after 6.9.112: *"the computer shows 'sync 30 oct 2026' and today is

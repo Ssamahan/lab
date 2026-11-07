@@ -339,3 +339,17 @@ and the working plan exports a printable sheet plus XLSX.
 ## Changelog
 
 Every version, with the reason for each change, is in [CHANGELOG.md](CHANGELOG.md).
+
+### Training venues and ticket routes
+
+A training's **Location** remains its district or general place; **Host facility type**
+and **Host facility name** are optional, separate fields. Use **Search Google Maps** to
+check the facility in a new tab. This is a manual search, not an in-form Places lookup:
+no API key is required and no Google place identity or coordinates are saved.
+
+In Training revenue, enter the actual start and end stops on each transport expense
+(ticket). Open the recorded session to view a suggested road route for each complete
+pair. Google Maps provides driving directions, not a verified bus or taxi route or a GPS
+trace; use the ticket and local knowledge to check it. No background location is collected.
+Maps require internet; opening a search or route sends the entered place names to Google.
+Existing training locations and expense records are not changed.

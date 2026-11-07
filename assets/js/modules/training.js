@@ -54,7 +54,7 @@ const certGiven=t=>t.certificateGiven!=null ? !!t.certificateGiven : /cert/i.tes
 const certLabel=t=>certGiven(t)?'Certified':'Not certified';
 const certPill=t=>certGiven(t)?'<span class="pill teal">'+UI.ic('badge-check',10)+'Certified</span>':'<span class="pill slate">Not certified</span>';
 function scope(){
-  return S.db().trainings.filter(t=>!q || [t.title,t.organizer,t.location,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join(' ')].join(' ').toLowerCase().indexOf(q)>=0);
+  return S.db().trainings.filter(t=>!q || [t.title,t.organizer,t.location,t.facilityName,t.facilityType,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join(' ')].join(' ').toLowerCase().indexOf(q)>=0);
 }
 function kpis(){
   const db=S.db(); const active=S.activeStaff();
@@ -141,7 +141,7 @@ function registryView(){
    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Training</th><th>Organizer</th><th class="hide-sm">Location</th><th>Dates</th><th>Attendees</th><th>Certificate</th><th></th></tr></thead><tbody>'
    +list.map(t=>{ const names=(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).filter(Boolean);
       return '<tr data-tr="'+t.id+'"><td><div class="primary-cell"><b>'+U.esc(t.title)+'</b><small>'+U.esc(t.status||'completed')+(t.audienceLabel?' · aimed at the '+U.esc(t.audienceLabel.toLowerCase()):'')+(t.fromLeave?' · from leave record':'')+'</small></div></td>'
-      +'<td class="small">'+U.esc(t.organizer||'—')+'</td><td class="small hide-sm truncate" style="max-width:130px">'+U.esc(t.location||'—')+'</td>'
+      +'<td class="small">'+U.esc(t.organizer||'—')+'</td><td class="small hide-sm truncate" style="max-width:130px">'+U.esc(t.location||'—')+(t.facilityName?'<br><span class="faint">'+U.esc(t.facilityName)+'</span>':'')+'</td>'
       +'<td class="num">'+U.fmtDateShort(t.start)+(t.end&&t.end!==t.start?' – '+U.fmtDateShort(t.end):'')+'</td>'
       +'<td><div class="avatar-stack">'+names.slice(0,3).map(n=>U.avatar(n,'sm')).join('')+(names.length>3?'<span class="avatar sm" style="background:var(--surface-3);color:var(--text-muted)">+'+(names.length-3)+'</span>':'')+'</div></td>'
       +'<td>'+certPill(t)+'</td>'
@@ -193,6 +193,7 @@ function trainingDrawer(id){
   const names=(t.attendees||[]).map(a=>S.staffById(a)).filter(Boolean);
   UI.drawer({title:t.title,eyebrow:'Training record',sub:(t.organizer||'Internal')+' · '+U.fmtDate(t.start),body:
     '<div class="row wrap" style="gap:6px;margin-bottom:14px">'+certPill(t)+(isInHouse(t)?'<span class="pill amber">in-house · does not count for FIFO</span>':'')+'<span class="pill slate">'+(t.end&&t.end!==t.start?U.daysBetween(t.start,t.end)+1+' days':'1 day')+'</span><span class="pill gold">'+U.esc(t.location||'—')+'</span></div>'
+    +(t.facilityName?'<div class="card pad" style="margin-bottom:14px"><div class="eyebrow">Host facility</div><div class="small strong">'+U.esc(t.facilityName)+'</div><div class="xs faint">'+U.esc(t.facilityType||'Facility')+' · '+U.esc(t.location||'Location not recorded')+'</div><a class="btn sm" style="margin-top:8px" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent(t.facilityName+' '+(t.location||'')+' Rwanda')+'">Find on Google Maps ↗</a><div class="hint">Confirm the correct result in Google Maps; the name has not been verified automatically.</div></div>':'')
     +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px;padding:12px"><div class="row between"><div><div class="small strong">Certificates issued?</div><div class="xs faint">Not every session provides one — record it here rather than assuming.</div></div>'
     +'<button class="btn sm'+(certGiven(t)?' danger':' primary')+'" data-cert-toggle>'+(certGiven(t)?'Mark not certified':'Mark certificates issued')+'</button></div></div>'
     +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="eyebrow">Description</div><p class="small" style="margin-top:4px;line-height:1.6">'+U.esc(t.description||t.note||'No description recorded.')+'</p></div>'
@@ -246,6 +247,8 @@ function scheduleModal(id, opts){
      +'<div class="field"><label>Location</label><input class="input" id="trLoc" list="trLocList" value="'+U.esc(t?t.location||'':'Ruli DH')+'">'
        +'<datalist id="trLocList">'+U.uniq(['Ruli DH','Kigali','Musanze','Bugesera District','Huye District','Gakenke District']).map(l=>'<option value="'+U.esc(l)+'">').join('')+'</datalist>'
        +'<div class="xs faint" style="margin-top:4px">Held at Ruli DH or online here? Then it does not serve a turn in the queue.</div></div>'
+     +'<div class="field"><label for="trFacilityType">Host facility type</label><select class="select" id="trFacilityType">'+[['','Not recorded'],['Hotel','Hotel'],['Hospital','Hospital'],['Health centre','Health centre'],['District office','District office'],['Sector office','Sector office'],['Meeting room','Meeting room'],['Other','Other']].map(([v,l])=>'<option value="'+U.esc(v)+'"'+((t&&t.facilityType||'')===v?' selected':'')+'>'+U.esc(l)+'</option>').join('')+'</select></div>'
+     +'<div class="field"><label for="trFacilityName">Host facility name</label><input class="input" id="trFacilityName" value="'+U.esc(t&&t.facilityName||'')+'" placeholder="e.g. hotel or hospital name"><div class="hint">Optional. Search Google Maps to check the name and location; it opens in a new tab.</div><button type="button" class="btn sm" data-find-facility style="margin-top:6px">Search Google Maps ↗</button></div>'
      +'<div class="field"><label>Start</label><input class="input mono" type="date" id="trStart" value="'+(t?t.start:(history?'':U.addDays(U.todayISO(),7)))+'"></div>'
      +'<div class="field"><label>End</label><input class="input mono" type="date" id="trEnd" value="'+(t?t.end||t.start:(history?'':U.addDays(U.todayISO(),9)))+'"></div>'
      +'<div class="field"><label>Days · calculated</label><input class="input mono" id="trDays" readonly value="'+(t?trainingDays(t):'')+'"><div class="xs faint" style="margin-top:4px">A turn is only served by 3 days or more.</div></div>'
@@ -260,6 +263,7 @@ function scheduleModal(id, opts){
     foot:'<button class="btn" data-close>Cancel</button>'+(t?'<button class="btn danger" data-del>'+UI.ic('trash-2',15)+'Delete</button>':'')+'<button class="btn primary" data-save>'+UI.ic('calendar-check',15)+(t?'Save changes':'Add to registry')+'</button>',
     onMount:(el,close)=>{
       const orgSel=el.querySelector('#trOrg'), orgNew=el.querySelector('#trOrgNew');
+      el.querySelector('[data-find-facility]').onclick=()=>{ const name=el.querySelector('#trFacilityName').value.trim(); if(!name) return UI.toast('Enter a facility name first',{type:'warn'}); const loc=el.querySelector('#trLoc').value.trim(); window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(name+' '+loc+' Rwanda'),'_blank','noopener,noreferrer'); };
       orgSel.onchange=()=>{ orgNew.style.display=orgSel.value==='__new'?'':'none'; if(orgSel.value==='__new') orgNew.focus(); };
       const recap=()=>{ const a=el.querySelector('#trStart').value, b=el.querySelector('#trEnd').value;
         const n=(a&&b&&b>=a)?U.daysBetween(a,b)+1:(a?1:0);
@@ -290,6 +294,7 @@ function scheduleModal(id, opts){
         const audKey=el.querySelector('#trAudience')?el.querySelector('#trAudience').value:'';
         const audLabel=(AUDIENCE.find(a=>a[0]===audKey)||[])[1]||'';
         const rec={title,organizer:organiser,location:el.querySelector('#trLoc').value,
+          facilityType:el.querySelector('#trFacilityType').value,facilityName:el.querySelector('#trFacilityName').value.trim(),
           start:el.querySelector('#trStart').value,end:el.querySelector('#trEnd').value,
           description:el.querySelector('#trDesc').value,attendees,
           audience:audKey,audienceLabel:audKey?audLabel:'',
@@ -327,7 +332,7 @@ function wireBody(){
   r.querySelectorAll('[data-schedule]').forEach(b=>b.onclick=()=>scheduleModal());
   r.querySelectorAll('[data-history]').forEach(b=>b.onclick=()=>scheduleModal(null,{history:true}));
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>{
-    const rows=[['Title','Organizer','Location','Start','End','Attendees','Certificate','Counts for FIFO']].concat(S.db().trainings.map(t=>[t.title,t.organizer,t.location,t.start,t.end,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join('; '),certLabel(t),isInHouse(t)?'no':'yes']));
+    const rows=[['Title','Organizer','Location','Host facility type','Host facility name','Start','End','Attendees','Certificate','Counts for FIFO']].concat(S.db().trainings.map(t=>[t.title,t.organizer,t.location,t.facilityType||'',t.facilityName||'',t.start,t.end,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join('; '),certLabel(t),isInHouse(t)?'no':'yes']));
     U.exportCSV('training-register-'+U.todayISO()+'.csv',rows,{title:'Training registry',actor:LS.auth.user.name}); UI.toast('Training register exported',{type:'ok'});
   });
   r.querySelectorAll('[data-tr]').forEach(tr=>tr.onclick=()=>trainingDrawer(tr.dataset.tr));
