@@ -162,6 +162,13 @@ function table(){
       body:'<div id="revChart"></div>',
       foot:'<span>Hover a month for exact figures</span><span class="mono">'+d.list.length+' sessions</span>'})+'</div></div>';
 }
+/* A ticket records places actually entered by the user, not a GPS trace. Google
+   supplies a suggested driving route and may choose different roads than the vehicle. */
+function ticketRoute(x){
+  if(!x.routeFrom||!x.routeTo) return '';
+  const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(x.routeFrom)+'&destination='+encodeURIComponent(x.routeTo)+'&travelmode=driving';
+  return '<div class="xs">'+U.esc(x.routeFrom)+' → '+U.esc(x.routeTo)+' · <a target="_blank" rel="noopener noreferrer" href="'+U.esc(url)+'">Suggested road route ↗</a></div>';
+}
 function drawer(id){
   const t=data().list.find(x=>x.id===id); if(!t) return;
   const e=sumExp(t),r=sumReimb(t);
@@ -187,8 +194,9 @@ function drawer(id){
        +'This session against the average on the record: expenses <b class="mono">'+U.fmtNum(e)+'</b> vs <b class="mono">'+U.fmtNum(averages().avg.exp)+'</b>, '
        +'reimbursed <b class="mono">'+U.fmtNum(r)+'</b> vs <b class="mono">'+U.fmtNum(averages().avg.reimb)+'</b>.'
      +'</div>'
+     +'<div class="hint" style="margin-bottom:10px">Ticket endpoints are the stops you entered. Google Maps suggests roads; this is not a GPS recording of the actual bus or taxi route.</div>'
      +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('receipt',14,'ic')+'Expense lines</div></div><button class="btn xs" data-add-exp>'+UI.ic('plus',12)+'Add line</button></div><div class="card-body">'
-       +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div></div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>'+(x.desc&&x.custom?'':'' )).join('')
+       +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div>'+ticketRoute(x)+'</div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>'+(x.desc&&x.custom?'':'' )).join('')
      +'</div></div>'
      +'<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('banknote',14,'ic')+'Reimbursements</div></div><button class="btn xs" data-add-reimb>'+UI.ic('plus',12)+'Add</button></div><div class="card-body">'
        +((t.reimbursements||[]).length?(t.reimbursements||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.source||'Reimbursement')+'</div><div class="lr-sub">'+U.fmtDate(x.date)+(x.note?' · '+U.esc(x.note):'')+'</div></div><div class="lr-val" style="color:var(--pos)">'+U.fmtNum(x.amount)+'</div></div>').join(''):'<p class="xs faint">No reimbursement recorded yet.</p>')
@@ -229,6 +237,7 @@ function addLine(t,kind,panel){
     +'<div class="field"><label>Amount (RWF)</label><input class="input mono" id="lnAmt" type="number" min="0" value="0"></div>'
     +'<div class="field"><label>Date</label><input class="input mono" id="lnDate" type="date" value="'+U.todayISO()+'"></div>'
     +(kind==='expense'?'<div class="field"><label>Category</label><select class="select" id="lnCat">'+catOptions('Transport')+'</select></div>'
+      +'<div class="field"><label for="lnFrom">Transport ticket from (optional)</label><input class="input" id="lnFrom" placeholder="Starting stop"></div><div class="field"><label for="lnTo">Transport ticket to (optional)</label><input class="input" id="lnTo" placeholder="Arrival stop"></div>'
       +'<div class="field" id="lnCatOtherWrap" style="display:none"><label>Custom category</label><input class="input" id="lnCatOther" placeholder="e.g. Venue hire, Translator, Printing"></div>'
       :'<div class="field span2"><label>Source</label><input class="input" id="lnSrc" value="RBC"></div>')+'</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save line</button>',
@@ -246,7 +255,7 @@ function addLine(t,kind,panel){
           catVal=customLabel; custom=true;
         }
         S.commit(d=>{ const x=d.trainingExpenses.find(y=>y.id===t.id); if(!x) return;
-          if(kind==='expense'){ x.expenses=x.expenses||[]; x.expenses.push({id:U.uid('x'),cat:catVal,custom,desc:el.querySelector('#lnDesc').value,amount:amt,date:el.querySelector('#lnDate').value}); }
+          if(kind==='expense'){ x.expenses=x.expenses||[]; x.expenses.push({id:U.uid('x'),cat:catVal,custom,desc:el.querySelector('#lnDesc').value,amount:amt,date:el.querySelector('#lnDate').value,routeFrom:catVal==='Transport'?el.querySelector('#lnFrom').value.trim():'',routeTo:catVal==='Transport'?el.querySelector('#lnTo').value.trim():''}); }
           else { x.reimbursements=x.reimbursements||[]; x.reimbursements.push({id:U.uid('r'),amount:amt,date:el.querySelector('#lnDate').value,source:el.querySelector('#lnSrc').value,note:el.querySelector('#lnDesc').value}); }
         },{action:'revenue.'+kind,entity:'trainingExpenses',entityId:t.id,detail:kind+' RWF '+amt+' · '+(kind==='expense'?catLabel({cat:catVal,custom}):'')+' · '+t.title});
         close(); UI.closeAll(); UI.toast('Revenue line saved',{type:'ok'}); LS.shell.refresh();
@@ -270,6 +279,7 @@ function addSession(){
     +'<td><input class="input" data-e-custom value="'+U.esc(r.custom||'')+'" placeholder="name it" style="'+(r.cat==='Other'?'':'display:none')+'"></td>'
     +'<td><input class="input mono" type="date" data-e-date value="'+U.esc(r.date)+'"></td>'
     +'<td><input class="input" data-e-desc value="'+U.esc(r.desc||'')+'" placeholder="e.g. Fuel for 4 staff to Musanze"></td>'
+    +'<td><input class="input" data-e-from aria-label="Ticket from" value="'+U.esc(r.routeFrom||'')+'" placeholder="Starting stop" style="width:140px"></td><td><input class="input" data-e-to aria-label="Ticket to" value="'+U.esc(r.routeTo||'')+'" placeholder="Arrival stop" style="width:140px"></td>'
     +'<td class="num"><button class="rep-del" data-e-del title="Remove this line" aria-label="Remove this expense line">'+UI.ic('trash-2',12)+'</button></td></tr>';
   const reiRowHTML=(r,i)=>'<tr data-rei-row="'+i+'">'
     +'<td class="num"><input class="input mono" type="number" min="0" data-r-amount value="'+U.esc(r.amount)+'" placeholder="0" style="width:96px"></td>'
@@ -288,9 +298,9 @@ function addSession(){
      +'<div class="field"><label>Start</label><input class="input mono" type="date" id="rsStart" value="'+U.todayISO()+'"></div>'
      +'<div class="field"><label>End</label><input class="input mono" type="date" id="rsEnd" value="'+U.todayISO()+'"></div>'
      +'</div>'
-     +'<div class="rev-lines-head"><b>Expenses</b><span class="xs faint">each line carries the day it was paid</span><span class="grow"></span>'
+     +'<div class="rev-lines-head"><b>Expenses</b><span class="xs faint">each line carries the day it was paid; transport tickets can include stops</span><span class="grow"></span>'
        +'<button class="btn xs" data-add-exp-line>'+UI.ic('plus',12)+'Add expense</button></div>'
-     +'<div class="dt-scroll"><table class="dt rev-lines"><thead><tr><th>Amount (RWF)</th><th>Category</th><th>Other</th><th>Date</th><th>Description</th><th></th></tr></thead>'
+     +'<div class="dt-scroll"><table class="dt rev-lines"><thead><tr><th>Amount (RWF)</th><th>Category</th><th>Other</th><th>Date</th><th>Description</th><th>Ticket from</th><th>Ticket to</th><th></th></tr></thead>'
        +'<tbody data-exp-body></tbody></table></div>'
      +'<div class="rev-lines-head" style="margin-top:14px"><b>Reimbursements</b><span class="xs faint">money received, and the day it arrived</span><span class="grow"></span>'
        +'<button class="btn xs" data-add-rei-line>'+UI.ic('plus',12)+'Add reimbursement</button></div>'
@@ -306,7 +316,8 @@ function addSession(){
         cat:tr.querySelector('[data-e-cat]').value,
         custom:tr.querySelector('[data-e-custom]').value,
         date:tr.querySelector('[data-e-date]').value,
-        desc:tr.querySelector('[data-e-desc]').value}));
+        desc:tr.querySelector('[data-e-desc]').value,
+        routeFrom:tr.querySelector('[data-e-from]').value,routeTo:tr.querySelector('[data-e-to]').value}));
       const readRei=()=>[...reiBody.querySelectorAll('[data-rei-row]')].map(tr=>({
         amount:tr.querySelector('[data-r-amount]').value,
         date:tr.querySelector('[data-r-date]').value,
@@ -321,7 +332,7 @@ function addSession(){
           +'<span class="'+(r-e>=0?'pos':'crit')+'">Net <b class="mono">'+(r-e>=0?'+':'')+U.fmtNum(r-e)+'</b> RWF</span>';
       };
       const draw=()=>{
-        expBody.innerHTML=expRows.map(expRowHTML).join('')||'<tr><td colspan="6" class="xs faint">No expense line yet — add one above.</td></tr>';
+        expBody.innerHTML=expRows.map(expRowHTML).join('')||'<tr><td colspan="8" class="xs faint">No expense line yet — add one above.</td></tr>';
         reiBody.innerHTML=reiRows.map(reiRowHTML).join('')||'<tr><td colspan="5" class="xs faint">No reimbursement recorded yet.</td></tr>';
         wireRows(); totals();
       };
@@ -378,7 +389,7 @@ function addSession(){
         const expenses=[];
         for(let i=0;i<expRows.length;i++){
           const x=expRows[i], amt=Math.max(0,Math.round(+x.amount||0));
-          if(!amt&&!(x.desc||'').trim()) continue;
+          if(!amt&&!(x.desc||'').trim()&&!(x.routeFrom||'').trim()&&!(x.routeTo||'').trim()) continue;
           let catVal=x.cat, custom=false;
           if(catVal==='Other'){
             const customLabel=(x.custom||'').trim();
@@ -386,7 +397,7 @@ function addSession(){
             catVal=customLabel; custom=true;
           }
           expenses.push({id:U.uid('x'),cat:catVal,custom,desc:(x.desc||'').trim()||catLabel({cat:catVal,custom}),
-            amount:amt,date:x.date||end||start});
+            amount:amt,date:x.date||end||start,routeFrom:catVal==='Transport'?(x.routeFrom||'').trim():'',routeTo:catVal==='Transport'?(x.routeTo||'').trim():''});
         }
         const reimbursements=[];
         for(let i=0;i<reiRows.length;i++){
