@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.121 — Automatically fill name placeholders
+
+Private-name sync now treats an empty value, the system confidentiality marker, or a standalone dash as a missing name rather than a real conflicting name. If the matching sample has a real private name and this device has no previously synced real name, the name is saved locally without manual conflict selection; any replaced stored placeholder remains in local history. Placeholders are never uploaded as names. A placeholder after a real baseline and two different real names still need review. Storage failures leave the original values in place. This does not change register sync, pending changes, the private sign-in requirement or the limitations of normal register backups.
+
+---
+
 ## v6.9.120 — Separate private patient-name sync
 
 Kelvin can sign in separately to the private-names Supabase project from Referred Samples. Password and access token are kept only in memory; the normal register sync is unchanged. Names are appended to a restricted store, with atomic compare-before-write and explicit conflict review. The old local name is retained in device history when a name is changed. Automatic retries occur while the private session is active; signing out or reloading requires a fresh private sign-in. Normal register exports still exclude names. Authenticated end-to-end testing on the user's devices and recovery/backups remain necessary; this is not end-to-end encryption and does not fix old-project exposure or existing register sync timeouts.

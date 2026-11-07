@@ -119,8 +119,9 @@ function privateNamesModal(){
     +'<b>Sample '+U.esc(c.sampleId)+'</b>'
     +(c.remote===null?'<p class="small">The shared copy changed during sync. Press Check now to review it.</p>'
       :'<p class="small">On this device: <b>'+U.esc(c.local)+'</b><br>Private copy: <b>'+U.esc(c.remote)+'</b></p>'
-      +'<div class="row gap-sm"><button class="btn xs" data-pn-local="'+U.esc(c.id)+'">Use device name</button>'
-      +'<button class="btn xs" data-pn-remote="'+U.esc(c.id)+'">Use private copy</button></div>')+'</div>').join('');
+      +(c.previous&&c.previous.length?'<p class="small">Earlier device value(s): <b>'+c.previous.map(U.esc).join(' · ')+'</b>. Check the request form before choosing.</p>':'')
+      +'<div class="row gap-sm">'+(!P.isMissingName(c.local)?'<button class="btn xs" data-pn-local="'+U.esc(c.id)+'">Use device name</button>':'')
+      +(!P.isMissingName(c.remote)?'<button class="btn xs" data-pn-remote="'+U.esc(c.id)+'">Use private copy</button>':'')+'</div>')+'</div>').join('');
   UI.modal({title:'Private patient names',width:'min(650px,100%)',
     sub:'A separate Supabase project for patient names. The register continues using its existing project.',
     body:'<div class="hint" style="margin-bottom:12px">'+U.esc(P.status())+'</div>'
