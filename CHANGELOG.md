@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.119 — Patient name visibility for Kelvin
+
+While signed in as Kelvin, locally recorded patient names are shown without the separate fifteen-minute reveal. Other roles retain their existing visibility rules. A regression test verifies that a name present on the device appears in both manifest preview and the HTML sent to Print / PDF. Names are still device-only: secure cross-device name syncing is not yet implemented. The application login is client-side and is not a server-enforced security boundary.
+
+---
+
 ## v6.9.118 — Preserve old patient names and stop blind writes
 
 Fix a migration-order defect: old unmasked sample names must be durably copied into this device's separate name store before the register is masked. If that store cannot be written, the original remains on the device and sync refuses to publish it. Existing masked names cannot be recreated by this change. Conflicting historical name values are retained in the local name store. Recording a name now reports storage failure rather than silently claiming success. The bulk form shows patient IDs and explains its 120-record batches. Names remain device-local and are not part of the normal register export or sync.

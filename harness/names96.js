@@ -10,6 +10,8 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   const S=w.LS.store, A=w.LS.auth, U=w.LSU, doc=w.document;
   ok(!errors.length,'the console boots clean',errors.join(' | '));
 
+  /* Exercise the timed reveal for a different admin; Kelvin has persistent visibility. */
+  const kelvinUser=A.user; A.user=Object.assign({},kelvinUser,{id:'test-admin'});
   /* the name store is not the register */
   const sample=S.db().samples[0];
   ok(typeof S.setPatientName==='function'&&typeof S.patientName==='function','the store has a names vault');
@@ -110,6 +112,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(A.namesOpen()===false,'closing it hides the names again');
   ok(U.ptName({id:sample.id})==='Confidential','at once, everywhere');
 
+  A.user=kelvinUser;
   /* a viewer never even sees the control */
   await boot('#/dash',{seed(win){}}).then(async ({w:w2,go:go2})=>{
     w2.LS.auth.user={id:'u4',username:'viewer',name:'District Reviewer',role:'Viewer'};
