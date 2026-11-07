@@ -4,6 +4,53 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.113 — "Synced 30 Oct" said out loud on the 7th of November
+
+Reported immediately after 6.9.112: *"the computer shows 'sync 30 oct 2026' and today is
+07 Nov 2026! what a difference!"* The date was real. The label was a lie.
+
+**What was wrong.** The header printed the last time this device had **successfully sent or
+received** something and called it "Synced". After that exchange it kept doing exactly what
+it should: checking the shared copy every 2.5 seconds, finding it unchanged, and recording
+*that it had checked* in a different field nobody displayed. So a perfectly healthy computer
+could honestly report a week-old date — and, worse, it read as "your data is a week old",
+when the truth was the opposite: **the shared copy itself had not changed since 30 October**,
+meaning no device had managed to publish anything since then. The one fact that mattered —
+*nobody's work is arriving* — was the one the header hid.
+
+**Three facts, three rows, never merged again.**
+- *when this device last checked* — seconds ago, from any successful check, send or receive;
+- *when the shared copy last changed*, and whether this device or another account wrote it;
+- *when this device last sent* — its own last write.
+
+The chip now reads `Up to date · checked 2 s ago` when things are healthy, and
+`No change in cloud · 8 d` in amber when the device is fine but the shared copy has been
+still for days — with a tooltip that says so in a sentence and points at the other device.
+`Cannot reach shared copy` (red) and `Not checking · last 1 h ago` (amber) are separate
+states too, because a device that cannot reach the cloud, a device that is not trying, and a
+cloud nobody has written to are three different problems with three different answers.
+`SY.statusText()` — the pill on the Cloud sync card — stopped saying "Synced" for the same
+reason.
+
+**A failing device now says so out loud.** After three failed attempts the console raises one
+toast per session: *"This device cannot reach the shared copy. 3 changes stay safe on this
+device…"* with the database's own reason. Before, a refused push was visible only to someone
+who opened the tooltip.
+
+**Test a write** (Data & sync → Cloud sync) does the one thing every other check avoids: it
+writes. It reports read, compare, write as separate steps, so a project whose row-level
+security allows SELECT and refuses INSERT — which looks completely healthy to any read-only
+check — is named for what it is. It refuses to write when the shared copy has moved since
+this device last read it, so the test itself can never lose work.
+
+**Validation.** New `harness/syncdate113.js` (58 checks) rebuilds the exact reported state —
+checked two seconds ago, shared copy unchanged for eight days — and holds the chip, the
+tooltip, `pendingInfo`, `sharedAge`, the one-time failure toast, and the write test to
+account, including a refused write (403 `42501`) and a newer shared copy. `autosync112` was
+updated to the new wording. **Full sweep: 43 suites, 2,223 checks, green.**
+
+---
+
 ## v6.9.112 — a phone's day reaches the computer on its own, and the header says so
 
 Reported after 6.9.111: *"I record on the phone and the computer shows no records, even

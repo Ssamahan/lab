@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.112** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.113** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -86,20 +86,34 @@ A private window or a new PC starts from the built-in sample register, then pull
 within a couple of seconds — the copy it was showing is written to restore points first, so nothing
 is lost either way. A browser that has received nothing but that sample can never publish it over
 the shared register; a device that has **typed real records** and never pulled is a different case,
-and since 6.9.112 it pulls, combines, and publishes the combination rather than being refused —
+and since 6.9.113 it pulls, combines, and publishes the combination rather than being refused —
 which is what used to strand a phone's whole day of work.
 
 ### What the header tells you
 
 The circle in the top bar is the queue, and it is the honest answer to *"did my phone send it?"*:
 
+It no longer says *"Synced 30 Oct"* on a computer that is working perfectly. Three facts are
+kept apart, because they have three different answers:
+
 | it shows | it means |
 | --- | --- |
 | nothing | cloud sync is off on this device, or this is the read-only visitor view |
-| `Synced 2m ago` | everything on this device is in the shared copy |
+| `Up to date · checked 2 s ago` | this device is level with the shared copy, and it just asked |
+| `No change in cloud · 8 d` | this device is fine; **nothing has been published to the shared copy for eight days** — an amber warning, because that usually means another device is stuck |
+| `Not checking · last 1 h ago` | the background check is not running (tab asleep, or live sync off) |
 | `3 changes waiting · sending…` | queued, and a push is in flight |
-| `3 changes waiting · retrying in 8s` | the last attempt failed; the wait grows 2 s → 30 s |
-| a red dot | the last attempt was refused — the tooltip carries the reason |
+| `3 changes waiting · retrying in 8 s` | the last attempt failed; the wait grows 2 s → 30 s |
+| `Cannot reach shared copy` | the last attempt failed outright — the tooltip carries the reason |
+
+The tooltip always carries all three: when this device last checked, when the shared copy
+last changed, and who wrote it (`this device` or the name of the account that did).
+
+**Proving that this device can write.** A project can allow reads and refuse writes, and
+then every check that only reads looks healthy. *Staff & settings → Data → Cloud sync →
+**Test a write*** performs a real write and reports each step — read, compare, write — with
+the database's own words if it is refused. It refuses to write over a shared copy that has
+moved since this device last read it, so the test can never be the thing that loses work.
 
 Press it to publish immediately; that clears any wait. Closing the browser, locking the phone and
 putting the tab in the background each flush the queue with a `keepalive` request, so work leaves
@@ -140,7 +154,7 @@ generator, courier and receiver on one signature line),
 **Print / PDF prints the sheet you are looking at** — the very node on screen, not a second copy
 built somewhere else. On a phone, where a browser may print the page instead of a hidden frame, the
 console's print stylesheet hides everything except the open sheet, so the button, the browser menu
-and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.112`), so a
+and Ctrl+P all give the same page. Module URLs carry the app version (`samples.js?v=6.9.113`), so a
 cached module can never survive a deploy and print an old layout.
 
 Duplicates are removable: tick the orders, then **Delete selected** sits beside **Clear** in the
