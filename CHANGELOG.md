@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.122 — Clear stale register connection errors after a successful check
+
+A background check that successfully reads an unchanged shared revision with no pending register edits now clears the old error and retry backoff. It does not publish, replace the register or touch the pending queue. The indicator says “Last sync failed” rather than diagnosing every failure as a connectivity problem; its tooltip also explains that a read does not test writes or private-name sync. Real current errors and failed writes remain visible, and pending edits are not cleared by a read. This fixes one possible stale-red-status path, not the underlying cause of every connection failure.
+
+---
+
 ## v6.9.121 — Automatically fill name placeholders
 
 Private-name sync now treats an empty value, the system confidentiality marker, or a standalone dash as a missing name rather than a real conflicting name. If the matching sample has a real private name and this device has no previously synced real name, the name is saved locally without manual conflict selection; any replaced stored placeholder remains in local history. Placeholders are never uploaded as names. A placeholder after a real baseline and two different real names still need review. Storage failures leave the original values in place. This does not change register sync, pending changes, the private sign-in requirement or the limitations of normal register backups.
