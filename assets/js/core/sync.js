@@ -481,6 +481,10 @@ SY.push=async function(opts){
     }
   }
   const db=S.db();
+  /* Do not leak an old name if this device could not safely move it to its private
+     store. Leave the original and the pending work untouched. */
+  if((db.samples||[]).some(x=>x&&x.patientName&&x.patientName!==U.CONFIDENTIAL))
+    throw new Error('Patient names could not be moved safely to this device’s name store. Sync is paused to protect them; export a private backup and check device storage.');
   const pendingAtSend=S.pendingChanges?S.pendingChanges():null;
   const payload=[{id:ROW_ID, data:db, client_id:deviceId(), updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}];
   const r=await request(TABLE+'?on_conflict=id',{
@@ -1501,28 +1505,10 @@ SY.writeTest=async function(){
   return out;
 };
 
-/* A phone is closed, locked, or the tab is swiped away — and the push scheduled 700 ms
-   after the last keystroke never runs. `keepalive` lets the request finish after the page
-   is gone, so the record leaves the device at the moment the person stops working instead
-   of whenever they next open it. Nothing is retried here: if the send fails the change
-   stays in the queue, and the next open publishes it. */
-SY.flush=function(){
-  try{
-    if(!SY.configured()||busy) return false;
-    if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return false;
-    if(typeof navigator!=='undefined'&&navigator.onLine===false) return false;
-    if(!(S.pendingChanges?S.pendingChanges():0)) return false;
-    const st=state();
-    /* With no sync history at all, a keepalive send could be the first write this device
-       ever makes. That case takes the careful road (pull, combine, publish) on the next
-       open instead of a fire-and-forget request at the moment the page is closing. */
-    if(!st.lastPullAt&&!st.lastPushAt) return false;
-    SY.push({keepalive:true}).then(row=>{
-      if(row&&row.revision!=null) setState({lastRevision:row.revision});
-    }).catch(()=>{});
-    return true;
-  }catch(e){ return false; }
-};
+/* A blind keepalive write cannot first compare the shared revision and can overwrite
+   another device's newer work. Keep the queue locally; normal sync compares copies
+   when the page is active again. */
+SY.flush=function(){ return false; };
 
 /* Two rhythms keep a room of devices on one register:
 
@@ -1634,19 +1620,8 @@ SY.start=function(){
     SY.startLive();
     SY.sync({auto:true, quiet:true}).then(()=>SY.vaultMerge().then(onVaultMonths)).catch(()=>{});
   },1200);
-  /* The privacy migration cleans the register on load. The shared copy must not keep
-     the old names, so the cleaned register is published once, without being asked. */
-  if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) && SY.configured()){
-    setTimeout(()=>{
-      try{
-        const meta=S.db().meta||{};
-        if(meta.patientNamesMasked && !meta.patientNamesPushed){
-          SY.push().then(()=>{ S.commit(d=>{ d.meta.patientNamesPushed=true; },
-            {action:'privacy.names.masked',entity:'samples',detail:'Patient names replaced with Confidential and published to the shared copy'}); }).catch(()=>{});
-        }
-      }catch(e){}
-    },2500);
-  }
+  /* A migration must never publish a whole stale register in the background.
+     Sync follows the ordinary compare/conflict path, not an unconditional write. */
 };
 SY.emit=function(kind){ listeners.forEach(fn=>{ try{ fn(kind,state()); }catch(e){} }); };
 SY.onChange=function(fn){ listeners.push(fn); return ()=>{ listeners=listeners.filter(x=>x!==fn); }; };

@@ -135,7 +135,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   /* ── 4 · leaving the page flushes what was just typed ────────────── */
   ok(typeof SY.flush==='function','there is a flush for the moment the page is left');
   ok(/pagehide/.test(sh)&&/visibilitychange/.test(sh),'hooked to pagehide and to the tab going to the background');
-  ok(/keepalive:!!opts\.keepalive/.test(sh),'and the publish it makes is a keepalive request, so it finishes after the page is gone');
+  ok(/SY.flush=function/.test(sh),'the page-exit handler has a safe flush guard');
 
   /* queued work is made by committing, the way a person makes it */
   const queueWork=id=>S.commit(d=>{ d.trainings.unshift({id,title:'Flush test '+id,start:'2026-11-05',end:'2026-11-05',attendees:[]}); },
@@ -144,9 +144,9 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   posts=0;
   queueWork('tr-flush');
   ok(S.pendingChanges()>0,'the phone holds a change',String(S.pendingChanges()));
-  ok(SY.flush()===true,'a device with queued work flushes when the page is left');
+  ok(SY.flush()===false,'page exit does not blindly overwrite the shared copy');
   await tick(250);
-  ok(posts===1,'and the publish is actually sent',String(posts));
+  ok(posts===0&&S.pendingChanges()>0,'and work remains queued for a checked sync',String(posts));
   S.clearPending();
   ok(SY.flush()===false,'with nothing queued there is no needless request');
 

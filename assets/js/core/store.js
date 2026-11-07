@@ -1085,8 +1085,12 @@ function normalize(db){
      the samples: they are the department's records and they are not thrown away — they
      are taken out of the document that travels and kept where they belong. */
   if(!db.meta.patientNamesMasked){
-    db.meta.patientNamesMasked=true;
-    db.samples.forEach(x=>{ if(x && x.patientName!==U.CONFIDENTIAL) x.patientName=U.CONFIDENTIAL; });
+    /* Never mask an old name until it has actually been saved to the local name
+       store. If storage is unavailable, keep the original in this device's register;
+       sync refuses to publish that unmasked register. */
+    if(typeof S.harvestNames==='function') S.harvestNames(db);
+    if(!db.samples.some(x=>x&&x.patientName&&x.patientName!==U.CONFIDENTIAL))
+      db.meta.patientNamesMasked=true;
   }
   /* v6.9.40 — a three-night block is earned, not rotated. Only the two technologists
      whose contract allows three consecutive nights may hold it, and Patrick carries
@@ -2851,17 +2855,22 @@ S.patientName=function(rec){
 S.harvestNames=function(db){
   if(!db||!Array.isArray(db.samples)) return 0;
   loadNames();
-  let moved=0;
-  db.samples.forEach(rec=>{
-    const v=rec&&rec.patientName;
-    if(!v||v===U.CONFIDENTIAL) return;
-    if(!NAMES[rec.id]){ NAMES[rec.id]={name:String(v).trim(),at:U.nowISO(),by:'recovered from the register'}; moved++; }
-    rec.patientName=U.CONFIDENTIAL;
+  const before=Object.assign({},NAMES); let moved=0;
+  const named=db.samples.filter(rec=>rec&&rec.id&&rec.patientName&&rec.patientName!==U.CONFIDENTIAL);
+  named.forEach(rec=>{
+    const recovered=String(rec.patientName).trim();
+    if(!NAMES[rec.id]){ NAMES[rec.id]={name:recovered,at:U.nowISO(),by:'recovered from the register'}; moved++; }
+    else if(NAMES[rec.id].name!==recovered){
+      /* Keep both versions if the local vault already has a different name; never
+         silently replace either one when importing an older register. */
+      const prior=NAMES[rec.id].previousNames||[];
+      if(!prior.includes(recovered)) NAMES[rec.id]=Object.assign({},NAMES[rec.id],{previousNames:prior.concat([recovered])});
+    }
   });
-  if(moved){
-    saveNames();
-    try{ console.info('Lab Systems: '+moved+' patient name(s) moved out of the register into the name store'); }catch(e){}
-  }
+  /* The copy must be durable before the original is masked. */
+  if(named.length&&!saveNames()){ NAMES=before; return 0; }
+  named.forEach(rec=>{rec.patientName=U.CONFIDENTIAL;});
+  if(moved) try{ console.info('Lab Systems: '+moved+' patient name(s) moved into the local name store'); }catch(e){}
   return moved;
 };
 /* The name as recorded, without asking whether the column is open. Only the manifest
@@ -2880,9 +2889,10 @@ S.setPatientName=function(sampleId,name,opts){
   if(!sampleId) return false;
   const v=String(name==null?'':name).trim();
   loadNames();
-  if(!v){ delete NAMES[sampleId]; saveNames(); return true; }
-  NAMES[sampleId]={name:v,at:U.nowISO(),by:(opts.actor||(LS.auth&&LS.auth.user&&LS.auth.user.name)||'')};
-  saveNames();
+  const old=NAMES[sampleId];
+  if(!v) delete NAMES[sampleId];
+  else NAMES[sampleId]={name:v,at:U.nowISO(),by:(opts.actor||(LS.auth&&LS.auth.user&&LS.auth.user.name)||'')};
+  if(!saveNames()){ if(old) NAMES[sampleId]=old; else delete NAMES[sampleId]; return false; }
   return true;
 };
 S.patientNameCount=function(){ return Object.keys(loadNames()).length; };
