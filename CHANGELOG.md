@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.126 — Bound stalled navigation when an installed shell is available
+
+- If a navigation request or navigation preload stalls for eight seconds, the service worker tries the current build's already-cached shell rather than waiting indefinitely. If no shell is cached, it returns a network error.
+- This only works after this service worker has installed and cannot resolve all causes of a blank screen or a failed first download.
+
 ## v6.9.125 — Phone-width controls and plan navigation
 
 - Wrap toolbar, card and dialog controls on narrower screens rather than allowing them to push beyond the page width.
