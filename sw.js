@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.129';
+const VERSION = 'v6.9.130';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -21,26 +21,26 @@ const CORE = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/tokens.css?v=6.9.129',
-  './assets/css/app.css?v=6.9.129',
-  './assets/css/modules.css?v=6.9.129',
-  './assets/css/landing.css?v=6.9.129',
-  './assets/data/plan-archive.js?v=6.9.129',
-  './assets/js/core/icons.js?v=6.9.129',
-  './assets/js/core/seed.js?v=6.9.129',
-  './assets/js/core/utils.js?v=6.9.129',
-  './assets/js/core/store.js?v=6.9.129',
-  './assets/js/core/ui.js?v=6.9.129',
-  './assets/js/core/charts.js?v=6.9.129',
-  './assets/js/core/sheets.js?v=6.9.129',
-  './assets/js/core/i18n.js?v=6.9.129',
-  './assets/js/core/auth.js?v=6.9.129',
-  './assets/js/core/landing.js?v=6.9.129',
-  './assets/js/core/shared.js?v=6.9.129',
-  './assets/js/core/shell.js?v=6.9.129',
-  './assets/js/core/sync.js?v=6.9.129',
-  './assets/js/core/private-names.js?v=6.9.129',
-  './assets/js/core/boot.js?v=6.9.129',
+  './assets/css/tokens.css?v=6.9.130',
+  './assets/css/app.css?v=6.9.130',
+  './assets/css/modules.css?v=6.9.130',
+  './assets/css/landing.css?v=6.9.130',
+  './assets/data/plan-archive.js?v=6.9.130',
+  './assets/js/core/icons.js?v=6.9.130',
+  './assets/js/core/seed.js?v=6.9.130',
+  './assets/js/core/utils.js?v=6.9.130',
+  './assets/js/core/store.js?v=6.9.130',
+  './assets/js/core/ui.js?v=6.9.130',
+  './assets/js/core/charts.js?v=6.9.130',
+  './assets/js/core/sheets.js?v=6.9.130',
+  './assets/js/core/i18n.js?v=6.9.130',
+  './assets/js/core/auth.js?v=6.9.130',
+  './assets/js/core/landing.js?v=6.9.130',
+  './assets/js/core/shared.js?v=6.9.130',
+  './assets/js/core/shell.js?v=6.9.130',
+  './assets/js/core/sync.js?v=6.9.130',
+  './assets/js/core/private-names.js?v=6.9.130',
+  './assets/js/core/boot.js?v=6.9.130',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -51,7 +51,7 @@ const CORE = [
 
 /* The rest, brought in after the first screen is open (see the WARM message). */
 const LATER = [
-  './assets/js/core/xlsxread.js?v=6.9.129',
+  './assets/js/core/xlsxread.js?v=6.9.130',
   './assets/fonts/fraunces-latin-300-normal.woff2',
   './assets/fonts/fraunces-latin-400-italic.woff2',
   './assets/fonts/fraunces-latin-500-normal.woff2',
@@ -67,7 +67,7 @@ const LATER = [
 /* The sixteen console screens, by name. Their URLs carry the version, so they are the
    same strings the shell asks for and a cached copy can never answer with the wrong one. */
 const MODULES = [
-  'dash', 'samples', 'stock', 'reports', 'training', 'revenue', 'roster',
+  'dash', 'samples', 'stock', 'report', 'training', 'revenue', 'roster',
   'leave', 'eqa', 'pbf', 'quality', 'equipment', 'staff',
   'security', 'design', 'roadmap'
 ];
@@ -75,13 +75,18 @@ const moduleUrl = m => './assets/js/modules/' + m + '.js?v=' + VERSION.replace(/
 
 /* One downloader for both passes: four at a time, never the whole list at once, and a
    failed file is skipped rather than failing the install. */
-async function precache(list, cacheName, size){
+async function precache(list, cacheName, size, timeoutMs){
   const cache = await caches.open(cacheName);
   const step = size || 4;
   for (let i = 0; i < list.length; i += step) {
-    await Promise.all(list.slice(i, i + step).map(url =>
-      cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
-    ));
+    await Promise.all(list.slice(i, i + step).map(async url => {
+      // Warm-up must move on even if one request never finishes.
+      const controller = timeoutMs ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+      try { await cache.add(new Request(url, { cache: 'reload', ...(controller ? {signal: controller.signal} : {}) })); }
+      catch (e) { /* A missing file can still be fetched when it is opened. */ }
+      finally { if (timer) clearTimeout(timer); }
+    }));
   }
 }
 
@@ -111,7 +116,7 @@ self.addEventListener('message', event => {
   if (data.type === 'WARM') {
     event.waitUntil((async () => {
       const targets = MODULES.map(moduleUrl).concat(LATER);
-      await precache(targets, SHELL, 3);
+      await precache(targets, SHELL, 3, 12000);
     })());
   }
   if (data.type === 'SKIP_WAITING') self.skipWaiting();
@@ -144,7 +149,7 @@ function isCurrentVersion(url){
 }
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const hit = await cache.match(request);
+  const hit = (await cache.match(request)) || (await (await caches.open(SHELL)).match(request));
   const refresh = fetch(request).then(res => {
     if (res && res.ok) cache.put(request, res.clone());
     return res;

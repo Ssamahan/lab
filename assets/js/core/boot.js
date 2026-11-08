@@ -218,8 +218,12 @@ function warmTheRest(){
     if(c.saveData||/^(slow-)?2g$/.test(c.effectiveType||'')) return;
   }catch(e){}
   const send=()=>{ try{
-    if(navigator.serviceWorker&&navigator.serviceWorker.controller)
-      navigator.serviceWorker.controller.postMessage({type:'WARM'});
+    const sw=navigator.serviceWorker;
+    if(!sw) return;
+    if(sw.controller) sw.controller.postMessage({type:'WARM'});
+    else sw.addEventListener('controllerchange',()=>{
+      if(sw.controller) sw.controller.postMessage({type:'WARM'});
+    },{once:true});
   }catch(e){} };
   if('requestIdleCallback' in window) setTimeout(()=>window.requestIdleCallback(send,{timeout:8000}),5000);
   else setTimeout(send,5000);

@@ -4,6 +4,13 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.130 — Reduce waiting and repeated route fades
+
+- Use exact-version screen files from the current prewarmed shell cache as well as the runtime cache; correct the report module's warm-up filename. Start warm-up when a first-install worker takes control and skip stalled warm-up downloads after a bounded wait.
+- Share in-flight downloads for the same screen and prevent an older navigation's completion or failure from replacing a newer screen or cancelling its guard.
+- Remove the repeated page-entry fade. Network-dependent first downloads may still be slow or fail; this does not repair GitHub Pages connectivity or prove the cause of any sound.
+- Keep existing device caches and pending data; the update does not force a reload.
+
 ## v6.9.129 — Restore the v6.9.121 application
 
 - Restore the v6.9.121 application code and UI as requested. The later equipment backup picker, mobile plan pagination, and connection-status changes are withdrawn; private-name sync from v6.9.121 remains.

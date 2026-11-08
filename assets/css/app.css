@@ -147,7 +147,7 @@ button.chip:hover{border-color:var(--gold); color:var(--text-strong); background
 
 /* ——— 4. Content surface —————————————————————————————— */
 .content{flex:1; min-width:0; padding:clamp(16px,2.2vw,30px) clamp(14px,2.1vw,30px) 40px; position:relative}
-.page{max-width:var(--page-max); margin:0 auto; animation:pageIn var(--dur-3) var(--spring-soft) both}
+.page{max-width:var(--page-max); margin:0 auto}
 @keyframes pageIn{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
 .page-head{display:flex; align-items:flex-end; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:18px}
 .page-head h1{font-family:var(--font-display); font-weight:400; font-size:var(--fs-h1); letter-spacing:var(--tracking-display); color:var(--text-strong); line-height:1.06}
