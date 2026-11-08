@@ -174,7 +174,7 @@ C.hbars=function(el,cfg){
   el.setAttribute('data-chart','bars');
   if(!el.style.position) el.style.position='relative';
   if(!items.length){ el.innerHTML='<div class="chart-empty">No data</div>'; return; }
-  const max=Math.max.apply(null,items.reduce((a,i)=>a.concat([Number(i.value)||0,Number(i.target)||0,Number(i.marker)||0]),[1]));
+  const max=Math.max.apply(null,items.map(i=>i.value).concat([1]));
   el.innerHTML='<div style="display:flex;flex-direction:column;gap:'+(cfg.gap||11)+'px">'+items.map((it,i)=>{
     const w=it.value/max*100, tone=it.tone||'gold';
     const colors={gold:'linear-gradient(90deg,var(--gold-600),var(--gold-300))',teal:'linear-gradient(90deg,var(--teal-700),var(--teal-400))',rose:'linear-gradient(90deg,var(--rose-600),var(--rose-300))',amber:'linear-gradient(90deg,var(--amber-600),var(--amber-300))',blue:'linear-gradient(90deg,#3F5F96,#7595C8)'};

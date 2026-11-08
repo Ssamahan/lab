@@ -4,6 +4,13 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.129 — Restore the v6.9.121 application
+
+- Restore the v6.9.121 application code and UI as requested. The later equipment backup picker, mobile plan pagination, and connection-status changes are withdrawn; private-name sync from v6.9.121 remains.
+- Use a new version number to avoid accidentally mixing old cached files with this restoration. Keep diagnostic `check.html` and the changelog.
+- Two minimal safety exceptions protect newer device work: service-worker activation does not delete older caches or reload unfinished forms, and equipment returns preserve the pre-deployment status recorded by later builds. Existing backups cannot be replaced in the older form.
+- This is not a guarantee of reachability or a verified backup. No stored registers, name vaults or pending queues are deliberately cleared or imported.
+
 ## v6.9.128 — Restore the v6.9.121 startup path
 
 - Restore v6.9.121's direct startup scheduling and stylesheet handling, removing the additional style gate introduced in v6.9.127. The core script order and screen loader already matched v6.9.121.

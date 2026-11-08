@@ -1137,9 +1137,7 @@ SY.sync=async function(opts){
             return {ok:true, action:'restored', lost};
           }
         }
-        /* A successful revision read with no queued edits supersedes a stale read
-           error. It is not a write test; the UI must not claim otherwise. */
-        setState({lastCheckAt:U.nowISO(), running:false, lastError:null, failCount:0, nextTryAt:null,
+        setState({lastCheckAt:U.nowISO(), running:false,
           lastRemoteAt:v.updated_at||state().lastRemoteAt||null,
           lastRemoteBy:v.updated_by||state().lastRemoteBy||null,
           remoteIsMine:v.client_id?v.client_id===deviceId():state().remoteIsMine,
@@ -1631,7 +1629,7 @@ SY.statusText=function(){
   const st=state();
   if(!SY.configured()) return 'Local only';
   if(st.running) return 'Syncing…';
-  if(st.lastError) return 'Last sync failed';
+  if(st.lastError) return 'Cannot reach the shared copy';
   /* 'Synced <date>' was the phrase that started this: it read as "your data is from that
      day" when it only ever meant "this device last exchanged something then". */
   if(st.lastCheckAt) return 'Checked '+U.relTime(st.lastCheckAt);

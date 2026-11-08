@@ -66,7 +66,6 @@ window.addEventListener('unhandledrejection',ev=>{
 function finish(){
   if(done) return; done=true;
   window.__lsBooted=true;
-  if(window.__lsBootWatchClear) window.__lsBootWatchClear();
   const boot=document.getElementById('boot');
   if(boot){ boot.classList.add('done'); setTimeout(()=>boot.remove(),700); }
 }
@@ -162,11 +161,11 @@ function recover(reason){
   const why=reason?'<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-faint);margin:10px 0 0;word-break:break-word">'+U.esc(reason)+'</div>':'';
   boot.innerHTML='<div style="max-width:460px;text-align:center;padding:24px">'
     +'<div style="font-family:var(--font-display);font-size:1.5rem;color:var(--text-strong);margin-bottom:8px">This device could not start the console</div>'
-    +'<p style="color:var(--text-muted);font-size:12.6px;line-height:1.65;margin:0">A required part of the console did not start. This does not establish the cause. Do not clear browser data or reset the register.</p>'
+    +'<p style="color:var(--text-muted);font-size:12.6px;line-height:1.65;margin:0">A required part of the console did not start. The cause is not yet known. Do not clear browser data or reset the register.</p>'
     +why
     +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">'
-      +'<button type="button" onclick="location.reload()" style="padding:9px 14px;border-radius:8px;background:none;color:var(--text);border:1px solid var(--border-strong);cursor:pointer">Try again</button>'
       +'<a href="check.html" style="padding:9px 14px;border-radius:8px;color:var(--gold)">Connection check</a>'
+      +'<button type="button" onclick="location.reload()" style="padding:9px 14px;border-radius:8px;background:none;color:var(--text);border:1px solid var(--border-strong);cursor:pointer">Reload</button>'
     +'</div>'
   +'</div>';
   boot.classList.remove('done');
@@ -180,15 +179,15 @@ setTimeout(()=>{
   else recover(firstError||'the console did not finish starting within seven seconds');
 },7000);
 
-// v6.9.121's startup path: no additional style-gate promise before init.
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(init,60));
 else setTimeout(init,60);
 
-/* Service worker updates do not reload an open tab: unfinished forms and the
-   private-name session belong to the user, who decides when it is safe to reload. */
+/* Service worker — offline-first, and never stale. The new build takes control
+   as soon as it installs; the page reloads once so the user is not left running
+   yesterday's JavaScript (that is what makes a fixed Close button look broken). */
 if(navigator.serviceWorker && location.protocol!=='file:'){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    // Never interrupt an unfinished form or private-name session with a reload.
+    // Do not discard an unfinished form or private-name session on update.
     try{ LS.ui.toast('An update is ready. Save your work and check pending changes before reloading.',{type:'info',duration:12000}); }catch(e){}
   });
   window.addEventListener('load',()=>{
