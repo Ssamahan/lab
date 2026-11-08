@@ -2077,7 +2077,9 @@ S.REQUISITION_NOTE='Lab commodities are requested from the main pharmacy every M
 /* The test menu is the department's, not the seed's. A test can be switched off
    (kept for history, gone from every picker) or deleted outright. */
 S.allTests=()=>S.db().catalog.tests.filter(t=>!t.deleted);
-S.tests=()=>S.allTests().filter(t=>t.active!==false);
+// Retire this referral choice without deleting historical samples or catalogue data.
+const retiredHep=t=>String(t&&t.name||'').trim().toLowerCase()==='hepatitis (hep)';
+S.tests=()=>S.allTests().filter(t=>t.active!==false&&!retiredHep(t));
 S.testByName=n=>(S.db().catalog.tests||[]).find(t=>t.name===n)||null;
 S.staffById=id=>S.db().staff.find(s=>s.id===id);
 S.staffByName=n=>S.db().staff.find(s=>s.name===n);
@@ -2389,6 +2391,13 @@ S.reportLines=function(){
   (db.catalog.tests||[]).forEach(t=>{
     const key=String(t.name||'');
     if(!key || seen[norm(key)]) return;
+    // Do not create the obsolete referral row, but keep it visible if a month
+    // actually contains recorded figures against its stable auto-generated ID.
+    if(retiredHep(t)){
+      const id='auto:'+key.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+      const months=Object.values((db.reporting&&db.reporting.months)||{}).concat(Object.values(reportSource));
+      if(!months.some(m=>m&&m.values&&m.values[id]&&Object.values(m.values[id]).some(v=>v!=null))) return;
+    }
     rows.push({id:'auto:'+key.toLowerCase().replace(/[^a-z0-9]+/g,'-'),no:'',label:key,
       section:/outbreak|surveil/i.test(t.cat||'')?'outbreak':'other',mode:'pn',indent:1,
       auto:true,test:key});

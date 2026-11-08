@@ -1,0 +1,33 @@
+/* Regression: synthetic history and the bundled October example; no live data. */
+const {boot,ok,done}=require('./env');
+(async()=>{
+ const {w,go,errors}=await boot('#/reports',{seed(w){w.IntersectionObserver=class{observe(){} unobserve(){} disconnect(){}};}});
+ const S=w.LS.store,d=w.document;S.clearPending();
+ const oct=JSON.stringify(S.reportMonth('2026-10'));
+ ok(S.reportSummary('2026-10').totals.tests===10855,'October example has recorded examination totals');
+ ok(!S.tests().some(t=>t.name==='Hepatitis (HEP)'),'obsolete Hepatitis referral choice is retired');
+ ok(!S.reportLines().some(l=>l.label==='Hepatitis (HEP)'),'unused obsolete automatic row is absent from return');
+ ok(S.reportLines().some(l=>l.id==='x612')&&S.reportLines().some(l=>l.id==='x613'),'HBV and HCV form lines remain');
+ const src={'2025-01':{month:'2025-01',meta:{},values:{x67:{total:123}},blood:{'O+':{used:2}},sourceReview:[]}};
+ S.setReportSource(src);
+ const selected=d.querySelector('#repMonth');selected.value='2026-10';selected.dispatchEvent(new w.Event('change'));
+ ok(d.querySelector('#repKpis [data-count]').textContent==='10,855','return KPI is correct immediately after redraw');
+ ok(d.querySelector('#repTop .reveal.in')&&d.querySelector('#repTop').textContent.includes('Full Blood Count'),'at-a-glance chart is visible without an observer callback');
+ ok(d.querySelector('#repPos .reveal.in')&&d.querySelector('#repSections .reveal.in'),'positive and section charts are visible');
+ ok(JSON.stringify(S.reportMonth('2026-10'))===oct&&S.pendingChanges()===0,'history load and month change do not alter October');
+ d.querySelector('[data-tab="analysis"]').click();
+ ok(d.querySelector('#repTop .reveal.in')&&d.querySelector('#repTop').textContent.includes('Full Blood Count'),'analysis rankings are visible after switching tabs');
+ d.querySelector('[data-tab="return"]').click();
+ const field=d.querySelector('[data-line="u41"][data-field="pos"]');field.value='21';field.dispatchEvent(new w.Event('change',{bubbles:true}));
+ ok(d.querySelector('#repKpis [data-count]').textContent==='10,865','editing immediately refreshes tests conducted');
+ ok(d.querySelector('[data-strip-tests]').textContent.includes('10,865')&&d.querySelector('[data-page-tests]').textContent.includes('10,865'),'report header and footer immediately refresh');
+ ok(d.querySelector('#repTop .reveal.in')&&d.querySelector('#repSections .reveal.in'),'edited charts stay visible');
+ ok(Array.from(d.querySelectorAll('[data-sec="urine"] .rep-sum td')).some(el=>el.textContent==='244'),'section sum refreshes');
+ ok(d.querySelector('[data-line="u41"][data-field="pos"]')===field,'editing keeps form input in place');
+ const blood=d.querySelector('[data-blood-group="O+"][data-blood-field="used"]'); const old=+blood.value; blood.value=String(old+1);blood.dispatchEvent(new w.Event('change',{bubbles:true}));
+ ok(d.querySelector('[data-strip-blood]').textContent.includes(String(S.reportSummary('2026-10').bloodTotals.used)),'blood changes refresh the summary');
+ const hep='auto:hepatitis-hep-'; S.commit(db=>{db.reporting.months['2026-10'].values[hep]={pos:1,neg:2};},{action:'synthetic'});
+ ok(S.reportLines().some(l=>l.label==='Hepatitis (HEP)')&&S.reportSummary('2026-10').lines.find(l=>l.id===hep).total===3,'previously recorded obsolete row remains visible and retained');
+ ok(!errors.length,'no errors during rendering',errors.join(' | '));
+ done('report_display133');
+})().catch(e=>{console.error(e);process.exit(1)});
