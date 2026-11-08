@@ -57,8 +57,24 @@ P.signIn=async function(email,password){
   ticker=setInterval(()=>{ if(!P.connected()){if(token){message='Private names session expired; sign in again';showStatus();}return;} if(document.visibilityState!=='hidden') P.schedule(); },60000);
   return P.sync();
 };
-P.signOut=function(){token=null;expires=0;conflicts=[];message='Private name sync: not signed in';if(timer) clearTimeout(timer);timer=null;if(ticker)clearInterval(ticker);ticker=null;rerun=false;showStatus();};
-P.connected=()=>allowed()&&!!token&&Date.now()<expires;
+P.signOut=function(){if(S.clearReportSource) S.clearReportSource();token=null;expires=0;conflicts=[];message='Private name sync: not signed in';if(timer) clearTimeout(timer);timer=null;if(ticker)clearInterval(ticker);ticker=null;rerun=false;showStatus();};
+P.connected=()=>{const ok=allowed()&&!!token&&Date.now()<expires; if(!ok&&S.hasReportSource&&S.hasReportSource()) S.clearReportSource(); return ok;};
+P.loadReportSource=async function(){
+  guard();
+  if(typeof DecompressionStream!=='function') throw Error('This browser cannot open the protected history; use a current browser.');
+  const session=token, data=await request('/rest/v1/rpc/private_report_workbook',{method:'POST',headers:headers(),body:'{}'});
+  guard(); if(session!==token) throw Error('The private session changed.');
+  if(!data||typeof data.gzip_base64!=='string'||!data.sha256) throw Error('No protected workbook history is available.');
+  const binary=atob(data.gzip_base64), bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+  if(hash!==data.sha256) throw Error('Protected history failed its integrity check.');
+  const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const payload=JSON.parse(await new Response(stream).text());
+  guard(); if(session!==token) throw Error('The private session changed.');
+  if(!S.setReportSource(payload.months,payload.workbookCells)) throw Error('Protected history has an invalid format.');
+  return Object.keys(payload.months).length;
+};
 P.status=()=>message;
 P.conflicts=()=>conflicts.map(c=>Object.assign({},c));
 P.isMissingName=missingName;

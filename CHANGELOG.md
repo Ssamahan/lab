@@ -4,6 +4,13 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.131 — Protected workbook history (read-only)
+
+- Load an explicitly requested, private workbook snapshot alongside the device register without replacing local or shared months. The source requires the private account and is removed from memory when that session ends.
+- Flag source discrepancies and differing device figures for review. Protected source months are read-only pending a conflict-safe editing path; original workbook data and device edits are not overwritten.
+- Enable individual examination histories including breakdowns, distinguish missing figures from zero, and prevent the online month vault from silently replacing different copies.
+- This snapshot does not include every workbook cell or the Data sheet. Review, full coverage and editable cross-device history remain unfinished.
+
 ## v6.9.130 — Reduce waiting and repeated route fades
 
 - Use exact-version screen files from the current prewarmed shell cache as well as the runtime cache; correct the report module's warm-up filename. Start warm-up when a first-install worker takes control and skip stalled warm-up downloads after a bounded wait.
