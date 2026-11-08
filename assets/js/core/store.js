@@ -2310,6 +2310,9 @@ const REPORT_LINES=(function(){
    ['oIAT','IAT'],['oEffusion','Effusion'],['oCovid','COVID-19'],['oNitrites','Nitrites'],
    ['oUrinalysis','Urinalysis'],['oCapSugar','Capillary blood sugar'],['oSerumAlb','Serum albumin']
   ].forEach(x=>out.push(L(x[0],'',x[1],'other','pn',1)));
+  // Leukocytes recorded as a urine biochemistry test in the source workbook.
+  const urineLeukocytes=L('oUrineLeukocytes','','Leukocytes (urine)','other','pn',1);
+  urineLeukocytes.alias=['Leukocytes']; out.push(urineLeukocytes);
   /* blood cultures that leave the hospital for a reference laboratory — counted here,
      because a specimen that is referred is still an examination the department did */
   out.push(L('oBloodCultureOut','','Blood cultures transferred (referred out)','other','pn',1));
@@ -2336,7 +2339,9 @@ const REPORT_LINES=(function(){
     oUrea:['Urea','Blood urea','Uree'],
     oAsat:['ASAT','AST','SGOT'],
     oKetone:['Ketones','Ketone'],
-    oBGRh:['Blood group','Grouping and Rh','Blood grouping'],
+    oBGRh:['Blood group','Grouping and Rh','Blood grouping','BG&Rh'],
+    oDB:['DB','BD'], oTB:['TB','BT'], oCHO:['CHO'], oTrig:['Trig'], oTP:['T.P'],
+    oTBGXP:['TB-GXP','GXP','TB Smears & GXP'], xMeasles:['Measles'],
     xMpox:['Mpox','M-POX','Monkey pox']
   };
   out.forEach(l=>{ if(SAY[l.id]) l.alias=(l.alias||[]).concat(SAY[l.id]); });
@@ -2390,13 +2395,55 @@ S.reportLines=function(){
   });
   return rows;
 };
+// Read-only historical source, held only while the private session is active.
+// It is never inserted into, or published with, the shared register.
+let reportSource={}, reportRaw={};
+S.setReportSource=function(months,raw){
+  if(!months||typeof months!=='object'||Array.isArray(months)) return false;
+  const clean={};
+  for(const [key,m] of Object.entries(months)){
+    if(!/^\d{4}-\d{2}$/.test(key)||!m||m.month!==key||!m.values||!m.blood) return false;
+    clean[key]=JSON.parse(JSON.stringify(m));
+  }
+  reportSource=clean; reportRaw=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}; S.emit('report.source'); return true;
+};
+S.clearReportSource=function(){reportSource={};reportRaw={};S.emit('report.source');};
+S.reportSourceSheets=()=>Object.keys(reportRaw);
+S.reportSourceCells=name=>Array.isArray(reportRaw[name])?reportRaw[name]:[];
+S.hasReportSource=()=>Object.keys(reportSource).length>0;
+S.hasReportSourceMonth=key=>!!reportSource[key];
+const reportReviewKey=x=>JSON.stringify([x.kind,x.lineId,x.sourceRow,x.field,x.pos,x.neg,x.sourceTotal,x.under5,x.over5,x.sourceValue,x.deviceValue]);
 S.reportMonths=function(){
   const r=S.db().reporting||{};
-  return Object.keys(r.months||{}).sort().reverse();
+  return Array.from(new Set(Object.keys(r.months||{}).concat(Object.keys(reportSource)))).sort().reverse();
 };
 S.reportMonth=function(key){
-  const r=S.db().reporting||{};
-  return (r.months||{})[key]||reportBlank(key);
+  const local=((S.db().reporting||{}).months||{})[key];
+  const src=reportSource[key];
+  if(!src) return local||reportBlank(key);
+  const out=JSON.parse(JSON.stringify(src));
+  const own=local||reportBlank(key); out.meta=Object.assign({},out.meta||{},own.meta||{});
+  out.notes=own.notes||out.notes||'';
+  const flags=(out.sourceReview||[]).slice();
+  const merge=(kind,base,over)=>{
+    base=base||{};
+    Object.keys(over||{}).forEach(id=>{
+      const before=base[id]||{}, incoming=over[id]||{};
+      Object.keys(incoming).forEach(field=>{
+        if(incoming[field]!=null&&before[field]!=null&&Number(incoming[field])!==Number(before[field]))
+          flags.push({kind:'device-conflict',lineId:kind==='examination'?id:null, label:kind==='blood'?'Blood group '+id:id,
+            field,sourceValue:before[field],deviceValue:incoming[field]});
+      });
+      base[id]=Object.assign({},before,incoming);
+    });
+    return base;
+  };
+  out.values=merge('examination',out.values,own.values); out.blood=merge('blood',out.blood,own.blood);
+  const reviewed=own.reviewedSource||{};
+  out.sourceReview=flags.concat(own.sourceReview||[]).map(x=>{
+    const v=Object.assign({},x); if(reviewed[reportReviewKey(x)]) v.reviewedAt=reviewed[reportReviewKey(x)]; return v;
+  });
+  return out;
 };
 S.reportEnsure=function(key){
   const db=S.db();
@@ -2405,6 +2452,7 @@ S.reportEnsure=function(key){
   return db.reporting.months[key];
 };
 S.reportSet=function(key,lineId,field,value){
+  if(reportSource[key]) return false; // Source edits need a private, conflict-safe sync path.
   S.commit(db=>{
     db.reporting=db.reporting||{lines:[],months:{}};
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
@@ -2413,7 +2461,8 @@ S.reportSet=function(key,lineId,field,value){
     /* Clearing a cell returns it to blank — the form does not write 0 where nobody
        wrote anything. A typed 0 is kept, and stays a 0. */
     if(value===''||value==null){
-      delete v[field];
+      if(reportSource[key] && reportSource[key].values && reportSource[key].values[lineId] && reportSource[key].values[lineId][field]!=null) v[field]=null;
+      else delete v[field];
       if(!Object.keys(v).length) delete m.values[lineId];
     } else {
       v[field]=Math.max(0,Math.round(+value||0));
@@ -2423,6 +2472,7 @@ S.reportSet=function(key,lineId,field,value){
   return true;
 };
 S.reportMeta=function(key,field,value){
+  if(reportSource[key]) return false;
   S.commit(db=>{
     db.reporting=db.reporting||{lines:[],months:{}};
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
@@ -2430,12 +2480,13 @@ S.reportMeta=function(key,field,value){
   },{action:'report.meta',entity:'reporting',entityId:key,detail:'Report identification · '+field});
 };
 S.reportBlood=function(key,group,field,value){
+  if(reportSource[key]) return false;
   S.commit(db=>{
     db.reporting=db.reporting||{lines:[],months:{}};
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
     m.blood=m.blood||{};
     const g=m.blood[group]||(m.blood[group]={});
-    if(value===''||value==null){ delete g[field]; if(!Object.keys(g).length) delete m.blood[group]; }
+    if(value===''||value==null){ if(reportSource[key]&&reportSource[key].blood&&reportSource[key].blood[group]&&reportSource[key].blood[group][field]!=null) g[field]=null; else delete g[field]; if(!Object.keys(g).length) delete m.blood[group]; }
     else g[field]=Math.max(0,Math.round(+value||0));
   },{action:'report.blood',entity:'reporting',entityId:key,detail:'Blood supply '+group+' '+field});
 };
@@ -2451,11 +2502,15 @@ S.reportAddLine=function(def){
   return id;
 };
 S.reportRemoveLine=function(id){
-  S.commit(db=>{
-    const r=db.reporting||{};
-    r.lines=(r.lines||[]).filter(x=>x.id!==id);
-    Object.keys(r.months||{}).forEach(k=>{ if(r.months[k].values) delete r.months[k].values[id]; });
-  },{action:'report.line.delete',entity:'reporting',entityId:id,detail:'Line removed from the monthly report'});
+  const r=S.db().reporting||{};
+  // A definition is needed to display its historical figures. Never remove it
+  // while any month holds a value (including an explicitly recorded zero).
+  if(Object.values(r.months||{}).some(m=>m&&m.values&&Object.prototype.hasOwnProperty.call(m.values,id))) return false;
+  if(!(r.lines||[]).some(line=>line.id===id)) return false;
+  if(LS.auth && LS.auth.user && !LS.auth.can('edit')) return false;
+  S.commit(db=>{ db.reporting.lines=(db.reporting.lines||[]).filter(x=>x.id!==id); },
+    {action:'report.line.delete',entity:'reporting',entityId:id,detail:'Unused line removed from the monthly report'});
+  return true;
 };
 /* ——— Renaming an examination ————————————————————————————
    The name on the menu is written into every sample that carries it, so a typo
@@ -2548,7 +2603,7 @@ S.reportSummary=function(key){
   const sections=REPORT_SECTIONS.map(sec=>{
     const rows=lines.filter(l=>l.section===sec.key).map(l=>{
       const row=S.reportRow(m,l);
-      return Object.assign({line:l},row);
+      return Object.assign({line:l,review:((m.sourceReview||[]).filter(x=>x.lineId===l.id&&!x.reviewedAt))},row);
     });
     const counted=rows.filter(r=>!r.band && !r.line.breakdown);
     return {key:sec.key,no:sec.no,title:sec.title,rows,
@@ -2623,7 +2678,7 @@ S.reportSeries=function(){
 S.reportTestSeries=function(lineId){
   return S.reportSeries().map(m=>{
     const row=(m.summary.lines||[]).find(r=>r.id===lineId);
-    return {key:m.key, label:m.label, total:row?row.total:0, pos:row?row.pos:0};
+    return {key:m.key, label:m.label, total:row&&row.any?row.total:null, pos:row&&row.any?row.pos:null};
   });
 };
 /* Everything that moved between two months, biggest change first. A test that
@@ -2706,14 +2761,35 @@ S.reportAcrossYears=function(key){
 };
 /* Bulk load of one month — used by the import screen and by anything else that has
    a month of figures in hand. */
+S.reportImportConflicts=function(key,values,extra){
+  const hasLocal=((S.db().reporting||{}).months||{})[key];
+  if(!hasLocal&&!reportSource[key]) return [];
+  const existing=S.reportMonth(key);
+  const vals=(values&&values.values)?values.values:(values||{}), ex=extra||{};
+  const conflicts=[];
+  const compare=(kind,source,target,fields)=>Object.keys(source||{}).forEach(id=>{
+    const prior=(target||{})[id]||{}, incoming=source[id]||{};
+    fields.forEach(f=>{
+      if(incoming[f]==null||incoming[f]===''||!isFinite(+incoming[f])) return;
+      if(prior[f]!=null&&prior[f]!==''&&Number(prior[f])!==Math.max(0,Math.round(+incoming[f])))
+        conflicts.push({kind,id,field:f,existing:prior[f],incoming:incoming[f]});
+    });
+  });
+  compare('examination',vals,existing.values,['pos','neg','a0','a1','a2','total']);
+  compare('blood',ex.blood||{},existing.blood,REPORT_BLOOD_FIELDS.map(f=>f[0]));
+  return conflicts;
+};
 S.reportImportMonth=function(key, values, extra){
+  if(reportSource[key]) return false;
   if(!/^\d{4}-\d{2}$/.test(String(key))) return false;
   const vals=(values&&values.values)?values.values:(values||{});
   const ex=extra||{};
+  if(S.reportImportConflicts(key,vals,ex).length) return false;
+  if(LS.auth && LS.auth.user && !LS.auth.can('edit')) return false;
   S.commit(db=>{
     db.reporting=db.reporting||{lines:[],months:{}};
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
-    m.meta=Object.assign({},m.meta||{},ex.meta||{});
+    m.meta=Object.assign({},ex.meta||{},m.meta||{});
     m.values=m.values||{};
     /* section VIII — the blood bank travels with the month, group by group */
     if(ex.blood&&Object.keys(ex.blood).length){
@@ -2732,53 +2808,86 @@ S.reportImportMonth=function(key, values, extra){
       ['pos','neg','a0','a1','a2','total'].forEach(f=>{ if(v[f]!=null&&v[f]!==''&&isFinite(+v[f])) clean[f]=Math.max(0,Math.round(+v[f])); });
       if(Object.keys(clean).length) m.values[id]=Object.assign({},m.values[id]||{},clean);
     });
+    if(Array.isArray(ex.sourceReview)&&ex.sourceReview.length){
+      m.sourceReview=m.sourceReview||[];
+      const existing=new Set(m.sourceReview.map(x=>JSON.stringify([x.kind,x.label,x.sourceRow,x.pos,x.neg,x.sourceTotal,x.under5,x.over5])));
+      ex.sourceReview.forEach(x=>{const k=JSON.stringify([x.kind,x.label,x.sourceRow,x.pos,x.neg,x.sourceTotal,x.under5,x.over5]);if(!existing.has(k)){m.sourceReview.push(JSON.parse(JSON.stringify(x)));existing.add(k);}});
+    }
     m.touchedAt=U.nowISO();
   },{action:'report.import',entity:'reporting',entityId:key,
      detail:'Monthly return loaded for '+key+' · '+Object.keys(vals).length+' examinations'
        +(ex.blood&&Object.keys(ex.blood).length?' · '+Object.keys(ex.blood).length+' blood groups':'')});
   return true;
 };
+S.reportMarkReviewed=function(key,index){
+  if(reportSource[key]) return false;
+  const item=(S.reportMonth(key).sourceReview||[])[index];
+  if(!item||item.reviewedAt) return false;
+  if(LS.auth&&LS.auth.user&&!LS.auth.can('edit')) return false;
+  const fingerprint=reportReviewKey(item);
+  S.commit(db=>{
+    db.reporting=db.reporting||{lines:[],months:{}};
+    const month=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
+    month.reviewedSource=month.reviewedSource||{}; month.reviewedSource[fingerprint]=U.nowISO();
+    if(!reportSource[key]&&month.sourceReview&&month.sourceReview[index]) month.sourceReview[index].reviewedAt=U.nowISO();
+  },{action:'report.source.review',entity:'reporting',entityId:key,detail:'Source discrepancy reviewed; original figures retained'});
+  return true;
+};
+
 /* A wording the reader has already matched by hand is remembered, so the same row in
    next month’s sheet is placed without asking again. */
 const reportNorm=x=>String(x==null?'':x).toLowerCase().replace(/[^a-z0-9]+/g,'');
 S.reportAliases=function(){ const r=S.db().reporting||{}; return r.aliases||{}; };
 /* Rows that carried figures but matched no line are kept, not dropped: they are the
    one place a month can be short, and the mapping screen works from this list. */
-S.reportUnmatched=function(key){ const r=S.db().reporting||{}; return ((r.unmatched||{})[key])||[]; };
+S.reportUnmatched=function(key){ const r=S.db().reporting||{}; return (((reportSource[key]||{}).unmatched)||[]).concat(((r.unmatched||{})[key])||[]); };
 S.reportStashUnmatched=function(key,rows){
-  const list=(rows||[]).slice(0,400);
+  const incoming=Array.isArray(rows)?rows:[];
+  if(!incoming.length) return;
   S.commit(db=>{
     db.reporting=db.reporting||{lines:[],months:{}};
     db.reporting.unmatched=db.reporting.unmatched||{};
-    if(list.length) db.reporting.unmatched[key]=list; else delete db.reporting.unmatched[key];
+    const list=db.reporting.unmatched[key]||[];
+    const seen=new Set(list.map(r=>JSON.stringify(r)));
+    incoming.forEach(r=>{const k=JSON.stringify(r);if(!seen.has(k)){list.push(r);seen.add(k);}});
+    db.reporting.unmatched[key]=list;
   },{action:'report.unmatched',entity:'reporting',entityId:key,
-     detail:list.length+' rows on the sheet matched no line of the form'});
+     detail:incoming.length+' source rows need review'});
 };
 /* Place rows by hand: the figures go into the month, and the wording is remembered as
    an alias of that line for every month that follows. */
 S.reportPlaceRows=function(key,places){
+  if(reportSource[key]) return 0;
   const list=(places||[]).filter(p=>p&&p.lineId&&p.label);
   if(!list.length) return 0;
-  const lines=S.reportLines();
+  const lines=S.reportLines(), prepared=[], targets={};
+  for(const p of list){
+    const line=lines.find(l=>l.id===p.lineId); if(!line||line.mode==='band') return 0;
+    const nums=(p.nums||[]).map(n=>n==null||n===''||!isFinite(+n)?null:Math.max(0,Math.round(+n)));
+    const v={};
+    if(line.mode==='quant') v.total=nums.filter(n=>n!=null).slice(-1)[0];
+    else if(line.mode==='posage3'){ v.pos=nums[0]; v.a0=nums[1]; v.a1=nums[2]; v.a2=nums[3]; }
+    else if(line.mode==='pn2'){ v.pos=nums[0]; v.neg=nums[1]; v.a0=nums[2]; v.a1=nums[3]; }
+    else { v.pos=nums[0]; v.neg=nums[1]; }
+    const clean={}; Object.keys(v).forEach(f=>{if(v[f]!=null&&v[f]!=='') clean[f]=v[f];});
+    if(!Object.keys(clean).length||targets[p.lineId]) return 0;
+    targets[p.lineId]=clean; prepared.push({p,clean});
+  }
+  if(S.reportImportConflicts(key,targets,{}).length) return 0;
   S.commit(db=>{
     db.reporting=db.reporting||{lines:[],months:{}};
     const m=db.reporting.months[key]||(db.reporting.months[key]=reportBlank(key));
     m.values=m.values||{};
-    db.reporting.aliases=db.reporting.aliases||{};
-    list.forEach(p=>{
-      const line=lines.find(l=>l.id===p.lineId); if(!line) return;
-      const nums=(p.nums||[]).map(n=>Math.max(0,Math.round(+n||0)));
-      const v={};
-      if(line.mode==='quant') v.total=nums[nums.length-1]||0;
-      else if(line.mode==='posage3'){ v.pos=nums[0]||0; v.a0=nums[1]||0; v.a1=nums[2]||0; v.a2=nums[3]||0; }
-      else if(line.mode==='pn2'){ v.pos=nums[0]||0; v.neg=nums[1]||0; v.a0=nums[2]||0; v.a1=nums[3]||0; }
-      else { v.pos=nums[0]||0; v.neg=nums[1]||0; }
-      const clean={};
-      Object.keys(v).forEach(f=>{ if(v[f]!=null&&v[f]!=='') clean[f]=v[f]; });
-      if(Object.keys(clean).length) m.values[p.lineId]=Object.assign({},m.values[p.lineId]||{},clean);
-      db.reporting.aliases[reportNorm(p.label)]=p.lineId;
+    prepared.forEach(({p,clean})=>{
+      m.values[p.lineId]=Object.assign({},m.values[p.lineId]||{},clean);
+      // Other-exams duplicates may use the same words as a different HMIS line.
+      // Do not turn that ambiguous decision into a global alias.
+      if(p.source!=='district-other'){
+        db.reporting.aliases=db.reporting.aliases||{};
+        db.reporting.aliases[reportNorm(p.label)]=p.lineId;
+      }
     });
-    const left=((db.reporting.unmatched||{})[key]||[]).filter(r=>!list.some(p=>p.label===r.label));
+    const left=((db.reporting.unmatched||{})[key]||[]).filter(r=>!list.some(p=>p.label===r.label && JSON.stringify(p.nums||[])===JSON.stringify(r.nums||[])));
     db.reporting.unmatched=db.reporting.unmatched||{};
     if(left.length) db.reporting.unmatched[key]=left; else delete db.reporting.unmatched[key];
     m.touchedAt=U.nowISO();
@@ -2786,6 +2895,7 @@ S.reportPlaceRows=function(key,places){
      detail:list.length+' rows of the sheet placed by hand'});
   return list.length;
 };
+
 /* What a month actually holds — the figures a delete would discard. Read from the
    month itself so a confirmation can never claim an empty month that is not. */
 S.reportMonthStats=function(key){
@@ -2805,6 +2915,7 @@ S.reportMonthStats=function(key){
 S.reportDeleteMonth=function(key){
   const months=S.reportMonths();
   if(months.indexOf(key)<0) return {ok:false, reason:'That month is not on file.'};
+  if(reportSource[key]) return {ok:false, reason:'This month belongs to the protected workbook source and cannot be deleted here.'};
   const stats=S.reportMonthStats(key);
   if(stats.empty&&months.length===1)
     return {ok:false, reason:'This is the only month on file and it holds nothing — there would be nothing left to show.'};

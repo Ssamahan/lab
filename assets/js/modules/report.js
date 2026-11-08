@@ -42,7 +42,8 @@ function pickMonth(){
   return months()[0];
 }
 function summary(){ return S.reportSummary(pickMonth()); }
-function canEdit(){ return !!(LS.auth.can && LS.auth.can('edit')); }
+// Protected source is read-only until edits have a conflict-safe private sync path.
+function canEdit(){ return !!(LS.auth.can && LS.auth.can('edit')) && !(S.hasReportSourceMonth&&S.hasReportSourceMonth(pickMonth())); }
 
 /* ——— the report itself ————————————————————————————————— */
 function numCell(line,row,field){
@@ -50,7 +51,7 @@ function numCell(line,row,field){
      paper form. Neither is a dash, and neither is the other. */
   const has=!!(row.present&&row.present[field]);
   const v=has?(row[field]||0):null;
-  return '<td class="rep-td"><input class="rep-in mono'+(has?' has':'')+'" type="number" min="0" step="1" '
+  return '<td class="rep-td"><input '+((row.review||[]).length?'style="color:#b42318;border-color:#b42318" ':'')+'class="rep-in mono'+(has?' has':'')+'" type="number" min="0" step="1" '
     +'inputmode="numeric" data-line="'+U.esc(line.id)+'" data-field="'+field+'" value="'+(has?v:'')+'" '
     +(canEdit()?'':'readonly ')+'aria-label="'+U.esc(line.label+' '+FIELD_LABEL[field])+'"></td>';
 }
@@ -64,7 +65,8 @@ function rowHTML(r){
   return '<tr class="'+cls+'" data-row="'+U.esc(line.id)+'">'
     +'<td class="rep-exam">'+(line.no?'<span class="rep-no">'+U.esc(line.no)+'</span> ':'')+U.esc(line.label)
       +(line.auto?' <span class="rep-tag" title="Added from the test menu">new</span>':'')
-      +(line.custom?' <span class="rep-tag" title="Added on this report">added</span>':'')+'</td>'
+      +(line.custom?' <span class="rep-tag" title="Added on this report">added</span>':'')
+      +((r.review||[]).length?' <span style="color:#b42318;font-weight:bold">Needs review</span>':'')+'</td>'
     +spec.cols.map(f=>numCell(line,r,f)).join('')
     +'<td class="rep-total mono" data-total="'+U.esc(line.id)+'">'+(r.any?U.fmtNum(r.total):'')+'</td>'
     +(canEdit()&&line.custom?'<td class="rep-del"><button class="icon-btn" data-del-line="'+U.esc(line.id)+'" title="Remove this examination from the report">'+UI.ic('x',12)+'</button></td>':'<td class="rep-del"></td>')
@@ -101,12 +103,27 @@ function sectionHTML(sec){
     +(hasAges?'':'')
     +'</div>';
 }
+function reviewCard(key){
+  const month=S.reportMonth(key), review=month.sourceReview||[];
+  const pending=review.map((item,index)=>({item,index})).filter(x=>!x.item.reviewedAt);
+  if(!pending.length) return '';
+  return '<div role="status" style="border:1px solid #b42318;color:#b42318;padding:12px;margin:12px 0;border-radius:8px">'
+    +'<b>Needs your review · '+pending.length+' source '+(pending.length===1?'item':'items')+'</b>'
+    +'<p class="xs">The workbook figures below remain recorded. Compare them with the original; editing is disabled for protected source months until safe syncing is available.</p>'
+    +pending.map(({item:x,index})=>'<div style="padding:8px 0;border-top:1px solid #b42318">'
+      +'<b>'+U.esc(x.label)+'</b>'+(x.sourceRow?' · Excel row '+U.esc(x.sourceRow):'')+'<br>'
+      +(x.kind==='device-conflict'?'Workbook '+U.esc(x.field)+': '+U.esc(x.sourceValue)+'; device value: '+U.esc(x.deviceValue)
+        :x.kind==='total-mismatch'?'Workbook: positive '+U.esc(x.pos)+', negative-column '+U.esc(x.neg)+', total '+U.esc(x.sourceTotal)+'; sum '+U.esc(x.calculated)
+        :'Negative-column value '+U.esc(x.neg)+'; confirm whether it is negative or total tests. Age columns: '+U.esc(x.under5)+' and '+U.esc(x.over5))
+      +(x.formulas&&Object.keys(x.formulas).length?'<div class="xs">Workbook formulas: '+U.esc(Object.values(x.formulas).join(' · '))+'</div>':'')
+      +(canEdit()?'<button class="btn xs" data-review-item="'+index+'">Mark reviewed</button>':'')+'</div>').join('')+'</div>';
+}
 function tableCard(sm){
   return UI.card({title:'The return, filled in',sub:monthLabel(sm.key)+' · '+sm.totals.examinations+' examinations on the form · every total is computed, never typed twice',icon:'clipboard-list',
     cls:'rep-card',
     tools:'<button class="btn xs" data-add-line>'+UI.ic('plus',12)+'Add examination</button>'
       +'<button class="btn xs" data-export>'+UI.ic('download',12)+'Export the return</button>',
-    body:'<div class="rep-legend"><span><i class="rep-dot"></i>typed here</span><span><b class="mono">—</b> computed</span>'
+    body:reviewCard(sm.key)+'<div class="rep-legend"><span><i class="rep-dot"></i>typed here</span><span><b class="mono">—</b> computed</span>'
       +'<span><i class="rep-dot auto"></i>new test, added from the menu</span>'
       +'<span class="grow"></span><span class="xs faint">The form grows with the laboratory: a test added in Settings → Test menu appears here by itself.</span></div>'
       +sm.sections.map(sectionHTML).join(''),
@@ -132,7 +149,7 @@ function bloodCard(sm){
         const carries=bloodPresent(sm.key,g);
         return '<tr class="rep-row'+(carries?'':' rep-zero')+'" data-blood="'+g+'"><td class="rep-exam"><span class="rep-no">'+U.esc(g)+'</span></td>'
           +S.REPORT_BLOOD_FIELDS.map(f=>{ const has=carries.indexOf(f[0])>=0;
-            return '<td class="rep-td"><input class="rep-in mono'+(has?' has':'')+'" type="number" min="0" step="1" '
+            return '<td class="rep-td"><input '+((row.review||[]).length?'style="color:#b42318;border-color:#b42318" ':'')+'class="rep-in mono'+(has?' has':'')+'" type="number" min="0" step="1" '
               +(canEdit()?'':'readonly ')+'data-blood-group="'+U.esc(g)+'" data-blood-field="'+f[0]+'" value="'+(has?row[f[0]]:'')+'"></td>';}).join('')
           +'<td class="rep-total mono" data-blood-end="'+g+'">'+(carries.length?U.fmtNum(row.end):'')+'</td></tr>';
       }).join('')
@@ -298,8 +315,9 @@ function wire(root){
   root.querySelectorAll('[data-del-line]').forEach(b=>b.onclick=()=>{
     if(!canEdit()) return;
     const id=b.dataset.delLine;
-    UI.confirm({title:'Remove this examination from the report?',body:'The line leaves the form for every month. Past figures stored against it are removed with it; the audit trail keeps the record.',confirm:'Remove the line',danger:true,
-      onConfirm:()=>{ S.reportRemoveLine(id); UI.toast('Line removed from the report',{type:'ok'}); paint(); }});
+    UI.confirm({title:'Remove this examination from the report?',body:'Only an unused line can be removed. If any month has figures for it, the line and its history will be kept.',confirm:'Remove unused line',danger:true,
+      onConfirm:()=>{ if(S.reportRemoveLine(id)){ UI.toast('Unused line removed from the report',{type:'ok'}); paint(); }
+        else UI.toast('This line has recorded figures and cannot be removed',{type:'warn'}); }});
   });
 }
 function addLineModal(){
@@ -338,6 +356,8 @@ function head(sm){
    +'<div class="sub">The laboratory\u2019s HMIS return to Gakenke District — the form the district receives, the analysis behind it, and an export laid out like the paper sheet.</div></div>'
    +'<div class="actions">'
      +'<div class="rep-month"><label class="xs faint">Return for</label><select class="select mono" id="repMonth">'+opts+'</select></div>'
+     +(LS.privateNames&&LS.privateNames.connected()?'<button class="btn" data-private-reports>Load protected history</button>':'')
+     +(S.reportSourceSheets&&S.reportSourceSheets().length?'<button class="btn" data-original-sheets>Original sheet values</button>':'')
      +'<button class="btn" data-new-month>'+UI.ic('calendar-days',15)+'New month</button>'
      +'<button class="btn" data-import>'+UI.ic('upload',15)+'Load a past month</button>'
      +'<button class="btn" data-delete-month="'+U.esc(pickMonth())+'"'+(canEdit()?'':' disabled')
@@ -351,6 +371,7 @@ function head(sm){
      +'<span class="xs faint">'+(S.reportMonths().length)+' month'+(S.reportMonths().length===1?'':'s')+' on file · '+(S.reportMonths().length?'since '+monthLabel(S.reportMonths().slice().sort()[0]):'no history yet')+'</span>'
    +'</div>'
    +'<div class="rep-strip">'+status
+     +(S.hasReportSourceMonth&&S.hasReportSourceMonth(sm.key)?'<span class="pill amber">Protected source · read-only · existing device figures take precedence</span>':'')
      +'<span class="pill slate mono">'+U.fmtNum(sm.totals.tests)+' tests</span>'
      +'<span class="pill slate mono">'+U.fmtNum(sm.totals.qualPositives)+' positives</span>'
      +'<span class="pill slate mono">'+sm.bloodTotals.used+' packs transfused</span>'
@@ -362,11 +383,17 @@ function renderInner(root){
     +(tab==='analysis'?analysisTab(sm):returnTab(sm));
   const sel=root.querySelector('#repMonth');
   if(sel) sel.onchange=()=>{ monthKey=sel.value; renderInner(root); };
+  const priv=root.querySelector('[data-private-reports]'); if(priv) priv.onclick=async()=>{
+    priv.disabled=true; try{const n=await LS.privateNames.loadReportSource(); UI.toast(n+' source months loaded for review',{type:'ok'});renderInner(root);}
+    catch(e){priv.disabled=false;UI.toast(e.message||'Protected history could not load',{type:'warn',duration:10000});}
+  };
+  const raw=root.querySelector('[data-original-sheets]'); if(raw) raw.onclick=sourceSheetModal;
   const nm=root.querySelector('[data-new-month]'); if(nm) nm.onclick=newMonthModal;
   root.querySelectorAll('[data-delete-month]').forEach(b=>b.onclick=ev=>{
     ev.stopPropagation();
     deleteMonthModal(b.dataset.deleteMonth);
   });
+  root.querySelectorAll('[data-review-item]').forEach(b=>b.onclick=()=>{ if(S.reportMarkReviewed(pickMonth(),+b.dataset.reviewItem)) renderInner(root); });
   const im=root.querySelector('[data-import]'); if(im) im.onclick=importModal;
   const wb=root.querySelector('[data-load-wb]'); if(wb) wb.onclick=workbookModal;
   /* walking the record: a chip, an arrow, or a key */
@@ -492,7 +519,7 @@ function monthTable(){
       +'<td class="num mono">'+(m.samples?U.fmtNum(m.samples):'—')+'</td>'
       +'<td class="num mono">'+(m.bloodKnown?U.fmtNum(m.bloodUsed):'—')+'</td>'
       +'<td class="num mono">'+(m.bloodKnown?U.fmtNum(m.bloodEnd):'—')+'</td>'
-      +'<td class="num">'+(canEdit()?'<button class="rep-del" data-delete-month="'+U.esc(m.key)+'" title="Delete '+U.esc(monthLabel(m.key))+' from the record" aria-label="Delete '+U.esc(monthLabel(m.key))+'">'+UI.ic('trash-2',12)+'</button>':'')+'</td></tr>');
+      +'<td class="num">'+(canEdit()&&!(S.hasReportSourceMonth&&S.hasReportSourceMonth(m.key))?'<button class="rep-del" data-delete-month="'+U.esc(m.key)+'" title="Delete '+U.esc(monthLabel(m.key))+' from the record" aria-label="Delete '+U.esc(monthLabel(m.key))+'">'+UI.ic('trash-2',12)+'</button>':'')+'</td></tr>');
   });
   return '<div class="dt-scroll"><table class="dt rep-hist"><thead><tr><th>Month</th><th>Tests</th><th>Change</th><th>Positives</th><th>Positivity</th><th>Stool samples</th><th>Packs used</th><th>Packs left</th><th></th></tr></thead>'
     +'<tbody>'+rows.join('')+'</tbody></table></div>';
@@ -515,7 +542,7 @@ function yearTable(){
 }
 function trendCard(sm){
   const all=S.reportSeries();
-  const lines=(sm.lines||[]).filter(r=>!r.band&&!r.line.breakdown);
+  const lines=(sm.lines||[]).filter(r=>!r.band);
   const withData=lines.filter(r=>r.total>0||(r.pos||0)>0);
   if(!trendId || !lines.some(r=>r.id===trendId)){
     const fbc=lines.find(r=>/full blood count/i.test(r.line.label));
@@ -529,13 +556,17 @@ function trendCard(sm){
   return UI.card({title:'Follow one examination through time',sub:all.length>1?(series.length+' months on file · every figure read from the return of that month'):'One month on file — load the months before it and the line fills in',icon:'chart-line',cls:'rep-trend',
     tools:'<select class="select mono rep-trend-sel" id="repTrendSel">'+opts+'</select>',
     body:'<div class="rep-trend-head">'
-      +(line?'<div><div class="rep-cmp-v mono">'+U.fmtNum(series.length?series[series.length-1].total:0)+'</div><div class="xs faint">'+U.esc(line.label)+' in '+monthLabel(sm.key)+'</div></div>':'')
+      +(line?'<div><div class="rep-cmp-v mono">'+(line.any?U.fmtNum(line.total):'—')+'</div><div class="xs faint">'+U.esc(line.label)+' in '+monthLabel(sm.key)+'</div></div>':'')
       +(pct!=null?'<div class="rep-trend-delta">'+dirTag(pct)+'<span class="xs faint">since '+monthLabel(first.key)+'</span></div>':'')
       +'</div>'
       +'<div id="repTestTrend"></div>'
-      +'<div class="rep-trend-mini">'+(series.length?series.slice(-6).map(x=>'<div><span class="xs faint">'+x.label+'</span><b class="mono">'+U.fmtNum(x.total)+'</b></div>').join(''):'')+'</div>',
+      +'<div class="rep-trend-mini">'+(series.length?series.slice(-6).map(x=>'<div><span class="xs faint">'+U.esc(x.label)+'</span><b class="mono">'+(x.total==null?'—':U.fmtNum(x.total))+'</b></div>').join(''):'')+'</div>'
+      +'<details style="margin-top:12px"><summary>Choose a test to see its history</summary>'
+      +'<div style="max-height:240px;overflow:auto;margin-top:8px">'
+      +sm.sections.map(sec=>{const items=sec.rows.filter(r=>!r.band); return items.length?'<div class="xs faint" style="margin-top:8px">'+U.esc(sec.title)+'</div>'+items.map(r=>'<button class="btn xs" style="margin:3px" data-test-trend="'+U.esc(r.id)+'">'+U.esc((r.line.no?r.line.no+' ':'')+r.line.label)+'</button>').join(''):'';}).join('')
+      +'</div></details>',
     foot:'<span>Choose any examination on the form — full blood count, amylase, urea, HBV …</span>'
-      +'<span class="mono">'+(line&&line.line.mode==='quant'?'a count each month':'positives and negatives')+'</span>'});
+      +'<span class="mono">Missing figures are gaps, not zero</span>'});
 }
 function moversCard(sm){
   const all=S.reportSeries();
@@ -658,7 +689,7 @@ function drawHistoryCharts(root,sm){
     const series=trendId?S.reportTestSeries(trendId):[];
     if(series.length<2){
       const one=series[0];
-      el.innerHTML='<div class="rep-trend-single"><div class="rep-trend-v">'+U.fmtNum(one?one.total:0)+'</div>'
+      el.innerHTML='<div class="rep-trend-single"><div class="rep-trend-v">'+(one&&one.total!=null?U.fmtNum(one.total):'—')+'</div>'
         +'<div class="xs faint">'+U.esc(one?one.label:'')+' · the trend needs a second month</div></div>';
     } else {
       C.line(el,{id:'repTestTrend',height:230,padLeft:56,series:[{name:'Tests',color:'var(--gold)',values:series.map(x=>x.total)}],
@@ -667,6 +698,10 @@ function drawHistoryCharts(root,sm){
   }
   const sel=root.querySelector('#repTrendSel');
   if(sel) sel.onchange=()=>{ trendId=sel.value; renderInner(root); };
+  root.querySelectorAll('[data-test-trend]').forEach(b=>b.onclick=()=>{
+    trendId=b.dataset.testTrend; renderInner(root);
+    const card=root.querySelector('.rep-trend'); if(card&&card.scrollIntoView) card.scrollIntoView({block:'nearest'});
+  });
   /* every section, month by month */
   const st=root.querySelector('#repSecTrend');
   if(st&&all.length>=2){
@@ -698,7 +733,7 @@ function vaultCard(){
     +'<div class="rep-vault-body"><div class="rep-vault-t">Keep the history online</div>'
       +'<div class="xs faint">'+months.length+' month'+(months.length===1?'':'s')+' on this device · '+U.esc(state)
         +(v.at?' · last saved '+U.relTime(v.at):'')+'</div>'
-      +'<div class="xs faint" style="margin-top:3px">Each month is written to the cloud as its own record, once. A cleared browser, a new phone or a register started again does not touch them.</div></div>'
+      +'<div class="xs faint" style="margin-top:3px">Each new month is saved separately. An existing online month is not overwritten; different copies need review.</div></div>'
     +'<button class="btn sm" data-vault-pull>'+UI.ic('download',13)+'Fetch</button>'
     +'<button class="btn sm primary" data-vault-save>'+UI.ic('cloud',13)+'Save online</button>'
   +'</div>';
@@ -710,20 +745,32 @@ async function vaultSave(){
   const t=UI.toast('Saving '+months.length+' month'+(months.length===1?'':'s')+' online…',{type:'info',duration:4000});
   try{
     const r=await LS.sync.vaultPushAll();
+    if(r.reason) return UI.toast(r.reason,{type:'warn',duration:9000});
     if(r.tableMissing) return UI.toast('The online table is missing — run the SQL in supabase/schema.sql',{type:'warn',duration:8000});
     if(r.ok) UI.toast(r.done+' month'+(r.done===1?'':'s')+' saved online — they stay there',{type:'ok'});
-    else UI.toast(r.done+' saved · '+r.failed+' failed — try again',{type:'warn'});
+    else UI.toast(r.done+' saved · '+r.failed+' not saved. Existing online months are not overwritten; review differences before proceeding.',{type:'warn',duration:10000});
     renderInner(rootEl);
   }catch(e){ UI.toast('Could not save the history: '+(e.message||e),{type:'crit',duration:8000}); }
 }
 async function vaultFetch(){
   try{
     const r=await LS.sync.vaultMerge();
-    UI.toast(r.total+' month'+(r.total===1?'':'s')+' online · '+(r.added+r.updated)+' brought in',{type:'ok'});
+    UI.toast(r.total+' month'+(r.total===1?'':'s')+' online · '+(r.added+r.updated)+' brought in'+(r.conflicts&&r.conflicts.length?' · '+r.conflicts.length+' different copies need review':''),{type:r.conflicts&&r.conflicts.length?'warn':'ok'});
     renderInner(rootEl);
   }catch(e){ UI.toast('Could not reach the online record: '+(e.message||e),{type:'warn'}); }
 }
 
+function sourceSheetModal(){
+  const names=S.reportSourceSheets();
+  if(!names.length) return;
+  UI.modal({title:'Original workbook values',sub:'Read-only source cells and formulas, including the Data sheet. Edits belong on the monthly return; the original remains unchanged.',width:'min(800px,100%)',
+    body:'<label>Sheet <select class="select" id="sourceSheet">'+names.map(n=>'<option value="'+U.esc(n)+'">'+U.esc(n)+'</option>').join('')+'</select></label><div id="sourceCells" style="max-height:55vh;overflow:auto;margin-top:12px"></div>',
+    foot:'<button class="btn" data-close>Close</button>',
+    onMount:(el)=>{const select=el.querySelector('#sourceSheet'),body=el.querySelector('#sourceCells');
+      const draw=()=>{body.innerHTML='<table class="dt"><thead><tr><th>Cell</th><th>Recorded value</th><th>Formula, if any</th></tr></thead><tbody>'
+        +S.reportSourceCells(select.value).map(x=>'<tr><td class="mono">'+U.esc(x[0])+'</td><td>'+U.esc(String(x[1]))+'</td><td class="mono">'+U.esc(x[2]||'')+'</td></tr>').join('')+'</tbody></table>';};
+      select.onchange=draw; draw();}});
+}
 /* ——— Rows the form could not place ————————————————————————
    Every sheet has a few rows written in words the form does not use. They carry
    figures, so they are kept and listed here rather than dropped: the reader picks the
@@ -737,8 +784,8 @@ function mapCard(key){
     +'<div class="xs faint" style="margin-top:2px">'
       +rows.slice(0,4).map(r=>U.esc(r.label)+' <span class="mono">'+r.nums.join('·')+'</span>').join(' &nbsp;·&nbsp; ')
       +(rows.length>4?' …':'')+'</div>'
-    +'<div class="xs faint" style="margin-top:4px">They are not lost and they are not guessed into a line. Place them and they count from now on.</div></div>'
-    +'<button class="btn sm" data-map-rows="'+U.esc(key)+'">'+UI.ic('check',13)+'Place them</button>'
+    +'<div class="xs faint" style="margin-top:4px">'+(S.hasReportSourceMonth&&S.hasReportSourceMonth(key)?'This source row is retained separately and is not counted. Editing protected history is not yet available.':'This row is retained separately and not counted until placed.')+'</div></div>'
+    +(S.hasReportSourceMonth&&S.hasReportSourceMonth(key)?'':'<button class="btn sm" data-map-rows="'+U.esc(key)+'">'+UI.ic('check',13)+'Place them</button>')
   +'</div>';
 }
 function mapModal(key){
@@ -767,10 +814,10 @@ function mapModal(key){
         el.querySelectorAll('[data-place]').forEach(sel=>{
           if(!sel.value) return;
           const r=rows[+sel.dataset.place];
-          places.push({label:r.label,lineId:sel.value,nums:r.nums});
+          places.push({label:r.label,lineId:sel.value,nums:r.nums,source:r.source});
         });
         if(!places.length) return UI.toast('Choose a line for at least one row',{type:'warn'});
-        S.reportPlaceRows(key,places);
+        if(!S.reportPlaceRows(key,places)) return UI.toast('Nothing placed: an existing figure differs, or two rows target the same examination.',{type:'warn',duration:9000});
         close(); UI.toast(places.length+' row'+(places.length===1?'':'s')+' placed — and remembered',{type:'ok'});
         renderInner(rootEl);
       };
@@ -943,7 +990,38 @@ const BLOOD_TOTAL=/^(SUM|TOTAL|TOTALS|GRAND TOTAL)$/i;
    quietly dropped and never guessed into a line. */
 function matchSheet(rows){
   const idx=lineIndex();
-  const values={}, detail={}, seen={}, unmatched=[];
+  // District HMIS sheets use side-by-side blocks. A blank or NA cell must never
+  // cause the next block's numbers to be read as this examination's results.
+  const district=(rows||[]).some(row => row && normLabel(row[10])==='ilaboratory'
+    && normLabel(row[22])==='4urine' && normLabel(row[35])==='6blood'
+    && normLabel(row[46])==='viiibloodsupply');
+  let districtOther=false;
+  function districtValues(row,c,hit){
+    let indexes;
+    if(c>=10&&c<=12) indexes=[15,16,17,18];
+    else if(c>=22&&c<=24) indexes=[27,28,29,30];
+    else if(c===35) indexes=districtOther?[40,41,42]:[39,40,41,42];
+    else return null;
+    const cell=i=>num(row[i]);
+    const p=cell(indexes[0]), n=cell(indexes[1]), a=cell(indexes[2]), b=cell(indexes[3]);
+    const out={};
+    if(hit.mode==='quant'){
+      // In the first laboratory block the total is at column Q; in the blood
+      // block it is AP, and in the other-test block AQ.
+      const total=c<=12?cell(16):c<=24?cell(27):cell(41+(districtOther?1:0));
+      if(total!=null) out.total=total;
+    } else if(hit.mode==='posage3'){
+      // The first four stool species show three age columns, not a separate total.
+      if(p!=null && n!=null && a!=null){out.pos=p+n+a;out.a0=p;out.a1=n;out.a2=a;}
+      else if(p!=null) out.pos=p;
+    } else if(hit.mode==='pn'||hit.mode==='pn2'){
+      if(p!=null) out.pos=p; if(n!=null) out.neg=n;
+      if(hit.mode==='pn2'){if(a!=null) out.a0=a;if(b!=null) out.a1=b;}
+    }
+    return Object.keys(out).length?out:null;
+  }
+
+  const values={}, detail={}, seen={}, unmatched=[], sourceWarnings=[];
   const blood={}, bloodDetail=[];
   let rowsWithFigures=0, unclear=0;
   /* The sheet is built in blocks side by side — 5.1 Vaginal swab, 5.2 Urethral,
@@ -967,10 +1045,28 @@ function matchSheet(rows){
   };
   (rows||[]).forEach(row=>{
     if(!row||!row.length) return;
+    if(district && normLabel(row[35])==='8otherlabtests' && normLabel(row[40])==='positive' && normLabel(row[41])==='negative') districtOther=true;
+    if(district && districtOther){
+      const label=String(row[35]||'').trim(), pos=num(row[40]), neg=num(row[41]), total=num(row[42]);
+      if(label && !/^(?:page\s+)?(?:total|sum|totals|grand total)$/i.test(label)
+          && pos!=null && neg!=null && total!=null && pos+neg!==total)
+        sourceWarnings.push({kind:'total-mismatch',label,lineId:(resolveLabel(label,idx)||{}).id||null,pos,neg,sourceTotal:total,calculated:pos+neg,sourceRow:row._sourceRow||null,formulas:row._formulas||{}});
+    }
+    if(district && normLabel(row[10])==='1bloodsmearsplasmodium'){
+      // The user sometimes enters total tests in the negative column. A literal
+      // value cannot establish which convention was used, even when age splits add up.
+      const pos=num(row[15]), neg=num(row[16]), under5=num(row[17]), over5=num(row[18]);
+      if(neg!=null && !(row._formulas&&row._formulas[16]))
+        sourceWarnings.push({kind:'malaria-negative-meaning',label:'Blood Smears Plasmodium',lineId:'m1',pos,neg,under5,over5,
+          sourceRow:row._sourceRow||null,formulas:row._formulas||{}});
+    }
     for(let c=0;c<row.length;c++){
       const cell=row[c];
       if(cell==null||cell==='') continue;
       if(typeof cell==='number'&&String(cell).indexOf('.')<0) continue;
+      if(/^n\/?a$/i.test(String(cell).trim())) continue;
+      // Do not interpret header values or the next block as examination labels.
+      if(district && !((c>=10&&c<=12)||(c>=22&&c<=24)||c===35||c===46)) continue;
       /* the blood bank, wherever its block sits on the row */
       const group=bloodGroupOf(cell);
       if(group){
@@ -991,8 +1087,14 @@ function matchSheet(rows){
       if(hit) hit=renumber(cell,hit);
       if(hit&&hit.mode==='band') block={no:hit.no,col:c,label:hit.label};
       const nums=hit?runAfter(row,c):[];
-      if(!hit||!nums.length) continue;
-      const v=figuresFor(hit.mode,nums);
+      if(district && districtOther && c===35 && (!hit || seen[hit.id]) && String(cell).trim() && !/^(?:page\s+)?(?:total|sum|totals|grand total)$/i.test(String(cell).trim())){
+        // Keep every unrecognised or duplicate other-test row for human review.
+        // The two positions remain separate; a blank is not invented as zero.
+        const pair=[num(row[40]),num(row[41])];
+        if(pair.some(n=>n!=null)) unmatched.push({label:String(cell).trim(),nums:pair,source:'district-other'});
+      }
+      if(!hit) continue;
+      const v=district?districtValues(row,c,hit):figuresFor(hit.mode,nums);
       if(!v) continue;
       if(seen[hit.id]){ c=Math.max(c,0); continue; }
       const want=hit.mode==='quant'?1:(hit.mode==='pn'?2:4);
@@ -1004,7 +1106,7 @@ function matchSheet(rows){
     }
     /* a row with figures that found no line is kept for the mapping screen */
     const nums=runAfter(row,-1);
-    if(nums.length>=2){
+    if(!district && nums.length>=2){
       const placed=(function(){
         for(let c=0;c<row.length;c++){
           const cell=row[c];
@@ -1027,7 +1129,7 @@ function matchSheet(rows){
     }
   });
   const matched=Object.keys(values).length;
-  return {values,blood,bloodDetail,detail:Object.keys(detail).map(k=>detail[k]),matched,unmatched,unclear,
+  return {values,blood,bloodDetail,detail:Object.keys(detail).map(k=>detail[k]),matched,unmatched,unclear,sourceWarnings,
     skipped:Math.max(0,(rows||[]).length-rowsWithFigures-unmatched.length)};
 }
 function textToRows(text){
@@ -1052,12 +1154,15 @@ function previewHTML(r){
   const bloodRows=(r.bloodDetail||[]).map(b=>'<div class="rep-imp-row"><span>'+U.esc('Blood group '+b.group)+'</span><span class="mono">'+
       S.REPORT_BLOOD_FIELDS.map((f,i)=>b.nums[i]!=null?f[0]+' '+b.nums[i]:'').filter(Boolean).join(' · ')+'</span></div>').join('');
   const left=(r.unmatched||[]).map(x=>'<div class="rep-imp-row"><span class="rep-miss">'+U.esc(x.label)+'</span><span class="mono">'+x.nums.join(' · ')+'</span></div>').join('');
+  const warnings=(r.sourceWarnings||[]).map(x=>'<div class="rep-imp-row" style="color:#b42318"><span>'+U.esc(x.label)+' · review'+(x.sourceRow?' · row '+x.sourceRow:'')+'</span><span class="mono">'
+    +(x.kind==='total-mismatch'?'positive '+x.pos+' · negative '+x.neg+' · workbook total '+x.sourceTotal+' · sum '+x.calculated:'negative-column value '+x.neg+' · confirm whether this is a total')+'</span></div>').join('');
   return '<div class="small" style="margin-top:10px"><b>'+r.matched+'</b> examination'+(r.matched===1?'':'s')+' placed'
     +(r.unclear?' · <b>'+r.unclear+'</b> with fewer figures than the form expects — worth checking':'')
     +((r.unmatched||[]).length?' · <b>'+(r.unmatched||[]).length+'</b> row'+(r.unmatched.length===1?'':'s')+' with figures that found no line (kept, and listed for mapping)':'')+'</div>'
     +'<div class="rep-imp-list">'+(rows||'<p class="xs faint">Nothing matched yet — check that the sheet has its examination names in a column of their own.</p>')
       +(bloodRows?'<div class="rep-imp-sep">Section VIII · blood supply</div>'+bloodRows:'')
-      +(left?'<div class="rep-imp-sep">Not placed — the wording does not match the form</div>'+left:'')+'</div>';
+      +(left?'<div class="rep-imp-sep">Not placed — the wording does not match the form</div>'+left:'')
+      +(warnings?'<div class="rep-imp-sep">Needs review</div>'+warnings:'')+'</div>';
 }
 /* the whole workbook, every sheet at once */
 function workbookModal(){
@@ -1089,7 +1194,7 @@ function workbookModal(){
             +'<td class="num mono">'+f.match.matched+'</td>'
             +'<td class="num mono">'+(f.match.skipped||0)+'</td></tr>').join('')
           +'</tbody></table></div>'
-          +'<div class="xs faint" style="margin-top:6px">A month already on file is added to, not replaced — the figures in the workbook win for the examinations it names.</div>';
+          +'<div class="xs faint" style="margin-top:6px">Existing figures are not overwritten. Months with conflicting figures or source-total discrepancies must be reviewed before import.</div>';
         listEl.querySelectorAll('[data-wbmonth]').forEach(inp=>{
           inp.onchange=()=>{ found[+inp.dataset.wbmonth].key=inp.value; refresh(); };
         });
@@ -1125,10 +1230,16 @@ function workbookModal(){
       saveEl.onclick=()=>{
         const ready=found.filter(f=>f.key&&f.match.matched>0);
         if(!ready.length) return;
+        const keys=ready.map(f=>f.key);
+        if(new Set(keys).size!==keys.length) return UI.toast('Two sheets have the same month. Choose distinct months before loading.',{type:'warn',duration:9000});
+        const warnings=ready.filter(f=>f.match.sourceWarnings&&f.match.sourceWarnings.length);
+        if(warnings.length) return UI.toast('Nothing imported: source totals need review for '+warnings.map(f=>monthLabel(f.key)).join(', ')+'.',{type:'warn',duration:12000});
+        const conflicts=ready.filter(f=>S.reportImportConflicts(f.key,f.match.values,{blood:f.match.blood}).length);
+        if(conflicts.length) return UI.toast('Nothing imported: existing figures differ for '+conflicts.map(f=>monthLabel(f.key)).join(', ')+'. Review those months first.',{type:'warn',duration:12000});
         let loaded=0, ex=0;
         let left=0;
         ready.slice().sort((a,b)=>a.key<b.key?-1:1).forEach(f=>{
-          if(S.reportImportMonth(f.key,f.match.values,{meta:{source:'District workbook · sheet “'+f.name+'”',monthName:monthLabel(f.key).split(' ')[0]},blood:f.match.blood})) { loaded++; ex+=f.match.matched; }
+          if(S.reportImportMonth(f.key,f.match.values,{meta:{source:'District workbook · sheet “'+f.name+'”',monthName:monthLabel(f.key).split(' ')[0]},blood:f.match.blood,sourceReview:f.match.sourceWarnings})) { loaded++; ex+=f.match.matched; }
           S.reportStashUnmatched(f.key,f.match.unmatched||[]);
           left+=(f.match.unmatched||[]).length;
         });
@@ -1137,14 +1248,7 @@ function workbookModal(){
         UI.toast(loaded+' month'+(loaded===1?'':'s')+' loaded · '+ex+' examinations'
           +(left?' · '+left+' rows still to place':''),{type:left?'warn':'ok'});
         tab='analysis'; renderInner(rootEl);
-        /* the whole point of loading the workbook once is that it stays loaded: the
-           months are written to the online record straight away */
-        if(window.LS&&LS.sync&&LS.sync.vaultPushAll&&LS.sync.configured&&LS.sync.configured()){
-          LS.sync.vaultPushAll().then(r=>{
-            if(r&&r.ok) UI.toast(r.done+' month'+(r.done===1?'':'s')+' kept online for good',{type:'ok'});
-            else if(r&&r.tableMissing) UI.toast('Months saved here, but the online record needs the new table — run supabase/schema.sql',{type:'warn',duration:8000});
-          }).catch(()=>{});
-        }
+        UI.toast('Loaded in this device’s register; online storage is not yet verified. Keep the original workbook.',{type:'warn',duration:12000});
       };
     }});
 }
@@ -1170,9 +1274,12 @@ function importModal(){
         if(!key) return UI.toast('Choose the month',{type:'warn'});
         const r=run();
         if(!r.matched) return UI.toast('Nothing matched — paste the sheet again',{type:'warn'});
+        if(r.sourceWarnings&&r.sourceWarnings.length) return UI.toast('Nothing imported: the source totals need review.',{type:'warn',duration:9000});
         const src=(el.querySelector('#impSrc').value||'').trim();
-        S.reportImportMonth(key,r.values,{meta:{source:src||('Loaded from the district workbook'),monthName:monthLabel(key).split(' ')[0],year:U.fyLabel?U.fyLabel():''},blood:r.blood});
-        monthKey=key; close(); UI.toast(r.matched+' examinations loaded into '+monthLabel(key),{type:'ok'}); renderInner(rootEl);
+        if(!S.reportImportMonth(key,r.values,{meta:{source:src||('Loaded from the district workbook'),monthName:monthLabel(key).split(' ')[0],year:U.fyLabel?U.fyLabel():''},blood:r.blood,sourceReview:r.sourceWarnings}))
+          return UI.toast('Nothing imported: existing figures differ or this device cannot edit.',{type:'warn',duration:9000});
+        S.reportStashUnmatched(key,r.unmatched||[]);
+        monthKey=key; close(); UI.toast(r.matched+' examinations loaded on this device; online storage not yet verified.',{type:'warn'}); renderInner(rootEl);
       };
     }});
 }
@@ -1266,6 +1373,8 @@ M.render=async function(root,params){
   monthKey=pickMonth();
   renderInner(root);
 };
+// Hide protected source immediately when the private session expires or signs out.
+window.addEventListener('ls:changed',ev=>{if(ev.detail==='report.source' && rootEl && rootEl.isConnected) renderInner(rootEl);});
 M.month=()=>pickMonth();
 /* Test seams — the reader and the matcher are the one place a workbook can be
    misread, so they are reachable from the harness without going through the DOM. */

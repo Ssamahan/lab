@@ -93,12 +93,17 @@ window.LSXLSX=(function(){
     const rowEls=sheetDoc.getElementsByTagName('row');
     for(let r=0;r<rowEls.length;r++){
       const cells=rowEls[r].children, row=[];
+      // Keep cell references and formulas for import review; cell values stay unchanged.
+      row._sourceRow=Number(rowEls[r].getAttribute('r'))||null;
+      row._formulas={};
       for(let i=0;i<cells.length;i++){
         const c=cells[i];
         if(c.tagName!=='c') continue;
         let at=colIndex(c.getAttribute('r'));
         if(at<0) at=row.length;
         row[at]=cellValue(c,shared);
+        const formula=kids(c,'f')[0];
+        if(formula && formula.textContent) row._formulas[at]='='+formula.textContent;
       }
       for(let i=0;i<row.length;i++) if(row[i]===undefined) row[i]=null;
       rows.push(row);

@@ -1137,7 +1137,7 @@ SY.sync=async function(opts){
             return {ok:true, action:'restored', lost};
           }
         }
-        setState({lastCheckAt:U.nowISO(), running:false,
+        setState({lastCheckAt:U.nowISO(), running:false, lastError:null, failCount:0, nextTryAt:null,
           lastRemoteAt:v.updated_at||state().lastRemoteAt||null,
           lastRemoteBy:v.updated_by||state().lastRemoteBy||null,
           remoteIsMine:v.client_id?v.client_id===deviceId():state().remoteIsMine,
@@ -1325,20 +1325,21 @@ const VAULT='lab_report_months';
 SY.vaultConfigured=()=>SY.configured();
 SY.vaultPushMonth=async function(ym,doc){
   const c=cfg(); if(!c.url||!c.key) throw new Error('Sync is not configured');
-  const send=async()=>fetch(c.url+'/rest/v1/'+VAULT+'?on_conflict=ym',{
+  const send=async()=>fetch(c.url+'/rest/v1/'+VAULT,{
     method:'POST',
-    headers:await headers({'Prefer':'resolution=merge-duplicates,return=minimal'}),
+    headers:await headers({'Prefer':'return=minimal'}),
     body:JSON.stringify([{ym, data:doc, updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}])
   });
   let r=await send();
   if(r.status===401||r.status===403){
     /* no session, or the key alone: try the bare route before giving up */
-    r=await fetch(c.url+'/rest/v1/'+VAULT+'?on_conflict=ym',{
-      method:'POST', headers:{'apikey':c.key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+    r=await fetch(c.url+'/rest/v1/'+VAULT,{
+      method:'POST', headers:{'apikey':c.key,'Content-Type':'application/json','Prefer':'return=minimal'},
       body:JSON.stringify([{ym, data:doc, updated_by:(LS.auth.user&&LS.auth.user.name)||'device'}])});
   }
   if(!r.ok){
     const body=(await r.text())||'';
+    if(r.status===409) throw new Error('A month already exists online; it was not overwritten.');
     if(r.status===404||/PGRST20[0-9]/.test(body)) throw new Error('VAULT_TABLE_MISSING');
     throw new Error('Vault write failed ('+r.status+') '+body.slice(0,140));
   }
@@ -1353,9 +1354,9 @@ SY.vaultPull=async function(){
   if(!r.ok) throw new Error('Vault read failed ('+r.status+')');
   return r.json();
 };
-/* Push every month on file. Idempotent: a month already saved is written again with the
-   same figures, so pressing it twice costs nothing. */
+/* Insert months only. An existing key is reported as a failure; it is never replaced. */
 SY.vaultPushAll=async function(){
+  if(S.hasReportSource&&S.hasReportSource()) return {ok:false, reason:'Private source months cannot be copied to the shared vault.'};
   const months=S.reportMonths();
   if(!months.length) return {ok:false, reason:'No months on file yet'};
   let done=0, failed=0;
@@ -1367,8 +1368,7 @@ SY.vaultPushAll=async function(){
   SY.emit('vault');
   return {ok:failed===0, done, failed};
 };
-/* Months kept online that this device does not have (or that are newer) are merged in.
-   Nothing is overwritten with an older copy: the vault is a record, not a race. */
+/* Add months this device does not have. Different existing documents require review. */
 SY.vaultMerge=async function(){
   const rows=await SY.vaultPull();
   const have=S.reportMonths();
@@ -1376,17 +1376,14 @@ SY.vaultMerge=async function(){
   rows.forEach(row=>{
     if(!row||!row.ym||!row.data) return;
     const local=S.reportMonth(row.ym);
-    const localAt=local&&local.touchedAt?String(local.touchedAt):'';
-    const onlineAt=row.updated_at?String(row.updated_at):'';
     const same=JSON.stringify(local)===JSON.stringify(row.data);
     if(have.indexOf(row.ym)<0) add.push(row.ym);
-    /* A month that differs is taken from the online record only when that copy is
-       genuinely later. The record is a record: an older copy must never replace a newer
-       figure, which would silently roll a corrected return backwards. */
-    else if(!same&&onlineAt&&localAt&&new Date(onlineAt)>new Date(localAt)) newer.push(row.ym);
+    /* Never overwrite a different month merely because of a timestamp. */
+    else if(!same) newer.push(row.ym);
   });
-  const take=rows.filter(r=>add.indexOf(r.ym)>=0||newer.indexOf(r.ym)>=0);
-  if(!take.length){ setState({vaultAt:U.nowISO(), vaultCount:rows.length}); return {ok:true, added:0, updated:0, total:rows.length}; }
+  // Different copies require review: timestamps cannot prove which is safe to overwrite.
+  const take=rows.filter(r=>add.indexOf(r.ym)>=0);
+  if(!take.length){ setState({vaultAt:U.nowISO(), vaultCount:rows.length}); return {ok:true, added:0, updated:0, conflicts:newer, total:rows.length}; }
   S.commit(db=>{
     db.reporting=db.reporting||{lines:[],months:{}};
     take.forEach(row=>{ db.reporting.months[row.ym]=row.data; });
@@ -1394,7 +1391,7 @@ SY.vaultMerge=async function(){
      detail:take.length+' month'+(take.length===1?'':'s')+' restored from the online record ('+take.map(r=>r.ym).join(', ')+')'});
   setState({vaultAt:U.nowISO(), vaultCount:rows.length});
   SY.emit('vault');
-  return {ok:true, added:add.length, updated:newer.length, total:rows.length};
+  return {ok:true, added:add.length, updated:0, conflicts:newer, total:rows.length};
 };
 /* Removing a month from the online record. A delete that only cleared this browser
    would be undone by the next Fetch — the month would come back from the vault — so the
@@ -1629,7 +1626,7 @@ SY.statusText=function(){
   const st=state();
   if(!SY.configured()) return 'Local only';
   if(st.running) return 'Syncing…';
-  if(st.lastError) return 'Cannot reach the shared copy';
+  if(st.lastError) return 'Last sync failed';
   /* 'Synced <date>' was the phrase that started this: it read as "your data is from that
      day" when it only ever meant "this device last exchanged something then". */
   if(st.lastCheckAt) return 'Checked '+U.relTime(st.lastCheckAt);
@@ -1643,7 +1640,7 @@ SY.liveLabel=function(){
   const st=state();
   if(typeof navigator!=='undefined'&&navigator.onLine===false) return {tone:'warn', text:'Offline — queued'};
   if(st.running) return {tone:'teal', text:'Syncing…'};
-  if(st.lastError) return {tone:'rose', text:'Cannot reach shared copy'};
+  if(st.lastError) return {tone:'rose', text:'Last sync failed'};
   if(liveTimer) return {tone:'teal', text:'Live · '+SY.statusText()};
   return {tone:'slate', text:SY.statusText()};
 };
