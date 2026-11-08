@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.129';
+const APP_VERSION='6.9.130';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -36,6 +36,8 @@ SH.ROUTES=ROUTES;
    left open can say, by name, when a newer one is live. */
 SH.version=()=>APP_VERSION;
 const loaded={};
+const moduleLoading={};
+let routeSequence=0;
 
 /* ——— Route parsing ——————————————————————— */
 function parse(){
@@ -92,7 +94,8 @@ const MODULE_WAIT=20000;
 function loadModule(id){
   const r=ROUTES[id];
   if(loaded[id]) return Promise.resolve();
-  return new Promise((resolve,reject)=>{
+  if(moduleLoading[id]) return moduleLoading[id];
+  const pending=new Promise((resolve,reject)=>{
     const sc=document.createElement('script');
     let settled=false;
     const give=(msg,ok)=>{
@@ -110,11 +113,15 @@ function loadModule(id){
        in place of the one that goes with this shell. */
     sc.src='assets/js/modules/'+r.file+'.js?v='+encodeURIComponent(APP_VERSION);
     sc.async=true;
-    sc.onload=()=>{ loaded[id]=true; give('',true); };
+    sc.onload=()=>{ if(settled) return; loaded[id]=true; give('',true); };
     sc.onerror=()=>give('The file that draws '+r.title+' could not be loaded. '
       +'Nothing in the register is affected: the screen is code, not data. Check the connection and press Retry.',false);
     document.head.appendChild(sc);
   });
+  moduleLoading[id]=pending;
+  pending.then(()=>{ if(moduleLoading[id]===pending) delete moduleLoading[id]; },
+    ()=>{ if(moduleLoading[id]===pending) delete moduleLoading[id]; });
+  return pending;
 }
 /* A module whose file failed to execute stays "loaded" even though it registered nothing,
    which would make Retry fail the same way for ever. Retry drops it first. */
@@ -330,6 +337,8 @@ function guardHost(){
 }
 function endGuard(t){
   if(t&&t.done) return;
+  // A stale route must not cancel the current route's guard.
+  if(t && SH._guard!==t){ t.done=true; return; }
   if(t) t.done=true;
   if(guardTimer){ clearInterval(guardTimer); guardTimer=null; }
   const el=document.getElementById('routeGuard'); if(el) el.remove();
@@ -396,6 +405,8 @@ document.addEventListener('visibilitychange',()=>{
 SH._patience=()=>(SH._guard?{visibleMs:SH._guard.visibleMs,hiddenMs:SH._guard.hiddenMs,fired:SH._guard.fired,id:SH._guard.id}:null);
 
 SH.route=async function(opts){
+  const sequence=++routeSequence;
+  endGuard(SH._guard);
   const {id,params}=parse();
   const r=ROUTES[id];
   const changed=SH._lastId && SH._lastId!==id;
@@ -438,13 +449,14 @@ SH.route=async function(opts){
     guard.loadMs=Date.now()-tLoad;
     /* A navigation that started while this one was still fetching owns the screen now:
        writing here would paint the old screen over the new one. */
-    if(page.dataset.route!==id){ return; }
+    if(sequence!==routeSequence){ endGuard(guard); return; }
     const mod=LS.modules[id];
     if(!mod||!mod.render) throw new Error('Module not registered');
     page.innerHTML='<div class="page" id="pageInner"></div>';
     const root=page.querySelector('#pageInner');
     const tRender=Date.now();
     await mod.render(root, params);
+    if(sequence!==routeSequence){ endGuard(guard); return; }
     guard.renderMs=Date.now()-tRender;
     endGuard(guard);
     SH.timings[id]={loadMs:guard.loadMs, renderMs:guard.renderMs, at:new Date().toISOString()};
@@ -460,6 +472,7 @@ SH.route=async function(opts){
     if(!opts||!opts.keepScroll) window.scrollTo({top:0,behavior:U.reduced()?'auto':'smooth'});
   }catch(err){
     endGuard(guard);
+    if(sequence!==routeSequence) return;
     console.error('Route error',id,err);
     SH.fail(err,id,page);
   }

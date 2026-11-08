@@ -40,7 +40,7 @@ const V=pkg.version;
   ok(/networkFirst\(req, RUNTIME\)/.test(fetchBlock),'an unversioned URL still goes to the network first');
   ok(/if \(req\.mode === 'navigate'\)/.test(fetchBlock),'and a navigation is still network-first, so a deploy is seen at once');
   ok(/\.\/assets\/js\/core\/store\.js\?v=/.test(sw),'the precache list is versioned too — the next visit finds everything');
-  ok(/async function precache\(list, cacheName, size\)/.test(sw),'and one downloader fills the cache from both lists');
+  ok(/async function precache\(list, cacheName, size, timeoutMs\)/.test(sw),'and one downloader fills the cache from both lists');
   ok(/precache\(CORE, SHELL, 4\)/.test(sw),'four files at a time, so it never competes with the page');
   ok(!/await Promise\.all\(CORE\.concat\(MODULES\)/.test(sw),'not all fifty at once, which is what saturated the connection');
 

@@ -119,10 +119,11 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(!!failCard.querySelector('[data-retry]'),'with a Retry');
 
   /* Retry re-fetches: the module that failed is not treated as already loaded */
+  const requestsBeforeRetry=swallowed;
   stalling=false;                        /* the network comes back */
   click(failCard.querySelector('[data-retry]'));
   await tick(700);
-  ok(swallowed>=3,'Retry asks the server again rather than reusing the failure',String(swallowed));
+  ok(swallowed===requestsBeforeRetry+1,'Retry asks the server again rather than reusing the failure',String(swallowed));
   ok(!/already loaded|Module not registered/.test(doc.querySelector('#page').textContent),'and does not treat the failed file as loaded');
   ok(!/did not arrive within/.test(doc.querySelector('#page').textContent),'and the screen draws on the second attempt');
   ok(!!SH.timings.design,'the retry recorded its timings too',JSON.stringify(SH.timings.design));
@@ -147,7 +148,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(shell.indexOf('took longer than 25 seconds')<0,'the 25-second wall-clock message no longer exists');
   ok(/WAKE_GAP/.test(shell)&&/RENDER_BUDGET/.test(shell),'patience is a budget of awake seconds');
   ok(/document\.hidden/.test(shell),'that knows when the tab is not visible');
-  ok(/if\(page\.dataset\.route!==id\)\{ return; \}/.test(shell),'and a late module cannot paint over a newer screen');
+  ok(/if\(sequence!==routeSequence\)/.test(shell),'and a late module cannot paint over a newer screen');
 
   done('guard108');
 })().catch(e=>{ console.log('  ✗ suite threw: '+(e&&e.stack||e)); done('guard108'); });
