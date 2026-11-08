@@ -2420,11 +2420,17 @@ S.reportMonths=function(){
 S.reportMonth=function(key){
   const local=((S.db().reporting||{}).months||{})[key];
   const src=reportSource[key];
-  if(!src) return local||reportBlank(key);
+  if(!src){
+    if(local&&Array.isArray(local.sourceReview)&&local.sourceReview.some(x=>x.kind==='malaria-negative-meaning'))
+      return Object.assign({},local,{sourceReview:local.sourceReview.filter(x=>x.kind!=='malaria-negative-meaning')});
+    return local||reportBlank(key);
+  }
   const out=JSON.parse(JSON.stringify(src));
   const own=local||reportBlank(key); out.meta=Object.assign({},out.meta||{},own.meta||{});
   out.notes=own.notes||out.notes||'';
-  const flags=(out.sourceReview||[]).slice();
+  // Age splits and positivity are parallel HMIS dimensions; preserve the source
+  // warning in the immutable snapshot but do not flag it as an error.
+  const flags=(out.sourceReview||[]).filter(x=>x.kind!=='malaria-negative-meaning');
   const merge=(kind,base,over)=>{
     base=base||{};
     Object.keys(over||{}).forEach(id=>{
@@ -2440,7 +2446,7 @@ S.reportMonth=function(key){
   };
   out.values=merge('examination',out.values,own.values); out.blood=merge('blood',out.blood,own.blood);
   const reviewed=own.reviewedSource||{};
-  out.sourceReview=flags.concat(own.sourceReview||[]).map(x=>{
+  out.sourceReview=flags.concat((own.sourceReview||[]).filter(x=>x.kind!=='malaria-negative-meaning')).map(x=>{
     const v=Object.assign({},x); if(reviewed[reportReviewKey(x)]) v.reviewedAt=reviewed[reportReviewKey(x)]; return v;
   });
   return out;
@@ -2644,7 +2650,7 @@ S.reportRankings=function(summary){
   });
   const rows=(summary.lines||[]).filter(r=>!r.band && (r.total>0||r.pos>0)).map(r=>{
     const denom=r.line.breakdown?(base[r.line.section]||0):r.total;
-    return {id:r.id,label:(r.line.no?r.line.no+' ':'')+r.line.label,section:r.line.section,
+    return {id:r.id,label:r.line.label,section:r.line.section,
       breakdown:!!r.line.breakdown, total:r.line.breakdown?denom:r.total, figure:r.total, pos:r.pos, neg:r.neg,
       rate:(r.line.mode==='quant'||!denom)?null:Math.round(r.pos/denom*1000)/10};
   });
@@ -2676,9 +2682,37 @@ S.reportSeries=function(){
 /* One examination, month by month — the trend of full blood counts, amylase or
    anything else, from the returns on file. */
 S.reportTestSeries=function(lineId){
-  return S.reportSeries().map(m=>{
-    const row=(m.summary.lines||[]).find(r=>r.id===lineId);
-    return {key:m.key, label:m.label, total:row&&row.any?row.total:null, pos:row&&row.any?row.pos:null};
+  const line=S.reportLines().find(x=>x.id===lineId);
+  return S.reportMonths().slice().sort().map(key=>{
+    const row=line?S.reportRow(S.reportMonth(key),line):null;
+    let total=null;
+    if(row){
+      const p=row.present||{};
+      if(line.mode==='quant'&&p.total) total=row.total;
+      else if(line.mode==='posage3'&&p.pos) total=row.total;
+      else if(line.breakdown&&p.pos) total=row.total;
+      else if((line.mode==='pn'||line.mode==='pn2')&&p.pos&&p.neg) total=row.total;
+    }
+    return {key,label:(U.M3&&U.M3[+key.slice(5,7)-1]||'')+' '+key.slice(2,4),total,pos:row&&row.present.pos?row.pos:null};
+  });
+};
+
+/* A blood group is a row in each month. Preserve missing fields as gaps, not zero. */
+S.reportBloodGroupSeries=function(group){
+  if(REPORT_GROUPS.indexOf(group)<0) return [];
+  return S.reportMonths().slice().sort().map(key=>{
+    const v=((S.reportMonth(key).blood||{})[group])||{};
+    const row={key,label:(U.M3&&U.M3[+key.slice(5,7)-1]||'')+' '+key.slice(2,4)};
+    REPORT_BLOOD_FIELDS.forEach(f=>{row[f[0]]=v[f[0]]==null?null:Number(v[f[0]]);});
+    return row;
+  });
+};
+/* Year comparisons use the same calendar month, and never fill absent months with 0. */
+S.reportTestYearSeries=function(lineId,year){
+  const byKey={}; S.reportTestSeries(lineId).forEach(x=>{byKey[x.key]=x;});
+  return Array.from({length:12},(_,i)=>{
+    const key=String(year)+'-'+String(i+1).padStart(2,'0'), row=byKey[key];
+    return {key,label:(U.M3&&U.M3[i])||String(i+1),total:row?row.total:null,pos:row?row.pos:null};
   });
 };
 /* Everything that moved between two months, biggest change first. A test that
@@ -2690,7 +2724,7 @@ S.reportMovers=function(fromKey, toKey){
   const A=index(a), B=index(b), ids=U.uniq(Object.keys(A).concat(Object.keys(B)));
   return ids.map(id=>{
     const x=A[id]||{total:0,pos:0,line:(B[id]||{}).line}, y=B[id]||{total:0,pos:0,line:(A[id]||{}).line};
-    return {id, label:((y.line&&y.line.no)?y.line.no+' ':'')+((y.line&&y.line.label)||''),
+    return {id, label:((y.line&&y.line.label)||''),
       from:x.total||0, to:y.total||0, change:(y.total||0)-(x.total||0),
       fromPos:x.pos||0, toPos:y.pos||0};
   }).filter(r=>r.change!==0).sort((p,q)=>Math.abs(q.change)-Math.abs(p.change));
