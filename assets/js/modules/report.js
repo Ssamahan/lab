@@ -19,6 +19,7 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.reports=M;
 let rootEl=null, monthKey=null, lastParams={}, tab='return', trendId=null, cmpOpen=false;
+let bloodTrendGroup='O+', compareTests=['x67','x64'], compareYearA=null, compareYearB=null;
 
 const MODES={
   pn:   {cols:['pos','neg'], heads:['Positives','Negatives']},
@@ -194,7 +195,7 @@ function kpis(sm){
    +'<div class="c3">'+UI.stat({label:'Positive results',value:t.qualPositives,icon:'activity',formatted:'0',
       note:rate+'% of the '+U.fmtNum(t.qualTests)+' qualitative tests',spark:C.spark([rate,rate],{color:'var(--rose-400)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Most requested',value:top?top.figure:0,icon:'chart-bar',formatted:'0',
-      note:top?top.label.split(' ').slice(1).join(' '):'—',spark:C.spark([1,1],{color:'var(--teal-400)'})})+'</div>'
+      note:top?top.label:'—',spark:C.spark([1,1],{color:'var(--teal-400)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Blood packs used',value:bt.used,icon:'droplet',formatted:'0',
       note:bt.recv+' received · '+wastage+'% lost or returned',spark:C.spark([bt.open,bt.recv,bt.used,bt.end],{color:'var(--rose-500)'})})+'</div>'
    +'</div>';
@@ -540,6 +541,46 @@ function yearTable(){
     +'<div class="dt-scroll"><table class="dt rep-hist" style="margin-top:4px"><thead><tr><th>Financial year</th><th>Months</th><th>Tests</th><th>Average a month</th><th>Change</th><th>Positivity</th><th>Packs received</th><th>Packs used</th></tr></thead><tbody>'
     +body(r.fy.slice().reverse())+'</tbody></table></div>';
 }
+// HMIS numbers locate rows on the return; they are not part of the test name.
+function testLabel(line){
+  const group={b51:'Vaginal swab',b52:'Urethral swab',b53:'Urine microscopy'};
+  const prefix=group[String(line.id||'').slice(0,3)];
+  return (prefix?prefix+' — ':'')+(line.label||'');
+}
+function testOptions(lines,selected){
+  return lines.map(r=>'<option value="'+U.esc(r.id)+'"'+(r.id===selected?' selected':'')+'>'+U.esc(testLabel(r.line))+'</option>').join('');
+}
+function chartLegend(items){
+  return '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0" class="xs">'+items.map(([label,color])=>'<span><span aria-hidden="true" style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;background:'+color+'"></span>'+U.esc(label)+'</span>').join('')+'</div>';
+}
+function groupTrendCard(){
+  const rows=S.reportBloodGroupSeries(bloodTrendGroup);
+  const fmt=v=>v==null?'—':U.fmtNum(v);
+  return UI.card({title:'Blood type over time',sub:'Compare requested, received, transfused, expired or lost, and returned packs for each blood type.',icon:'droplet',
+    tools:'<label class="xs">Blood type <select class="select mono" id="repBloodGroup">'+S.REPORT_GROUPS.map(g=>'<option value="'+U.esc(g)+'"'+(g===bloodTrendGroup?' selected':'')+'>'+U.esc(g)+'</option>').join('')+'</select></label>',
+    body:chartLegend([['Requested','var(--gold)'],['Received','#7595C8'],['Transfused','var(--teal-400)'],['Expired / lost','var(--rose-400)'],['Returned','#8C63B8']])+'<div id="repGroupTrend"></div><details style="margin-top:8px"><summary>Show monthly figures</summary><div class="dt-scroll" style="max-height:300px;overflow:auto"><table class="dt"><thead><tr><th>Month</th><th>Requested</th><th>Received</th><th>Transfused</th><th>Expired / lost</th><th>Returned</th></tr></thead><tbody>'
+      +rows.map(r=>'<tr><td>'+U.esc(r.label)+'</td>'+['req','recv','used','expired','returned'].map(f=>'<td class="num mono">'+fmt(r[f])+'</td>').join('')+'</tr>').join('')
+      +'</tbody></table></div></details>',
+    foot:'<span>Each figure comes from that blood type’s recorded column. — means missing, not zero.</span>'});
+}
+function compareTestsCard(sm){
+  const lines=(sm.lines||[]).filter(r=>!r.band);
+  compareTests=compareTests.map((id,i)=>lines.some(r=>r.id===id)?id:(i<2?(lines[i]||lines[0]||{}).id||'':''));
+  const years=Array.from(new Set(S.reportMonths().map(k=>k.slice(0,4)))).sort();
+  if(!years.includes(compareYearA)) compareYearA=years.length>1?years[years.length-2]:years[0];
+  if(!years.includes(compareYearB)) compareYearB=years[years.length-1];
+  const options=y=>years.map(v=>'<option value="'+v+'"'+(v===y?' selected':'')+'>'+v+'</option>').join('');
+  const controls='<div class="rep-compare-controls" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">'
+    +compareTests.map((id,i)=>'<div><label class="xs">Examination '+(i+1)+'<select class="select" data-compare-index="'+i+'" id="repCompare'+(i<26?String.fromCharCode(65+i):String(i))+'">'
+      +(i>=2?'<option value="">Choose a test</option>':'')+testOptions(lines,id)+'</select></label>'
+      +(i>=2?'<button class="btn xs" data-remove-comparison="'+i+'" aria-label="Remove examination '+(i+1)+'">Remove</button>':'')+'</div>').join('')
+    +'<button class="btn xs" data-add-comparison>Add examination</button></div>';
+  const yearly='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><label class="xs">First year<select class="select mono" id="repYearA">'+options(compareYearA)+'</select></label>'
+    +'<label class="xs">Second year<select class="select mono" id="repYearB">'+options(compareYearB)+'</select></label></div>';
+  return UI.card({title:'Compare examinations and years',sub:'Compare examinations over all recorded months, then compare the first examination month-by-month across two years.',icon:'chart-line',
+    body:controls+'<div id="repCompareLegend"></div><div id="repCompareTests"></div>'+yearly+'<div id="repYearsLegend"></div><div id="repCompareYears"></div><div id="repCompareTable"></div>',
+    foot:'<span>Missing figures are gaps, not zero. Breakdown rows represent recorded positives or counts, not extra tests.</span>'});
+}
 function trendCard(sm){
   const all=S.reportSeries();
   const lines=(sm.lines||[]).filter(r=>!r.band);
@@ -548,7 +589,7 @@ function trendCard(sm){
     const fbc=lines.find(r=>/full blood count/i.test(r.line.label));
     trendId=(withData[0]&&withData[0].id)||(fbc&&fbc.id)||null;
   }
-  const opts=lines.map(r=>'<option value="'+U.esc(r.id)+'"'+(r.id===trendId?' selected':'')+'>'+U.esc((r.line.no?r.line.no+' ':'')+r.line.label)+'</option>').join('');
+  const opts=lines.map(r=>'<option value="'+U.esc(r.id)+'"'+(r.id===trendId?' selected':'')+'>'+U.esc(testLabel(r.line))+'</option>').join('');
   const series=trendId?S.reportTestSeries(trendId):[];
   const line=lines.find(r=>r.id===trendId);
   const first=series.find(x=>x.total>0), last=[].concat(series).reverse().find(x=>x.total>0);
@@ -563,7 +604,7 @@ function trendCard(sm){
       +'<div class="rep-trend-mini">'+(series.length?series.slice(-6).map(x=>'<div><span class="xs faint">'+U.esc(x.label)+'</span><b class="mono">'+(x.total==null?'—':U.fmtNum(x.total))+'</b></div>').join(''):'')+'</div>'
       +'<details style="margin-top:12px"><summary>Choose a test to see its history</summary>'
       +'<div style="max-height:240px;overflow:auto;margin-top:8px">'
-      +sm.sections.map(sec=>{const items=sec.rows.filter(r=>!r.band); return items.length?'<div class="xs faint" style="margin-top:8px">'+U.esc(sec.title)+'</div>'+items.map(r=>'<button class="btn xs" style="margin:3px" data-test-trend="'+U.esc(r.id)+'">'+U.esc((r.line.no?r.line.no+' ':'')+r.line.label)+'</button>').join(''):'';}).join('')
+      +sm.sections.map(sec=>{const items=sec.rows.filter(r=>!r.band); return items.length?'<div class="xs faint" style="margin-top:8px">'+U.esc(sec.title)+'</div>'+items.map(r=>'<button class="btn xs" style="margin:3px" data-test-trend="'+U.esc(r.id)+'">'+U.esc(testLabel(r.line))+'</button>').join(''):'';}).join('')
       +'</div></details>',
     foot:'<span>Choose any examination on the form — full blood count, amylase, urea, HBV …</span>'
       +'<span class="mono">Missing figures are gaps, not zero</span>'});
@@ -621,6 +662,8 @@ function analysisTab(sm){
       +'<div class="c7">'+trendCard(sm)+'</div>'
       +'<div class="c5">'+moversCard(sm)+'</div>'
     +'</div>'
+    +'<div style="margin-top:14px">'+compareTestsCard(sm)+'</div>'
+    +'<div style="margin-top:14px">'+groupTrendCard()+'</div>'
     +(all.length>1?('<div class="grid-12" style="gap:14px;margin-top:14px">'
       +'<div class="c6">'+UI.card({title:'Positivity through the months',sub:'Positive results as a share of the qualitative tests in the same month',icon:'chart-pie',
         body:'<div id="repPositivity"></div>',
@@ -682,6 +725,40 @@ function drawHistoryCharts(root,sm){
       series:[{name:'Received',color:'var(--gold)',values:all.map(m=>m.bloodKnown?m.bloodRecv:null)},
               {name:'Transfused',color:'var(--teal-400)',values:all.map(m=>m.bloodKnown?m.bloodUsed:null)}],
       labels:all.map(m=>m.label)});
+  }
+  const bg=root.querySelector('#repBloodGroup');
+  if(bg) bg.onchange=()=>{bloodTrendGroup=bg.value;renderInner(root);};
+  const groupEl=root.querySelector('#repGroupTrend');
+  if(groupEl){
+    const series=S.reportBloodGroupSeries(bloodTrendGroup);
+    C.line(groupEl,{id:'repGroupTrend',height:230,aria:'Blood type '+bloodTrendGroup+' monthly history',labels:series.map(x=>x.label),
+      series:[['Requested','req','var(--gold)'],['Received','recv','#7595C8'],['Transfused','used','var(--teal-400)'],['Expired / lost','expired','var(--rose-400)'],['Returned','returned','#8C63B8']]
+        .map(([name,field,color])=>({name,color,area:false,values:series.map(x=>x[field])}))});
+  }
+  root.querySelectorAll('[data-compare-index]').forEach(sel=>{sel.onchange=()=>{compareTests[+sel.dataset.compareIndex]=sel.value;renderInner(root);};});
+  const addComparison=root.querySelector('[data-add-comparison]'); if(addComparison) addComparison.onclick=()=>{compareTests.push('');renderInner(root);};
+  root.querySelectorAll('[data-remove-comparison]').forEach(b=>{b.onclick=()=>{compareTests.splice(+b.dataset.removeComparison,1);renderInner(root);};});
+  ['A','B'].forEach(which=>{const sel=root.querySelector('#repYear'+which);if(sel) sel.onchange=()=>{if(which==='A')compareYearA=sel.value;else compareYearB=sel.value;renderInner(root);};});
+  const comp=root.querySelector('#repCompareTests'), yearEl=root.querySelector('#repCompareYears');
+  const lines=(sm.lines||[]).filter(r=>!r.band), lineA=lines.find(r=>r.id===compareTests[0]), lineB=lines.find(r=>r.id===compareTests[1]);
+  if(comp&&lineA&&lineB){
+    const a=S.reportTestSeries(compareTests[0]), b=S.reportTestSeries(compareTests[1]);
+    const chartSeries=[{name:testLabel(lineA.line),color:'var(--gold)',area:false,values:a.map(x=>x.total)},
+      {name:testLabel(lineB.line),color:'var(--teal-400)',area:false,values:b.map(x=>x.total)}];
+    const moreColors=['#7595C8','#8C63B8','#D9A13B','#3FA57E','#E26D6D'];
+    compareTests.slice(2).forEach((id,i)=>{const line=lines.find(r=>r.id===id);if(line) chartSeries.push({name:testLabel(line.line),color:moreColors[i%moreColors.length],area:false,values:S.reportTestSeries(id).map(x=>x.total)});});
+    const legend=root.querySelector('#repCompareLegend'); if(legend) legend.innerHTML=chartLegend(chartSeries.map(x=>[x.name,x.color]));
+    C.line(comp,{id:'repCompareTests',height:230,aria:'Comparison of examination counts',labels:a.map(x=>x.label),series:chartSeries});
+  }
+  if(yearEl&&lineA&&compareYearA&&compareYearB){
+    const a=S.reportTestYearSeries(compareTests[0],compareYearA), b=S.reportTestYearSeries(compareTests[0],compareYearB);
+    const legend=root.querySelector('#repYearsLegend'); if(legend) legend.innerHTML=chartLegend([[compareYearA,'var(--gold)'],[compareYearB,'var(--teal-400)']]);
+    C.line(yearEl,{id:'repCompareYears',height:230,aria:'Examination by calendar month and year',labels:a.map(x=>x.label),series:[
+      {name:compareYearA,color:'var(--gold)',area:false,values:a.map(x=>x.total)},
+      {name:compareYearB,color:'var(--teal-400)',area:false,values:b.map(x=>x.total)}]});
+    const table=root.querySelector('#repCompareTable'), fmt=x=>x==null?'—':U.fmtNum(x);
+    if(table) table.innerHTML='<details><summary>Show '+U.esc(testLabel(lineA.line))+' by month</summary><div class="dt-scroll"><table class="dt"><thead><tr><th>Month</th><th>'+U.esc(compareYearA)+'</th><th>'+U.esc(compareYearB)+'</th></tr></thead><tbody>'
+      +a.map((x,i)=>'<tr><td>'+U.esc(x.label)+'</td><td class="num mono">'+fmt(x.total)+'</td><td class="num mono">'+fmt(b[i].total)+'</td></tr>').join('')+'</tbody></table></div></details>';
   }
   /* the chosen examination through every month on file */
   const el=root.querySelector('#repTestTrend');
@@ -1051,14 +1128,6 @@ function matchSheet(rows){
       if(label && !/^(?:page\s+)?(?:total|sum|totals|grand total)$/i.test(label)
           && pos!=null && neg!=null && total!=null && pos+neg!==total)
         sourceWarnings.push({kind:'total-mismatch',label,lineId:(resolveLabel(label,idx)||{}).id||null,pos,neg,sourceTotal:total,calculated:pos+neg,sourceRow:row._sourceRow||null,formulas:row._formulas||{}});
-    }
-    if(district && normLabel(row[10])==='1bloodsmearsplasmodium'){
-      // The user sometimes enters total tests in the negative column. A literal
-      // value cannot establish which convention was used, even when age splits add up.
-      const pos=num(row[15]), neg=num(row[16]), under5=num(row[17]), over5=num(row[18]);
-      if(neg!=null && !(row._formulas&&row._formulas[16]))
-        sourceWarnings.push({kind:'malaria-negative-meaning',label:'Blood Smears Plasmodium',lineId:'m1',pos,neg,under5,over5,
-          sourceRow:row._sourceRow||null,formulas:row._formulas||{}});
     }
     for(let c=0;c<row.length;c++){
       const cell=row[c];

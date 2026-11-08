@@ -38,7 +38,7 @@ const {boot,ok,done}=require('./env');
  ok(m.values.u43.pos===7&&m.values.u43.neg===19&&m.values.x610.pos===0&&m.values.x610.neg===0,'urine and blood pregnancy lines stay distinct');
  ok(m.unmatched.some(x=>x.label==='Pregnancy Test'&&x.nums[0]===14&&x.nums[1]===25),'additional pregnancy row is retained separately, not silently added');
  ok(m.sourceWarnings.some(x=>x.label==='Synthetic mismatch'&&x.sourceTotal===9&&x.calculated===5),'a conflicting printed total is flagged');
- ok(m.sourceWarnings.some(x=>x.kind==='malaria-negative-meaning'&&x.neg===86&&x.under5===51&&x.over5===37),'literal malaria negative column is flagged for interpretation');
+ ok(!m.sourceWarnings.some(x=>x.kind==='malaria-negative-meaning')&&m.values.m1.a0===51&&m.values.m1.a1===37,'age groups and results are parallel without a malaria review warning');
  const S=w.LS.store, prev=JSON.stringify(S.reportMonth('2026-10'));
  ok(JSON.stringify(S.reportMonth('2026-10'))===prev,'review does not alter stored month');
  const original=JSON.stringify(S.reportMonth('2026-10'));

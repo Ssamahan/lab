@@ -4,6 +4,12 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.132 — Examination and blood-type comparisons
+
+- Treat malaria age groups as parallel HMIS breakdowns and suppress the earlier interpretation warning without changing source data or other review flags. Stool age breakdowns remain separate from test totals.
+- Compare blood-group requests, receipts, transfusions, losses and returns over recorded months, with a table that distinguishes missing values from zero.
+- Compare multiple examinations over time and one examination across calendar years; use examination names without the HMIS locator in analysis. Protected source months remain read-only.
+
 ## v6.9.131 — Protected workbook history (read-only)
 
 - Load an explicitly requested, private workbook snapshot alongside the device register without replacing local or shared months. The source requires the private account and is removed from memory when that session ends.
