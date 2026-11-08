@@ -289,81 +289,13 @@ function inventoryView(){
    +'</div>';
 }
 
-/* A backup can be any other equipment. Unavailable assets remain visible in the list,
-   but cannot be deployed over another repair or while out of service. */
-const NEW_BACKUP='__new_backup__';
-function backupAvailable(b, ownerId, currentId){
-  if(!b||b.id===ownerId) return false;
-  if(b.id===currentId && b.status==='deployed' && (!b.deployedFor||b.deployedFor===ownerId)) return true;
-  return !b.deployedFor && ['operational','standby'].includes(b.status||'operational');
-}
-function backupOptions(ownerId,currentId){
-  const all=S.db().equipment||[];
-  return '<option value="">No backup</option><option value="'+NEW_BACKUP+'">+ Register a new backup…</option>'
-    +(currentId && !all.some(b=>b.id===currentId && b.id!==ownerId) ? '<option value="'+U.esc(currentId)+'" selected disabled>Previously linked backup missing or invalid — choose another option</option>' : '')
-    +all.filter(b=>b.id!==ownerId).map(b=>{
-      const available=backupAvailable(b,ownerId,currentId);
-      const status=(STATUS[b.status]||[b.status||'Operational'])[0];
-      return '<option value="'+U.esc(b.id)+'"'+(!available?' disabled':'')+(b.id===currentId?' selected':'')+'>'
-        +U.esc((b.name||'Unnamed')+' · '+(b.serial||'serial not recorded')+' · '+status+(available?'':' · unavailable'))+'</option>';
-    }).join('');
-}
-function newBackupFields(prefix){
-  return '<div class="field span2" id="'+prefix+'NewBackup" style="display:none"><div class="card pad" style="background:var(--surface-inset)">'
-    +'<div class="eyebrow">Register a new backup</div><div class="xs faint">Saved only when this off-site case is saved. Name is required; other details are optional.</div>'
-    +'<div class="form-grid" style="margin-top:8px"><div class="field"><label>Backup equipment name</label><input class="input" id="'+prefix+'NewName" autocomplete="off"></div>'
-    +'<div class="field"><label>Serial number</label><input class="input" id="'+prefix+'NewSerial" autocomplete="off"></div>'
-    +'<div class="field"><label>Model</label><input class="input" id="'+prefix+'NewModel"></div>'
-    +'<div class="field"><label>Location</label><input class="input" id="'+prefix+'NewLocation"></div></div></div></div>';
-}
-function readNewBackup(el,prefix){
-  const v=k=>el.querySelector('#'+prefix+k).value.trim();
-  const name=v('NewName'), serial=v('NewSerial');
-  if(!name){ UI.toast('Enter the new backup equipment name',{type:'warn'});el.querySelector('#'+prefix+'NewName').focus();return null; }
-  if(serial && (S.db().equipment||[]).some(x=>String(x.serial||'').trim().toLowerCase()===serial.toLowerCase())){
-    UI.toast('That serial number is already in the register; select the existing equipment instead.',{type:'warn',duration:7000});return null;
-  }
-  return {id:U.uid('eq'),name,serial:serial||'—',model:v('NewModel'),location:v('NewLocation'),manufacturer:'',vendor:'',vendorEmail:'',role:'backup',status:'standby',uptime:null,installed:null,lastPM:null,nextPM:null,pmIntervalDays:180,services:[],downtime:[]};
-}
-function validBackup(id,ownerId,currentId){
-  if(!id) return true;
-  const b=(S.db().equipment||[]).find(x=>x.id===id);
-  if(!backupAvailable(b,ownerId,currentId)){
-    UI.toast('That backup is no longer available. Select another equipment item.',{type:'warn',duration:7000});return false;
-  }
-  return true;
-}
-function releaseBackup(db,ownerId,ev){
-  if(!ev||!ev.backupId) return;
-  const b=db.equipment.find(x=>x.id===ev.backupId);
-  if(!b || b.status!=='deployed' || (b.deployedFor && b.deployedFor!==ownerId)) return;
-  if(!b.deployedFor && db.equipment.some(x=>x.id!==ownerId && (x.services||[]).some(c=>c.shippedOn&&!c.returnedOn&&c.backupId===b.id))) return;
-  b.status=ev.backupPreviousStatus || (b.role==='backup'?'standby':'operational');
-  b.deployedTo=null;b.deployedAt=null;b.deployedFor=null;
-}
-function assignBackup(db,owner,ev,backupId,when){
-  const oldId=ev.backupId||null;
-  if(oldId!==backupId){
-    if(oldId){
-      ev.backupHistory=ev.backupHistory||[];
-      ev.backupHistory.push({backupId:oldId,previousStatus:ev.backupPreviousStatus||null,changedAt:U.nowISO()});
-      releaseBackup(db,owner.id,ev);
-    }
-    ev.backupId=backupId||null;
-    ev.backupPreviousStatus=null;
-  }
-  if(!ev.backupId) return;
-  const b=db.equipment.find(x=>x.id===ev.backupId); if(!b) return;
-  if(!ev.backupPreviousStatus && b.status!=='deployed') ev.backupPreviousStatus=b.status||'operational';
-  b.status='deployed';b.deployedTo=owner.name;b.deployedAt=when;b.deployedFor=owner.id;
-}
-
 /* --------------------------------------------------------- record a service */
 function serviceModal(preId, presetKind){
   if(!LS.auth.guard('edit')) return;
   const db=S.db();
   const eqs=primaries();
   if(!eqs.length) return UI.toast('Add an analyser first',{type:'warn'});
+  const pool=db.equipment.filter(e=>e.role==='backup'&&e.status!=='deployed');
   let kind=presetKind==='curative'?'curative':'preventive';
   const sel=(preId&&eqs.find(e=>e.id===preId))?preId:eqs[0].id;
   UI.modal({title:'Record a maintenance event',sub:'Preventive or curative · past events can be back-dated. The register keeps the whole history, not only the latest visit.',width:'min(640px,100%)',
@@ -389,9 +321,9 @@ function serviceModal(preId, presetKind){
         +'<div class="field span2"><div class="hint" id="svResp">Enter the email time and the intervention time — the supplier response speed is calculated from the two.</div></div>'
         +'<div class="field"><label>Repaired on site?</label><select class="select" id="svSite"><option value="1">Yes — back in service</option><option value="0">No — shipped to supplier</option></select></div>'
         +'<div class="field"><label>Shipment date</label><input class="input" type="date" id="svShip" value="'+U.todayISO()+'" max="'+U.todayISO()+'" disabled></div>'
-        +'<div class="field span2"><label>Backup equipment provided</label><select class="select" id="svBackup" disabled>'+backupOptions(sel,null)+'</select><div class="xs faint">All other equipment is listed; items in repair, unavailable or already deployed cannot be selected.</div></div>'
-        +newBackupFields('sv')
-        +'<div class="field span2"><div class="hint" id="svShipHint">A shipped analyser stays under downtime calculation until you mark it returned.</div></div>'
+        +'<div class="field span2"><label>Backup analyser provided</label><select class="select" id="svBackup" disabled><option value="">None available</option>'
+           +pool.map(b=>'<option value="'+b.id+'">'+U.esc(b.name+' · '+b.serial)+'</option>').join('')+'</select></div>'
+        +'<div class="field span2"><div class="hint" id="svShipHint">A shipped analyser is added to the backup inventory and stays under downtime calculation until you mark it returned.</div></div>'
         +'</div></div></div>'
      +'</div>'
      +'<div class="hint" style="margin-top:8px">Back-dated events never move the next-PM date backwards; the latest preventive service in the log sets the clock.</div>',
@@ -418,14 +350,11 @@ function serviceModal(preId, presetKind){
       const paintSite=()=>{
         const off=site.value==='0';
         q('#svShip').disabled=!off; q('#svBackup').disabled=!off;
-        q('#svNewBackup').style.display=off&&q('#svBackup').value===NEW_BACKUP?'':'none';
         if(off) q('#svShipHint').innerHTML='<b style="color:var(--text)">Shipped out:</b> the analyser stays in the downtime ledger and the backup is marked deployed until the analyser is marked returned.';
-        else q('#svShipHint').innerHTML='A shipped analyser stays under downtime calculation until you mark it returned.';
+        else q('#svShipHint').innerHTML='A shipped analyser is added to the backup inventory and stays under downtime calculation until you mark it returned.';
       };
       site.onchange=paintSite;
-      q('#svBackup').onchange=paintSite;
-      q('#svEq').onchange=()=>{ const e=S.db().equipment.find(x=>x.id===q('#svEq').value); if(e){ q('#svSupplier').value=e.vendor||e.manufacturer||''; q('#svSupplierEmail').value=e.vendorEmail||''; }
-        q('#svBackup').innerHTML=backupOptions(q('#svEq').value,null); paintSite(); };
+      q('#svEq').onchange=()=>{ const e=db.equipment.find(x=>x.id===q('#svEq').value); if(e){ q('#svSupplier').value=e.vendor||e.manufacturer||''; q('#svSupplierEmail').value=e.vendorEmail||''; } };
       q('#svEq').onchange();
       paintKind(); paintSite(); respInfo();
       q('[data-save]').onclick=()=>{
@@ -437,7 +366,6 @@ function serviceModal(preId, presetKind){
         const type=kind==='curative'? q('#svTypeC').value : q('#svTypeP').value;
         const ev={id:U.uid('svc'),date,kind,type,by,note:note||type+' recorded',hours:+q('#svHours').value||0,
           recordedAt:new Date().toISOString(),source:'record'};
-        let newBackup=null;
         if(kind==='curative'){
           const sent=q('#svSent').value, interv=q('#svInterv').value;
           if(sent&&interv&&parseDT(interv)<parseDT(sent)) return UI.toast('The intervention cannot precede the email',{type:'warn'});
@@ -448,26 +376,23 @@ function serviceModal(preId, presetKind){
           ev.onsite=onsite;
           if(!onsite){
             ev.offsite=true; ev.shippedOn=q('#svShip').value||date;
-            if(ev.shippedOn>U.todayISO()) return UI.toast('The shipment date cannot be in the future',{type:'warn'});
+            ev.backupId=q('#svBackup').value||null;
             const owner=S.db().equipment.find(x=>x.id===id);
-            if(!owner) return UI.toast('Equipment no longer exists; reopen the form',{type:'warn'});
-            if(openCase(owner)) return UI.toast('This equipment already has an open off-site case',{type:'warn'});
-            if(owner.deployedFor) return UI.toast('Release this equipment from its existing backup assignment first',{type:'warn'});
-            const selected=q('#svBackup').value;
-            if(selected===NEW_BACKUP){ newBackup=readNewBackup(el,'sv'); if(!newBackup) return; ev.backupId=newBackup.id; }
-            else { ev.backupId=selected||null; if(!validBackup(ev.backupId,id,null)) return; }
+            if(!owner||openCase(owner)||owner.deployedFor) return UI.toast('This equipment already has an open case or backup assignment; reopen the form.',{type:'warn'});
+            if(!compatibleChoice(S.db(),ev.backupId,id,null)) return UI.toast('That backup is not available. Select another.',{type:'warn'});
           }
         }
         S.commit(d=>{
           const e=d.equipment.find(x=>x.id===id); if(!e) return;
-          if(newBackup) d.equipment.push(newBackup);
           e.services=e.services||[]; e.services.push(ev);
           if(!e.downtime) e.downtime=[];
           if(kind==='curative'){
             if(ev.shippedOn){
               e.status='offsite';
-              const selected=ev.backupId;ev.backupId=null;
-              assignBackup(d,e,ev,selected,ev.shippedOn);
+              if(ev.backupId){
+                const b=d.equipment.find(x=>x.id===ev.backupId);
+                if(b){ b.status='deployed'; b.deployedTo=e.name; b.deployedAt=ev.shippedOn; b.deployedFor=e.id; }
+              }
             }else if(['offline','offsite','maintenance','warning'].indexOf(e.status)>=0 && ev.interventionAt){
               e.status='operational';
             }
@@ -544,6 +469,22 @@ function historyModal(preId){
     }});
 }
 
+/* Compatibility with assignments made by later builds: do not change the
+   prior status or release a backup which now belongs to another case. */
+function compatibleChoice(db,id,ownerId,existingId){
+  if(!id) return true;
+  const b=db.equipment.find(x=>x.id===id);
+  return !!b && b.id!==ownerId && ((id===existingId && b.status==='deployed' && (!b.deployedFor||b.deployedFor===ownerId)) || (!b.deployedFor && ['standby','operational'].includes(b.status||'operational')));
+}
+function releaseCompatibleBackup(db,ownerId,ev){
+  if(!ev||!ev.backupId) return;
+  const b=db.equipment.find(x=>x.id===ev.backupId);
+  if(!b||b.status!=='deployed'||(b.deployedFor&&b.deployedFor!==ownerId)) return;
+  if(!b.deployedFor&&db.equipment.some(x=>x.id!==ownerId&&(x.services||[]).some(c=>c.shippedOn&&!c.returnedOn&&c.backupId===b.id))) return;
+  b.status=ev.backupPreviousStatus||(b.role==='backup'?'standby':'operational');
+  b.deployedTo=null;b.deployedAt=null;b.deployedFor=null;
+}
+
 /* ------------------------------------------------------- mark off-site return */
 function returnModal(eqId){
   if(!LS.auth.guard('edit')) return;
@@ -551,7 +492,6 @@ function returnModal(eqId){
   const oc=openCase(e);
   if(!oc) return UI.toast('No analyser is out for repair',{type:'warn'});
   const bk=oc.backupId? S.db().equipment.find(x=>x.id===oc.backupId):null;
-  const originalCaseId=oc.id, originalBackupId=oc.backupId, originalShipDate=oc.shippedOn;
   UI.modal({title:'Mark analyser returned',sub:'Downtime stops on the return date · the backup is released back to the pool.',width:'min(520px,100%)',
     body:'<div class="form-grid">'
      +'<div class="field span2"><div class="hint">'+U.esc(e.name)+' was shipped on '+U.fmtDate(oc.shippedOn)+' — <b style="color:var(--text)">'+daysText(daysAway(oc))+' out so far</b>, '+hm(evDowntime(oc))+' of downtime'+(bk?', covered by '+U.esc(bk.name):'')+'. The return date closes the case and records how long the repair took.</div></div>'
@@ -574,9 +514,6 @@ function returnModal(eqId){
         const date=el.querySelector('#rtDate').value;
         if(!date) return UI.toast('Pick the return date',{type:'warn'});
         if(date<oc.shippedOn) return UI.toast('Return cannot precede the shipment',{type:'warn'});
-        if(date>U.todayISO()) return UI.toast('The return date cannot be in the future',{type:'warn'});
-        const latest=S.db().equipment.find(x=>x.id===eqId), current=latest&&openCase(latest);
-        if(!current||current.id!==originalCaseId||current.backupId!==originalBackupId||current.shippedOn!==originalShipDate) return UI.toast('This off-site case changed; reopen the form before saving',{type:'warn',duration:7000});
         const status=el.querySelector('#rtStatus').value;
         const note=el.querySelector('#rtNote').value.trim();
         const away=U.daysBetween(String(oc.shippedOn).slice(0,10),date);
@@ -585,7 +522,7 @@ function returnModal(eqId){
           const ev=(x.services||[]).find(y=>y.id===oc.id) || (x.services||[]).find(y=>y.shippedOn===oc.shippedOn&&!y.returnedOn);
           if(ev){ ev.returnedOn=date; ev.awayDays=away; ev.repairDays=away; if(note) ev.returnNote=note; }
           if(status==='offsite') x.status='operational'; else x.status=status;
-          releaseBackup(d,eqId,ev||oc);
+          releaseCompatibleBackup(d,eqId,ev||oc);
         },{action:'equipment.return',entity:'equipment',entityId:eqId,detail:e.name+' returned '+date+' after '+daysText(away)+' off site'+(note?' · '+note:'')});
         close(); LS.shell.refresh(); UI.toast(e.name+' back after '+daysText(away)+' · downtime closed',{type:'ok',duration:5000});
       };
@@ -598,7 +535,7 @@ function equipmentModal(id,presetRole){
   const e=id?S.db().equipment.find(x=>x.id===id):null;
   const role=e? (e.role||'primary') : (presetRole||'primary');
   const oc=e? openCase(e) : null;
-  const originalCaseId=oc&&oc.id, originalBackupId=oc&&oc.backupId;
+  const pool=backups().filter(b=>b.status!=='deployed'||(oc&&oc.backupId===b.id));
   UI.modal({title:e?'Edit equipment record':(role==='backup'?'Register a backup analyser':'Add equipment'),sub:'Admin only · the register feeds maintenance scheduling, QC links, the backup pool and the exported asset list.',width:'min(680px,100%)',
     body:'<div class="form-grid">'
       +'<div class="field span2"><label>Equipment name</label><input class="input" id="eqName" value="'+U.esc(e?e.name:'')+'" placeholder="e.g. Sysmex XN-550"></div>'
@@ -621,8 +558,8 @@ function equipmentModal(id,presetRole){
         +'<div class="eyebrow" style="color:var(--rose)">'+UI.ic('truck',12)+' Off-site repair</div>'
         +'<div class="form-grid" style="margin-top:8px">'
           +'<div class="field"><label>Shipment date · the day it left</label><input class="input" type="date" id="eqShip" value="'+(oc?oc.shippedOn:U.todayISO())+'" max="'+U.todayISO()+'"></div>'
-          +'<div class="field"><label>Backup equipment covering it</label><select class="select" id="eqBackup">'+backupOptions(e&&e.id,oc&&oc.backupId)+'</select><div class="xs faint">Unavailable or already deployed items are shown but cannot be selected.</div></div>'
-          +newBackupFields('eq')
+          +'<div class="field"><label>Backup analyser covering it</label><select class="select" id="eqBackup"><option value="">None available</option>'
+            +pool.map(b=>'<option value="'+b.id+'"'+((oc&&oc.backupId===b.id)?' selected':'')+'>'+U.esc(b.name+' · '+b.serial)+'</option>').join('')+'</select></div>'
           +'<div class="field span2"><div class="hint" id="eqShipHint"></div></div>'
         +'</div></div></div>'
       +'<div class="field span2" id="eqReturnWrap" style="display:none"><div class="card pad" style="background:var(--surface-inset);border-left:3px solid var(--teal)">'
@@ -642,7 +579,6 @@ function equipmentModal(id,presetRole){
         /* leaving off-site with a case still open must end it, or the days away never close */
         const closing=!!oc && !off;
         shipBox.style.display=off?'':'none';
-        q('#eqNewBackup').style.display=off&&q('#eqBackup').value===NEW_BACKUP?'':'none';
         retBox.style.display=closing?'':'none';
         if(off){
           const ship=q('#eqShip').value||U.todayISO();
@@ -660,7 +596,6 @@ function equipmentModal(id,presetRole){
         }
       };
       q('#eqStatus').onchange=paintOffsite;
-      q('#eqBackup').onchange=paintOffsite;
       ['#eqShip','#eqReturn'].forEach(s2=>{ q(s2).oninput=paintOffsite; q(s2).onchange=paintOffsite; });
       paintOffsite();
 
@@ -684,22 +619,21 @@ function equipmentModal(id,presetRole){
            image — ask for the day it came back, so the repair has an end. */
         const shipDate=q('#eqShip').value||'';
         const retDate=q('#eqReturn').value||'';
-        let backupId=q('#eqBackup').value||null, newBackup=null;
-        const latest=e&&S.db().equipment.find(x=>x.id===e.id);
-        if(e&&!latest) return UI.toast('Equipment no longer exists; reopen the form',{type:'warn'});
-        const latestCase=latest&&openCase(latest);
-        if((oc&&(!latestCase||latestCase.id!==originalCaseId||latestCase.backupId!==originalBackupId))||(!oc&&latestCase)) return UI.toast('This off-site case changed; reopen the form before saving',{type:'warn',duration:7000});
-        if(latest&&latest.deployedFor&&rec.status!=='deployed') return UI.toast('Release this equipment from its existing backup assignment first',{type:'warn',duration:7000});
+        const backupId=q('#eqBackup').value||null;
+        const current=e&&S.db().equipment.find(x=>x.id===e.id);
+        if(e&&!current) return UI.toast('Equipment no longer exists; reopen the form',{type:'warn'});
+        if(current&&current.deployedFor&&rec.status!=='deployed') return UI.toast('Release this equipment from its backup assignment first',{type:'warn'});
         if(rec.status==='offsite'){
+          if(!compatibleChoice(S.db(),backupId,e&&e.id,oc&&oc.backupId)) return UI.toast('That backup is not available. Select another.',{type:'warn'});
+          if(oc && oc.backupId && backupId && backupId!==oc.backupId){
+            return UI.toast('This older build cannot safely replace an existing backup. Leave it unchanged or close the case first.',{type:'warn',duration:7000});
+          }
           if(!shipDate){ UI.toast('Pick the shipment date — the repair clock starts the day the analyser leaves',{type:'warn',duration:6000}); q('#eqShip').focus(); return; }
           if(shipDate>U.todayISO()){ UI.toast('The shipment date cannot be in the future',{type:'warn'}); return; }
-          if(backupId===NEW_BACKUP){ newBackup=readNewBackup(el,'eq'); if(!newBackup) return; backupId=newBackup.id; }
-          else if(!validBackup(backupId,e&&e.id,oc&&oc.backupId)) return;
         }
         if(oc && rec.status!=='offsite'){
           if(!retDate){ UI.toast('Give the return date — that is the day the repair finished',{type:'warn',duration:6000}); q('#eqReturn').focus(); return; }
           if(retDate<oc.shippedOn){ UI.toast('The return cannot precede the shipment',{type:'warn'}); return; }
-          if(retDate>U.todayISO()){ UI.toast('The return date cannot be in the future',{type:'warn'}); return; }
         }
         const by=LS.auth.user.name;
         let shipped=null, returned=null, awayDays=null;
@@ -707,23 +641,25 @@ function equipmentModal(id,presetRole){
           let x;
           if(e){ x=d.equipment.find(y=>y.id===e.id); if(!x) return; Object.assign(x,rec); x.services=x.services||[]; x.downtime=x.downtime||[]; }
           else { x={id:U.uid('eq'),services:[],downtime:[],uptime:rec.uptime}; Object.assign(x,rec); d.equipment.push(x); }
-          if(newBackup) d.equipment.push(newBackup);
           x.services=x.services||[]; x.downtime=x.downtime||[];
           let open=(x.services||[]).find(y=>y.shippedOn&&!y.returnedOn)||null;
           if(rec.status==='offsite'){
-            if(open){ open.shippedOn=shipDate; }
+            if(open){ open.shippedOn=shipDate; open.backupId=backupId||open.backupId||null; }
             else{
               open={id:U.uid('svc'),date:shipDate,kind:'curative',type:'Off-site repair',by,
                 note:'Sent to the supplier for repair',hours:0,shippedOn:shipDate,
-                backupId:null,recordedAt:new Date().toISOString(),source:'status'};
+                backupId:backupId||null,recordedAt:new Date().toISOString(),source:'status'};
               x.services.push(open);
             }
             shipped=open.shippedOn;
-            assignBackup(d,x,open,backupId,open.shippedOn);
+            if(open.backupId){
+              const b=d.equipment.find(y=>y.id===open.backupId);
+              if(b){ b.status='deployed'; b.deployedTo=x.name; b.deployedAt=open.shippedOn; b.deployedFor=x.id; }
+            }
           } else if(open){
             open.returnedOn=retDate||U.todayISO();
             returned=open.returnedOn; awayDays=daysAway(open);
-            releaseBackup(d,x.id,open);
+            releaseCompatibleBackup(d,x.id,open);
           }
         },{action:'equipment.'+(e?'edit':'add'),entity:'equipment',entityId:e?e.id:rec.name,
           detail:rec.name+' · '+rec.serial+(shipped?' · shipped '+shipped:'')+(returned?' · returned '+returned+' after '+daysText(awayDays):'')});

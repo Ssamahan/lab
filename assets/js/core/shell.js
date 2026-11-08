@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.128';
+const APP_VERSION='6.9.129';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -853,7 +853,7 @@ function paintSyncChip(){
     }
   } else if(info.lastError){
     tone='bad';
-    say='Last sync failed';
+    say='Cannot reach shared copy';
     tip='The last attempt failed: '+info.lastError+'\nNothing is lost — this device holds the register.\n'+checkedLine+'\n'+sharedLine+'\nPress to try again.';
   } else if(staleCheck){
     tone='warn';
@@ -868,7 +868,7 @@ function paintSyncChip(){
   } else {
     tone='ok';
     say='Up to date · checked '+sec(info.checkedAgo);
-    tip='No register changes are waiting on this device.\n'+checkedLine+'\n'+sharedLine+'\nA successful read does not test write permission or private-name sync.\nPress to check for changes from another device now.';
+    tip='Everything on this device is in the shared copy.\n'+checkedLine+'\n'+sharedLine+'\nPress to check for changes from another device now.';
   }
   chip.classList.toggle('bad',tone==='bad');
   chip.classList.toggle('ok',tone==='ok');
