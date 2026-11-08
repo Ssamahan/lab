@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.133 — Monthly-report figures after redraw
+
+- Keep report counters and analysis charts visible and correct after loading protected history, switching months or tabs, and editing a return. Refresh the related summaries without replacing the input being edited.
+- Retire the unused Hepatitis (HEP) referral choice and automatic report row. Existing records remain intact and a previously recorded row remains visible; the separate HBV and HCV HMIS examinations are unchanged.
+
 ## v6.9.132 — Examination and blood-type comparisons
 
 - Treat malaria age groups as parallel HMIS breakdowns and suppress the earlier interpretation warning without changing source data or other review flags. Stool age breakdowns remain separate from test totals.

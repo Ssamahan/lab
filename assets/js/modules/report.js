@@ -84,7 +84,7 @@ function sectionHTML(sec){
     +'<div class="rep-sec-head"><span class="rep-sec-no">'+U.esc(sec.no)+'</span>'
       +'<span class="rep-sec-title">'+U.esc(sec.title)+'</span>'
       +'<span class="grow"></span>'
-      +(sec.key==='stool'?'<span class="rep-sec-note">'+U.fmtNum(sec.total)+' samples analysed</span>':'')
+      +(sec.key==='stool'?'<span class="rep-sec-note" data-stool-samples>'+U.fmtNum(sec.total)+' samples analysed</span>':'')
       +'<span class="rep-sec-tot mono" data-sec-total="'+sec.key+'">'+U.fmtNum(sec.total)+'</span></div>'
     +'<div class="rep-scroll"><table class="rep-table"><thead><tr>'
       +'<th class="rep-th-exam">Exams</th>'
@@ -129,7 +129,7 @@ function tableCard(sm){
       +'<span class="grow"></span><span class="xs faint">The form grows with the laboratory: a test added in Settings → Test menu appears here by itself.</span></div>'
       +sm.sections.map(sectionHTML).join(''),
     foot:'<span>Positives, negatives and the age split are what the district receives · blood supply is on its own table below</span>'
-      +'<span class="mono strong">'+U.fmtNum(sm.totals.tests)+' tests</span>'});
+      +'<span class="mono strong" data-page-tests>'+U.fmtNum(sm.totals.tests)+' tests</span>'});
 }
 /* Which figures of a blood group the return actually carries — 0 counts, blank does not. */
 function bloodPresent(key,g){
@@ -141,7 +141,7 @@ function bloodCard(sm){
   const bt=sm.bloodTotals;
   const usage=bt.recv?Math.round(bt.used/bt.recv*100):0;
   return UI.card({title:'Blood supply',sub:'Section VIII · packs by group type, opening balance to closing balance',icon:'droplet',cls:'rep-blood',
-    tools:'<span class="pill '+(usage>=90?'teal':usage>=60?'gold':'amber')+'">'+usage+'% of what arrived was transfused</span>',
+    tools:'<span data-blood-usage class="pill '+(usage>=90?'teal':usage>=60?'gold':'amber')+'">'+usage+'% of what arrived was transfused</span>',
     body:'<div class="rep-scroll"><table class="rep-table rep-blood-t"><thead><tr>'
       +'<th class="rep-th-exam">Group type</th>'
       +S.REPORT_BLOOD_FIELDS.map(f=>'<th>'+U.esc(f[1])+'</th>').join('')
@@ -159,7 +159,7 @@ function bloodCard(sm){
         +'<td class="mono strong">'+U.fmtNum(bt.end)+'</td></tr>'
       +'</tbody></table></div>',
     foot:'<span>Closing balance = opening + received − used − expired/damaged/lost − returned</span>'
-      +'<span class="mono">'+U.fmtNum(bt.recv)+' received · '+U.fmtNum(bt.used)+' used · '+U.fmtNum(bt.expired)+' lost</span>'});
+      +'<span class="mono" data-blood-foot>'+U.fmtNum(bt.recv)+' received · '+U.fmtNum(bt.used)+' used · '+U.fmtNum(bt.expired)+' lost</span>'});
 }
 function identCard(sm){
   const m=sm.meta||{};
@@ -176,7 +176,7 @@ function identCard(sm){
     body:'<div class="rep-id-grid">'+rows.map(r=>field(r[1],r[0],r[2])).join('')+'</div>'
       +(m.source?'<div class="xs faint" style="margin-top:8px">'+U.esc(m.source)+'</div>':''),
     foot:'<span>Sent to Gakenke District · HMIS section IX (laboratory) and VIII (blood supply)</span>'
-      +'<span class="mono">'+U.fmtNum(sm.totals.tests)+' tests</span>'});
+      +'<span class="mono" data-ident-tests>'+U.fmtNum(sm.totals.tests)+' tests</span>'});
 }
 
 /* ——— analysis ————————————————————————————————————— */
@@ -268,6 +268,47 @@ function drawCharts(root,sm){
   }
 }
 
+/* Report panels are rebuilt after month changes and protected-history loading.
+   Show the actual values and chart rows immediately, even if animations or an
+   IntersectionObserver never run. The shell's initial animation skips these. */
+function showReportFigures(root){
+  root.querySelectorAll('[data-count]').forEach(el=>{
+    const n=Number(el.dataset.count)||0, dec=Number(el.dataset.dec)||0;
+    el.textContent=dec?n.toFixed(dec):U.fmtNum(Math.round(n));
+    el.dataset.counted='1';
+  });
+  root.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+}
+function refreshReturnFigures(root,sm){
+  const k=root.querySelector('#repKpis'), glance=root.querySelector('#repGlance');
+  if(k) k.innerHTML=kpis(sm);
+  if(glance) glance.innerHTML=analysis(sm);
+  const set=(selector,text)=>{const el=root.querySelector(selector);if(el)el.textContent=text;};
+  set('[data-strip-tests]',U.fmtNum(sm.totals.tests)+' tests');
+  set('[data-strip-positives]',U.fmtNum(sm.totals.qualPositives)+' positives');
+  set('[data-strip-blood]',U.fmtNum(sm.bloodTotals.used)+' packs transfused');
+  set('[data-page-tests]',U.fmtNum(sm.totals.tests)+' tests');
+  set('[data-ident-tests]',U.fmtNum(sm.totals.tests)+' tests');
+  const bt=sm.bloodTotals, usage=bt.recv?Math.round(bt.used/bt.recv*100):0;
+  const badge=root.querySelector('[data-blood-usage]');
+  if(badge){badge.textContent=usage+'% of what arrived was transfused';badge.className='pill '+(usage>=90?'teal':usage>=60?'gold':'amber');}
+  set('[data-blood-foot]',U.fmtNum(bt.recv)+' received · '+U.fmtNum(bt.used)+' used · '+U.fmtNum(bt.expired)+' lost');
+  const stool=sm.sections.find(s=>s.key==='stool');
+  if(stool) set('[data-stool-samples]',U.fmtNum(stool.total)+' samples analysed');
+  sm.sections.forEach(sec=>{
+    const sum=root.querySelector('[data-sec="'+sec.key+'"] .rep-sum');
+    if(!sum) return;
+    const rows=sec.rows.filter(r=>!r.band&&!r.line.breakdown);
+    const first=sec.rows.find(r=>!r.band&&r.line.mode!=='quant');
+    const cols=(MODES[first?first.line.mode:'pn2']||MODES.pn2).cols;
+    const cells=sum.querySelectorAll('td');
+    cols.forEach((f,i)=>{if(cells[i+1])cells[i+1].textContent=rows.some(r=>r.present&&r.present[f])?U.fmtNum(U.sum(rows,r=>r[f]||0)):'';});
+    if(cells[cols.length+1]) cells[cols.length+1].textContent=U.fmtNum(sec.total);
+  });
+  drawCharts(root,sm);
+  showReportFigures(root);
+}
+
 /* ——— editing ————————————————————————————————— */
 function wire(root){
   const paint=()=>{ renderInner(root); };
@@ -285,7 +326,7 @@ function wire(root){
       const sec=sm.sections.find(s=>s.rows.some(r=>r.id===lineId));
       if(sec){ const st=root.querySelector('[data-sec-total="'+sec.key+'"]'); if(st) st.textContent=U.fmtNum(sec.total); }
       const head=root.querySelector('[data-page-total]'); if(head) head.textContent=U.fmtNum(sm.totals.tests);
-      const foot=root.querySelector('[data-page-tests]'); if(foot) foot.textContent=U.fmtNum(sm.totals.tests);
+      refreshReturnFigures(root,sm);
     });
   });
   root.querySelectorAll('.rep-in[data-blood-group]').forEach(inp=>{
@@ -303,6 +344,7 @@ function wire(root){
         S.REPORT_BLOOD_FIELDS.forEach((fld,i)=>{ if(cells[i+1]) cells[i+1].textContent=U.fmtNum(sm.bloodTotals[fld[0]]); });
         if(cells[cells.length-1]) cells[cells.length-1].textContent=U.fmtNum(sm.bloodTotals.end);
       }
+      refreshReturnFigures(root,sm);
     });
   });
   root.querySelectorAll('[data-meta]').forEach(inp=>{
@@ -334,7 +376,7 @@ function addLineModal(){
        +'<option value="posage3">Positives with 0–4 / 5–15 / 16+</option><option value="quant">A single total</option></select></div>'
      +'<div class="field"><label>Number on the form (optional)</label><input class="input mono" id="rlNo" placeholder="8.39"></div>'
      +'<div class="field"><label>Link to a test on the menu (optional)</label><select class="select" id="rlTest"><option value="">— none —</option>'
-       +S.allTests().map(t=>'<option value="'+U.esc(t.name)+'">'+U.esc(t.name)+'</option>').join('')+'</select></div>'
+       +S.tests().map(t=>'<option value="'+U.esc(t.name)+'">'+U.esc(t.name)+'</option>').join('')+'</select></div>'
      +'</div><div class="hint" style="margin-top:8px">A line linked to a test carries that test\u2019s name, so the two never drift apart. Left unlinked, it is simply a new line on the form — which is how the blood cultures that are referred out are added.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',14)+'Add to the form</button>',
     onMount:(el,close)=>{
@@ -373,9 +415,9 @@ function head(sm){
    +'</div>'
    +'<div class="rep-strip">'+status
      +(S.hasReportSourceMonth&&S.hasReportSourceMonth(sm.key)?'<span class="pill amber">Protected source · read-only · existing device figures take precedence</span>':'')
-     +'<span class="pill slate mono">'+U.fmtNum(sm.totals.tests)+' tests</span>'
-     +'<span class="pill slate mono">'+U.fmtNum(sm.totals.qualPositives)+' positives</span>'
-     +'<span class="pill slate mono">'+sm.bloodTotals.used+' packs transfused</span>'
+     +'<span class="pill slate mono" data-strip-tests>'+U.fmtNum(sm.totals.tests)+' tests</span>'
+     +'<span class="pill slate mono" data-strip-positives>'+U.fmtNum(sm.totals.qualPositives)+' positives</span>'
+     +'<span class="pill slate mono" data-strip-blood>'+sm.bloodTotals.used+' packs transfused</span>'
      +'<span class="grow"></span><span class="xs faint">Section IX laboratory · section VIII blood supply · the same order every month</span></div>';
 }
 function renderInner(root){
@@ -417,13 +459,14 @@ function renderInner(root){
   root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderInner(root); });
   wire(root);
   if(tab==='analysis') drawHistoryCharts(root,sm); else drawCharts(root,sm);
+  showReportFigures(root);
 }
 function returnTab(sm){
-  return kpis(sm)
+  return '<div id="repKpis">'+kpis(sm)+'</div>'
     +'<div class="rep-pair">'+tableCard(sm)+'</div>'
     +'<div class="grid-12" style="gap:14px;margin-top:14px"><div class="c5">'+identCard(sm)+'</div><div class="c7">'+bloodCard(sm)+'</div></div>'
     +'<div class="rep-analysis-head"><h2>This month at a glance</h2><span class="xs faint">Every figure is read off the return above — nothing is estimated.</span></div>'
-    +analysis(sm);
+    +'<div id="repGlance">'+analysis(sm)+'</div>';
 }
 
 /* ——— Analysis & history ————————————————————————————————
