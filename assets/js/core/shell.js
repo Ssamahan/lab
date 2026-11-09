@@ -4,13 +4,13 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.32';
+const APP_VERSION='6.9.34';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
   dash:'layout-dashboard', samples:'flask-conical', stock:'package', training:'graduation-cap', revenue:'wallet',
   roster:'calendar-days', leave:'calendar-clock', eqa:'target', pbf:'award', quality:'shield-check',
-  equipment:'microscope', staff:'users', security:'lock', design:'palette', roadmap:'rocket'
+  equipment:'microscope', hivReporting:'clipboard-check', staff:'users', security:'lock', design:'palette', roadmap:'rocket'
 };
 const ROUTES={
   dash:{title:'Command Center',sub:'Live laboratory operations · Ruli District Hospital',group:'Operations',icon:ICON.dash,file:'dash'},
@@ -24,12 +24,13 @@ const ROUTES={
   pbf:{title:'PBF Evaluation',sub:'Health-centre performance-based financing scores',group:'Quality',icon:ICON.pbf,file:'pbf'},
   quality:{title:'Quality & Compliance',sub:'ISO 15189 readiness · SOPs · incidents · QC',group:'Quality',icon:ICON.quality,file:'quality'},
   equipment:{title:'Equipment',sub:'Uptime · preventive & curative maintenance · supplier response',group:'Quality',icon:ICON.equipment,file:'equipment'},
+  'hiv-reporting':{title:'Monthly Reports',sub:'HIV testing submissions from health centres · deadline before the 5th',group:'Reports',icon:ICON.hivReporting,file:'hiv-reporting',permission:'reporting'},
   staff:{title:'Staff & Settings',sub:'Registry · roles · branding · data',group:'Admin',icon:ICON.staff,file:'staff'},
   security:{title:'Security Center',sub:'Sessions · 2FA · audit trail · residency',group:'Admin',icon:ICON.security,file:'security',permission:'security'},
   design:{title:'Design System',sub:'Tokens · components · motion specification',group:'Admin',icon:ICON.design,file:'design',permission:'settings'},
   roadmap:{title:'Premium Roadmap',sub:'The 100 upgrades behind Lab Systems v6',group:'Admin',icon:ICON.roadmap,file:'roadmap',permission:'settings'}
 };
-const GROUPS=['Operations','People','Scheduling','Quality','Admin'];
+const GROUPS=['Operations','People','Scheduling','Quality','Reports','Admin'];
 SH.ROUTES=ROUTES;
 const loaded={};
 

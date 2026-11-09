@@ -84,7 +84,7 @@ A.session=null;
 
 const PERMS={
   Admin:['view','edit','approve','revenue','staff','settings','security','export','delete'],
-  Manager:['view','edit','approve','revenue','export'],
+  Manager:['view','edit','approve','revenue','reporting','export'],
   Technologist:['view','edit','export'],
   /* Reviewers read the register and can act on what they are asked to verify —
      they sign off assessments but never see revenue, security or settings. */

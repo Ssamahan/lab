@@ -5,7 +5,7 @@ The laboratory operating console for **Ruli District Hospital, Laboratory Depart
 rosters and leave, EQA and ISO 15189 quality, equipment, PBF evaluation, training revenue.
 Offline-first — it installs as a PWA and works with no network.
 
-**Version 6.9.31** · FY 2026/2027 · no build step, no dependencies, no CDN.
+**Version 6.9.34** · FY 2026/2027 · no build step, no dependencies, no CDN.
 
 ---
 
@@ -78,6 +78,14 @@ restore point, and **Copy / Paste setup code** carries the address and publishab
 browser as text — never a password. A browser that has never received the shared register cannot
 publish its seed over it: the background loop refuses and says so.
 
+## HIV reporting timeliness
+
+**Reports → Monthly Reports** (or `#/hiv-reporting`) is a standalone HIV reporting workspace. It tracks each health centre’s monthly report against the rule “before the 5th.” It accepts the Microsoft Forms `.xlsx` workbook, CSV or TSV exports. The importer reads only **Health Facility Name**, **Reporting Month** and **Completion time**; the form’s names, email addresses, test counts, stock status and comments are not retained.
+
+A report completed on or after the 5th is late. The indicator separates late submissions completed 1–2 days after the deadline (within the stated two-day tolerance) from those more than two days late; **both categories remain late**, and neither counts as on time. Missing reports become overdue after the 4th; reporting months whose deadline has not arrived remain **Not due**. The screen ranks facilities, shows the month-by-month record, exports a summary and prints a draft letter to the Director General plus a draft directive for health-centre managers. The first submission timestamp is used if a facility has duplicate entries for a month, and the duplicate count is flagged.
+
+The HIV reporting dataset is stored in a **separate browser-local key** (`labSystems.hivReporting.v1`) and is not part of the shared Supabase register. It is neither uploaded nor committed with the site. Import each month’s workbook as reports are gathered: new rows merge into the browser’s saved history, identical rows already stored are skipped, and separate submissions with different completion times are retained. **Backup local data** downloads a data-only JSON copy that can be restored from another browser with **Restore JSON backup**; restoring replaces that browser’s current local history. Access to the module is limited in the interface to Admin and Manager accounts. As with the rest of this browser-only console, local data is not server-side protected or encrypted.
+
 ## Identifiers
 
 ```
@@ -133,6 +141,7 @@ date is present.
 | People | Training Roster · Training Revenue |
 | Scheduling | Working Plan (grid, weekly roster, posts by head-count, nights) · Leave & Timeline |
 | Quality | EQA / PT · PBF Evaluation · Quality & Compliance · Equipment |
+| Reports | Monthly Reports (HIV reporting) |
 | Admin | Staff & Settings · Security Center · Design System · Premium Roadmap |
 
 Full behaviour notes — shift codes, reserves and bench rules, leave, EQA, equipment — are
@@ -145,7 +154,7 @@ index.html                 shell markup only: boot, public overview, sign-in, co
 assets/css/                tokens · app · modules · landing
 assets/js/core/            icons, seed, utils (LSU), store, ui, charts, sheets, i18n,
                            auth, landing (public overview), shell, sync, boot
-assets/js/modules/*.js     15 lazily loaded modules, one per route
+assets/js/modules/*.js     16 lazily loaded modules, one per route
 sw.js, manifest.json       offline shell and installable PWA
 supabase/                  schema.sql + server notes
 docs/supabase-setup.html   the ten-year-old-proof setup guide

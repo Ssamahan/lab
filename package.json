@@ -1,10 +1,11 @@
 {
   "name": "lab-systems",
-  "version": "6.9.32",
+  "version": "6.9.34",
   "description": "Lab Systems - Ruli District Hospital Laboratory",
   "main": "index.html",
   "scripts": {
     "build": "echo 'Single-file app, no build needed'",
+    "test": "node tests/hiv-reporting.test.js",
     "cap:init": "npx cap init RuliLab rw.gov.ruli.lab --web-dir=.",
     "cap:add:android": "npx cap add android",
     "cap:copy": "npx cap copy",

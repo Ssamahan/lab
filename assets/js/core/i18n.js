@@ -8,10 +8,10 @@
 const U=window.LSU; const I={}; window.LS=window.LS||{}; LS.i18n=I;
 const DICT={
   en:{
-    'nav.operations':'Operations','nav.people':'People','nav.scheduling':'Scheduling','nav.quality':'Quality','nav.admin':'Admin',
+    'nav.operations':'Operations','nav.people':'People','nav.scheduling':'Scheduling','nav.quality':'Quality','nav.reports':'Reports','nav.admin':'Admin',
     'nav.dash':'Dashboard','nav.samples':'Referred Samples','nav.stock':'Stock & Supplies','nav.training':'Training Roster',
     'nav.revenue':'Training Revenue','nav.roster':'Working Plan','nav.leave':'Leave & Timeline','nav.eqa':'EQA / PT Scores',
-    'nav.pbf':'PBF Evaluation','nav.staff':'Staff & Settings','nav.equipment':'Equipment','nav.qualityhub':'Quality & Compliance',
+    'nav.pbf':'PBF Evaluation','nav.hiv-reporting':'Monthly Reports','nav.staff':'Staff & Settings','nav.equipment':'Equipment','nav.qualityhub':'Quality & Compliance',
     'nav.security':'Security Center','nav.design':'Design System','nav.roadmap':'Premium Roadmap',
     'act.newSample':'New sample','act.export':'Export','act.search':'Search','act.save':'Save','act.cancel':'Cancel',
     'act.approve':'Approve','act.decline':'Decline','act.refresh':'Refresh','act.today':'Today','act.all':'All',
@@ -20,10 +20,10 @@ const DICT={
     'ui.fy':'Fiscal year','ui.onDuty':'On duty now','ui.viewAll':'View all'
   },
   rw:{
-    'nav.operations':'Ibikorwa','nav.people':'Abakozi','nav.scheduling':'Gahunda','nav.quality':'Ubuziranenge','nav.admin':'Ubuyobozi',
+    'nav.operations':'Ibikorwa','nav.people':'Abakozi','nav.scheduling':'Gahunda','nav.quality':'Ubuziranenge','nav.reports':'Raporo','nav.admin':'Ubuyobozi',
     'nav.dash':'Imbonerahamwe','nav.samples':'Ingero zoherejwe','nav.stock':'Ububiko n\'ibikoresho','nav.training':'Urutonde rw\'amahugurwa',
     'nav.revenue':'Amafaranga y\'amahugurwa','nav.roster':'Gahunda y\'akazi','nav.leave':'Uruhushya n\'ibihe','nav.eqa':'Amanota ya EQA',
-    'nav.pbf':'Isuzuma rya PBF','nav.staff':'Abakozi n\'igenamiterere','nav.equipment':'Ibikoresho','nav.qualityhub':'Ubuziranenge n\'ubahiriza',
+    'nav.pbf':'Isuzuma rya PBF','nav.hiv-reporting':'Raporo za buri kwezi','nav.staff':'Abakozi n\'igenamiterere','nav.equipment':'Ibikoresho','nav.qualityhub':'Ubuziranenge n\'ubahiriza',
     'nav.security':'Ikigo cy\'umutekano','nav.design':'Sisitemu y\'imyubakire','nav.roadmap':'Gahunda y\'iterambere',
     'act.newSample':'Ingero nshya','act.export':'Ohereza','act.search':'Shakisha','act.save':'Bika','act.cancel':'Reka',
     'act.approve':'Emeza','act.decline':'Anga','act.refresh':'Vugurura','act.today':'Uyu munsi','act.all':'Byose',
@@ -32,10 +32,10 @@ const DICT={
     'ui.fy':'Umwaka w\'ingengo','ui.onDuty':'Abari ku kazi ubu','ui.viewAll':'Reba byose'
   },
   fr:{
-    'nav.operations':'Opérations','nav.people':'Personnel','nav.scheduling':'Planification','nav.quality':'Qualité','nav.admin':'Administration',
+    'nav.operations':'Opérations','nav.people':'Personnel','nav.scheduling':'Planification','nav.quality':'Qualité','nav.reports':'Rapports','nav.admin':'Administration',
     'nav.dash':'Tableau de bord','nav.samples':'Échantillons référés','nav.stock':'Stock et fournitures','nav.training':'Registre de formation',
     'nav.revenue':'Revenus de formation','nav.roster':'Plan de travail','nav.leave':'Congés et calendrier','nav.eqa':'Scores EEQ',
-    'nav.pbf':'Évaluation PBF','nav.staff':'Personnel et paramètres','nav.equipment':'Équipement','nav.qualityhub':'Qualité et conformité',
+    'nav.pbf':'Évaluation PBF','nav.hiv-reporting':'Rapports mensuels','nav.staff':'Personnel et paramètres','nav.equipment':'Équipement','nav.qualityhub':'Qualité et conformité',
     'nav.security':'Centre de sécurité','nav.design':'Système de design','nav.roadmap':'Feuille de route',
     'act.newSample':'Nouvel échantillon','act.export':'Exporter','act.search':'Rechercher','act.save':'Enregistrer','act.cancel':'Annuler',
     'act.approve':'Approuver','act.decline':'Refuser','act.refresh':'Actualiser','act.today':'Aujourd\'hui','act.all':'Tous',

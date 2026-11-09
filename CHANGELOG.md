@@ -4,6 +4,32 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## What changed in 6.9.34
+
+**Monthly HIV reporting is a standalone Reports module and supports monthly accumulation.**
+
+- the `#/hiv-reporting` route appears in navigation as **Reports → Monthly Reports**, separate from Quality;
+- each month’s workbook/CSV import merges new submissions into local history instead of replacing earlier months;
+- matching submissions already stored are skipped on re-import, while separate submissions with different completion timestamps remain available;
+- existing timeliness categories, two-day tolerance distinction, and not-yet-due handling are unchanged.
+
+## What changed in 6.9.33
+
+**Health-centre HIV reporting now has a dedicated timeliness workspace.**
+
+- `#/hiv-reporting` is available to Admin and Manager roles;
+- imports the Microsoft Forms `.xlsx` workbook or CSV/TSV, detecting `Health Facility Name`,
+  `Reporting Month` and `Completion time` (the report month is not inferred from the completion month);
+- uses a strict “before the 5th” cut-off: completion on/after the 5th is late, and an unsubmitted
+  report is marked overdue only after the 4th; future obligations are labelled **Not due**;
+- shows the monthly trend, facility ranking, on-time / late / overdue counts, and splits late
+  submissions into 1–2 days (within tolerance, but still late) and more than 2 days late; it flags
+  repeated non-compliance (3 or more late/overdue cycles in the selected window);
+- prints a data-based draft letter to the Director General and a separate draft directive for
+  health-centre managers; exports a period summary and local JSON backup, which can be restored;
+- stores only health-centre name, reporting month and completion time in a separate browser-local
+  key. It does not add those data to the shared Supabase register or to the public site bundle.
+
 ## What changed in 6.9.32
 
 **Duplicates can be deleted, and the manifests that were invisible are back — in the October shape.**
