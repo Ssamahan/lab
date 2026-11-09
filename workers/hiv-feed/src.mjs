@@ -1,4 +1,5 @@
-/* Public, reduced timeliness feed. The workbook URL is a Worker secret, never code. */
+/* Public, reduced timeliness feed. Deploy from this directory, not the static site.
+   The workbook URL is a runtime Worker secret, never code or a build variable. */
 import { unzipSync, strFromU8 } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 const parse=new XMLParser({ignoreAttributes:false,attributeNamePrefix:'@_',parseTagValue:false,processEntities:false});
