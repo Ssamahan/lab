@@ -68,7 +68,12 @@ export default {async fetch(request,env){
   if(!env.SOURCE_URL)return reply({error:'Live source is not configured'},503);
   const u=new URL(env.SOURCE_URL);if(u.protocol!=='https:'||u.hostname!=='1drv.ms')throw Error('Invalid source configuration');u.searchParams.set('download','1');
   const response=await fetch(u.toString(),{signal:AbortSignal.timeout(20000),headers:{'cache-control':'no-cache'}});
-  if(!response.ok)throw Error('Source unavailable (HTTP '+response.status+')');const buffer=await response.arrayBuffer();if(buffer.byteLength>2*1024*1024)throw Error('Workbook too large');
+  if(!response.ok){
+   // Record only a broad destination category; never log access-bearing URLs or tenant names.
+   let host='';try{host=new URL(response.url).hostname.toLowerCase();}catch{}
+   const destination=host==='1drv.ms'?'short link':host==='login.live.com'||host==='login.microsoftonline.com'?'Microsoft sign-in':host==='onedrive.live.com'||host.endsWith('.onedrive.live.com')?'OneDrive':host==='sharepoint.com'||host.endsWith('.sharepoint.com')?'SharePoint':'other or unknown';
+   throw Error('Source unavailable (HTTP '+response.status+', destination: '+destination+', redirected: '+Boolean(response.redirected)+')');
+  }const buffer=await response.arrayBuffer();if(buffer.byteLength>2*1024*1024)throw Error('Workbook too large');
   return reply({version:1,checkedAt:new Date().toISOString(),records:readTimeliness(new Uint8Array(buffer))});
  }catch(e){console.error('Timeliness feed error:',e.message);return reply({error:'Unable to read the live workbook. Try again later.'},503);}
 }};
