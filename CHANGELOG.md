@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.134 — HIV report timeliness feed
+
+- Adds an HIV report timeliness tab that reads a separate public, reduced facility-level feed when configured; no workbook data are written into the register. The source URL is held only as a Worker secret. The feed requires a separately configured Cloudflare Worker before it can work.
+- Shows on-time, submitted-late and missing/overdue statuses, repeated delays and clear stale-source warnings. Missing workbook rows are not proof of non-submission elsewhere.
+
 ## v6.9.133 — Monthly-report figures after redraw
 
 - Keep report counters and analysis charts visible and correct after loading protected history, switching months or tabs, and editing a return. Refresh the related summaries without replacing the input being edited.

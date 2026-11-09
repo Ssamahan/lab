@@ -1,0 +1,1 @@
+{"name":"lab-hiv-timeliness-feed","private":true,"type":"module","scripts":{"test":"node test.mjs"},"dependencies":{"fflate":"0.8.2","fast-xml-parser":"5.3.6"},"devDependencies":{"wrangler":"^4.0.0"}}
