@@ -16,7 +16,9 @@ root directory `workers/hiv-feed`, blank build command and deploy command
 **secret** named `SOURCE_URL`, whose value is the view-only OneDrive sharing link
 for the live workbook. Do not add it to GitHub, the app, a build variable, or chat.
 Never use a link that grants editing. Deploy/redeploy after saving the secret if the
-Cloudflare dashboard requires it. The site expects
+Cloudflare dashboard requires it. In Workers Builds, a new push to the production branch
+triggers the Git-connected build; the dashboard’s “New deployment” static-file uploader
+does not build this Worker. The site expects
 `https://lab-hiv-timeliness.smhnklvn.workers.dev/`.
 
 A GET returns only `{version, checkedAt, records}`. `checkedAt` is when the Worker
