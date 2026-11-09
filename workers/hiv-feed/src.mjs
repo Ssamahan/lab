@@ -68,6 +68,8 @@ function hostCategory(host){
  if(host==='login.live.com'||host==='login.microsoftonline.com')return 'sign-in';
  if(host==='sharepoint.com'||host.endsWith('.sharepoint.com'))return 'sharepoint';
  if(host==='onedrive.live.com'||host.endsWith('.onedrive.live.com')||host==='api.onedrive.com')return 'onedrive';
+ if(host==='1drv.com'||host.endsWith('.1drv.com'))return 'onedrive-storage';
+ if(host==='windows.net'||host.endsWith('.windows.net'))return 'microsoft-storage';
  if(host==='live.com'||host.endsWith('.live.com')||host==='live.net'||host.endsWith('.live.net'))return 'microsoft-live';
  if(host==='microsoft.com'||host.endsWith('.microsoft.com')||host==='microsoftonline.com'||host.endsWith('.microsoftonline.com')||host==='office.com'||host.endsWith('.office.com'))return 'microsoft-other';
  return 'other';
