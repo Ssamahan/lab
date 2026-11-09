@@ -6,4 +6,10 @@ const res=await worker.fetch(new Request('https://example.com/'),{});assert.equa
 assert.throws(()=>readTimeliness(strToU8('not a zip')));
 const oldFetch=globalThis.fetch;globalThis.fetch=async()=>new Response(bytes,{status:200});
 const live=await worker.fetch(new Request('https://example.com/'),{SOURCE_URL:'https://1drv.ms/example?secret=do-not-print'});assert.equal(live.status,200);const result=await live.text();assert(!result.includes('DO NOT EXPOSE')&&!result.includes('do-not-print'));assert.equal(JSON.parse(result).records.length,1);globalThis.fetch=oldFetch;
+// Diagnostics never expose link, redirect locations, workbook or headers.
+const messages=[];const oldError=console.error;console.error=(...args)=>messages.push(args.join(' '));
+let calls=0;globalThis.fetch=async (_url,opts)=>{calls++;if(opts.redirect==='manual')return new Response(null,{status:302,headers:{location:'https://untrusted.example/private?token=hidden'}});return new Response('',{status:401});};
+const diagnostic=await worker.fetch(new Request('https://example.com/?diagnose=redirects'),{SOURCE_URL:'https://1drv.ms/example?token=hidden'});
+assert.equal(diagnostic.status,503);assert.equal(calls,2);assert(messages.some(x=>x.includes('short-link:302 -> blocked-unrecognized-destination')));assert(!messages.join(' ').includes('hidden'));assert(!(await diagnostic.text()).includes('hidden'));
+globalThis.fetch=oldFetch;console.error=oldError;
 console.log('feed: synthetic workbook, duplicate handling, privacy filtering and fail-closed passed');
