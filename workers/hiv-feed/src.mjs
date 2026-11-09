@@ -61,6 +61,32 @@ export function readTimeliness(bytes){
  const unique=new Map();for(const e of entries){const k=e.facility+'|'+e.period,prior=unique.get(k);if(!prior)unique.set(k,{...e,responses:1});else{prior.responses++;if(e.completed<prior.completed)prior.completed=e.completed;}}
  return [...unique.values()].sort((a,b)=>a.period.localeCompare(b.period)||a.facility.localeCompare(b.facility));
 }
+// Diagnostic only: log status and broad host categories, never URLs, headers or bodies.
+function hostCategory(host){
+ host=host.toLowerCase();
+ if(host==='1drv.ms')return 'short-link';
+ if(host==='login.live.com'||host==='login.microsoftonline.com')return 'sign-in';
+ if(host==='sharepoint.com'||host.endsWith('.sharepoint.com'))return 'sharepoint';
+ if(host==='onedrive.live.com'||host.endsWith('.onedrive.live.com')||host==='api.onedrive.com')return 'onedrive';
+ if(host==='live.com'||host.endsWith('.live.com')||host==='live.net'||host.endsWith('.live.net'))return 'microsoft-live';
+ if(host==='microsoft.com'||host.endsWith('.microsoft.com')||host==='microsoftonline.com'||host.endsWith('.microsoftonline.com')||host==='office.com'||host.endsWith('.office.com'))return 'microsoft-other';
+ return 'other';
+}
+async function diagnoseRedirects(url){
+ const steps=[]; let current=url;
+ try{
+  for(let i=0;i<6;i++){
+   const u=new URL(current);const category=hostCategory(u.hostname);
+   if(u.protocol!=='https:'||category==='other'){steps.push('blocked-unrecognized-destination');break;}
+   const r=await fetch(u.toString(),{redirect:'manual',signal:AbortSignal.timeout(5000),headers:{'cache-control':'no-cache'}});
+   steps.push(category+':'+r.status);
+   if(![301,302,303,307,308].includes(r.status))break;
+   const location=r.headers.get('location');if(!location){steps.push('no-location');break;}
+   current=new URL(location,u).toString();
+  }
+ }catch{steps.push('request-failed');}
+ console.error('Timeliness redirect diagnostic:',steps.join(' -> '));
+}
 const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','access-control-allow-origin':'*','cache-control':'no-store','x-content-type-options':'nosniff'}});
 export default {async fetch(request,env){
  if(request.method!=='GET')return reply({error:'Method not allowed'},405);
@@ -69,6 +95,7 @@ export default {async fetch(request,env){
   const u=new URL(env.SOURCE_URL);if(u.protocol!=='https:'||u.hostname!=='1drv.ms')throw Error('Invalid source configuration');u.searchParams.set('download','1');
   const response=await fetch(u.toString(),{signal:AbortSignal.timeout(20000),headers:{'cache-control':'no-cache'}});
   if(!response.ok){
+   if(new URL(request.url).searchParams.get('diagnose')==='redirects')await diagnoseRedirects(u.toString());
    // Record only a broad destination category; never log access-bearing URLs or tenant names.
    let host='';try{host=new URL(response.url).hostname.toLowerCase();}catch{}
    const destination=host==='1drv.ms'?'short link':host==='login.live.com'||host==='login.microsoftonline.com'?'Microsoft sign-in':host==='onedrive.live.com'||host.endsWith('.onedrive.live.com')?'OneDrive':host==='sharepoint.com'||host.endsWith('.sharepoint.com')?'SharePoint':'other or unknown';
