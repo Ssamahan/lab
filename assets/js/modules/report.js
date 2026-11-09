@@ -20,6 +20,9 @@ const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.reports=M;
 let rootEl=null, monthKey=null, lastParams={}, tab='return', trendId=null, cmpOpen=false;
 let bloodTrendGroup='O+', compareTests=['x67','x64'], compareYearA=null, compareYearB=null;
+const HIV_FEED='https://lab-hiv-timeliness.smhnklvn.workers.dev/';
+const HIV_CENTRES=['Coko HC','Minazi HC','Muhondo HC','Muyongwe HC','Nyange HC','Ruli HC','Rushashi HC','Rwankuba HC'];
+let hivData=null,hivError='',hivLoading=false,hivPeriod=null,hivTimer=null;
 
 const MODES={
   pn:   {cols:['pos','neg'], heads:['Positives','Negatives']},
@@ -410,6 +413,7 @@ function head(sm){
    +'<div class="rep-tabs">'
      +'<button class="rep-tab'+(tab==='return'?' on':'')+'" data-tab="return">'+UI.ic('clipboard-list',13)+' The return</button>'
      +'<button class="rep-tab'+(tab==='analysis'?' on':'')+'" data-tab="analysis">'+UI.ic('chart-line',13)+' Analysis & history</button>'
+     +'<button class="rep-tab'+(tab==='hiv'?' on':'')+'" data-tab="hiv">HIV report timeliness</button>'
      +'<span class="grow"></span>'
      +'<span class="xs faint">'+(S.reportMonths().length)+' month'+(S.reportMonths().length===1?'':'s')+' on file · '+(S.reportMonths().length?'since '+monthLabel(S.reportMonths().slice().sort()[0]):'no history yet')+'</span>'
    +'</div>'
@@ -423,7 +427,7 @@ function head(sm){
 function renderInner(root){
   const sm=summary();
   root.innerHTML=head(sm)
-    +(tab==='analysis'?analysisTab(sm):returnTab(sm));
+    +(tab==='analysis'?analysisTab(sm):tab==='hiv'?hivTab():returnTab(sm));
   const sel=root.querySelector('#repMonth');
   if(sel) sel.onchange=()=>{ monthKey=sel.value; renderInner(root); };
   const priv=root.querySelector('[data-private-reports]'); if(priv) priv.onclick=async()=>{
@@ -456,11 +460,52 @@ function renderInner(root){
   root.querySelectorAll('.rep-hist tr[data-month]').forEach(tr=>tr.onclick=()=>{
     monthKey=tr.dataset.month; tab='return'; renderInner(root);
   });
-  root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderInner(root); });
+  root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderInner(root); if(tab==='hiv'&&!hivData&&!hivLoading)loadHiv(); });
+  const hp=root.querySelector('#hivPeriod'); if(hp) hp.onchange=()=>{hivPeriod=hp.value;renderInner(root);};
+  const hr=root.querySelector('[data-hiv-refresh]'); if(hr) hr.onclick=loadHiv;
   wire(root);
-  if(tab==='analysis') drawHistoryCharts(root,sm); else drawCharts(root,sm);
+  if(tab==='analysis') drawHistoryCharts(root,sm); else if(tab==='return') drawCharts(root,sm);
   showReportFigures(root);
 }
+/* Only the public facility-level summary leaves the feed, not workbook contents.
+   Keep it in memory: neither a refresh nor a failure touches the register/queue. */
+function kigaliDay(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kigali',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+function prevPeriod(day){const y=+day.slice(0,4),m=+day.slice(5,7);return m===1?(y-1)+'-12':y+'-'+String(m-1).padStart(2,'0');}
+function hivStatus(period,record,day){
+  if(record){ const next=+period.slice(5,7)===12?(+period.slice(0,4)+1)+'-01':period.slice(0,4)+'-'+String(+period.slice(5,7)+1).padStart(2,'0');
+    return record.completed.slice(0,10)<=next+'-05'?'On time':'Submitted late'; }
+  const next=+period.slice(5,7)===12?(+period.slice(0,4)+1)+'-01':period.slice(0,4)+'-'+String(+period.slice(5,7)+1).padStart(2,'0');
+  return day>next+'-05'?'Overdue · not found':'Not yet due · not found';
+}
+function hivTab(){
+  const stamp=hivData?'Last checked: '+U.esc(new Date(hivData.checkedAt).toLocaleString()):'No live data loaded';
+  const notice=hivError?'<p style="color:var(--crit)">'+U.esc(hivError)+(hivData?' · showing the last successful result, which may be stale':'')+'</p>':'';
+  if(!hivData)return UI.card({title:'HIV reporting timeliness',sub:'Live health-centre reporting; due by the 5th of the next month.',body:'<p>'+stamp+'</p>'+notice+'<button class="btn" data-hiv-refresh>'+(hivLoading?'Checking…':'Check for reports')+'</button>',foot:'<span>The live feed must be configured before it can display submissions.</span>'});
+  const day=kigaliDay(), records=hivData.records, periods=new Set(records.map(r=>r.period));
+  const last=prevPeriod(day), history=[];let year=2026, month=5;
+  while(history.length<240){const key=year+'-'+String(month).padStart(2,'0');if(key>last)break;history.push(key);periods.add(key);if(++month===13){month=1;year++;}}
+  periods.add(last);
+  const choices=Array.from(periods).filter(x=>/^\d{4}-(0[1-9]|1[0-2])$/.test(x)).sort().reverse();
+  if(!hivPeriod||!choices.includes(hivPeriod))hivPeriod=choices.includes(prevPeriod(day))?prevPeriod(day):choices[0];
+  const rows=HIV_CENTRES.map(f=>{const r=records.find(x=>x.facility===f&&x.period===hivPeriod);return {f,r,status:hivStatus(hivPeriod,r,day)};});
+  const counts=['On time','Submitted late','Overdue · not found','Not yet due · not found'].map(s=>rows.filter(x=>x.status===s).length);
+  const table='<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th><th>Completion</th><th>Status</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+U.esc(x.f)+'</td><td class="mono">'+(x.r?U.esc(x.r.completed.replace('T',' ')):'—')+'</td><td>'+U.esc(x.status)+(x.r&&x.r.responses>1?' · '+x.r.responses+' responses; review':'')+'</td></tr>').join('')+'</tbody></table></div>';
+  const ranking=HIV_CENTRES.map(f=>{let late=0,missing=0;history.forEach(p=>{const r=records.find(x=>x.facility===f&&x.period===p),status=hivStatus(p,r,day);if(status==='Submitted late')late++;if(status==='Overdue · not found')missing++;});return {f,late,missing};}).sort((a,b)=>(b.late+b.missing)-(a.late+a.missing)||a.f.localeCompare(b.f));
+  const rankings='<h3 style="margin-top:20px">Repeated late or overdue reports</h3><p class="xs faint">From May 2026 to the last completed month. Outstanding means not found in the workbook after the deadline.</p><div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th><th>Submitted late</th><th>Overdue, not found</th><th>Total late or overdue</th></tr></thead><tbody>'+ranking.map(x=>'<tr><td>'+U.esc(x.f)+'</td><td>'+x.late+'</td><td>'+x.missing+'</td><td>'+(x.late+x.missing)+'</td></tr>').join('')+'</tbody></table></div>';
+  return UI.card({title:'HIV reporting timeliness',sub:'For each reporting month, submissions are on time through the 5th of the following month.',tools:'<button class="btn xs" data-hiv-refresh>'+(hivLoading?'Checking…':'Refresh now')+'</button>',body:'<p class="xs">'+stamp+' · automatically checks every 3 minutes while this tab is open.</p>'+notice+'<label>Reporting month <select class="select" id="hivPeriod">'+choices.map(x=>'<option value="'+x+'"'+(x===hivPeriod?' selected':'')+'>'+U.esc(monthLabel(x))+'</option>').join('')+'</select></label><p>'+counts[0]+' on time · '+counts[1]+' submitted late · '+counts[2]+' overdue, not found · '+counts[3]+' not yet due</p>'+table,foot:'<span>Not found means no submission in this workbook. Confirm other channels; source timestamps are interpreted as displayed.</span>'});
+}
+async function loadHiv(){
+ if(hivLoading)return;hivLoading=true;hivError='';if(rootEl&&rootEl.isConnected&&tab==='hiv')renderInner(rootEl);
+ try{const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),30000);let res;
+   try{res=await fetch(HIV_FEED,{signal:ac.signal,cache:'no-store'});}finally{clearTimeout(timer);}
+   if(!res.ok)throw Error('Live feed is not reachable');const data=await res.json();
+   if(data.version!==1||!Array.isArray(data.records)||!/^\d{4}-\d\d-\d\dT/.test(data.checkedAt)||data.records.length>5000||data.records.some(r=>!HIV_CENTRES.includes(r.facility)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(r.period)||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/.test(r.completed)))throw Error('Unexpected feed format');
+   hivData=data;
+ }catch(e){hivError='Could not update the live workbook feed';}
+ finally{hivLoading=false;if(rootEl&&rootEl.isConnected&&tab==='hiv')renderInner(rootEl);}
+}
+if(!hivTimer)hivTimer=setInterval(()=>{if(rootEl&&rootEl.isConnected&&tab==='hiv'&&document.visibilityState!=='hidden')loadHiv();},180000);
+
 function returnTab(sm){
   return '<div id="repKpis">'+kpis(sm)+'</div>'
     +'<div class="rep-pair">'+tableCard(sm)+'</div>'
