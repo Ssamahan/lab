@@ -21,7 +21,9 @@ function failureCategory(child){
 export function createSummary({configPath, sourcePath, run = spawnSync, now = () => new Date()}) {
   if (typeof configPath !== 'string' || !configPath || /[\r\n\0]/.test(configPath)) throw new ReaderFailure('invalid-config-path');
   // A path identifies one workbook; never run sync, copy, delete, or any remote mutation.
-  if (typeof sourcePath !== 'string' || !sourcePath.startsWith('hiv-readonly:') || /[\r\n\0]/.test(sourcePath)) throw new ReaderFailure('invalid-workbook-path');
+  if (typeof sourcePath !== 'string' || !sourcePath) throw new ReaderFailure('workbook-path-missing');
+  if (/[\r\n\0]/.test(sourcePath)) throw new ReaderFailure('workbook-path-control-character');
+  if (!sourcePath.startsWith('hiv-readonly:')) throw new ReaderFailure('workbook-path-wrong-prefix');
   const child = run('rclone', ['--config', configPath, 'cat', '--', sourcePath], {
     encoding: null, timeout: 60000, maxBuffer: MAX_WORKBOOK + 1, windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe']
