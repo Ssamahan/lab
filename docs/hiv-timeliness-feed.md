@@ -1,90 +1,67 @@
-# Live HIV report timeliness feed
+# HIV report timeliness feed
 
-The live panel reads only facility, reporting month and completion timestamp from the
-`Ruli HIV Reports` worksheet. The source workbook stays at OneDrive; the feed holds
-no database and never writes to it. The dashboard refreshes every three minutes while
-open and marks a previous result stale if refresh fails. Only the public facility-level
-summary is returned. The full workbook includes testing data and staff contacts and
-must not be embedded in the public source code.
+The Monthly Reports panel reads a separate public **reduced summary**: facility,
+reporting month, completion timestamp and response count. It never writes to the Lab
+Systems register, pending queue or OneDrive workbook. The browser checks the feed
+every three minutes while the tab is visible; the source reader is scheduled about
+every 15 minutes. GitHub may delay or skip scheduled jobs, so this is not a real-time
+notification or a guarantee of continuous operation. A successful manual read was
+verified; a scheduled run and a later new submission still need separate verification.
 
-## Setup (a separate Cloudflare Worker)
+The reader fetches the workbook through rclone with delegated read-only OneDrive
+access. Its configuration and refresh token can read other files accessible to the
+Microsoft account. A GitHub-hosted runner temporarily holds the full workbook **in
+memory** to extract the summary; it must never print it, publish it, save it as an
+artifact or cache it. No raw workbook is stored in the feed. The user-facing endpoint
+returns only `{version, checkedAt, records}`. `checkedAt` is when the reader parsed
+the workbook, not its modification time. After 30 minutes without a successful check,
+the endpoint fails closed with HTTP 503. The browser labels an in-memory previous
+result as potentially stale on refresh failure.
 
-This is **not** a change to the existing `lab` static-site Worker. Deploy a separate
-Worker named `lab-hiv-timeliness` from this GitHub repository using the `main` branch,
-root directory `workers/hiv-feed`, blank build command and deploy command
-`npx wrangler deploy`. Under that Worker’s Settings → Variables and Secrets, add a
-**secret** named `SOURCE_URL`, whose value is the view-only OneDrive sharing link
-for the live workbook. Do not add it to GitHub, the app, a build variable, or chat.
-Never use a link that grants editing. Deploy/redeploy after saving the secret if the
-Cloudflare dashboard requires it. In Workers Builds, a new push to the production branch
-triggers the Git-connected build; the dashboard’s “New deployment” static-file uploader
-does not build this Worker. The site expects
-`https://lab-hiv-timeliness.smhnklvn.workers.dev/`.
+## Production components and sensitive material
 
-A GET returns only `{version, checkedAt, records}`. `checkedAt` is when the Worker
-successfully read the source, not proof of the workbook’s own edit time. An error
-never returns workbook contents or URL. Test with a browser before relying on it;
-compare a known new submission with the workbook and wait for the dashboard refresh.
-The service reads on request, not as a background notification when no one is using it.
-If OneDrive denies the public download or changes its sharing behavior the feed fails
-closed; it is not Microsoft-account OAuth or a guarantee of continuous operation.
+- `.github/workflows/hiv-timeliness-manual.yml` runs only trusted `main` code, with
+  one serialized job, a manually dispatchable trigger and a 15-minute schedule. Its
+  name is historical. It uses pinned actions and a checksum-verified rclone binary.
+- `workers/hiv-feed/reader.mjs` uses only `rclone cat` on the configured workbook;
+  `publisher.mjs` obtains the rclone config, reads the workbook, saves any rotated
+  config before publishing the filtered summary, and removes its temporary config.
+  A failure or interrupted response may have an unknown write outcome.
+- `workers/hiv-publisher/` is the separate `lab-hiv-timeliness` Cloudflare Worker.
+  It uses the separate `lab-hiv-feed-state` D1 database, never the shared Lab Systems
+  register. It stores the rclone config encrypted with AES-GCM under the Worker secret
+  `CONFIG_ENCRYPTION_KEY`; the private API requires the Worker secret `PUBLISHER_KEY`.
+- GitHub repository secrets `HIV_PUBLISHER_KEY` and `HIV_WORKBOOK_PATH` are supplied
+  only to the trusted reader step. Never log them or the decrypted rclone config.
+  Keep the config, workbook, and tokens out of the public repo, CI artifacts, caches,
+  error messages, browser code and chat. Never enable debugging that prints them.
+- Anyone with the publisher bearer key can retrieve the rclone configuration and may
+  read the user's OneDrive files. Cloudflare administrators and users who can change
+  trusted workflow code or secrets are privileged. Compromise requires revoking the
+  Microsoft app grant and rotating/reprovisioning the credentials; an encryption key
+  change without re-encrypting or reprovisioning the config makes it unreadable.
+- Only one publisher should run at a time. GitHub concurrency serializes runs from
+  this workflow, not arbitrary manual clients. Disable the schedule before any manual
+  credential replacement, and check the live state after any uncertain operation.
+
+The older anonymous-download Worker in `workers/hiv-feed/src.mjs` remains for parsing
+and tests, but it is not the deployed data source. The old `SOURCE_URL` secret is not
+used by the current publisher. A view-only “Anyone” link permits anyone holding it to
+read or download the **full** workbook, including unrelated fields; review whether it
+is needed separately before removing it, as other users or workflows may rely on it.
+
+## Interpretation and recovery
 
 Rows are deduplicated by centre and reporting month, retaining the earliest recorded
-completion and exposing the response count for review. Year is inferred from the
-completion date and month name, assuming a report is submitted within 12 months of its
-reporting month. Completion timestamps are read as displayed (timezone not verified);
-no patient names, staff contacts, test counts or notes are returned. Missing means
-not found in the workbook, not proof of non-submission through other channels.
+completion and exposing the response count. Year is inferred from the completion date
+and month label, assuming submission within 12 months. Completion timestamps are read
+as displayed; the source timezone has not been independently verified. Missing means
+not found in the workbook, not proof of non-submission through another channel.
 
-## Read-only rclone reader (prototype, not deployed)
-
-`reader.mjs` invokes `rclone cat` on exactly one configured `hiv-readonly:` workbook,
-keeps the downloaded bytes in memory, validates/parses with the existing worker parser,
-and writes only the reduced JSON summary to standard output. It never prints rclone
-stderr, paths or credentials; failures exit nonzero without a summary. It is not a
-scheduler or publisher, and must not be run with real workbook data in public CI logs.
-It requires a recent rclone and Node.js, plus `RCLONE_CONFIG_PATH` pointing to a private
-rclone config file and `HIV_WORKBOOK_PATH` pointing to the exact workbook. rclone can
-update its config with refreshed OAuth credentials, so the file is sensitive and must
-never be committed, uploaded as a build artifact, or printed. Even read-only OAuth
-credentials can expose other files accessible to the Microsoft account.
-
-Before any scheduled use, a separate design must implement and test private encrypted
-credential persistence and refresh, authenticated publishing, writer concurrency,
-secret provisioning/revocation, and failure recovery. The public endpoint must not
-silently present an old stored snapshot as fresh: it needs a checked-at timestamp and
-an explicit stale/failure indication compatible with the dashboard. GitHub scheduled
-runs may be delayed or skipped. Any CI job must avoid untrusted PR code, debug logs,
-raw workbook artifacts and exposure of secrets. Do not enable scheduling or move
-credentials to a cloud service until those safeguards are tested and the owner approves
-where credentials and workbook bytes will be processed. The existing feed remains
-unchanged and the live connection remains unverified.
-
-### Staged publisher implementation
-
-`workers/hiv-publisher/` is an **undeployed** prototype of a separate D1-backed
-Worker. Its private config routes require a long random bearer key and encrypt the
-rclone configuration with AES-GCM using a separate Worker secret; the public route
-returns only validated summary fields and returns HTTP 503 if the last check is older
-than 30 minutes. The Wrangler configuration targets the separate `lab-hiv-feed-state` D1 database; its schema and secrets still need to be provisioned before it can work. Anyone
-who possesses the publisher bearer key can retrieve the decrypted configuration and
-therefore may read the OneDrive files the grant covers. Keep both keys private and
-revoke/re-authorize Microsoft access if a credential leaks. Cloudflare administrators
-and trusted GitHub workflow code must be considered privileged.
-
-`publisher.mjs` is a staged Node runner. It retrieves the config over HTTPS without
-redirects, stores it in a restrictive temporary file, reads the workbook, persists
-any refreshed config, publishes the reduced result, then removes the temporary
-directory. A failed config update prevents the summary update. An interrupted or
-uncertain response must be treated as an unknown outcome, not as proof no write took
-place. Tests use only synthetic data and in-memory storage.
-
-This is not yet a complete production service. It has not been deployed, security
-reviewed, tested against real D1 or an actual OneDrive file, or connected to a
-scheduled workflow. A workflow must serialize runs, provision secrets without printing
-them, pin and verify dependencies, restrict execution to trusted code, and avoid
-artifacts, logs and untrusted pull requests. A privileged publisher can replace the
-summary or read the rclone credential; accidental public exposure of its key would
-be serious. Stale-data behavior, concurrency, encryption-key loss/rotation and refresh
-recovery must be tested end-to-end before enabling it. No claim of automatic updates
-should be made on the basis of these prototypes.
+The Worker and runner tests cover synthetic privacy, auth, failure and stale paths;
+they do not replace a production security review. If a scheduled run fails, check the
+fixed failure-stage annotation and the displayed last-check time. Never share full
+logs containing tokens, paths or workbook data. A Microsoft grant or token may expire
+or be revoked, and the user may need to authorize again. Confirm a new genuine response
+against the workbook and the dashboard before relying on automatic updates. Avoid
+resetting browser storage or modifying existing register data to troubleshoot the feed.
