@@ -21,4 +21,10 @@ for(const bad of [{...summary,records:[]},{...summary,records:[summary.records[0
 }
 db.set('summary',JSON.stringify({...summary,checkedAt:'2000-01-01T00:00:00Z'}));res=await worker.fetch(req('/'),env);assert.equal(res.status,503);assert(!(await res.text()).includes('DO NOT EXPOSE'));
 res=await worker.fetch(req('/private/config',{method:'PUT',headers:auth,body:'x'.repeat(140000)}),env);assert.equal(res.status,503);
+const priorLog=console.error, logs=[];console.error=(...args)=>logs.push(args.join(' '));
+try {
+ res=await worker.fetch(req('/private/config',{method:'PUT',headers:auth,body:'private-token-example'}),{...env,CONFIG_ENCRYPTION_KEY:'bad'});
+ assert.equal(res.status,503);assert(logs.includes('Timeliness publisher failure: config-encrypt'));
+ assert(!logs.join(' ').includes('private-token-example'));assert(!logs.join(' ').includes(env.PUBLISHER_KEY));
+} finally {console.error=priorLog;}
 console.log('publisher: auth, encrypted storage, filtering, validation and stale failure passed');
