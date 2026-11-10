@@ -1,0 +1,22 @@
+const {boot,ok,done}=require('./env');
+(async()=>{
+ const {w,errors}=await boot('#/reports'); const S=w.LS.store; w.LS.sync.stopLive(); S.clearPending();
+ const saved=JSON.stringify(S.reportMonth('2026-10')); let calls=0;
+ const centres=['Coko HC','Minazi HC','Muhondo HC','Muyongwe HC','Nyange HC','Ruli HC','Rushashi HC','Rwankuba HC'];
+ let data={version:1,checkedAt:'2026-06-06T00:30:00Z',records:centres.slice(0,7).map((f,i)=>({facility:f,period:'2026-05',completed:i<4?'2026-06-05T23:59:59':'2026-06-06T00:00:00',responses:1}))};
+ w.fetch=async()=>({ok:true,json:async()=>{calls++;return JSON.parse(JSON.stringify(data));}});
+ w.document.querySelector('[data-tab="hiv"]').click();await new Promise(r=>setTimeout(r,150));let root=w.document.querySelector('#pageInner');
+ ok(root.textContent.includes('4 / 8 on time (50.0%)')&&root.textContent.includes('3 submitted late (37.5%)')&&root.textContent.includes('1 overdue / not found (12.5%)'),'denominator, deadline boundary and missing distinct');
+ ok(root.textContent.includes('median delay was 1 calendar day'),'median calendar-day delay');
+ ok(root.textContent.includes('Centre-by-month detail')&&root.querySelector('[role="img"]'),'trend bars and facility matrix rendered');
+ data.records.push({facility:'Rwankuba HC',period:'2026-05',completed:'2026-06-07T10:00:00',responses:1}); data.checkedAt='2026-06-07T12:00:00Z';
+ root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,120));
+ ok(root.textContent.includes('4 submitted late (50.0%)')&&root.textContent.includes('0 overdue / not found (0.0%)'),'new completion moves overdue to late without double counting');
+ ok(root.textContent.includes('longest was 2 days'),'delay statistics recompute on new feed');
+ data.checkedAt='2026-07-05T08:00:00Z';root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,120));
+ ok(root.textContent.includes('1 month × 8 centres = 8 expected reports'),'month still open through the fifth excluded from denominator');
+ data.checkedAt='2026-07-06T00:30:00Z';root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,120));
+ ok(root.textContent.includes('2 months × 8 centres = 16 expected reports')&&root.textContent.includes('8 overdue / not found'),'month included after deadline with missing reports');
+ ok(JSON.stringify(S.reportMonth('2026-10'))===saved&&S.pendingChanges()===0,'saved report and pending queue untouched');
+ ok(calls===4&&!errors.length,'refresh and rendering error-free',errors.join(' | '));done('hiv_analysis136');
+})().catch(e=>{console.error(e);process.exit(1)});

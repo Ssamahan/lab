@@ -469,7 +469,7 @@ function renderInner(root){
 }
 /* Only the public facility-level summary leaves the feed, not workbook contents.
    Keep it in memory: neither a refresh nor a failure touches the register/queue. */
-function kigaliDay(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kigali',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+function kigaliDay(when){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kigali',year:'numeric',month:'2-digit',day:'2-digit'}).format(when||new Date());}
 function prevPeriod(day){const y=+day.slice(0,4),m=+day.slice(5,7);return m===1?(y-1)+'-12':y+'-'+String(m-1).padStart(2,'0');}
 function hivStatus(period,record,day){
   if(record){ const next=+period.slice(5,7)===12?(+period.slice(0,4)+1)+'-01':period.slice(0,4)+'-'+String(+period.slice(5,7)+1).padStart(2,'0');
@@ -477,29 +477,66 @@ function hivStatus(period,record,day){
   const next=+period.slice(5,7)===12?(+period.slice(0,4)+1)+'-01':period.slice(0,4)+'-'+String(+period.slice(5,7)+1).padStart(2,'0');
   return day>next+'-05'?'Overdue · not found':'Not yet due · not found';
 }
+function hivNext(period){const y=+period.slice(0,4),m=+period.slice(5,7);return m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0');}
+function hivDaysLate(period,record){
+  const due=Date.parse(hivNext(period)+'-05T00:00:00Z'), completed=Date.parse(record.completed.slice(0,10)+'T00:00:00Z');
+  return Math.max(0,Math.round((completed-due)/86400000));
+}
+function hivAnalysis(records,history,day){
+  const closed=history.filter(p=>day>hivNext(p)+'-05');
+  const monthly=closed.map(period=>{
+    const rows=HIV_CENTRES.map(f=>{const r=records.find(x=>x.facility===f&&x.period===period);return {f,r,status:hivStatus(period,r,day)};});
+    return {period,rows,on:rows.filter(x=>x.status==='On time').length,late:rows.filter(x=>x.status==='Submitted late').length,missing:rows.filter(x=>x.status==='Overdue · not found').length};
+  });
+  const rows=monthly.flatMap(m=>m.rows.map(r=>Object.assign({period:m.period},r)));
+  return {monthly,rows,expected:rows.length,on:rows.filter(x=>x.status==='On time').length,late:rows.filter(x=>x.status==='Submitted late').length,missing:rows.filter(x=>x.status==='Overdue · not found').length};
+}
+function hivDeepAnalysis(a){
+  if(!a.expected)return '<h3>Timeliness analysis</h3><p>No reporting months have passed their deadline since May 2026.</p>';
+  const pct=n=>(100*n/a.expected).toFixed(1)+'%';
+  const monthBars=a.monthly.map(m=>'<tr><td>'+U.esc(monthLabel(m.period))+'</td><td><div style="display:flex;width:100%;min-width:120px;height:18px;background:#e5e7eb" role="img" aria-label="'+m.on+' on time, '+m.late+' late, '+m.missing+' overdue not found">'
+    +(m.on?'<span style="width:'+(m.on*12.5)+'%;background:#087f8c"></span>':'')+(m.late?'<span style="width:'+(m.late*12.5)+'%;background:#db8543"></span>':'')+(m.missing?'<span style="width:'+(m.missing*12.5)+'%;background:#b94d48"></span>':'')+'</div></td><td>'+m.on+'</td><td>'+m.late+'</td><td>'+m.missing+'</td><td>'+(m.on*12.5).toFixed(1)+'%</td></tr>').join('');
+  const ranking=HIV_CENTRES.map(f=>{const items=a.rows.filter(x=>x.f===f),on=items.filter(x=>x.status==='On time').length,late=items.filter(x=>x.status==='Submitted late').length,missing=items.filter(x=>x.status==='Overdue · not found').length;return {f,on,late,missing};}).sort((x,y)=>(y.late+y.missing)-(x.late+x.missing)||x.f.localeCompare(y.f));
+  const rankRows=ranking.map(x=>'<tr><td>'+U.esc(x.f)+'</td><td><div style="display:flex;min-width:100px;height:14px;background:#e5e7eb" role="img" aria-label="'+x.late+' late, '+x.missing+' overdue not found"><span style="width:'+(100*x.late/a.monthly.length)+'%;background:#db8543"></span><span style="width:'+(100*x.missing/a.monthly.length)+'%;background:#b94d48"></span></div></td><td>'+x.on+'</td><td>'+x.late+'</td><td>'+x.missing+'</td><td>'+(x.late+x.missing)+'</td><td>'+((100*x.on/a.monthly.length).toFixed(1))+'%</td></tr>').join('');
+  const delays=a.rows.filter(x=>x.status==='Submitted late').map(x=>hivDaysLate(x.period,x.r)).sort((x,y)=>x-y);
+  const median=delays.length?(delays[Math.floor((delays.length-1)/2)]+delays[Math.floor(delays.length/2)])/2:null;
+  const delayText=delays.length?'For '+delays.length+' completed late report'+(delays.length===1?'':'s')+', the median delay was '+median+' calendar day'+(median===1?'':'s')+' and the longest was '+delays[delays.length-1]+' days after the 5th.':'No completed late submissions in this period; delay statistics are not applicable.';
+  const latest=a.monthly[a.monthly.length-1],previous=a.monthly[a.monthly.length-2];
+  const best=Math.max(...a.monthly.map(m=>m.on)), worst=Math.min(...a.monthly.map(m=>m.on));
+  const describe=val=>a.monthly.filter(m=>m.on===val).map(m=>U.esc(monthLabel(m.period))).join(', ');
+  const perfect=ranking.filter(x=>x.on===a.monthly.length).map(x=>U.esc(x.f));
+  const groups=delays.length?'<p>Delay distribution: '+delays.filter(n=>n===1).length+' one day · '+delays.filter(n=>n>=2&&n<=3).length+' two–three days · '+delays.filter(n=>n>=4).length+' four or more days late. Overdue unsubmitted reports are excluded from these delay calculations.</p>':'';
+  const comparison=previous?' Compared with '+U.esc(monthLabel(previous.period))+', the on-time count '+(latest.on===previous.on?'was unchanged':latest.on>previous.on?'increased by '+(latest.on-previous.on):'decreased by '+(previous.on-latest.on))+'.':'';
+  const grid='<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th>'+a.monthly.map(m=>'<th>'+U.esc(monthLabel(m.period))+'</th>').join('')+'</tr></thead><tbody>'+HIV_CENTRES.map(f=>'<tr><td>'+U.esc(f)+'</td>'+a.monthly.map(m=>{const x=m.rows.find(r=>r.f===f);return '<td title="'+U.esc(x.status)+'">'+(x.status==='On time'?'On time':x.status==='Submitted late'?'Late':'Overdue / not found')+'</td>';}).join('')+'</tr>').join('')+'</tbody></table></div>';
+  return '<h3 style="margin-top:24px">Timeliness analysis · May 2026 onward</h3><p>Only reporting months whose deadline has passed by the source check are included. '+a.monthly.length+' month'+(a.monthly.length===1?'':'s')+' × 8 centres = '+a.expected+' expected reports.</p>'
+    +'<p><strong>'+a.on+' / '+a.expected+' on time ('+pct(a.on)+')</strong> · '+a.late+' submitted late ('+pct(a.late)+') · '+a.missing+' overdue / not found ('+pct(a.missing)+')</p>'
+    +'<p>Latest due month, '+U.esc(monthLabel(latest.period))+': '+latest.on+' on time, '+latest.late+' late and '+latest.missing+' overdue / not found.'+comparison+'</p><p>Highest on-time count: '+best+'/8 ('+describe(best)+'); lowest: '+worst+'/8 ('+describe(worst)+'). '+(perfect.length?'On time in every due month: '+perfect.join(', ')+'.':'No centre was on time in every due month.')+'</p><p>'+delayText+'</p>'+groups
+    +'<h3>Monthly reporting trend</h3><p class="xs">Teal = on time · orange = submitted late · red = overdue, not found. Each bar represents eight expected reports.</p><div class="dt-scroll"><table class="dt"><thead><tr><th>Reporting month</th><th>Distribution</th><th>On time</th><th>Late</th><th>Overdue / not found</th><th>On-time rate</th></tr></thead><tbody>'+monthBars+'</tbody></table></div>'
+    +'<h3 style="margin-top:20px">Repeated late or overdue reports</h3><p class="xs faint">Late submissions and reports not found after the deadline are separate; an overdue report may later move to the late column. Rates use all '+a.monthly.length+' due months as denominator.</p><div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th><th>Late / overdue distribution</th><th>On time</th><th>Submitted late</th><th>Overdue, not found</th><th>Total late or overdue</th><th>On-time rate</th></tr></thead><tbody>'+rankRows+'</tbody></table></div>'
+    +'<h3 style="margin-top:20px">Centre-by-month detail</h3>'+grid+'<p class="xs faint">Calendar-day delays are based on displayed completion dates, not elapsed hours. The workbook timestamp timezone is unverified; missing entries do not prove that no report was submitted through another channel. Duplicate responses use the earliest recorded completion and should be reviewed. Results measure reporting timeliness, not HIV test quantities or the cause of delay.</p>';
+}
 function hivTab(){
-  const stamp=hivData?'Last checked: '+U.esc(new Date(hivData.checkedAt).toLocaleString()):'No live data loaded';
-  const notice=hivError?'<p style="color:var(--crit)">'+U.esc(hivError)+(hivData?' · showing the last successful result, which may be stale':'')+'</p>':'';
+  const stamp=hivData?'Source checked: '+U.esc(new Date(hivData.checkedAt).toLocaleString()):'No live data loaded';
+  const stale=hivData&&(Date.now()-Date.parse(hivData.checkedAt)>30*60000);
+  const notice=hivError||stale?'<p style="color:var(--crit)">'+U.esc(hivError||'Source check is more than 30 minutes old')+(hivData?' · showing the last successful result, which may be stale':'')+'</p>':'';
   if(!hivData)return UI.card({title:'HIV reporting timeliness',sub:'Live health-centre reporting; due by the 5th of the next month.',body:'<p>'+stamp+'</p>'+notice+'<button class="btn" data-hiv-refresh>'+(hivLoading?'Checking…':'Check for reports')+'</button>',foot:'<span>The live feed must be configured before it can display submissions.</span>'});
-  const day=kigaliDay(), records=hivData.records, periods=new Set(records.map(r=>r.period));
+  const day=kigaliDay(new Date(hivData.checkedAt)), records=hivData.records, periods=new Set(records.map(r=>r.period));
   const last=prevPeriod(day), history=[];let year=2026, month=5;
   while(history.length<240){const key=year+'-'+String(month).padStart(2,'0');if(key>last)break;history.push(key);periods.add(key);if(++month===13){month=1;year++;}}
-  periods.add(last);
+  periods.add(last);periods.add(day.slice(0,7));
   const choices=Array.from(periods).filter(x=>/^\d{4}-(0[1-9]|1[0-2])$/.test(x)).sort().reverse();
-  if(!hivPeriod||!choices.includes(hivPeriod))hivPeriod=choices.includes(prevPeriod(day))?prevPeriod(day):choices[0];
+  if(!hivPeriod||!choices.includes(hivPeriod))hivPeriod=choices.includes(last)?last:choices[0];
   const rows=HIV_CENTRES.map(f=>{const r=records.find(x=>x.facility===f&&x.period===hivPeriod);return {f,r,status:hivStatus(hivPeriod,r,day)};});
   const counts=['On time','Submitted late','Overdue · not found','Not yet due · not found'].map(s=>rows.filter(x=>x.status===s).length);
-  const table='<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th><th>Completion</th><th>Status</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+U.esc(x.f)+'</td><td class="mono">'+(x.r?U.esc(x.r.completed.replace('T',' ')):'—')+'</td><td>'+U.esc(x.status)+(x.r&&x.r.responses>1?' · '+x.r.responses+' responses; review':'')+'</td></tr>').join('')+'</tbody></table></div>';
-  const ranking=HIV_CENTRES.map(f=>{let late=0,missing=0;history.forEach(p=>{const r=records.find(x=>x.facility===f&&x.period===p),status=hivStatus(p,r,day);if(status==='Submitted late')late++;if(status==='Overdue · not found')missing++;});return {f,late,missing};}).sort((a,b)=>(b.late+b.missing)-(a.late+a.missing)||a.f.localeCompare(b.f));
-  const rankings='<h3 style="margin-top:20px">Repeated late or overdue reports</h3><p class="xs faint">From May 2026 to the last completed month. Outstanding means not found in the workbook after the deadline.</p><div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th><th>Submitted late</th><th>Overdue, not found</th><th>Total late or overdue</th></tr></thead><tbody>'+ranking.map(x=>'<tr><td>'+U.esc(x.f)+'</td><td>'+x.late+'</td><td>'+x.missing+'</td><td>'+(x.late+x.missing)+'</td></tr>').join('')+'</tbody></table></div>';
-  return UI.card({title:'HIV reporting timeliness',sub:'For each reporting month, submissions are on time through the 5th of the following month.',tools:'<button class="btn xs" data-hiv-refresh>'+(hivLoading?'Checking…':'Refresh now')+'</button>',body:'<p class="xs">'+stamp+' · this tab checks the feed every 3 minutes. Source updates are scheduled about every 15 minutes and may be delayed.</p>'+notice+'<label>Reporting month <select class="select" id="hivPeriod">'+choices.map(x=>'<option value="'+x+'"'+(x===hivPeriod?' selected':'')+'>'+U.esc(monthLabel(x))+'</option>').join('')+'</select></label><p>'+counts[0]+' on time · '+counts[1]+' submitted late · '+counts[2]+' overdue, not found · '+counts[3]+' not yet due</p>'+table+rankings,foot:'<span>Not found means no submission in this workbook. Confirm other channels; source timestamps are interpreted as displayed.</span>'});
+  const table='<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th><th>Completion</th><th>Status</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+U.esc(x.f)+'</td><td class="mono">'+(x.r?U.esc(x.r.completed.replace('T',' ')):'—')+'</td><td>'+U.esc(x.status)+(x.r&&x.r.responses>1?' · '+Number(x.r.responses)+' responses; review':'')+'</td></tr>').join('')+'</tbody></table></div>';
+  return UI.card({title:'HIV reporting timeliness',sub:'For each reporting month, submissions are on time through the 5th of the following month.',tools:'<button class="btn xs" data-hiv-refresh>'+(hivLoading?'Checking…':'Refresh now')+'</button>',body:'<p class="xs">'+stamp+' · this tab checks the feed every 3 minutes. Source updates are scheduled about every 15 minutes and may be delayed.</p>'+notice+'<label>Reporting month <select class="select" id="hivPeriod">'+choices.map(x=>'<option value="'+x+'"'+(x===hivPeriod?' selected':'')+'>'+U.esc(monthLabel(x))+'</option>').join('')+'</select></label><p>'+counts[0]+' on time · '+counts[1]+' submitted late · '+counts[2]+' overdue, not found · '+counts[3]+' not yet due</p>'+table+hivDeepAnalysis(hivAnalysis(records,history,day)),foot:'<span>Not found means no submission in this workbook. Confirm other channels; source timestamps are interpreted as displayed.</span>'});
 }
 async function loadHiv(){
  if(hivLoading)return;hivLoading=true;hivError='';if(rootEl&&rootEl.isConnected&&tab==='hiv')renderInner(rootEl);
  try{const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),30000);let res;
    try{res=await fetch(HIV_FEED,{signal:ac.signal,cache:'no-store'});}finally{clearTimeout(timer);}
    if(!res.ok)throw Error('Live feed is not reachable');const data=await res.json();
-   if(data.version!==1||!Array.isArray(data.records)||!/^\d{4}-\d\d-\d\dT/.test(data.checkedAt)||data.records.length>5000||data.records.some(r=>!HIV_CENTRES.includes(r.facility)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(r.period)||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/.test(r.completed)))throw Error('Unexpected feed format');
+   if(data.version!==1||!Array.isArray(data.records)||!/^\d{4}-\d\d-\d\dT/.test(data.checkedAt)||!Number.isFinite(Date.parse(data.checkedAt))||data.records.length>5000||data.records.some(r=>!HIV_CENTRES.includes(r.facility)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(r.period)||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/.test(r.completed)))throw Error('Unexpected feed format');
    hivData=data;
  }catch(e){hivError='Could not update the live workbook feed';}
  finally{hivLoading=false;if(rootEl&&rootEl.isConnected&&tab==='hiv')renderInner(rootEl);}

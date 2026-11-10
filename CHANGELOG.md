@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.136 — HIV reporting analysis
+
+- Add snapshot-based monthly distributions, facility comparisons, calendar-day delay statistics and a centre-by-month table; separate late submissions from overdue missing reports. Refresh remains read-only and failures remain visible.
+
 ## v6.9.135 — Scheduled HIV timeliness feed
 
 - Refresh the private read-only HIV source on a 15-minute GitHub schedule; the dashboard checks the reduced feed every three minutes and notes that scheduled updates can be delayed.
