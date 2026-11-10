@@ -3,8 +3,7 @@
 The Monthly Reports panel reads a separate public **reduced summary**: facility,
 reporting month, completion timestamp and response count. It never writes to the Lab
 Systems register, pending queue or OneDrive workbook. The browser checks the feed
-every three minutes while the tab is visible; the source reader is scheduled about
-every 15 minutes. GitHub may delay or skip scheduled jobs, so this is not a real-time
+every three minutes while the tab is visible; the source reader is scheduled multiple times per hour. GitHub may delay or skip scheduled jobs, so this is not a real-time
 notification or a guarantee of continuous operation. A successful manual read was
 verified; a scheduled run and a later new submission still need separate verification.
 
@@ -21,7 +20,7 @@ result as potentially stale on refresh failure.
 ## Production components and sensitive material
 
 - `.github/workflows/hiv-timeliness-manual.yml` runs only trusted `main` code, with
-  one serialized job, a manually dispatchable trigger and a 15-minute schedule. Its
+  one serialized job, a manually dispatchable trigger and two staggered schedules, nominally every 5–10 minutes. Its
   name is historical. It uses pinned actions and a checksum-verified rclone binary.
 - `workers/hiv-feed/reader.mjs` uses only `rclone cat` on the configured workbook;
   `publisher.mjs` obtains the rclone config, reads the workbook, saves any rotated
@@ -67,4 +66,4 @@ against the workbook and the dashboard before relying on automatic updates. Avoi
 resetting browser storage or modifying existing register data to troubleshoot the feed.
 
 ### Aggregate HIV test figures (v6.9.137)
-The public feed can additionally carry only the eight explicitly named numeric Determine and STAT-PAK usage and outcome fields. The parser requires exact source headers and suppresses the figures if headings change; an empty or invalid cell is null, not zero. If more than one response exists for a facility and month, test figures for that pair are withheld pending review (the earliest completion still serves timeliness). The publisher independently validates and allowlists these numbers. Names, email, lot identifiers, comments and the workbook never enter the public summary. Counts may include quality-control or proficiency testing and reactive results are not confirmed diagnoses. Missing values, unequal totals and partial coverage must not be silently corrected or interpreted as complete totals. The 15-minute schedule is best-effort and was not yet observed running at deployment.
+The public feed can additionally carry only the eight explicitly named numeric Determine and STAT-PAK usage and outcome fields. The parser requires exact source headers and suppresses the figures if headings change; an empty or invalid cell is null, not zero. If more than one response exists for a facility and month, test figures for that pair are withheld pending review (the earliest completion still serves timeliness). The publisher independently validates and allowlists these numbers. Names, email, lot identifiers, comments and the workbook never enter the public summary. Counts may include quality-control or proficiency testing and reactive results are not confirmed diagnoses. Missing values, unequal totals and partial coverage must not be silently corrected or interpreted as complete totals. The schedules are best-effort and was not yet observed running at deployment.

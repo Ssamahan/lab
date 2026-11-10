@@ -6,6 +6,6 @@ w.fetch=async()=>({ok:true,json:async()=>data});w.document.querySelector('[data-
 ok(root.textContent.includes('HIV test usage and results')&&root.textContent.includes('Reported test-use trend'),'usage analysis and chart shown');
 ok(root.textContent.includes('Reported counts differ · review')&&root.textContent.includes('Multiple responses · review'),'discrepancies and duplicate flagged');
 ok(root.textContent.includes('20 (1/8)')&&root.textContent.includes('0 (1/8)'),'partial coverage and true zero retained');
-const coko=[...root.querySelectorAll('tr')].find(x=>x.textContent.includes('Coko HC')&&x.textContent.includes('Reported counts differ'));ok(coko&&coko.textContent.includes('—'),'missing metric displayed as dash');
+const statpak=root.querySelectorAll('.hiv-table-panel')[1];const coko=[...statpak.querySelectorAll('tr')].find(x=>x.textContent.includes('Coko HC'));ok(coko&&coko.textContent.includes('—'),'missing metric displayed as dash');
 data={...data,records:[{...data.records[0],metrics:{...m,determineUsed:99}}]};root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,100));ok(root.textContent.includes('99 (1/8)'),'updated feed recomputes usage');
 ok(JSON.stringify(S.reportMonth('2026-10'))===old&&S.pendingChanges()===0,'no saved report or queue changes');ok(!errors.length,'no page errors',errors.join(' | '));done('hiv_metrics137');})().catch(e=>{console.error(e);process.exit(1)});

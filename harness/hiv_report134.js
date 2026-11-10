@@ -11,7 +11,7 @@ const {boot,ok,done}=require('./env');
  ok(root.textContent.includes('Ruli HC')&&root.textContent.includes('Submitted late'),'late completed report appears');
  ok(root.textContent.includes('Coko HC')&&root.textContent.includes('On time'),'fifth is on time');
  ok(root.textContent.includes('Repeated late or overdue reports'),'repeated delay ranking is visible');
- ok(root.textContent.includes('about every 15 minutes'),'source schedule is explained');
+ ok(root.textContent.includes('several times per hour'),'source schedule is explained');
  ok(root.textContent.includes('not found'),'missing rows are not claimed to be verified non-submissions');
  ok(JSON.stringify(S.reportMonth('2026-10'))===old&&S.pendingChanges()===0,'feed never writes to saved month or queue');
  w.fetch=async()=>{throw Error('offline')};root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,100));
