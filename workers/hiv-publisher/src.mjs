@@ -34,28 +34,29 @@ function validatedSummary(data,now){
  return {version:1,checkedAt:new Date(stamp).toISOString(),records};
 }
 export default {async fetch(req,env){
+ let stage='request';
  try{
   const path=new URL(req.url).pathname;
   if(path==='/'&&req.method==='GET'){
-   const value=await readState(env.STATE,'summary');if(!value)return json({error:'No verified summary available'},503,true);
+   stage='summary-read';const value=await readState(env.STATE,'summary');if(!value)return json({error:'No verified summary available'},503,true);
    const data=JSON.parse(value),stamp=Date.parse(data.checkedAt),now=Date.now();
    if(!Number.isFinite(stamp)||stamp>now+60000||now-stamp>MAX_AGE_MS)return json({error:'Summary is stale'},503,true);
    return json(data,200,true);
   }
   if(!['/private/config','/private/summary'].includes(path))return json({error:'Not found'},404);
-  if(!await authorized(req,env))return json({error:'Unauthorized'},401);
+  stage='authorization';if(!await authorized(req,env))return json({error:'Unauthorized'},401);
   if(path==='/private/config'&&req.method==='GET'){
-   const value=await readState(env.STATE,'config');if(!value)return json({error:'Not configured'},503);
-   return new Response(await decrypt(value,env),{headers:{'content-type':'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff'}});
+   stage='config-read';const value=await readState(env.STATE,'config');if(!value)return json({error:'Not configured'},503);
+   stage='config-decrypt';return new Response(await decrypt(value,env),{headers:{'content-type':'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff'}});
   }
   if(path==='/private/config'&&req.method==='PUT'){
-   const bytes=await bodyBytes(req);if(bytes.length===0||bytes.length>64*1024)return json({error:'Invalid input'},400);
-   await writeState(env.STATE,'config',await encrypt(bytes,env));return json({ok:true});
+   stage='config-body';const bytes=await bodyBytes(req);if(bytes.length===0||bytes.length>64*1024)return json({error:'Invalid input'},400);
+   stage='config-encrypt';const encrypted=await encrypt(bytes,env);stage='config-save';await writeState(env.STATE,'config',encrypted);return json({ok:true});
   }
   if(path==='/private/summary'&&req.method==='PUT'){
-   const data=validatedSummary(JSON.parse(decoder.decode(await bodyBytes(req))),Date.now());if(!data)return json({error:'Invalid summary'},400);
-   await writeState(env.STATE,'summary',JSON.stringify(data));return json({ok:true});
+   stage='summary-validation';const data=validatedSummary(JSON.parse(decoder.decode(await bodyBytes(req))),Date.now());if(!data)return json({error:'Invalid summary'},400);
+   stage='summary-save';await writeState(env.STATE,'summary',JSON.stringify(data));return json({ok:true});
   }
   return json({error:'Method not allowed'},405);
- }catch{return json({error:'Request failed'},503);}
+ }catch{console.error('Timeliness publisher failure:',stage);return json({error:'Request failed'},503);}
 }};
