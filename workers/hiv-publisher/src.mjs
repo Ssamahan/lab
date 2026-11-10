@@ -41,7 +41,16 @@ function validatedSummary(data,now){
    if(typeof r.metrics!=='object'||Array.isArray(r.metrics))return null;
    metrics={};for(const k of METRIC_KEYS){const v=r.metrics[k];if(v!==null&&(!Number.isSafeInteger(v)||v<0||v>10000000))return null;metrics[k]=v;}
   }
-  records.push({facility:r.facility,period:r.period,completed:r.completed,responses:r.responses,metrics});
+  let stock=null;
+  if(r.stock!=null&&r.responses===1){
+   const v=r.stock;if(typeof v!=='object'||Array.isArray(v))return null;
+   if(![null,'yes','no'].includes(v.flag)||![null,'adequate','low','stockout'].includes(v.status)||![null,'determine','statpak'].includes(v.test))return null;
+   if(v.remaining!==null&&(!Number.isSafeInteger(v.remaining)||v.remaining<0||v.remaining>10000000||!v.test))return null;
+   const validDate=x=>x===null||(typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&!Number.isNaN(Date.parse(x))&&new Date(x).toISOString().slice(0,10)===x);
+   if(!validDate(v.determineExpiry)||!validDate(v.statpakExpiry))return null;
+   stock={flag:v.flag,status:v.status,test:v.test,remaining:v.remaining,determineExpiry:v.determineExpiry,statpakExpiry:v.statpakExpiry};
+  }
+  records.push({facility:r.facility,period:r.period,completed:r.completed,responses:r.responses,metrics,stock});
  }
  return {version:1,checkedAt:new Date(stamp).toISOString(),records};
 }

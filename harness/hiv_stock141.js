@@ -1,0 +1,10 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,errors}=await boot('#/reports');const S=w.LS.store;w.LS.sync.stopLive();S.clearPending();const before=JSON.stringify(S.reportMonth('2026-10'));
+const stock={flag:'yes',status:'stockout',test:'determine',remaining:149,determineExpiry:'2026-12-02',statpakExpiry:'2026-10-24'};
+const data={version:1,checkedAt:'2026-11-10T11:50:00Z',records:[{facility:'Coko HC',period:'2026-10',completed:'2026-11-05T10:00:00',responses:1,stock}]};w.fetch=async()=>({ok:true,json:async()=>data});w.document.querySelector('[data-tab="hiv"]').click();await new Promise(r=>setTimeout(r,150));const root=w.document.querySelector('#pageInner');
+const row=[...root.querySelectorAll('tr')].find(r=>r.textContent.includes('Coko HC')&&r.textContent.includes('Stock out'));
+ok(row&&row.textContent.includes('149')&&row.textContent.includes('conflicting answers, review'),'conflicting stock-out and remaining preserved and flagged');
+ok(row&&row.textContent.includes('expires within 90 days')&&row.textContent.includes('past expiry at source check'),'expiry compared to source check');
+ok(root.textContent.includes('not current stock')&&root.textContent.includes('not necessarily stock remaining'),'stock and lot limitations explained');
+ok(root.textContent.includes('Not available'),'absent stock not treated as adequate');
+ok(JSON.stringify(S.reportMonth('2026-10'))===before&&S.pendingChanges()===0,'register and queue unchanged');ok(!errors.length,'no page errors',errors.join(' | '));done('hiv_stock141');})().catch(e=>{console.error(e);process.exit(1)});

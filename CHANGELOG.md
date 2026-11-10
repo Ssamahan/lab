@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.141 — Clarify HIV result sums and usage
+
+- Label result sums separately from reported use and warn that outcome charts include figures needing review. Add a regression test for separate Determine and STAT-PAK source columns.
+- Stage privacy-filtered reported stock status and lot-expiry tracking, retaining ambiguous or conflicting responses for review. Requires publisher deployment and a successful source refresh.
+
 ## v6.9.140 — Compact HIV tables and staggered refresh schedule
 
 - Split HIV results into paired per-test tables that stack on narrower screens; transpose the centre history to avoid expanding indefinitely.
