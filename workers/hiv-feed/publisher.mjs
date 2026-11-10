@@ -7,6 +7,14 @@ import {pathToFileURL} from 'node:url';
 import {createSummary,ReaderFailure} from './reader.mjs';
 class PublisherFailure extends Error {constructor(stage,detail=''){super('Timeliness update failed');this.stage=stage;this.detail=detail;}}
 const ORIGIN='https://lab-hiv-timeliness.smhnklvn.workers.dev';
+const safeStages=new Set(['publisher-key','temporary-directory','get-config','prepare-config','save-config','read-workbook','publish-summary']);
+const safeDetails=new Set(['workbook-path-missing','workbook-path-control-character','workbook-path-wrong-prefix','invalid-config-path','rclone-unavailable','timeout','size-limit','authorization','file-not-found','access-denied','rclone-options','invalid-workbook','other']);
+export function safeDiagnostic(error){
+ if(!(error instanceof PublisherFailure))return 'unexpected';
+ const stage=safeStages.has(error.stage)?error.stage:'unexpected';
+ const detail=safeDetails.has(error.detail)||/^http-[1-5][0-9]{2}$/.test(error.detail)?error.detail:'';
+ return stage+(detail?' / '+detail:'');
+}
 export async function publish({key,sourcePath,fetchImpl=fetch,summaryFn=createSummary,tempRoot=tmpdir()}){
  if(typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key))throw new PublisherFailure('publisher-key');
  const headers={'authorization':'Bearer '+key,'user-agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'};
@@ -32,5 +40,5 @@ export async function publish({key,sourcePath,fetchImpl=fetch,summaryFn=createSu
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{await publish({key:process.env.HIV_PUBLISHER_KEY,sourcePath:process.env.HIV_WORKBOOK_PATH});console.log('Timeliness summary updated.');}
- catch(e){if(e instanceof PublisherFailure)console.error('Timeliness update failed at:',e.stage,e.detail);else console.error('Timeliness update failed unexpectedly.');process.exitCode=1;}
+ catch(e){const diagnostic=safeDiagnostic(e);console.error('Timeliness update failed at:',diagnostic);if(process.env.GITHUB_ACTIONS==='true')console.log('::error title=Timeliness update::'+diagnostic);process.exitCode=1;}
 }
