@@ -894,3 +894,11 @@
 .hiv-empty-ring { border:16px solid #e5e7eb; border-radius:50%; display:flex; justify-content:center; align-items:center; text-align:center; box-sizing:border-box; font-size:12px; }
 .hiv-legend { display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; }
 .hiv-legend span { width:11px; height:11px; border-radius:2px; display:inline-block; flex:none; }
+/* Pair narrower HIV result tables where there is room, stack on smaller screens. */
+.hiv-tables-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:10px 0; }
+.hiv-table-panel { min-width:0; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.hiv-table-panel h4 { margin:0; padding:10px 12px; background:var(--surface-inset); }
+.hiv-compact { font-size:12px; }
+.hiv-compact thead th { white-space:normal; line-height:1.2; padding:8px 6px; }
+.hiv-compact tbody td { height:auto; padding:8px 6px; }
+@media (max-width:1100px) { .hiv-tables-grid { grid-template-columns:1fr; } }

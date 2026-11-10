@@ -1,9 +1,10 @@
 # Only trusted main-branch code runs with secrets. GitHub may delay scheduled runs.
-name: HIV timeliness private reader (manual setup)
+name: HIV timeliness automatic reader
 on:
   workflow_dispatch:
   schedule:
-    - cron: "3,18,33,48 * * * *"
+    - cron: "7,22,37,52 * * * *"
+    - cron: "12,27,42,57 * * * *"
 permissions:
   contents: read
 concurrency:

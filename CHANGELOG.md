@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.140 — Compact HIV tables and staggered refresh schedule
+
+- Split HIV results into paired per-test tables that stack on narrower screens; transpose the centre history to avoid expanding indefinitely.
+- Stagger automatic source schedules; execution is best-effort and still requires observation. No register or queue data are changed.
+
 ## v6.9.139 — More varied HIV charts
 
 - Display monthly calculated results as line charts with independent scales, gaps and partial-coverage indicators; show outcome compositions as labelled doughnut charts.
