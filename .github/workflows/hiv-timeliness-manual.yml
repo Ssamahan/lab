@@ -1,0 +1,38 @@
+# Manual staging only. Do not enable a schedule until provisioning and end-to-end
+# privacy, refresh, failure and stale-data checks have succeeded.
+name: HIV timeliness private reader (manual setup)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hiv-timeliness-publisher
+  cancel-in-progress: false
+jobs:
+  update:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Install and verify read-only tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/rclone.zip" https://github.com/rclone/rclone/releases/download/v1.75.2/rclone-v1.75.2-linux-amd64.zip
+          echo '349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702  '"$RUNNER_TEMP/rclone.zip" | sha256sum --check --status
+          unzip -q "$RUNNER_TEMP/rclone.zip" -d "$RUNNER_TEMP/rclone"
+          echo "$RUNNER_TEMP/rclone/rclone-v1.75.2-linux-amd64" >> "$GITHUB_PATH"
+          cd workers/hiv-feed
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Publish the filtered summary
+        working-directory: workers/hiv-feed
+        env:
+          HIV_PUBLISHER_KEY: ${{ secrets.HIV_PUBLISHER_KEY }}
+          HIV_WORKBOOK_PATH: ${{ secrets.HIV_WORKBOOK_PATH }}
+        run: node publisher.mjs
