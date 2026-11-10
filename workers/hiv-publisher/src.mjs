@@ -17,7 +17,13 @@ async function bodyBytes(req){
 }
 function toBase64(bytes){let s='';for(const n of bytes)s+=String.fromCharCode(n);return btoa(s);}
 function fromBase64(s){const raw=atob(s);return Uint8Array.from(raw,c=>c.charCodeAt(0));}
-async function key(env){const raw=fromBase64(env.CONFIG_ENCRYPTION_KEY||'');if(raw.length!==32)throw Error('key');return crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt']);}
+async function key(env){
+ // Emit only fixed diagnostic labels, never the secret or exception text.
+ if(typeof env.CONFIG_ENCRYPTION_KEY!=='string'||!env.CONFIG_ENCRYPTION_KEY){console.error('Timeliness key check: missing');throw Error('key');}
+ let raw;try{raw=fromBase64(env.CONFIG_ENCRYPTION_KEY);}catch{console.error('Timeliness key check: invalid encoding');throw Error('key');}
+ if(raw.length!==32){console.error('Timeliness key check: wrong length');throw Error('key');}
+ try{return await crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt']);}catch{console.error('Timeliness key check: crypto unavailable');throw Error('key');}
+}
 async function encrypt(bytes,env){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await key(env),bytes));return JSON.stringify({v:1,iv:toBase64(iv),ciphertext:toBase64(ct)});}
 async function decrypt(value,env){const item=JSON.parse(value);if(item.v!==1)throw Error('version');return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:fromBase64(item.iv)},await key(env),fromBase64(item.ciphertext)));}
 async function readState(db,k){return (await db.prepare('SELECT value FROM hiv_state WHERE key = ?').bind(k).first())?.value;}
