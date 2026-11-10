@@ -36,3 +36,12 @@ res=await worker.fetch(req('/'),env);body=await res.text();assert(!body.includes
 res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify({...withMetrics,records:[{...withMetrics.records[0],metrics:{...metrics,determineUsed:-1}}]})}),env);assert.equal(res.status,400);
 res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify({...withMetrics,records:[{...withMetrics.records[0],responses:2}]})}),env);assert.equal(res.status,200);res=await worker.fetch(req('/'),env);assert.equal((await res.json()).records[0].metrics,null);
 console.log('publisher metrics: allowlist, null, invalid values and duplicates passed');
+const stock={flag:'yes',status:'stockout',test:'determine',remaining:149,determineExpiry:'2026-12-02',statpakExpiry:'2026-10-24',comment:'DO NOT EXPOSE'};
+const withStock={...summary,checkedAt:new Date().toISOString(),records:[{...summary.records[0],stock}]};
+res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify(withStock)}),env);assert.equal(res.status,200);
+res=await worker.fetch(req('/'),env);body=await res.text();assert(!body.includes('DO NOT EXPOSE'));assert.equal(JSON.parse(body).records[0].stock.remaining,149);
+for(const badStock of [{...stock,flag:'private text'}, {...stock,statpakExpiry:'2026-02-30'}, {...stock,test:null,remaining:3}]){
+ res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify({...withStock,records:[{...withStock.records[0],stock:badStock}]})}),env);assert.equal(res.status,400);
+}
+res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify({...withStock,records:[{...withStock.records[0],responses:2}]})}),env);assert.equal(res.status,200);res=await worker.fetch(req('/'),env);assert.equal((await res.json()).records[0].stock,null);
+console.log('publisher stock: allowlist, dates, ambiguity and duplicates passed');

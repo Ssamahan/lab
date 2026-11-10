@@ -42,6 +42,18 @@ export function readTimeliness(bytes){
  const metricFields={J:'determineNonReactive',K:'determineReactive',L:'determineInvalid',O:'statpakNonReactive',P:'statpakReactive',Q:'statpakInvalid',R:'determineUsed',S:'statpakUsed'};
  const metricsAvailable=Object.entries(metricHeaders).every(([col,label])=>String(values[0][col]||'').trim()===label);
  const numeric=value=>{const x=String(value??'').trim();if(!/^\d+$/.test(x))return null;const n=Number(x);return Number.isSafeInteger(n)&&n<=10000000?n:null;};
+ // Stock fields are read only with the expected headers; raw text, lot numbers
+ // and comments never leave the reader. Unknown or ambiguous answers stay unknown.
+ const header=(c,v)=>String(values[0][c]||'').trim()===v;
+ const stockHeaders=header('I','Expiration Date')&&header('N','Expiration Date1')&&header('T','Are you running low or without test kits')&&header('U',"Current Overall Stock Status (Last day of the month you're reporting)")&&header('V','Which test(s) are you running low on or close to stock out?')&&header('W','How many tests are remaining? (Report by individual pieces, not kits/boxes)');
+ const norm=v=>String(v||'').replace(/\s+/g,' ').trim().toLowerCase();
+ const dateOnly=v=>{const d=excelDate(v);return d?d.slice(0,10):null;};
+ const stockFor=r=>{if(!stockHeaders)return null;
+  const flag=({'yes':'yes','no':'no'})[norm(r.T)]||null;
+  const status=({'adequate':'adequate','low':'low','stock out (0 tests)':'stockout'})[norm(r.U)]||null;
+  const test=({'determine hiv early detect':'determine','stat-pak':'statpak','stat pak':'statpak'})[norm(r.V)]||null;
+  return {flag,status,test,remaining:test?numeric(r.W):null,determineExpiry:dateOnly(r.I),statpakExpiry:dateOnly(r.N)};
+ };
  const entries=[],unknown=[];
  for(const [i,r] of values.entries()){
   if(!i||(!r.C&&!r.D&&!r.G))continue;
@@ -58,12 +70,12 @@ export function readTimeliness(bytes){
   if(!completed||!month){unknown.push(i+1);continue;}
   const cy=Number(completed.slice(0,4)),cm=Number(completed.slice(5,7)),year=cy-(month>=cm?1:0);
   const period=year+'-'+String(month).padStart(2,'0');
-  entries.push({facility,period,completed,metrics:metricsAvailable?Object.fromEntries(Object.entries(metricFields).map(([col,key])=>[key,numeric(r[col])])):null});
+  entries.push({facility,period,completed,metrics:metricsAvailable?Object.fromEntries(Object.entries(metricFields).map(([col,key])=>[key,numeric(r[col])])):null,stock:stockFor(r)});
  }
  if(unknown.length)throw Error('Some facility entries have an invalid date or reporting month');
  // Multiple responses for one facility and period can be corrections; show earliest,
  // with an explicit duplicate count so the user knows the record needs review.
- const unique=new Map();for(const e of entries){const k=e.facility+'|'+e.period,prior=unique.get(k);if(!prior)unique.set(k,{...e,responses:1});else{prior.responses++;prior.metrics=null;if(e.completed<prior.completed)prior.completed=e.completed;}}
+ const unique=new Map();for(const e of entries){const k=e.facility+'|'+e.period,prior=unique.get(k);if(!prior)unique.set(k,{...e,responses:1});else{prior.responses++;prior.metrics=null;prior.stock=null;if(e.completed<prior.completed)prior.completed=e.completed;}}
  return [...unique.values()].sort((a,b)=>a.period.localeCompare(b.period)||a.facility.localeCompare(b.facility));
 }
 // Diagnostic only: log status and broad host categories, never URLs, headers or bodies.
