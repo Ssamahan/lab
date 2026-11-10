@@ -1,0 +1,7 @@
+{
+  "name": "lab-hiv-publisher-staging",
+  "main": "src.mjs",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": false
+  // D1 binding deliberately omitted: do not deploy until reviewed and provisioned.
+}

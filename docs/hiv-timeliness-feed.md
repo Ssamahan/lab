@@ -35,3 +35,56 @@ completion date and month name, assuming a report is submitted within 12 months 
 reporting month. Completion timestamps are read as displayed (timezone not verified);
 no patient names, staff contacts, test counts or notes are returned. Missing means
 not found in the workbook, not proof of non-submission through other channels.
+
+## Read-only rclone reader (prototype, not deployed)
+
+`reader.mjs` invokes `rclone cat` on exactly one configured `hiv-readonly:` workbook,
+keeps the downloaded bytes in memory, validates/parses with the existing worker parser,
+and writes only the reduced JSON summary to standard output. It never prints rclone
+stderr, paths or credentials; failures exit nonzero without a summary. It is not a
+scheduler or publisher, and must not be run with real workbook data in public CI logs.
+It requires a recent rclone and Node.js, plus `RCLONE_CONFIG_PATH` pointing to a private
+rclone config file and `HIV_WORKBOOK_PATH` pointing to the exact workbook. rclone can
+update its config with refreshed OAuth credentials, so the file is sensitive and must
+never be committed, uploaded as a build artifact, or printed. Even read-only OAuth
+credentials can expose other files accessible to the Microsoft account.
+
+Before any scheduled use, a separate design must implement and test private encrypted
+credential persistence and refresh, authenticated publishing, writer concurrency,
+secret provisioning/revocation, and failure recovery. The public endpoint must not
+silently present an old stored snapshot as fresh: it needs a checked-at timestamp and
+an explicit stale/failure indication compatible with the dashboard. GitHub scheduled
+runs may be delayed or skipped. Any CI job must avoid untrusted PR code, debug logs,
+raw workbook artifacts and exposure of secrets. Do not enable scheduling or move
+credentials to a cloud service until those safeguards are tested and the owner approves
+where credentials and workbook bytes will be processed. The existing feed remains
+unchanged and the live connection remains unverified.
+
+### Staged publisher implementation
+
+`workers/hiv-publisher/` is an **undeployed** prototype of a separate D1-backed
+Worker. Its private config routes require a long random bearer key and encrypt the
+rclone configuration with AES-GCM using a separate Worker secret; the public route
+returns only validated summary fields and returns HTTP 503 if the last check is older
+than 30 minutes. A private D1 binding must be provisioned before it can work. Anyone
+who possesses the publisher bearer key can retrieve the decrypted configuration and
+therefore may read the OneDrive files the grant covers. Keep both keys private and
+revoke/re-authorize Microsoft access if a credential leaks. Cloudflare administrators
+and trusted GitHub workflow code must be considered privileged.
+
+`publisher.mjs` is a staged Node runner. It retrieves the config over HTTPS without
+redirects, stores it in a restrictive temporary file, reads the workbook, persists
+any refreshed config, publishes the reduced result, then removes the temporary
+directory. A failed config update prevents the summary update. An interrupted or
+uncertain response must be treated as an unknown outcome, not as proof no write took
+place. Tests use only synthetic data and in-memory storage.
+
+This is not yet a complete production service. It has not been deployed, security
+reviewed, tested against real D1 or an actual OneDrive file, or connected to a
+scheduled workflow. A workflow must serialize runs, provision secrets without printing
+them, pin and verify dependencies, restrict execution to trusted code, and avoid
+artifacts, logs and untrusted pull requests. A privileged publisher can replace the
+summary or read the rclone credential; accidental public exposure of its key would
+be serious. Stale-data behavior, concurrency, encryption-key loss/rotation and refresh
+recovery must be tested end-to-end before enabling it. No claim of automatic updates
+should be made on the basis of these prototypes.

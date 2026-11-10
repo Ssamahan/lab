@@ -13,3 +13,15 @@ const diagnostic=await worker.fetch(new Request('https://example.com/?diagnose=r
 assert.equal(diagnostic.status,503);assert.equal(calls,2);assert(messages.some(x=>x.includes('short-link:302 -> blocked-unrecognized-destination')));assert(!messages.join(' ').includes('hidden'));assert(!(await diagnostic.text()).includes('hidden'));
 globalThis.fetch=oldFetch;console.error=oldError;
 console.log('feed: synthetic workbook, duplicate handling, privacy filtering and fail-closed passed');
+
+// Read-only rclone bridge: no raw workbook or child diagnostics escape.
+const {createSummary}=await import('./reader.mjs');
+let args;
+const summary=createSummary({configPath:'/private/config',sourcePath:'hiv-readonly:folder/report.xlsx',now:()=>new Date('2026-11-09T12:00:00Z'),run:(cmd,a,opts)=>{args=[cmd,a,opts];return {status:0,stdout:Buffer.from(bytes),stderr:Buffer.from('SECRET diagnostic')};}});
+assert.equal(args[0],'rclone');assert.deepEqual(args[1],['--config','/private/config','cat','--','hiv-readonly:folder/report.xlsx']);
+assert.equal(args[2].timeout,60000);assert.equal(summary.checkedAt,'2026-11-09T12:00:00.000Z');
+assert(!JSON.stringify(summary).includes('SECRET')&&!JSON.stringify(summary).includes('DO NOT EXPOSE'));
+assert.throws(()=>createSummary({configPath:'/private/config',sourcePath:'hiv-readonly:folder/report.xlsx',run:()=>({status:1,stderr:Buffer.from('SECRET')})}),/^Error: Workbook read failed$/);
+assert.throws(()=>createSummary({configPath:'/private/config',sourcePath:'other:report.xlsx',run:()=>{throw Error('must not run');}}),/Invalid workbook path/);
+assert.throws(()=>createSummary({configPath:'/private/config',sourcePath:'hiv-readonly:folder/report.xlsx',run:()=>({status:0,stdout:Buffer.alloc(2*1024*1024+1)})}),/Workbook read failed/);
+console.log('reader: readonly invocation, bounded input, privacy filtering and fail-closed passed');

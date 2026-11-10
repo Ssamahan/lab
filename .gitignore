@@ -7,3 +7,6 @@ package-lock.json
 
 # Local, non-public reporting documents
 private-deliverables/
+
+# Lock dependencies used by the private HIV timeliness runner
+!workers/hiv-feed/package-lock.json
