@@ -19,7 +19,7 @@ const prior=db.get('summary');
 for(const bad of [{...summary,records:[]},{...summary,records:[summary.records[0],summary.records[0]]},{...summary,checkedAt:'2000-01-01T00:00:00Z'}, {...summary,records:[{...summary.records[0],facility:'unexpected'}]}]){
  res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify(bad)}),env);assert.equal(res.status,400);assert.equal(db.get('summary'),prior);
 }
-db.set('summary',JSON.stringify({...summary,checkedAt:'2000-01-01T00:00:00Z'}));res=await worker.fetch(req('/'),env);assert.equal(res.status,503);assert(!(await res.text()).includes('DO NOT EXPOSE'));
+db.set('summary',JSON.stringify({...summary,checkedAt:'2000-01-01T00:00:00Z'}));res=await worker.fetch(req('/'),env);assert.equal(res.status,200);const staleBody=await res.json();assert.equal(staleBody.stale,true);assert.equal(staleBody.checkedAt,'2000-01-01T00:00:00Z');
 res=await worker.fetch(req('/private/config',{method:'PUT',headers:auth,body:'x'.repeat(140000)}),env);assert.equal(res.status,503);
 const priorLog=console.error, logs=[];console.error=(...args)=>logs.push(args.join(' '));
 try {

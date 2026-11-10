@@ -61,8 +61,10 @@ export default {async fetch(req,env){
   if(path==='/'&&req.method==='GET'){
    stage='summary-read';const value=await readState(env.STATE,'summary');if(!value)return json({error:'No verified summary available'},503,true);
    const data=JSON.parse(value),stamp=Date.parse(data.checkedAt),now=Date.now();
-   if(!Number.isFinite(stamp)||stamp>now+60000||now-stamp>MAX_AGE_MS)return json({error:'Summary is stale'},503,true);
-   return json(data,200,true);
+   if(!Number.isFinite(stamp)||stamp>now+60000)return json({error:'Summary timestamp is invalid'},503,true);
+   // The stored summary is already privacy-filtered. Preserve access during an
+   // outage, but tell every client explicitly that the source is not current.
+   return json({...data,stale:now-stamp>MAX_AGE_MS},200,true);
   }
   if(!['/private/config','/private/summary'].includes(path))return json({error:'Not found'},404);
   stage='authorization';if(!await authorized(req,env))return json({error:'Unauthorized'},401);
