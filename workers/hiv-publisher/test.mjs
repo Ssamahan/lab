@@ -4,7 +4,7 @@ import worker from './src.mjs';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const db=new Map();
 const STATE={prepare(sql){return {bind(...args){return {async first(){const value=db.get(args[0]);return value===undefined?null:{value};},async run(){db.set(args[0],args[1]);return {success:true};}};}};}};
-const env={STATE,PUBLISHER_KEY:'K'.repeat(64),CONFIG_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')};
+const env={STATE,PUBLISHER_KEY:'a'.repeat(64),CONFIG_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')};
 const req=(path,opts={})=>new Request('https://example.test'+path,opts);
 const auth={'authorization':'Bearer '+env.PUBLISHER_KEY};
 let res=await worker.fetch(req('/'),env);assert.equal(res.status,503);
