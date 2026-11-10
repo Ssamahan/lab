@@ -8,7 +8,7 @@ const fetchImpl=async(url,opts)=>{calls.push({url,opts});if(opts.method==='PUT')
 const summaryFn=({configPath})=>{assert.equal(sourcePath,'hiv-readonly:report.xlsx');return {version:1,checkedAt:'2026-11-09T12:00:00Z',records:[]};};
 try{
  await publish({key,sourcePath,fetchImpl,summaryFn,tempRoot:root});
- assert.deepEqual(calls.map(x=>new URL(x.url).pathname),['/private/config','/private/config','/private/summary']);
+ assert.deepEqual(calls.map(x=>new URL(x.url).pathname),['/private/config','/private/config','/private/summary']);assert(calls.every(x=>x.opts.headers['user-agent'].startsWith('Mozilla/5.0')));
  assert.equal(Buffer.from(calls[1].opts.body).toString(),'secret-initial-config');assert.deepEqual(await readdir(root),[]);
  calls=[];await assert.rejects(()=>publish({key,sourcePath,fetchImpl,summaryFn:()=>{throw Error('hidden');},tempRoot:root}));
  assert.deepEqual(calls.map(x=>new URL(x.url).pathname),['/private/config','/private/config']);assert.deepEqual(await readdir(root),[]);

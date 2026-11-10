@@ -8,7 +8,7 @@ import {createSummary} from './reader.mjs';
 const ORIGIN='https://lab-hiv-timeliness.smhnklvn.workers.dev';
 export async function publish({key,sourcePath,fetchImpl=fetch,summaryFn=createSummary,tempRoot=tmpdir()}){
  if(typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key))throw Error('Invalid credentials');
- const headers={'authorization':'Bearer '+key};
+ const headers={'authorization':'Bearer '+key,'user-agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'};
  const call=async(path,opts={})=>{
   const response=await fetchImpl(ORIGIN+path,{...opts,headers:{...headers,...opts.headers},redirect:'error',signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw Error('Private store request failed');return response;
