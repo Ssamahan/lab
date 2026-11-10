@@ -22,6 +22,9 @@ export function createSummary({configPath, sourcePath, run = spawnSync, now = ()
   if (typeof configPath !== 'string' || !configPath || /[\r\n\0]/.test(configPath)) throw new ReaderFailure('invalid-config-path');
   // A path identifies one workbook; never run sync, copy, delete, or any remote mutation.
   if (typeof sourcePath !== 'string' || !sourcePath) throw new ReaderFailure('workbook-path-missing');
+  // Secret UIs often append terminal line endings when copying a value. Do not
+  // trim other whitespace, which can legitimately be part of a file name.
+  sourcePath = sourcePath.replace(/[\r\n]+$/, '');
   if (/[\r\n\0]/.test(sourcePath)) throw new ReaderFailure('workbook-path-control-character');
   if (!sourcePath.startsWith('hiv-readonly:')) throw new ReaderFailure('workbook-path-wrong-prefix');
   const child = run('rclone', ['--config', configPath, 'cat', '--', sourcePath], {

@@ -19,6 +19,8 @@ const {createSummary}=await import('./reader.mjs');
 let args;
 const summary=createSummary({configPath:'/private/config',sourcePath:'hiv-readonly:folder/report.xlsx',now:()=>new Date('2026-11-09T12:00:00Z'),run:(cmd,a,opts)=>{args=[cmd,a,opts];return {status:0,stdout:Buffer.from(bytes),stderr:Buffer.from('SECRET diagnostic')};}});
 assert.equal(args[0],'rclone');assert.deepEqual(args[1],['--config','/private/config','cat','--','hiv-readonly:folder/report.xlsx']);
+const trimmed=createSummary({configPath:'/private/config',sourcePath:'hiv-readonly:folder/report.xlsx\r\n',run:(cmd,a)=>{assert.equal(a[4],'hiv-readonly:folder/report.xlsx');return {status:0,stdout:Buffer.from(bytes)};}});assert.equal(trimmed.records.length,1);
+assert.throws(()=>createSummary({configPath:'/private/config',sourcePath:'hiv-readonly:bad\npath',run:()=>{throw Error('must not run');}}),/Workbook read failed/);
 assert.equal(args[2].timeout,60000);assert.equal(summary.checkedAt,'2026-11-09T12:00:00.000Z');
 assert(!JSON.stringify(summary).includes('SECRET')&&!JSON.stringify(summary).includes('DO NOT EXPOSE'));
 assert.throws(()=>createSummary({configPath:'/private/config',sourcePath:'hiv-readonly:folder/report.xlsx',run:()=>({status:1,stderr:Buffer.from('SECRET')})}),/^Error: Workbook read failed$/);
