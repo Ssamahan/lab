@@ -8,7 +8,8 @@ const M={}; LS.modules.revenue=M;
 let rootEl=null;
 const EXPENSE_CATS=['Transport','Per-diem','Materials','Meal','Housing','Communication','Equipment','Other'];
 const catLabel=e=>{ const c=e&&(e.cat||'Other'); return e&&e.custom?'Other — '+c:c; };
-const sumExp=t=>U.sum(t.expenses||[],e=>e.amount||0);
+const activeExpenses=t=>(t.expenses||[]).filter(e=>!e.deleted);
+const sumExp=t=>U.sum(activeExpenses(t),e=>e.amount||0);
 const activeReimb=t=>(t.reimbursements||[]).filter(r=>!r.deleted);
 const sumReimb=t=>U.sum(activeReimb(t),r=>r.amount||0);
 function catOptions(cur){
@@ -47,7 +48,7 @@ function rosterOptions(cur,ownRow){
   return out;
 }
 function data(){
-  const list=(S.db().trainingExpenses||[]).filter(t=>!t.deleted);
+  const list=(S.db().trainingExpenses||[]).filter(t=>!t.deleted).slice().sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
   const exp=U.sum(list,sumExp), reimb=U.sum(list,sumReimb);
   return {list,exp,reimb,balance:reimb-exp,pending:U.sum(list.filter(t=>sumReimb(t)<sumExp(t)),t=>sumExp(t)-sumReimb(t))};
 }
@@ -197,7 +198,7 @@ function drawer(id){
      +'</div>'
      +'<div class="hint" style="margin-bottom:10px">Ticket endpoints are the stops you entered. Google Maps suggests roads; this is not a GPS recording of the actual bus or taxi route.</div>'
      +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('receipt',14,'ic')+'Expense lines</div></div><button class="btn xs" data-add-exp>'+UI.ic('plus',12)+'Add line</button></div><div class="card-body">'
-       +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div>'+ticketRoute(x)+'</div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>'+(x.desc&&x.custom?'':'' )).join('')
+       +(t.expenses||[]).map((x,i)=>x.deleted?'':'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div>'+ticketRoute(x)+'</div><div class="lr-val">'+U.fmtNum(x.amount)+'</div><button class="btn xs" data-edit-exp="'+i+'">Edit</button><button class="btn xs danger" data-delete-exp="'+i+'">Delete</button></div>').join('')
      +'</div></div>'
      +'<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('banknote',14,'ic')+'Reimbursements</div></div><button class="btn xs" data-add-reimb>'+UI.ic('plus',12)+'Add</button></div><div class="card-body">'
        +(activeReimb(t).length?(t.reimbursements||[]).map((x,i)=>x.deleted?'':'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.source||'Reimbursement')+'</div><div class="lr-sub">'+U.fmtDate(x.date)+(x.note?' · '+U.esc(x.note):'')+'</div></div><div class="lr-val" style="color:var(--pos)">'+U.fmtNum(x.amount)+'</div><button class="btn xs" data-edit-reimb="'+i+'">Edit</button><button class="btn xs danger" data-delete-reimb="'+i+'">Delete</button></div>').join(''):'<p class="xs faint">No reimbursement recorded yet.</p>')
@@ -213,6 +214,8 @@ function drawer(id){
         S.commit(d=>{const x=(d.trainingExpenses||[]).find(y=>y.id===t.id);if(x&&!x.deleted){x.deleted=true;x.deletedAt=U.nowISO();x.deletedBy=LS.auth.user.name;}},{action:'revenue.session.delete',entity:'trainingExpenses',entityId:t.id,detail:'Revenue session removed · '+t.title});
         UI.closeAll();LS.shell.refresh();UI.toast('Revenue session removed; sync pending',{type:'ok'});
       };
+      panel.querySelectorAll('[data-edit-exp]').forEach(b=>b.onclick=()=>editExpense(t,+b.dataset.editExp));
+      panel.querySelectorAll('[data-delete-exp]').forEach(b=>b.onclick=()=>deleteExpense(t,+b.dataset.deleteExp));
       panel.querySelectorAll('[data-edit-reimb]').forEach(b=>b.onclick=()=>editReimbursement(t,+b.dataset.editReimb));
       panel.querySelectorAll('[data-delete-reimb]').forEach(b=>b.onclick=()=>deleteReimbursement(t,+b.dataset.deleteReimb));
       const linkSel=panel.querySelector('[data-link-select]');
@@ -237,11 +240,28 @@ function drawer(id){
       panel.querySelector('[data-print]').onclick=()=>{
         U.printDoc('Training revenue statement — '+t.title,
           '<table><thead><tr><th>Item</th><th>Category</th><th>Date</th><th>Amount (RWF)</th></tr></thead><tbody>'
-          +(t.expenses||[]).map(x=>'<tr><td>'+U.esc(x.desc||'')+'</td><td>'+U.esc(catLabel(x))+'</td><td>'+U.fmtDate(x.date)+'</td><td>'+U.fmtNum(x.amount)+'</td></tr>').join('')
+          +activeExpenses(t).map(x=>'<tr><td>'+U.esc(x.desc||'')+'</td><td>'+U.esc(catLabel(x))+'</td><td>'+U.fmtDate(x.date)+'</td><td>'+U.fmtNum(x.amount)+'</td></tr>').join('')
           +'<tr><td colspan="3"><b>Total expenses</b></td><td><b>'+U.fmtNum(e)+'</b></td></tr></tbody></table>'
           +'<p style="margin-top:8px;font-size:9px">Reimbursed: '+U.fmtRWF(r)+' · Net: '+U.fmtRWF(r-e)+'</p>',{meta:'<span>Prepared by '+U.esc(LS.auth.user.name)+'</span>'});
       };
     }});
+}
+function editExpense(t,index){
+  const original=(t.expenses||[])[index];if(!original||original.deleted||!LS.auth.guard('revenue'))return;const snapshot=JSON.stringify(original);
+  UI.modal({title:'Edit expense',body:'<div class="form-grid"><div class="field span2"><label>Description</label><input class="input" id="edDesc" value="'+U.esc(original.desc||'')+'"></div><div class="field"><label>Amount (RWF)</label><input class="input" id="edAmt" type="number" min="0" value="'+U.esc(original.amount)+'"></div><div class="field"><label>Date</label><input class="input" id="edDate" type="date" value="'+U.esc(original.date||'')+'"></div><div class="field"><label>Category</label><select class="select" id="edCat">'+catOptions(original.custom?'Other':original.cat)+'</select></div><div class="field"><label>Custom category (if Other)</label><input class="input" id="edCustom" value="'+U.esc(original.custom?original.cat:'')+'"></div><div class="field"><label>Ticket from</label><input class="input" id="edFrom" value="'+U.esc(original.routeFrom||'')+'"></div><div class="field"><label>Ticket to</label><input class="input" id="edTo" value="'+U.esc(original.routeTo||'')+'"></div></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save changes</button>',onMount:(el,close)=>{
+    el.querySelector('[data-save]').onclick=()=>{if(!LS.auth.guard('revenue'))return;const raw=el.querySelector('#edAmt').value,amount=Number(raw),date=el.querySelector('#edDate').value,choice=el.querySelector('#edCat').value,custom=choice==='Other',cat=custom?el.querySelector('#edCustom').value.trim():choice;
+      if(raw===''||!Number.isFinite(amount)||amount<0||!date||!cat)return UI.toast('Enter amount, date and category',{type:'warn'});
+      const current=(S.db().trainingExpenses||[]).find(x=>x.id===t.id),line=current&&(current.expenses||[])[index];if(!current||current.deleted||!line||JSON.stringify(line)!==snapshot)return UI.toast('This line changed; reopen it before editing',{type:'warn'});
+      const values={amount,date,cat,custom,desc:el.querySelector('#edDesc').value.trim(),routeFrom:el.querySelector('#edFrom').value.trim(),routeTo:el.querySelector('#edTo').value.trim()};
+      S.commit(d=>{const x=d.trainingExpenses.find(y=>y.id===t.id).expenses[index];const {editHistory,...old}=x;x.editHistory=editHistory||[];x.editHistory.push({...old,changedAt:U.nowISO(),changedBy:LS.auth.user.name});Object.assign(x,values);},{action:'revenue.expense.edit',entity:'trainingExpenses',entityId:t.id,detail:'Expense edited · '+t.title});close();UI.closeAll();LS.shell.refresh();drawer(t.id);UI.toast('Expense updated; sync pending',{type:'ok'});
+    };
+  }});
+}
+async function deleteExpense(t,index){
+  const line=(t.expenses||[])[index];if(!line||line.deleted||!LS.auth.guard('revenue'))return;const snapshot=JSON.stringify(line);
+  const yes=await UI.confirm({title:'Delete this expense?',body:'This removes the expense and its route from the ledger totals. The original line is retained for audit.',confirm:'Delete expense',danger:true});if(!yes||!LS.auth.guard('revenue'))return;
+  const current=(S.db().trainingExpenses||[]).find(x=>x.id===t.id),now=current&&(current.expenses||[])[index];if(!current||current.deleted||!now||JSON.stringify(now)!==snapshot)return UI.toast('This line changed; reopen it before deleting',{type:'warn'});
+  S.commit(d=>{const x=d.trainingExpenses.find(y=>y.id===t.id).expenses[index];x.deleted=true;x.deletedAt=U.nowISO();x.deletedBy=LS.auth.user.name;},{action:'revenue.expense.delete',entity:'trainingExpenses',entityId:t.id,detail:'Expense removed · '+t.title});UI.closeAll();LS.shell.refresh();drawer(t.id);UI.toast('Expense removed; sync pending',{type:'ok'});
 }
 function editReimbursement(t,index){
   const original=(t.reimbursements||[])[index];if(!original||original.deleted||!LS.auth.guard('revenue'))return;

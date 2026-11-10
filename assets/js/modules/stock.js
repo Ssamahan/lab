@@ -6,6 +6,13 @@
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.stock=M;
 let tab='overview', rootEl=null;
+// Choices are virtual defaults, not stock movements or edits to existing suppliers.
+function suppliers(){const saved=S.db().suppliers||[],defaults=['NRL','RBC','RMS'];return defaults.map(name=>saved.find(x=>String(x.name||'').trim().toUpperCase()===name)||{id:'default-'+name.toLowerCase(),name}).concat(saved.filter(x=>!defaults.includes(String(x.name||'').trim().toUpperCase())));}
+function addSupplier(){
+ if(!LS.auth.guard('edit'))return;
+ UI.modal({title:'Add supplier',body:'<div class="field"><label>Supplier name</label><input class="input" id="newSupplier" maxlength="100"></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-supplier-save>Save supplier</button>',onMount:(el,close)=>{el.querySelector('[data-supplier-save]').onclick=()=>{if(!LS.auth.guard('edit'))return;const name=el.querySelector('#newSupplier').value.trim();if(!name)return UI.toast('Enter a supplier name',{type:'warn'});if(suppliers().some(s=>String(s.name||'').toLowerCase()===name.toLowerCase()))return UI.toast('This supplier already exists',{type:'warn'});S.commit(d=>{d.suppliers=d.suppliers||[];d.suppliers.push({id:U.uid('sup'),name});},{action:'stock.supplier.add',entity:'stock',detail:'Supplier added · '+name});close();LS.shell.refresh();UI.toast('Supplier added; sync pending',{type:'ok'});};}});
+}
+
 
 function kpis(){
   const items=S.stockOverview();
@@ -18,12 +25,12 @@ function kpis(){
    +'<div class="c3">'+UI.stat({label:'Days of cover',value:cover.median===null?0:cover.median,unit:'median',icon:'gauge',formatted:'0',
       note:soonest?soonest.name.split(' ')[0]+' runs out in '+soonest.daysLeft+'d':'No issues logged yet',
       spark:C.spark(trend.filter(x=>x.daysLeft!=null).map(x=>Math.min(x.daysLeft,180)).slice(0,14),{color:'var(--pos)'})})+'</div>'
-   +'<div class="c3">'+UI.stat({label:'Below threshold',value:low,icon:'alert-triangle',formatted:'0',delta:low?6.2:-1,
+   +'<div class="c3">'+UI.stat({label:'Below threshold',value:low,icon:'alert-triangle',formatted:'0',
       note:low?items.filter(x=>x.low).map(x=>x.name.split(' ')[0]).slice(0,2).join(', ')+'…':'All lines above minimum',
-      spark:C.spark([1,2,1,2,3,2,4,3,2,3,4,low||0],{color:'var(--amber)'})})+'</div>'
+      spark:''})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Expiring ≤ 30 days',value:exp.length,icon:'hourglass',formatted:'0',
       note:exp[0]?exp[0].name+' · '+U.daysBetween(U.todayISO(),exp[0].nearest.expiry)+'d':'No near-expiry stock',
-      spark:C.spark([0,1,0,1,1,2,1,2,2,1,2,exp.length],{color:'var(--crit)'})})+'</div>'
+      spark:''})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Stock-out projection',value:Math.max(0,trend.filter(x=>x.daysLeft!=null&&x.daysLeft<21).length),unit:'lines < 21d',icon:'trending-down',formatted:'0',
       note:cover.noConsumption?cover.noConsumption+' line(s) with no consumption yet':'Consumption rate is steady — no purchase request needed',
       spark:C.spark(trend.filter(x=>x.daysLeft!=null).map(x=>x.daysLeft).slice(0,14),{color:'var(--gold)'})})+'</div></div>';
@@ -35,7 +42,7 @@ function monthLabel(perMonth,x){
 }
 function itemRow(x){
   const days=x.daysLeft;
-  const tone=x.low?'rose':days<21?'amber':'teal';
+  const tone=x.low?'rose':days!=null&&days<21?'amber':'teal';
   const expiry=x.nearest?U.daysBetween(U.todayISO(),x.nearest.expiry):null;
   const expTone=expiry==null?'slate':expiry<=0?'rose':expiry<=30?'amber':'teal';
   return '<tr data-item="'+x.id+'">'
@@ -45,7 +52,7 @@ function itemRow(x){
    +'<td style="width:150px"><div class="meter '+tone+'"><i style="width:'+U.clamp(x.onHand/Math.max(1,(x.max||x.threshold*3))*100,2,100)+'%"></i></div>'
      +'<div class="xs faint" style="margin-top:3px">'+x.burn.toFixed(1)+'/day · <b style="color:var(--text-muted)">'+monthLabel(x.perMonth,x)+'</b>'
      +(x.cap?' <span style="color:'+(x.usedMonth>x.cap?'var(--crit)':x.usedMonth>x.cap*.85?'var(--warn)':'var(--pos)')+'">· '+(x.usedMonth||0)+' of '+x.cap+' this month</span>':'')+'</div></td>'
-   +'<td><span class="mono small" style="color:'+(days<14?'var(--crit)':days<30?'var(--warn)':'var(--text)')+'">'+Math.min(days,999)+'d</span></td>'
+   +'<td><span class="mono small" style="color:'+(days!=null&&days<14?'var(--crit)':days!=null&&days<30?'var(--warn)':'var(--text)')+'">'+(days==null?'—':Math.min(days,999)+'d')+'</span></td>'
    +'<td>'+(expiry!=null?'<span class="pill '+expTone+' mono">'+expiry+'d</span>':'<span class="xs faint">—</span>')+'</td>'
    +'<td class="num hide-sm">'+(x.daysLeft==null?'<span class="xs faint">—</span>':x.daysLeft+'d')+'</td>'
    +'<td style="width:64px;white-space:nowrap">'
@@ -67,7 +74,7 @@ function archivedStrip(){
 
 function overview(){
   const items=S.stockOverview();
-  return '<div class="grid-12">'
+  return '<div class="hint" style="margin-bottom:12px">Some older stock lots and issue records may be demonstration data. Do not treat the displayed balance as verified until you reconcile it against the physical stock and receipt records. Nothing has been automatically removed.</div><div class="grid-12">'
    +'<div class="c8"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="stkSearch" placeholder="Search consumable, lot, supplier…"></div>'
      +'<span class="grow"></span><button class="btn sm" data-receive>'+UI.ic('plus',13)+' Receive stock</button><button class="btn sm" data-pr>'+UI.ic('file-text',13)+' Purchase request</button></div>'
      +'<div class="dt-scroll"><table class="dt" id="stkTable"><thead><tr><th>Consumable</th><th>On hand</th><th class="hide-sm">Min</th><th>Burn &amp; capacity</th><th>Cover</th><th>Expiry</th><th class="hide-sm">Cover trend</th><th></th></tr></thead><tbody>'
@@ -80,10 +87,7 @@ function overview(){
    +'</div></div></div>';
 }
 function supplierMini(){
-  const sups=S.db().suppliers;
-  return UI.card({title:'Supplier performance',sub:'Lead time · fill rate · price variance',icon:'truck',
-    tools:'<button class="btn xs ghost" data-tab-stock="suppliers">Details</button>',
-    body:'<div style="display:flex;flex-direction:column;gap:11px">'+sups.slice(0,3).map(s=>'<div><div class="row between" style="margin-bottom:4px"><span class="small truncate">'+U.esc(s.name)+'</span><span class="mono xs" style="color:'+(s.fillRate>=92?'var(--pos)':s.fillRate>=85?'var(--warn)':'var(--crit)')+'">'+s.fillRate+'%</span></div><div style="height:5px;border-radius:99px;background:var(--surface-3)"><div style="height:100%;width:'+s.fillRate+'%;border-radius:99px;background:linear-gradient(90deg,var(--teal-700),var(--teal-400))"></div></div><div class="xs faint" style="margin-top:3px">'+s.leadDays+'d lead · ±'+s.priceVariance+'% price variance</div></div>').join('')+'</div>'});
+  return UI.card({title:'Suppliers',sub:'Names available when receiving stock',icon:'truck',tools:'<button class="btn xs" data-stk-tab="suppliers">Details</button>',body:'<p class="small">'+suppliers().map(s=>U.esc(s.name)).join(' · ')+'</p>'});
 }
 function lotsView(){
   const db=S.db();
@@ -161,19 +165,11 @@ function monthlyCeilingsCard(){
     foot:'<span>Ceilings are set per consumable, on the same form as the minimum threshold.</span><span class="mono">'+items.length+' lines</span>'});
 }
 function suppliersView(){
-  const sups=S.db().suppliers; const items=S.stockOverview();
-  return '<div class="grid-12 stagger">'+sups.map(s=>{
-    const supplied=items.filter(i=>i.supplier===s.id);
-    return '<div class="c6"><div class="card pad">'
-     +'<div class="row between" style="align-items:flex-start;margin-bottom:12px"><div><div class="card-title">'+U.esc(s.name)+'</div><div class="card-sub">'+U.esc(s.region)+' · '+supplied.length+' lines supplied</div></div>'+C.ring(s.rating,{size:64,stroke:5})+'</div>'
-     +'<div class="split-3" style="gap:10px">'+[['Lead time',s.leadDays+'d','clock'],['Fill rate',s.fillRate+'%','package-check'],['Price variance','±'+s.priceVariance+'%','percent']].map(([k,v,ic])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl">'+UI.ic(ic,12)+v+'</span></div>').join('')+'</div>'
-     +'<div class="thread" style="margin:14px 0"></div>'
-     +'<div class="row between"><span class="xs faint">Scorecard weighted on fill rate &amp; price stability</span><button class="btn xs" data-sup-orders="'+s.id+'">Orders '+UI.ic('arrow-right',12)+'</button></div></div></div>';
-  }).join('')+'</div>';
+  return UI.card({title:'Suppliers',sub:'Choose a supplier when receiving stock. Performance is not inferred.',icon:'truck',tools:'<button class="btn xs" data-add-supplier>Add supplier</button>',body:suppliers().map(s=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(s.name)+'</div></div></div>').join('')});
 }
 function reorderItems(){
-  const items=S.stockOverview().filter(x=>x.low||x.daysLeft<25).sort((a,b)=>a.daysLeft-b.daysLeft);
-  return '<div style="display:flex;flex-direction:column;gap:10px">'+(items.length?items.slice(0,5).map(x=>'<div><div class="row between"><span class="small truncate">'+U.esc(x.name)+'</span><span class="pill '+(x.low?'rose':'amber')+'">'+Math.min(x.daysLeft,999)+'d</span></div><div class="xs faint" style="margin-top:2px">Order '+Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand))+' '+U.esc(x.unit)+' · '+(x.cap?(x.usedMonth||0)+' of '+x.cap+' used this month':monthLabel(x.perMonth,x)+' used')+(x.overCap?' · <b style="color:var(--crit)">over the ceiling</b>':'')+(x.byAge?' · '+x.byAge.map(g=>g.used+'/'+g.cap+' '+(g.group==='Adult'?'adult':'paediatric')).join(', '):'')+'</div></div>').join(''):'<p class="xs faint">No reorder needed.</p>')+'</div>';
+  const items=S.stockOverview().filter(x=>x.low||(x.daysLeft!=null&&x.daysLeft<25)).sort((a,b)=>a.daysLeft-b.daysLeft);
+  return '<div style="display:flex;flex-direction:column;gap:10px">'+(items.length?items.slice(0,5).map(x=>'<div><div class="row between"><span class="small truncate">'+U.esc(x.name)+'</span><span class="pill '+(x.low?'rose':'amber')+'">'+(x.daysLeft==null?'—':Math.min(x.daysLeft,999)+'d')+'</span></div><div class="xs faint" style="margin-top:2px">Order '+Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand))+' '+U.esc(x.unit)+' · '+(x.cap?(x.usedMonth||0)+' of '+x.cap+' used this month':monthLabel(x.perMonth,x)+' used')+(x.overCap?' · <b style="color:var(--crit)">over the ceiling</b>':'')+(x.byAge?' · '+x.byAge.map(g=>g.used+'/'+g.cap+' '+(g.group==='Adult'?'adult':'paediatric')).join(', '):'')+'</div></div>').join(''):'<p class="xs faint">No reorder needed.</p>')+'</div>';
 }
 
 /* ——— Actions —————————————————————————— */
@@ -182,33 +178,48 @@ function receiveModal(){
   const items=S.consumables();
   UI.modal({title:'Receive stock',sub:'Creates a lot and a distribution-log entry. FEFO order recalculates automatically.',
     body:'<div class="form-grid"><div class="field span2"><label>Consumable</label><select class="select" id="rcItem">'+items.map(c=>'<option value="'+c.id+'">'+U.esc(c.name)+' ('+c.unit+')</option>').join('')+'</select></div>'
-    +'<div class="field"><label>Quantity</label><input class="input mono" id="rcQty" type="number" min="1" value="20"></div>'
-    +'<div class="field"><label>Expiry date</label><input class="input mono" id="rcExp" type="date" value="'+U.addDays(U.todayISO(),365)+'"></div>'
-    +'<div class="field"><label>Supplier</label><select class="select" id="rcSup">'+S.db().suppliers.map(s=>'<option value="'+s.id+'">'+U.esc(s.name)+'</option>').join('')+'</select></div>'
+    +'<div class="field"><label>Quantity</label><input class="input mono" id="rcQty" type="number" min="1" step="1"></div>'
+    +'<div class="field"><label>Received on</label><input class="input mono" id="rcDate" type="date" value="'+U.todayISO()+'"></div>'
+    +'<div class="field"><label>Expiry date</label><input class="input mono" id="rcExp" type="date"></div>'
+    +'<div class="field"><label>Supplier</label><select class="select" id="rcSup">'+suppliers().map(s=>'<option value="'+U.esc(s.id)+'">'+U.esc(s.name)+'</option>').join('')+'</select></div>'
     +'<div class="field"><label>Received from (document)</label><input class="input mono" id="rcDoc" placeholder="GRN-2026-0xx"></div></div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-receive-save>'+UI.ic('package-check',15)+'Receive &amp; log</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-receive-save]').onclick=()=>{
-        const cid=el.querySelector('#rcItem').value, qty=+el.querySelector('#rcQty').value, exp=el.querySelector('#rcExp').value;
-        if(!qty||qty<=0) return UI.toast('Quantity must be greater than zero',{type:'warn'});
-        const b={id:'lot'+U.uid(''),cid,qty,received:U.todayISO(),expiry:exp,note:'Received '+el.querySelector('#rcDoc').value};
-        S.commit(d=>{ d.stock.batches.push(b); d.stock.entries.push({id:U.uid('e'),cid,date:U.todayISO(),type:'received',qty,batch:b.id,expiry:exp,note:'Received · '+el.querySelector('#rcSup').value}); },
+        if(!LS.auth.guard('edit'))return;
+        const cid=el.querySelector('#rcItem').value, qty=+el.querySelector('#rcQty').value, exp=el.querySelector('#rcExp').value,received=el.querySelector('#rcDate').value;
+        if(!Number.isSafeInteger(qty)||qty<=0||!received||!exp) return UI.toast('Quantity must be greater than zero',{type:'warn'});
+        const supplier=suppliers().find(s=>s.id===el.querySelector('#rcSup').value);
+        const b={id:'lot'+U.uid(''),cid,qty,received,expiry:exp,supplier:supplier?supplier.id:null,supplierName:supplier?supplier.name:'',note:'Received '+el.querySelector('#rcDoc').value};
+        const save=el.querySelector('[data-receive-save]');if(save.disabled)return;save.disabled=true;
+        S.commit(d=>{ d.stock.batches.push(b); d.stock.entries.push({id:U.uid('e'),cid,date:received,type:'received',qty,batch:b.id,expiry:exp,note:'Received · '+(supplier?supplier.name:'')}); },
           {action:'stock.receive',entity:'stock',entityId:cid,detail:qty+' received · lot '+b.id+' · exp '+exp});
         close(); UI.toast(qty+' units received into stock',{type:'ok'}); LS.shell.refresh();
       };
     }});
 }
+function recordStockUse(){
+ if(!LS.auth.guard('edit'))return;
+ const lots=(S.db().stock.batches||[]).filter(b=>Number(b.qty)>0&&S.consumable(b.cid));
+ if(!lots.length)return UI.toast('No lots with stock available',{type:'warn'});
+ UI.modal({title:'Record stock use or loss',sub:'Choose the actual lot. This is a manual movement; no use is inferred.',body:'<div class="form-grid"><div class="field span2"><label>Lot</label><select class="select" id="useLot">'+lots.map(b=>'<option value="'+U.esc(b.id)+'">'+U.esc(S.consumable(b.cid).name)+' · '+U.esc(b.id)+' · '+U.fmtNum(b.qty)+' available</option>').join('')+'</select></div><div class="field"><label>Quantity</label><input class="input" type="number" min="1" step="1" id="useQty" value="1"></div><div class="field"><label>Reason</label><select class="select" id="useType"><option value="used">Used</option><option value="lost">Lost</option><option value="broken">Broken</option></select></div><div class="field"><label>Date</label><input class="input" type="date" id="useDate" value="'+U.todayISO()+'"></div><div class="field span2"><label>Note</label><input class="input" id="useNote"></div></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-use-save>Record movement</button>',onMount:(el,close)=>{el.querySelector('[data-use-save]').onclick=()=>{
+   if(!LS.auth.guard('edit'))return;const id=el.querySelector('#useLot').value,qty=Number(el.querySelector('#useQty').value),date=el.querySelector('#useDate').value,type=el.querySelector('#useType').value,note=el.querySelector('#useNote').value.trim(),lot=(S.db().stock.batches||[]).find(b=>b.id===id);
+   if(!lot||!Number.isSafeInteger(qty)||qty<1||qty>lot.qty||!date||!['used','lost','broken'].includes(type))return UI.toast('Check the lot, date and available quantity',{type:'warn'});
+   const save=el.querySelector('[data-use-save]');if(save.disabled)return;save.disabled=true;
+   S.commit(d=>{const b=d.stock.batches.find(x=>x.id===id);b.qty-=qty;d.stock.entries.push({id:U.uid('e'),cid:b.cid,batch:b.id,date,type,qty,note,by:LS.auth.user.name});},{action:'stock.manual.'+type,entity:'stock',entityId:id,detail:qty+' '+type+' · lot '+id});close();LS.shell.refresh();UI.toast('Movement recorded; sync pending',{type:'ok'});
+ };}});
+}
 function purchaseRequest(){
-  const items=S.stockOverview().filter(x=>x.low||x.daysLeft<25);
+  const items=S.stockOverview().filter(x=>x.low||(x.daysLeft!=null&&x.daysLeft<25));
   const body=items.length? '<div class="card" style="overflow:hidden"><table class="dt"><thead><tr><th>Item</th><th>On hand</th><th>Order</th><th>Days of cover</th></tr></thead><tbody>'
-    +items.map(x=>{ const qty=Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand)); return '<tr><td class="small">'+U.esc(x.name)+'</td><td class="num">'+x.onHand+'</td><td class="num">'+qty+' '+U.esc(x.unit)+'</td><td class="num">'+Math.min(x.daysLeft,999)+'d</td></tr>'; }).join('')
-    +'</tbody></table></div><div class="row between" style="margin-top:10px"><span class="hint">Delivery to Ruli DH laboratory · RBC standard lead time 18 days</span><span class="mono strong">'+items.length+' line'+(items.length===1?'':'s')+' to order</span></div>'
+    +items.map(x=>{ const qty=Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand)); return '<tr><td class="small">'+U.esc(x.name)+'</td><td class="num">'+x.onHand+'</td><td class="num">'+qty+' '+U.esc(x.unit)+'</td><td class="num">'+(x.daysLeft==null?'—':Math.min(x.daysLeft,999)+'d')+'</td></tr>'; }).join('')
+    +'</tbody></table></div><div class="row between" style="margin-top:10px"><span class="hint">Delivery to Ruli DH laboratory · confirm supplier and lead time</span><span class="mono strong">'+items.length+' line'+(items.length===1?'':'s')+' to order</span></div>'
     : UI.empty({art:'boxes',title:'No purchase request needed',body:'All consumable lines are above their minimum threshold.'});
   UI.modal({title:'Purchase request',sub:'Generated from burn-rate forecast and minimum thresholds.',width:'min(680px,100%)',body:body,
     foot:'<button class="btn" data-close>Close</button>'+(items.length?'<button class="btn primary" data-print-pr>'+UI.ic('printer',15)+'Print request</button>':''),
     onMount:(el)=>{ const b=el.querySelector('[data-print-pr]'); if(b) b.onclick=()=>{
       const rows='<table><thead><tr><th>#</th><th>Item</th><th>Unit</th><th>On hand</th><th>Order qty</th><th>Days of cover</th></tr></thead><tbody>'
-       +items.map((x,i)=>{ const qty=Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand)); return '<tr><td>'+(i+1)+'</td><td>'+U.esc(x.name)+'</td><td>'+U.esc(x.unit)+'</td><td>'+x.onHand+'</td><td>'+qty+'</td><td>'+Math.min(x.daysLeft,999)+' days</td></tr>'; }).join('')+'</tbody></table>';
+       +items.map((x,i)=>{ const qty=Math.max(1,Math.ceil((x.max||x.threshold*3)-x.onHand)); return '<tr><td>'+(i+1)+'</td><td>'+U.esc(x.name)+'</td><td>'+U.esc(x.unit)+'</td><td>'+x.onHand+'</td><td>'+qty+'</td><td>'+(x.daysLeft==null?'—':Math.min(x.daysLeft,999)+' days')+'</td></tr>'; }).join('')+'</tbody></table>';
       U.printDoc('Purchase request — consumables',rows,{meta:'<span>Requested by '+U.esc(LS.auth.user.name)+'</span><span>'+items.length+' lines</span>',signatures:true});
       S.audit({action:'stock.purchase_request',entity:'stock',detail:'Purchase request printed · '+items.length+' lines'}); S.save();
     }; }});
@@ -217,7 +228,7 @@ function lotDrawer(cid){
   const x=S.stockOverview().find(i=>i.id===cid); if(!x) return;
   const entries=S.db().stock.entries.filter(e=>e.cid===cid).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const body='<div class="card pad" style="background:var(--surface-inset);margin-bottom:14px"><div class="row between"><div><div class="eyebrow">On hand</div><div class="serif" style="font-size:2rem;color:var(--text-strong);letter-spacing:-.03em">'+U.fmtNum(x.onHand)+' <span class="xs faint" style="font-family:var(--font-ui);letter-spacing:.06em">'+U.esc(x.unit)+'</span></div></div><div style="text-align:right"><span class="pill '+(x.low?'rose':'teal')+'">'+(x.low?'Below minimum':'Healthy')+'</span><div class="xs faint" style="margin-top:4px">'+x.daysLeft+' days cover at '+x.burn.toFixed(1)+'/day</div></div></div>'
-    +'<div class="thread" style="margin:12px 0"></div><div class="split-3">'+[['Daily burn',x.burn.toFixed(2)],['Minimum',x.threshold||0],['Supplier',(S.db().suppliers.find(s=>s.id===x.supplier)||{}).name||'—']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')+'</div></div>'
+    +'<div class="thread" style="margin:12px 0"></div><div class="split-3">'+[['Daily burn',x.burn.toFixed(2)],['Minimum',x.threshold||0],['Supplier',(suppliers().find(s=>s.id===x.supplier)||{}).name||'—']].map(([k,v])=>'<div><div class="eyebrow">'+k+'</div><div class="small" style="margin-top:2px">'+U.esc(v)+'</div></div>').join('')+'</div></div>'
    +'<div class="card" style="margin-bottom:14px"><div class="card-head"><div><div class="card-title">'+UI.ic('boxes',14,'ic')+'Lots (FEFO)</div><div class="card-sub">First-expiry-first-out allocation</div></div></div><div class="card-body">'
      +(x.batches.length?x.batches.map(b=>'<div class="list-row"><div class="lr-main"><div class="lr-title mono" style="font-size:11.5px">'+U.esc(b.id.toUpperCase())+'</div><div class="lr-sub">Received '+U.fmtDate(b.received)+' · expires '+U.fmtDate(b.expiry)+'</div></div><div class="lr-val">'+b.qty+' '+U.esc(x.unit)+'</div><button class="btn xs" data-edit-lot2="'+b.id+'">'+UI.ic('pencil',12)+'Edit</button></div>').join(''):'<p class="xs faint">No lots on hand.</p>')
    +'</div></div>'
@@ -225,7 +236,7 @@ function lotDrawer(cid){
      +'<div class="dt-scroll" style="max-height:300px"><table class="dt"><thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Destination / note</th></tr></thead><tbody>'
      +entries.map(e=>'<tr><td class="num">'+U.fmtDate(e.date)+'</td><td><span class="pill '+(e.type==='received'?'teal':e.type==='issued'?'blue':'amber')+'">'+U.esc(e.type)+'</span></td><td class="num">'+e.qty+'</td><td class="small">'+U.esc(e.healthCenter||e.note||'—')+'</td></tr>').join('')
      +(entries.length?'':'<tr><td colspan="4" class="xs faint" style="padding:14px">No movements recorded.</td></tr>')+'</tbody></table></div></div></div>';
-  UI.drawer({title:x.name,eyebrow:'Consumable',sub:x.unit+' · '+(x.supplier?S.db().suppliers.find(s=>s.id===x.supplier).name:''),body:body,wide:true,
+  UI.drawer({title:x.name,eyebrow:'Consumable',sub:x.unit+' · '+(x.supplier?(suppliers().find(s=>s.id===x.supplier)||{}).name||'':''),body:body,wide:true,
     foot:'<button class="btn danger" data-del-line>'+UI.ic('trash-2',15)+'Delete line</button><button class="btn" data-edit-line>'+UI.ic('pencil',15)+'Edit line</button><button class="btn" data-close>Close</button><button class="btn primary" data-pr>'+UI.ic('file-text',15)+'Purchase request</button>',
     onMount:(panel)=>{ panel.querySelectorAll('[data-pr]').forEach(b=>b.onclick=purchaseRequest);
       panel.querySelectorAll('[data-edit-lot2]').forEach(b=>b.onclick=()=>editLot(b.dataset.editLot2));
@@ -349,6 +360,7 @@ function wireBody(){
   }
   r.querySelectorAll('[data-edit-item]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); editConsumable(b.dataset.editItem); });
   r.querySelectorAll('[data-receive]').forEach(b=>b.onclick=receiveModal);
+  r.querySelectorAll('[data-add-supplier]').forEach(b=>b.onclick=addSupplier);
   r.querySelectorAll('[data-pr]').forEach(b=>b.onclick=purchaseRequest);
   /* The tab buttons carry data-stk-tab; the old handler listened for a different
      attribute, so only the overview ever rendered. */
@@ -359,16 +371,19 @@ function syncTabs(){ U.$$('[data-stk-tab]',rootEl).forEach(b=>b.classList.toggle
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'overview';
   root.innerHTML='<div class="page-head"><div><h1>Stock &amp; supplies</h1><div class="sub">Commodity security with a trading-desk read: expiry health, burn-rate forecasts, lot traceability and supplier performance.</div></div>'
-   +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-receive>'+UI.ic('plus',15)+' Receive</button><button class="btn primary" data-pr>'+UI.ic('file-text',15)+' Purchase request</button></div></div>'
+   +'<div class="actions"><button class="btn" data-record-use>Record use / loss</button><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-receive>'+UI.ic('plus',15)+' Receive</button><button class="btn primary" data-pr>'+UI.ic('file-text',15)+' Purchase request</button></div></div>'
    +kpis()
    +'<div class="filters" style="margin-bottom:12px">'+[['overview','Overview'],['lots','Lots &amp; expiry'],['consumption','Consumption'],['suppliers','Suppliers']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-stk-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="stockBody"></div>';
   paint(); syncTabs();
+  root.querySelector('[data-record-use]').onclick=recordStockUse;
+  root.querySelector('.page-head [data-receive]').onclick=receiveModal;
+  root.querySelector('.page-head [data-pr]').onclick=purchaseRequest;
   root.querySelector('[data-export]').onclick=()=>{
     const items=S.stockOverview();
     const trend={}; S.stockTrend().forEach(t=>trend[t.id]=t);
     const rows=[['Consumable','Unit','On hand','Min','Burn/day','Days cover','Projected stock-out','Consumption trend %','Last issue','Nearest expiry','Supplier']]
-      .concat(items.map(x=>{ const t=trend[x.id]||{}; return [x.name,x.unit,x.onHand,x.threshold,(t.burn||x.burn).toFixed(2),t.daysLeft==null?'':t.daysLeft,t.stockOut||'',t.trend==null?'':t.trend,t.lastIssue||'',x.nearest?x.nearest.expiry:'',(S.db().suppliers.find(s=>s.id===x.supplier)||{}).name||'']; }));
+      .concat(items.map(x=>{ const t=trend[x.id]||{}; return [x.name,x.unit,x.onHand,x.threshold,(t.burn||x.burn).toFixed(2),t.daysLeft==null?'':t.daysLeft,t.stockOut||'',t.trend==null?'':t.trend,t.lastIssue||'',x.nearest?x.nearest.expiry:'',(suppliers().find(s=>s.id===x.supplier)||{}).name||'']; }));
     U.exportCSV('stock-register-'+U.todayISO()+'.csv',rows,{title:'Stock & supply register',actor:LS.auth.user.name});
     UI.toast('Stock register exported',{type:'ok'});
   };

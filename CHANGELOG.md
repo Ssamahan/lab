@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.144 — Training expense corrections and stock recording
+
+- Make expense lines and ticket endpoints editable and removable; order revenue sessions by start date, newest first.
+- Offer NRL, RBC and RMS and add custom suppliers; add manual lot-level use, loss and breakage. Show an unverified-legacy-stock warning and do not invent a burn rate when no use is logged. No historical stock records are automatically modified.
+
 ## v6.9.143 — Revenue corrections and PBF visit details
 
 - Allow permitted users to edit or remove individual reimbursement lines and remove duplicate revenue sessions, with confirmation, retained deleted records and audit entries. The linked training roster is not removed.
