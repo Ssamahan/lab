@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.138 — HIV analysis and validation charts
+
+- Place HIV analysis first with dedicated timeliness, monthly results, centre comparison and outcome charts.
+- Calculate totals from all three results, preserve the reported usage and list differences for manual review without changing source data.
+
 ## v6.9.137 — HIV test usage and aggregate outcomes
 
 - Publish only allowlisted numeric test-use and outcome fields, withholding duplicate responses and preserving missing values and discrepancies; no names, comments, lot numbers or workbook are published.
