@@ -886,3 +886,11 @@
 .hiv-chart-track { display:block; height:12px; background:#e5e7eb; border-radius:4px; overflow:hidden; }
 .hiv-chart-pair { margin:12px 0; }
 @media (max-width:700px) { .hiv-chart-grid { grid-template-columns:1fr; } }
+.hiv-line { margin:12px 0; }
+.hiv-line svg { display:block; width:100%; max-height:210px; overflow:visible; }
+.hiv-donut-group { margin:16px 0; }
+.hiv-donut-body { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
+.hiv-donut, .hiv-empty-ring { width:120px; height:120px; flex:none; }
+.hiv-empty-ring { border:16px solid #e5e7eb; border-radius:50%; display:flex; justify-content:center; align-items:center; text-align:center; box-sizing:border-box; font-size:12px; }
+.hiv-legend { display:flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; }
+.hiv-legend span { width:11px; height:11px; border-radius:2px; display:inline-block; flex:none; }

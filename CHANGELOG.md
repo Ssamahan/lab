@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.139 — More varied HIV charts
+
+- Display monthly calculated results as line charts with independent scales, gaps and partial-coverage indicators; show outcome compositions as labelled doughnut charts.
+- Keep centre comparisons as bars and all underlying figures available in tables. No records or queues are changed.
+
 ## v6.9.138 — HIV analysis and validation charts
 
 - Place HIV analysis first with dedicated timeliness, monthly results, centre comparison and outcome charts.
