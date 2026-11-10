@@ -1,7 +1,14 @@
 {
-  "name": "lab-hiv-publisher-staging",
+  "name": "lab-hiv-timeliness",
   "main": "src.mjs",
   "compatibility_date": "2026-10-20",
-  "workers_dev": false
-  // D1 binding deliberately omitted: do not deploy until reviewed and provisioned.
+  "workers_dev": true,
+  "observability": { "logs": { "enabled": true, "invocation_logs": true, "persist": true } },
+  "d1_databases": [
+    {
+      "binding": "STATE",
+      "database_name": "lab-hiv-feed-state",
+      "database_id": "76120a44-89d9-456c-adf8-dc99ed8ae7c1"
+    }
+  ]
 }

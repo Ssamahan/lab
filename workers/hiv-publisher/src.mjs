@@ -4,7 +4,7 @@ const FACILITIES=new Set(['Coko HC','Minazi HC','Muhondo HC','Muyongwe HC','Nyan
 const encoder=new TextEncoder(), decoder=new TextDecoder();
 function json(value,status=200,cors=false){const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};if(cors)headers['access-control-allow-origin']='*';return new Response(JSON.stringify(value),{status,headers});}
 async function authorized(req,env){
- if(typeof env.PUBLISHER_KEY!=='string'||env.PUBLISHER_KEY.length<40)return false;
+ if(typeof env.PUBLISHER_KEY!=='string'||!/^[0-9a-f]{64}$/.test(env.PUBLISHER_KEY))return false;
  const value=req.headers.get('authorization')||'';
  const [a,b]=await Promise.all([crypto.subtle.digest('SHA-256',encoder.encode(value)),crypto.subtle.digest('SHA-256',encoder.encode('Bearer '+env.PUBLISHER_KEY))]);
  const x=new Uint8Array(a),y=new Uint8Array(b);let diff=0;for(let i=0;i<x.length;i++)diff|=x[i]^y[i];return diff===0;

@@ -66,7 +66,7 @@ unchanged and the live connection remains unverified.
 Worker. Its private config routes require a long random bearer key and encrypt the
 rclone configuration with AES-GCM using a separate Worker secret; the public route
 returns only validated summary fields and returns HTTP 503 if the last check is older
-than 30 minutes. A private D1 binding must be provisioned before it can work. Anyone
+than 30 minutes. The Wrangler configuration targets the separate `lab-hiv-feed-state` D1 database; its schema and secrets still need to be provisioned before it can work. Anyone
 who possesses the publisher bearer key can retrieve the decrypted configuration and
 therefore may read the OneDrive files the grant covers. Keep both keys private and
 revoke/re-authorize Microsoft access if a credential leaks. Cloudflare administrators
