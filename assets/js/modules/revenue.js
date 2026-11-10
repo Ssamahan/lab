@@ -9,7 +9,8 @@ let rootEl=null;
 const EXPENSE_CATS=['Transport','Per-diem','Materials','Meal','Housing','Communication','Equipment','Other'];
 const catLabel=e=>{ const c=e&&(e.cat||'Other'); return e&&e.custom?'Other — '+c:c; };
 const sumExp=t=>U.sum(t.expenses||[],e=>e.amount||0);
-const sumReimb=t=>U.sum(t.reimbursements||[],r=>r.amount||0);
+const activeReimb=t=>(t.reimbursements||[]).filter(r=>!r.deleted);
+const sumReimb=t=>U.sum(activeReimb(t),r=>r.amount||0);
 function catOptions(cur){
   const list=EXPENSE_CATS.slice();
   if(cur && list.indexOf(cur)<0) list.push(cur);
@@ -22,7 +23,7 @@ function catOptions(cur){
    is chosen from, and `linkedTraining` is what joins them. */
 function rosterRows(){
   const used={};
-  (S.db().trainingExpenses||[]).forEach(t=>{ if(t.linkedTraining) used[t.linkedTraining]=t.id; });
+  (S.db().trainingExpenses||[]).filter(t=>!t.deleted).forEach(t=>{ if(t.linkedTraining) used[t.linkedTraining]=t.id; });
   return (S.db().trainings||[]).slice()
     .sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')))
     .map(t=>({t,usedBy:used[t.id]||null}));
@@ -46,7 +47,7 @@ function rosterOptions(cur,ownRow){
   return out;
 }
 function data(){
-  const list=S.db().trainingExpenses||[];
+  const list=(S.db().trainingExpenses||[]).filter(t=>!t.deleted);
   const exp=U.sum(list,sumExp), reimb=U.sum(list,sumReimb);
   return {list,exp,reimb,balance:reimb-exp,pending:U.sum(list.filter(t=>sumReimb(t)<sumExp(t)),t=>sumExp(t)-sumReimb(t))};
 }
@@ -153,7 +154,7 @@ function table(){
    +'</tbody></table></div><div class="card-foot"><span>All amounts in RWF · admin-only module</span><span class="mono strong" style="color:'+(d.balance>=0?'var(--pos)':'var(--crit)')+'">Net '+U.fmtRWF(d.balance)+'</span></div></div></div>'
    +'<div class="c4"><div class="col" style="gap:14px">'
     +UI.card({title:'Reimbursement sources',sub:'Where funds came from',icon:'building-2',body:(function(){
-      const g={}; d.list.forEach(t=>(t.reimbursements||[]).forEach(r=>{ g[r.source||'Other']=(g[r.source||'Other']||0)+(r.amount||0); }));
+      const g={}; d.list.forEach(t=>activeReimb(t).forEach(r=>{ g[r.source||'Other']=(g[r.source||'Other']||0)+(r.amount||0); }));
       const keys=Object.keys(g); const max=Math.max.apply(null,keys.map(k=>g[k]).concat([1]));
       return keys.length?keys.map(k=>'<div style="margin-bottom:9px"><div class="row between"><span class="xs">'+U.esc(k)+'</span><span class="mono xs faint">'+U.fmtNum(g[k])+'</span></div><div class="meter teal" style="margin-top:4px"><i style="width:'+(g[k]/max*100)+'%"></i></div></div>').join(''):'<p class="xs faint">No reimbursements recorded.</p>';
     })()})+'</div></div></div>'
@@ -199,10 +200,21 @@ function drawer(id){
        +(t.expenses||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.desc||x.cat)+'</div><div class="lr-sub">'+U.esc(catLabel(x))+' · '+U.fmtDate(x.date)+'</div>'+ticketRoute(x)+'</div><div class="lr-val">'+U.fmtNum(x.amount)+'</div></div>'+(x.desc&&x.custom?'':'' )).join('')
      +'</div></div>'
      +'<div class="card"><div class="card-head"><div><div class="card-title">'+UI.ic('banknote',14,'ic')+'Reimbursements</div></div><button class="btn xs" data-add-reimb>'+UI.ic('plus',12)+'Add</button></div><div class="card-body">'
-       +((t.reimbursements||[]).length?(t.reimbursements||[]).map(x=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.source||'Reimbursement')+'</div><div class="lr-sub">'+U.fmtDate(x.date)+(x.note?' · '+U.esc(x.note):'')+'</div></div><div class="lr-val" style="color:var(--pos)">'+U.fmtNum(x.amount)+'</div></div>').join(''):'<p class="xs faint">No reimbursement recorded yet.</p>')
+       +(activeReimb(t).length?(t.reimbursements||[]).map((x,i)=>x.deleted?'':'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(x.source||'Reimbursement')+'</div><div class="lr-sub">'+U.fmtDate(x.date)+(x.note?' · '+U.esc(x.note):'')+'</div></div><div class="lr-val" style="color:var(--pos)">'+U.fmtNum(x.amount)+'</div><button class="btn xs" data-edit-reimb="'+i+'">Edit</button><button class="btn xs danger" data-delete-reimb="'+i+'">Delete</button></div>').join(''):'<p class="xs faint">No reimbursement recorded yet.</p>')
      +'</div></div>',
-    foot:'<button class="btn" data-close>Close</button><button class="btn primary" data-print>'+UI.ic('printer',15)+'Statement</button>',
+    foot:'<button class="btn danger" data-delete-session>Delete revenue session</button><button class="btn" data-close>Close</button><button class="btn primary" data-print>'+UI.ic('printer',15)+'Statement</button>',
     onMount:(panel)=>{
+      panel.querySelector('[data-delete-session]').onclick=async()=>{
+        if(!LS.auth.guard('revenue'))return;
+        const snapshot=JSON.stringify(t);
+        const yes=await UI.confirm({title:'Delete this revenue session?',body:'This removes the session and its expense and reimbursement lines from the ledger totals. The training roster is not deleted. The record is retained as deleted for audit.',confirm:'Delete session',danger:true});
+        if(!yes||!LS.auth.guard('revenue'))return;
+        const current=(S.db().trainingExpenses||[]).find(x=>x.id===t.id);if(!current||current.deleted||JSON.stringify(current)!==snapshot)return UI.toast('This session changed; reopen it before deleting',{type:'warn'});
+        S.commit(d=>{const x=(d.trainingExpenses||[]).find(y=>y.id===t.id);if(x&&!x.deleted){x.deleted=true;x.deletedAt=U.nowISO();x.deletedBy=LS.auth.user.name;}},{action:'revenue.session.delete',entity:'trainingExpenses',entityId:t.id,detail:'Revenue session removed · '+t.title});
+        UI.closeAll();LS.shell.refresh();UI.toast('Revenue session removed; sync pending',{type:'ok'});
+      };
+      panel.querySelectorAll('[data-edit-reimb]').forEach(b=>b.onclick=()=>editReimbursement(t,+b.dataset.editReimb));
+      panel.querySelectorAll('[data-delete-reimb]').forEach(b=>b.onclick=()=>deleteReimbursement(t,+b.dataset.deleteReimb));
       const linkSel=panel.querySelector('[data-link-select]');
       if(linkSel) linkSel.onchange=()=>{
         if(!LS.auth.guard('revenue')) return;
@@ -231,6 +243,27 @@ function drawer(id){
       };
     }});
 }
+function editReimbursement(t,index){
+  const original=(t.reimbursements||[])[index];if(!original||original.deleted||!LS.auth.guard('revenue'))return;
+  const snapshot=JSON.stringify(original);
+  UI.modal({title:'Edit reimbursement',body:'<div class="form-grid"><div class="field"><label>Amount (RWF)</label><input class="input" id="editReimbAmount" type="number" min="0" value="'+U.esc(original.amount)+'"></div><div class="field"><label>Date</label><input class="input" id="editReimbDate" type="date" value="'+U.esc(original.date||'')+'"></div><div class="field"><label>Source</label><input class="input" id="editReimbSource" value="'+U.esc(original.source||'')+'"></div><div class="field span2"><label>Note</label><input class="input" id="editReimbNote" value="'+U.esc(original.note||'')+'"></div></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Save changes</button>',onMount:(el,close)=>{
+    el.querySelector('[data-save]').onclick=()=>{if(!LS.auth.guard('revenue'))return;const raw=el.querySelector('#editReimbAmount').value,amount=Number(raw),date=el.querySelector('#editReimbDate').value;
+      if(raw===''||!Number.isFinite(amount)||amount<0||!date)return UI.toast('Enter a valid amount and date',{type:'warn'});
+      const current=(S.db().trainingExpenses||[]).find(x=>x.id===t.id),line=current&&(current.reimbursements||[])[index];if(!current||current.deleted||!line||JSON.stringify(line)!==snapshot)return UI.toast('This line changed; reopen it before editing',{type:'warn'});
+      const source=el.querySelector('#editReimbSource').value.trim(),note=el.querySelector('#editReimbNote').value.trim();
+      S.commit(d=>{const r=d.trainingExpenses.find(x=>x.id===t.id).reimbursements[index];r.editHistory=r.editHistory||[];r.editHistory.push({amount:r.amount,date:r.date,source:r.source,note:r.note,changedAt:U.nowISO(),changedBy:LS.auth.user.name});Object.assign(r,{amount,date,source,note});},{action:'revenue.reimbursement.edit',entity:'trainingExpenses',entityId:t.id,detail:'Reimbursement edited · '+t.title});
+      close();UI.closeAll();LS.shell.refresh();drawer(t.id);UI.toast('Reimbursement updated; sync pending',{type:'ok'});
+    };
+  }});
+}
+async function deleteReimbursement(t,index){
+  const line=(t.reimbursements||[])[index];if(!line||line.deleted||!LS.auth.guard('revenue'))return;const snapshot=JSON.stringify(line);
+  const yes=await UI.confirm({title:'Delete this reimbursement?',body:'Remove '+U.fmtRWF(line.amount)+' from this session? The original line is retained as deleted for audit.',confirm:'Delete reimbursement',danger:true});
+  if(!yes||!LS.auth.guard('revenue'))return;const current=(S.db().trainingExpenses||[]).find(x=>x.id===t.id),now=current&&(current.reimbursements||[])[index];
+  if(!current||current.deleted||!now||JSON.stringify(now)!==snapshot)return UI.toast('This line changed; reopen it before deleting',{type:'warn'});
+  S.commit(d=>{const r=d.trainingExpenses.find(x=>x.id===t.id).reimbursements[index];r.deleted=true;r.deletedAt=U.nowISO();r.deletedBy=LS.auth.user.name;},{action:'revenue.reimbursement.delete',entity:'trainingExpenses',entityId:t.id,detail:'Reimbursement removed · '+t.title});
+  UI.closeAll();LS.shell.refresh();drawer(t.id);UI.toast('Reimbursement removed; sync pending',{type:'ok'});
+}
 function addLine(t,kind,panel){
   UI.modal({title:kind==='expense'?'Add expense line':'Record reimbursement',body:
     '<div class="form-grid"><div class="field span2"><label>Description</label><input class="input" id="lnDesc" placeholder="'+(kind==='expense'?'Transport to Musanze':'RBC reimbursement')+'"></div>'
@@ -254,6 +287,7 @@ function addLine(t,kind,panel){
           if(!customLabel) return UI.toast('Name the custom expense category',{type:'warn'});
           catVal=customLabel; custom=true;
         }
+        if(el.querySelector('[data-save]').disabled)return;el.querySelector('[data-save]').disabled=true;
         S.commit(d=>{ const x=d.trainingExpenses.find(y=>y.id===t.id); if(!x) return;
           if(kind==='expense'){ x.expenses=x.expenses||[]; x.expenses.push({id:U.uid('x'),cat:catVal,custom,desc:el.querySelector('#lnDesc').value,amount:amt,date:el.querySelector('#lnDate').value,routeFrom:catVal==='Transport'?el.querySelector('#lnFrom').value.trim():'',routeTo:catVal==='Transport'?el.querySelector('#lnTo').value.trim():''}); }
           else { x.reimbursements=x.reimbursements||[]; x.reimbursements.push({id:U.uid('r'),amount:amt,date:el.querySelector('#lnDate').value,source:el.querySelector('#lnSrc').value,note:el.querySelector('#lnDesc').value}); }
@@ -375,7 +409,7 @@ function addSession(){
           ['rsStart',tr&&tr.start],['rsEnd',tr&&(tr.end||tr.start)]];
         fields.forEach(([id,val])=>{ const inp=el.querySelector('#'+id); if(inp&&val) inp.value=val; });
         if(tr){
-          const already=(S.db().trainingExpenses||[]).find(t=>t.linkedTraining===tr.id);
+          const already=(S.db().trainingExpenses||[]).find(t=>!t.deleted&&t.linkedTraining===tr.id);
           if(already) UI.toast('“'+tr.title+'” already has a revenue line — adding a second one on top of it',{type:'warn',duration:5000});
         }
       };
@@ -409,6 +443,7 @@ function addSession(){
         const expTotal=U.sum(expenses,x=>x.amount), reiTotal=U.sum(reimbursements,x=>x.amount);
         const rec={id:U.uid('te'),title,organizer:el.querySelector('#rsOrg').value,location:el.querySelector('#rsLoc').value,start,end,
           linkedTraining:linked,attendees:attendees.slice(),expenses,reimbursements,note:''};
+        if(!LS.auth.guard('revenue')||el.querySelector('[data-save]').disabled)return;el.querySelector('[data-save]').disabled=true;
         S.commit(d=>{ d.trainingExpenses.unshift(rec); },{action:'revenue.session',entity:'trainingExpenses',entityId:rec.id,
           detail:title+' · RWF '+reiTotal+'/'+expTotal+' · '+expenses.length+' expense line'+(expenses.length===1?'':'s')
             +', '+reimbursements.length+' reimbursement'+(reimbursements.length===1?'':'s')

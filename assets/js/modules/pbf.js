@@ -1251,28 +1251,36 @@ function complianceCard(){
   c.all.forEach(x=>{ if(x.state==='lateAdmin'||x.state==='excused'){ const k=x.sc.delayReason||'other'; reasons[k]=(reasons[k]||0)+1; } });
   return UI.card({title:'Assessor compliance',sub:'On-time visits against the visits that were the assessor’s to make — administration holds are named, not counted',icon:'user-check',
     tools:'<span class="pill '+band+' mono">'+(c.pct==null?'no judged visits yet':c.pct+'% on time')+'</span>',
-    body:(c.done||c.missed||c.excused||c.upcoming)
+    body:(c.all.length)
       ?'<div class="row" style="gap:14px;align-items:center;margin-bottom:10px">'
         +(c.pct==null?C.ring(0,{size:84,stroke:7,color:'var(--text-faint)',label:'—'})
           :C.ring(c.pct,{size:84,stroke:7,color:bandColor(c.pct)}))
         +'<div class="comp-chips">'
-          +[['On time',c.onTime,'teal'],['Late',c.late,'amber'],['Missed',c.missed,'rose'],
-            ['Admin hold',c.lateAdmin+c.excused,'slate'],['Upcoming',c.upcoming,'blue']]
-            .map(([l,v,p])=>'<span class="pill '+p+' mono">'+v+' '+l.toLowerCase()+'</span>').join('')
+          +[['Visited',c.onTime+c.late+c.lateAdmin,'teal','visited'],['On time',c.onTime,'teal','onTime'],['Late',c.late,'amber','late'],['Missed',c.missed,'rose','missed'],
+            ['Admin hold',c.lateAdmin+c.excused,'slate','admin'],['Upcoming',c.upcoming,'blue','upcoming']]
+            .map(([l,v,p,k])=>'<button type="button" class="pill '+p+' mono" data-compliance="'+k+'">'+v+' '+l.toLowerCase()+'</button>').join('')
         +'<div class="xs faint" style="margin-top:4px">'+c.done+' visit'+(c.done===1?'':'s')+' judged · '
           +(c.lateAdmin+c.excused)+' held by the administration'
           +(Object.keys(reasons).length?' ('+Object.keys(reasons).map(k=>reasons[k]+' '+reasonOf(k).label.toLowerCase()).join(' · ')+')':'')+'</div></div></div>'
         +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Assessor</th><th class="num">On time</th><th class="num">Late</th><th class="num">Missed</th><th class="num">Admin hold</th><th>Compliance</th></tr></thead><tbody>'
-        +c.people.map(p=>'<tr><td class="strong">'+U.esc(p.name)+'</td>'
-          +'<td class="num mono">'+p.onTime+'</td>'
-          +'<td class="num mono">'+p.late+(p.lateDays?' <span class="xs faint">(+'+p.lateDays+'d)</span>':'')+'</td>'
-          +'<td class="num mono">'+p.missed+'</td>'
-          +'<td class="num mono">'+(p.lateAdmin+p.excused)+'</td>'
+        +c.people.map((p,i)=>'<tr><td class="strong">'+U.esc(p.name)+'</td>'
+          +'<td class="num mono"><button class="btn xs" data-compliance="onTime" data-person="'+i+'">'+p.onTime+'</button></td>'
+          +'<td class="num mono"><button class="btn xs" data-compliance="late" data-person="'+i+'">'+p.late+'</button>'+(p.lateDays?' <span class="xs faint">(+'+p.lateDays+'d)</span>':'')+'</td>'
+          +'<td class="num mono"><button class="btn xs" data-compliance="missed" data-person="'+i+'">'+p.missed+'</button></td>'
+          +'<td class="num mono"><button class="btn xs" data-compliance="admin" data-person="'+i+'">'+(p.lateAdmin+p.excused)+'</button></td>'
           +'<td>'+(p.pct==null?'<span class="pill slate">—</span>':'<span class="pill '+bandOf(p.pct)+' mono">'+p.pct+'%</span>')+'</td></tr>').join('')
         +'</tbody></table></div>'
         +'<div class="xs faint" style="margin-top:8px">On time = recorded on or before the planned date. A late or missed visit carrying an administration reason (no vehicle, no fuel, funds not released, impassable road) is shown as an <b>admin hold</b> and is excluded from the percentage. Every plan row has an <b>Edit</b> button, so the dates can be set to the M&amp;E schedule and the reason kept with them.</div>'
       :'<p class="xs faint" style="margin:0">No planned visits yet — plan a quarter and the assessor’s compliance builds itself from the calendar.</p>',
     foot:'<span>Assessor defaults to you; any lab staff member can be picked when recording.</span><span class="mono">'+c.people.length+' assessors</span>'});
+}
+function complianceDetails(kind,person){
+  const labels={visited:'Visited',onTime:'On time',late:'Late',missed:'Missed',admin:'Administration hold',upcoming:'Upcoming'};
+  const states={visited:['onTime','late','lateAdmin'],onTime:['onTime'],late:['late'],missed:['missed'],admin:['lateAdmin','excused'],upcoming:['upcoming']};
+  if(!states[kind])return;
+  const rows=complianceSummary().all.filter(x=>states[kind].includes(x.state)&&(person==null||(x.assessor||'Unassigned')===person)).sort((a,b)=>String(a.planned||'').localeCompare(String(b.planned||'')));
+  const stateLabels={onTime:'On time',late:'Late',lateAdmin:'Late · admin hold',excused:'Not visited · admin hold',missed:'Missed',upcoming:'Upcoming'};
+  UI.drawer({title:labels[kind]+' visits',sub:person?person:'All assessors',body:rows.length?'<div class="dt-scroll"><table class="dt"><thead><tr><th>Facility</th><th>Planned</th><th>Actual</th><th>Assessor</th><th>Quarter</th><th>Status</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+U.esc(x.sc.hcName||'—')+'</td><td>'+(x.planned?U.fmtDate(x.planned):'Not recorded')+'</td><td>'+(x.actual?U.fmtDate(x.actual):'Not recorded')+'</td><td>'+U.esc(x.assessor||'Unassigned')+'</td><td>'+U.esc([x.sc.quarter,x.sc.fy].filter(Boolean).join(' · ')||'—')+'</td><td>'+U.esc(stateLabels[x.state])+(x.late?' · '+x.late+' days late':'')+((x.state==='lateAdmin'||x.state==='excused')?' · '+U.esc(x.why.label):'')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No planned visits in this category.</p>',foot:'<button class="btn" data-close>Close</button>'});
 }
 function scheduleCard(){
   const rows=schedule().slice().sort((a,b)=>String(a.quarter||'').localeCompare(String(b.quarter||''))||String(a.plannedDate||'').localeCompare(String(b.plannedDate||'')));
@@ -1599,6 +1607,7 @@ M.render=function(root,params){
   root.querySelectorAll('[data-manage-domains]').forEach(b=>b.onclick=()=>domainModal());
   root.querySelectorAll('[data-edit-q]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); questionModal(b.dataset.editQ); });
   root.querySelectorAll('[data-open-visit]').forEach(el=>el.onclick=ev=>{ ev.stopPropagation(); visitModal(el.dataset.openVisit); });
+  root.querySelectorAll('[data-compliance]').forEach(b=>b.onclick=()=>{const people=complianceSummary().people;const person=b.dataset.person==null?null:(people[Number(b.dataset.person)]||{}).name;if(b.dataset.person!=null&&!person)return;complianceDetails(b.dataset.compliance,person);});
   root.querySelectorAll('[data-schedule]').forEach(b=>b.onclick=()=>scheduleModal(null));
   root.querySelectorAll('[data-sched-visit]').forEach(b=>b.onclick=()=>{ const sc=schedule().find(x=>x.id===b.dataset.schedVisit); visitModal(null, sc?sc.hcName:null, sc?sc.quarter:null); });
   root.querySelectorAll('[data-sched-confirm]').forEach(b=>b.onclick=()=>confirmNotVisited(b.dataset.schedConfirm));
