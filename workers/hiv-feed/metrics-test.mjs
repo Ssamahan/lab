@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {zipSync,strToU8} from 'fflate';
+import {readTimeliness} from './src.mjs';
+const labels={C:'Completion time',D:'Health Facility Name',G:'Reporting Month',J:'Number of Non-Reactive (Negative) Results1',K:'Number of Reactive (Positive) Results1',L:'Number of Invalid Results1',O:'Number of Non-Reactive (Negative) Results',P:'Number of Reactive (Positive) Results',Q:'Number of Invalid Results',R:'Total Determine HIV Early Detect test used',S:'Total STAT-PAK tests used'};
+const cell=(col,row,value)=>`<c r="${col}${row}" t="inlineStr"><is><t>${value}</t></is></c>`;
+const row=(n,obj)=>`<row>${Object.entries(obj).map(([k,v])=>cell(k,n,v)).join('')}</row>`;
+const build=(headers=labels,duplicate=false)=>zipSync(Object.fromEntries(Object.entries({'xl/workbook.xml':'<workbook><workbookPr/><sheets><sheet name="Ruli HIV Reports" r:id="rId1"/></sheets></workbook>','xl/_rels/workbook.xml.rels':'<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/worksheets/sheet1.xml':`<worksheet><sheetData>${row(1,headers)}${row(2,{C:'46329',D:'Coko HC',G:'October',J:'12',K:'1',L:'0',O:'',P:'1',Q:'0',R:'14',S:'1',F:'PRIVATE NAME',X:'PRIVATE COMMENT'})}${duplicate?row(3,{C:'46330',D:'Coko HC',G:'October',J:'20'}):''}</sheetData></worksheet>`}).map(([k,v])=>[k,strToU8(v)])));
+const [r]=readTimeliness(build());assert.deepEqual(r.metrics,{determineNonReactive:12,determineReactive:1,determineInvalid:0,statpakNonReactive:null,statpakReactive:1,statpakInvalid:0,determineUsed:14,statpakUsed:1});assert(!JSON.stringify(r).includes('PRIVATE'));
+assert.equal(readTimeliness(build(labels,true))[0].metrics,null);
+assert.equal(readTimeliness(build({...labels,R:'Unexpected header'}))[0].metrics,null);
+console.log('metrics: exact headers, allowlist, blanks, mismatches preserved, duplicates withheld passed');

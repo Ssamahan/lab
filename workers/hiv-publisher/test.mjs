@@ -28,3 +28,11 @@ try {
  assert(!logs.join(' ').includes('private-token-example'));assert(!logs.join(' ').includes(env.PUBLISHER_KEY));
 } finally {console.error=priorLog;}
 console.log('publisher: auth, encrypted storage, filtering, validation and stale failure passed');
+const keys=['determineNonReactive','determineReactive','determineInvalid','statpakNonReactive','statpakReactive','statpakInvalid','determineUsed','statpakUsed'];
+const metrics=Object.fromEntries(keys.map((k,i)=>[k,i===0?null:i]));metrics.privateComment='DO NOT EXPOSE';
+const withMetrics={...summary,checkedAt:new Date().toISOString(),records:[{...summary.records[0],metrics}]};
+res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify(withMetrics)}),env);assert.equal(res.status,200);
+res=await worker.fetch(req('/'),env);body=await res.text();assert(!body.includes('DO NOT EXPOSE'));assert.equal(JSON.parse(body).records[0].metrics.determineNonReactive,null);
+res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify({...withMetrics,records:[{...withMetrics.records[0],metrics:{...metrics,determineUsed:-1}}]})}),env);assert.equal(res.status,400);
+res=await worker.fetch(req('/private/summary',{method:'PUT',headers:auth,body:JSON.stringify({...withMetrics,records:[{...withMetrics.records[0],responses:2}]})}),env);assert.equal(res.status,200);res=await worker.fetch(req('/'),env);assert.equal((await res.json()).records[0].metrics,null);
+console.log('publisher metrics: allowlist, null, invalid values and duplicates passed');

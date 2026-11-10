@@ -1,0 +1,11 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,errors}=await boot('#/reports');const S=w.LS.store;w.LS.sync.stopLive();S.clearPending();const old=JSON.stringify(S.reportMonth('2026-10'));
+const m={determineUsed:20,determineNonReactive:10,determineReactive:1,determineInvalid:0,statpakUsed:0,statpakNonReactive:null,statpakReactive:0,statpakInvalid:0};
+let data={version:1,checkedAt:'2026-11-10T11:50:00Z',records:[{facility:'Coko HC',period:'2026-10',completed:'2026-11-05T10:00:00',responses:1,metrics:m},{facility:'Minazi HC',period:'2026-10',completed:'2026-11-05T10:00:00',responses:2,metrics:m}]};
+w.fetch=async()=>({ok:true,json:async()=>data});w.document.querySelector('[data-tab="hiv"]').click();await new Promise(r=>setTimeout(r,160));let root=w.document.querySelector('#pageInner');
+ok(root.textContent.includes('HIV test usage and results')&&root.textContent.includes('Reported test-use trend'),'usage analysis and chart shown');
+ok(root.textContent.includes('Reported counts differ · review')&&root.textContent.includes('Multiple responses · review'),'discrepancies and duplicate flagged');
+ok(root.textContent.includes('20 (1/8)')&&root.textContent.includes('0 (1/8)'),'partial coverage and true zero retained');
+const coko=[...root.querySelectorAll('tr')].find(x=>x.textContent.includes('Coko HC')&&x.textContent.includes('Reported counts differ'));ok(coko&&coko.textContent.includes('—'),'missing metric displayed as dash');
+data={...data,records:[{...data.records[0],metrics:{...m,determineUsed:99}}]};root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,100));ok(root.textContent.includes('99 (1/8)'),'updated feed recomputes usage');
+ok(JSON.stringify(S.reportMonth('2026-10'))===old&&S.pendingChanges()===0,'no saved report or queue changes');ok(!errors.length,'no page errors',errors.join(' | '));done('hiv_metrics137');})().catch(e=>{console.error(e);process.exit(1)});

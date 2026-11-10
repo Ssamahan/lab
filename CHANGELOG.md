@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.137 — HIV test usage and aggregate outcomes
+
+- Publish only allowlisted numeric test-use and outcome fields, withholding duplicate responses and preserving missing values and discrepancies; no names, comments, lot numbers or workbook are published.
+- Add health-centre and monthly test-use and result summaries with coverage and review flags.
+
 ## v6.9.136 — HIV reporting analysis
 
 - Add snapshot-based monthly distributions, facility comparisons, calendar-day delay statistics and a centre-by-month table; separate late submissions from overdue missing reports. Refresh remains read-only and failures remain visible.

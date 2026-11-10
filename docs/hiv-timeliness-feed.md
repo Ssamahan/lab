@@ -65,3 +65,6 @@ logs containing tokens, paths or workbook data. A Microsoft grant or token may e
 or be revoked, and the user may need to authorize again. Confirm a new genuine response
 against the workbook and the dashboard before relying on automatic updates. Avoid
 resetting browser storage or modifying existing register data to troubleshoot the feed.
+
+### Aggregate HIV test figures (v6.9.137)
+The public feed can additionally carry only the eight explicitly named numeric Determine and STAT-PAK usage and outcome fields. The parser requires exact source headers and suppresses the figures if headings change; an empty or invalid cell is null, not zero. If more than one response exists for a facility and month, test figures for that pair are withheld pending review (the earliest completion still serves timeliness). The publisher independently validates and allowlists these numbers. Names, email, lot identifiers, comments and the workbook never enter the public summary. Counts may include quality-control or proficiency testing and reactive results are not confirmed diagnoses. Missing values, unequal totals and partial coverage must not be silently corrected or interpreted as complete totals. The 15-minute schedule is best-effort and was not yet observed running at deployment.
