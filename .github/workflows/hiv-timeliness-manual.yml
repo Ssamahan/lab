@@ -1,8 +1,9 @@
-# Manual staging only. Do not enable a schedule until provisioning and end-to-end
-# privacy, refresh, failure and stale-data checks have succeeded.
+# Only trusted main-branch code runs with secrets. GitHub may delay scheduled runs.
 name: HIV timeliness private reader (manual setup)
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "3,18,33,48 * * * *"
 permissions:
   contents: read
 concurrency:

@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.135 — Scheduled HIV timeliness feed
+
+- Refresh the private read-only HIV source on a 15-minute GitHub schedule; the dashboard checks the reduced feed every three minutes and notes that scheduled updates can be delayed.
+- Show the repeated-delay ranking and preserve stale/failure warnings; no register or queue data are changed.
+
 ## v6.9.134 — HIV report timeliness feed
 
 - Adds an HIV report timeliness tab that reads a separate public, reduced facility-level feed when configured; no workbook data are written into the register. The source URL is held only as a Worker secret. The feed requires a separately configured Cloudflare Worker before it can work.
