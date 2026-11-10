@@ -1,0 +1,13 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,errors}=await boot('#/reports');const S=w.LS.store;w.LS.sync.stopLive();S.clearPending();const old=JSON.stringify(S.reportMonth('2026-10'));
+const m={determineUsed:20,determineNonReactive:10,determineReactive:1,determineInvalid:2,statpakUsed:0,statpakNonReactive:null,statpakReactive:0,statpakInvalid:0};
+let data={version:1,checkedAt:'2026-11-10T11:50:00Z',records:[{facility:'Coko HC',period:'2026-10',completed:'2026-11-05T10:00:00',responses:1,metrics:m},{facility:'Minazi HC',period:'2026-10',completed:'2026-11-06T10:00:00',responses:2,metrics:m}]};
+w.fetch=async()=>({ok:true,json:async()=>data});w.document.querySelector('[data-tab="hiv"]').click();await new Promise(r=>setTimeout(r,160));let root=w.document.querySelector('#pageInner');const top=root.querySelector('[data-hiv-analysis-top]');
+ok(top&&top.querySelectorAll('.hiv-chart').length===4,'four standalone charts appear');
+ok(root.textContent.indexOf('HIV reporting and testing analysis')<root.textContent.indexOf('Submission details'),'analysis above submissions');
+ok(top.textContent.includes('13 (1/8)')&&top.textContent.includes('— (0/8)'),'complete totals and missing-result coverage chart');
+const coko=[...root.querySelectorAll('tr')].find(x=>x.textContent.includes('Coko HC')&&x.textContent.includes('Reported counts differ'));ok(coko&&coko.textContent.includes('13')&&coko.textContent.includes('20'),'calculated total and reported total retained');
+const review=[...root.querySelectorAll('tr')].find(x=>x.textContent.includes('Coko HC')&&x.textContent.includes('Determine')&&x.textContent.includes('13')&&x.textContent.includes('20'));ok(review&&review.textContent.includes('7'),'difference shown for manual validation');
+ok(![...root.querySelectorAll('tr')].some(x=>x.textContent.includes('Minazi HC')&&x.textContent.includes('Determine')&&x.textContent.includes('13')),'duplicate totals withheld');
+data={...data,records:[{...data.records[0],metrics:{...m,determineInvalid:4}}]};root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,120));ok(root.querySelector('[data-hiv-analysis-top]').textContent.includes('15 (1/8)'),'charts update with new feed');
+ok(JSON.stringify(S.reportMonth('2026-10'))===old&&S.pendingChanges()===0,'no report or queue writes');ok(!errors.length,'no page errors',errors.join(' | '));done('hiv_charts138');})().catch(e=>{console.error(e);process.exit(1)});

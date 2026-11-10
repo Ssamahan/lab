@@ -875,3 +875,14 @@
 .training-map { height:280px; width:100%; z-index:0; }
 .training-map-result { display:block; width:100%; margin-top:5px; text-align:left; white-space:normal; }
 @media (max-width:600px) { .training-map { height:230px; } }
+
+/* HIV charts sit before detail tables; numeric labels remain readable without colour. */
+.hiv-analysis-top { margin:22px 0 28px; }
+.hiv-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.hiv-chart { border:1px solid var(--border); border-radius:12px; padding:16px; min-width:0; background:var(--surface-inset); }
+.hiv-chart h3 { margin:0 0 4px; }
+.hiv-chart p { margin:4px 0 12px; }
+.hiv-chart-row { display:grid; grid-template-columns:minmax(90px,1fr) minmax(70px,2fr) auto; gap:8px; align-items:center; font-size:12px; margin:6px 0; }
+.hiv-chart-track { display:block; height:12px; background:#e5e7eb; border-radius:4px; overflow:hidden; }
+.hiv-chart-pair { margin:12px 0; }
+@media (max-width:700px) { .hiv-chart-grid { grid-template-columns:1fr; } }
