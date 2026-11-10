@@ -1,0 +1,12 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,errors}=await boot('#/reports');const S=w.LS.store;w.LS.sync.stopLive();S.clearPending();const saved=JSON.stringify(S.reportMonth('2026-10'));
+const metrics={determineUsed:10,determineNonReactive:8,determineReactive:2,determineInvalid:0,statpakUsed:0,statpakNonReactive:0,statpakReactive:0,statpakInvalid:0};
+let data={version:1,checkedAt:'2026-08-10T12:00:00Z',records:[{facility:'Coko HC',period:'2026-05',completed:'2026-06-04T10:00:00',responses:1,metrics},{facility:'Coko HC',period:'2026-07',completed:'2026-08-04T10:00:00',responses:1,metrics}]};
+w.fetch=async()=>({ok:true,json:async()=>data});w.document.querySelector('[data-tab="hiv"]').click();await new Promise(r=>setTimeout(r,150));const root=w.document.querySelector('#pageInner');
+const lines=root.querySelectorAll('.hiv-line svg');ok(lines.length===2,'two independently scaled line charts');
+ok(root.textContent.includes('Jun 2026')&&root.textContent.includes('— (0/8)'),'absent calendar month visible as missing');
+ok(lines[0].querySelectorAll('circle').length===2&&lines[0].querySelectorAll('line').length===2,'missing month breaks line between data points');
+ok(root.querySelectorAll('.hiv-donut').length===1&&root.querySelector('.hiv-empty-ring').textContent.includes('0 results'),'outcome doughnut and real zero shown distinctly');
+ok(root.textContent.includes('Positive / reactive: 2')&&root.textContent.includes('1/8 centres'),'outcome values and coverage labeled');
+data={...data,records:[...data.records,{facility:'Coko HC',period:'2026-06',completed:'2026-07-04T10:00:00',responses:1,metrics}]};root.querySelector('[data-hiv-refresh]').click();await new Promise(r=>setTimeout(r,120));ok(root.querySelector('.hiv-line svg').querySelectorAll('line[stroke-dasharray]').length===2,'partial-coverage line segments dashed');
+ok(JSON.stringify(S.reportMonth('2026-10'))===saved&&S.pendingChanges()===0,'register and queue unchanged');ok(!errors.length,'no errors',errors.join(' | '));done('hiv_charts139');})().catch(e=>{console.error(e);process.exit(1)});
