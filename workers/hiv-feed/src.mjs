@@ -37,6 +37,11 @@ export function readTimeliness(bytes){
  const readCell=c=>c['@_t']==='s'?strings[Number(c.v)]??'':c['@_t']==='inlineStr'?text(c.is):text(c.v);
  const values=rows.map(r=>{let out={};for(const c of arr(r.c)){let col=String(c['@_r']||'').match(/^[A-Z]+/i)?.[0];if(col)out[col]=readCell(c);}return out;});
  if(!values.length||String(values[0].C||'').toLowerCase()!=='completion time'||String(values[0].D||'').toLowerCase()!=='health facility name'||String(values[0].G||'').toLowerCase()!=='reporting month')throw Error('Workbook headings changed');
+ // Only explicitly named, numeric aggregate fields are eligible for publication.
+ const metricHeaders={J:'Number of Non-Reactive (Negative) Results1',K:'Number of Reactive (Positive) Results1',L:'Number of Invalid Results1',O:'Number of Non-Reactive (Negative) Results',P:'Number of Reactive (Positive) Results',Q:'Number of Invalid Results',R:'Total Determine HIV Early Detect test used',S:'Total STAT-PAK tests used'};
+ const metricFields={J:'determineNonReactive',K:'determineReactive',L:'determineInvalid',O:'statpakNonReactive',P:'statpakReactive',Q:'statpakInvalid',R:'determineUsed',S:'statpakUsed'};
+ const metricsAvailable=Object.entries(metricHeaders).every(([col,label])=>String(values[0][col]||'').trim()===label);
+ const numeric=value=>{const x=String(value??'').trim();if(!/^\d+$/.test(x))return null;const n=Number(x);return Number.isSafeInteger(n)&&n<=10000000?n:null;};
  const entries=[],unknown=[];
  for(const [i,r] of values.entries()){
   if(!i||(!r.C&&!r.D&&!r.G))continue;
@@ -53,12 +58,12 @@ export function readTimeliness(bytes){
   if(!completed||!month){unknown.push(i+1);continue;}
   const cy=Number(completed.slice(0,4)),cm=Number(completed.slice(5,7)),year=cy-(month>=cm?1:0);
   const period=year+'-'+String(month).padStart(2,'0');
-  entries.push({facility,period,completed});
+  entries.push({facility,period,completed,metrics:metricsAvailable?Object.fromEntries(Object.entries(metricFields).map(([col,key])=>[key,numeric(r[col])])):null});
  }
  if(unknown.length)throw Error('Some facility entries have an invalid date or reporting month');
  // Multiple responses for one facility and period can be corrections; show earliest,
  // with an explicit duplicate count so the user knows the record needs review.
- const unique=new Map();for(const e of entries){const k=e.facility+'|'+e.period,prior=unique.get(k);if(!prior)unique.set(k,{...e,responses:1});else{prior.responses++;if(e.completed<prior.completed)prior.completed=e.completed;}}
+ const unique=new Map();for(const e of entries){const k=e.facility+'|'+e.period,prior=unique.get(k);if(!prior)unique.set(k,{...e,responses:1});else{prior.responses++;prior.metrics=null;if(e.completed<prior.completed)prior.completed=e.completed;}}
  return [...unique.values()].sort((a,b)=>a.period.localeCompare(b.period)||a.facility.localeCompare(b.facility));
 }
 // Diagnostic only: log status and broad host categories, never URLs, headers or bodies.

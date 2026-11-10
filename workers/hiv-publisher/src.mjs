@@ -1,6 +1,7 @@
 /* Staged only: encrypted rclone config, authenticated writer, public reduced summary. */
 const MAX_AGE_MS=30*60*1000, MAX_BODY=128*1024;
 const FACILITIES=new Set(['Coko HC','Minazi HC','Muhondo HC','Muyongwe HC','Nyange HC','Ruli HC','Rushashi HC','Rwankuba HC']);
+const METRIC_KEYS=['determineNonReactive','determineReactive','determineInvalid','statpakNonReactive','statpakReactive','statpakInvalid','determineUsed','statpakUsed'];
 const encoder=new TextEncoder(), decoder=new TextDecoder();
 function json(value,status=200,cors=false){const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};if(cors)headers['access-control-allow-origin']='*';return new Response(JSON.stringify(value),{status,headers});}
 async function authorized(req,env){
@@ -35,7 +36,12 @@ function validatedSummary(data,now){
  for(const r of data.records){
   if(!r||!FACILITIES.has(r.facility)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(r.period)||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(r.completed)||!Number.isInteger(r.responses)||r.responses<1||r.responses>5000)return null;
   const id=r.facility+'|'+r.period;if(seen.has(id))return null;seen.add(id);
-  records.push({facility:r.facility,period:r.period,completed:r.completed,responses:r.responses});
+  let metrics=null;
+  if(r.metrics!=null&&r.responses===1){
+   if(typeof r.metrics!=='object'||Array.isArray(r.metrics))return null;
+   metrics={};for(const k of METRIC_KEYS){const v=r.metrics[k];if(v!==null&&(!Number.isSafeInteger(v)||v<0||v>10000000))return null;metrics[k]=v;}
+  }
+  records.push({facility:r.facility,period:r.period,completed:r.completed,responses:r.responses,metrics});
  }
  return {version:1,checkedAt:new Date(stamp).toISOString(),records};
 }
