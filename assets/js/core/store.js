@@ -3396,7 +3396,7 @@ S.referralTATSeries=function(lab,months){
    the 90 days before it, so a rising burn shortens the projection. */
 S.stockTrend=function(){
   const db=S.db(), today=U.todayISO();
-  const win=(cid,a,b)=>U.sum(db.stock.entries.filter(e=>e.cid===cid && e.type!=='received' && e.date>=U.addDays(today,-a) && e.date<U.addDays(today,-b)),e=>e.qty);
+  const win=(cid,a,b)=>U.sum(db.stock.entries.filter(e=>e.cid===cid && e.type!=='received' && e.date>=U.addDays(today,-a) && e.date<(b===0?U.addDays(today,1):U.addDays(today,-b))),e=>e.qty);
   return S.consumables().map(c=>{
     const onHand=S.onHand(c.id);
     const last30=win(c.id,30,0), prev60=win(c.id,90,30);
@@ -3510,6 +3510,9 @@ S.bloodCultureOf=function(sample){
 };
 S.drawBottle=function(d,sample){
   if(!sample||!S.bloodCultureOf(sample)) return null;
+  // Retrying the same registration must not consume a second bottle.
+  const existing=(d.stock&&d.stock.entries||[]).find(e=>e.type==='used'&&sample.id&&e.sampleId===sample.id);
+  if(existing)return existing;
   const c=(d.catalog.consumables||[]).find(x=>/blood culture/i.test(x.name||''))||null;
   if(!c) return null;
   d.stock=d.stock||{batches:[],entries:[]};
@@ -3546,7 +3549,7 @@ S.stockOverview=function(){
     const nearest=batches.slice().sort((a,b)=>String(a.expiry).localeCompare(String(b.expiry)))[0];
     const used90=db.stock.entries.filter(e=>e.cid===c.id && e.type==='used' && e.date>=U.addDays(U.todayISO(),-90));
     const burn90=U.sum(used90,e=>e.qty)/90;
-    const burn=Math.max(burn90, 0.05);
+    const burn=burn90;
     /* Consumption is also stated in months, because that is how the bench plans:
        "no more than five blood-culture bottles in a month". `monthlyCap` is that
        ceiling; `perMonth` is what the issue log says is actually used. */
@@ -3562,7 +3565,7 @@ S.stockOverview=function(){
     const since30=U.addDays(U.todayISO(),-30);
     const useByAge=g=>U.sum(db.stock.entries.filter(e=>e.cid===c.id&&e.type==='used'&&e.date>=since30&&((e.ageGroup||'')===g)),e=>e.qty);
     const byAge=c.capSplit?Object.keys(c.capSplit).map(g=>({group:g,used:useByAge(g),cap:c.capSplit[g]})):null;
-    return { ...c, onHand, batches, nearest, burn, daysLeft: burn? Math.round(onHand/burn) : 999,
+    return { ...c, onHand, batches, nearest, burn, daysLeft: burn? Math.round(onHand/burn) : null,
       used30, perMonth, cap, capPct: cap? Math.min(999,Math.round(perMonth/cap*100)) : null,
       usedMonth:used30, overCap: !!(cap&&used30>cap), byAge,
       monthsLeft: perMonth? Math.round(onHand/perMonth*10)/10 : null,
