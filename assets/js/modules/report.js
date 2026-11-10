@@ -572,6 +572,21 @@ function hivTestAnalysis(records,period){
     +'<h3 style="margin-top:20px">Differences for manual validation · all recorded months</h3><p>Compare the calculated total (negative + positive + invalid) with reported tests used. Review against the source; a difference may reflect quality-control or proficiency testing and is not automatically an error. This list does not save a validation decision or change the workbook.</p>'+reviewTable+'<h3 style="margin-top:20px">Reported test-use trend</h3><p class="xs">Bars share a scale; coverage is shown for each value. Partial sums must not be compared as complete totals.</p><div class="dt-scroll"><table class="dt"><thead><tr><th>Reporting month</th><th>Determine used</th><th>STAT-PAK used</th></tr></thead><tbody>'+chart+'</tbody></table></div><h3 style="margin-top:20px">Monthly test-usage and result trends</h3><p class="xs">Sums include only available values; coverage in parentheses is the number of centres out of eight. Partial sums are not district totals. Months without a report are absent, not zero.</p><div class="hiv-tables-grid">'+trendTables+'</div>'
     +'<p class="xs faint">Reactive and non-reactive results are reported test outcomes, not confirmed patient diagnoses. Do not add the two test types to count people. Reported tests used may include quality-control or proficiency testing, and need not equal results. Mismatches are flagged, never automatically corrected. Source workbook, staff identities, lot numbers and comments are not published.</p>';
 }
+function hivCombinedAnalysis(records){
+  // Pair the two types only within the same facility/month and only when both
+  // values exist. This is a count of tests/results, never a count of people.
+  const valid=records.filter(r=>r.period&&r.responses===1);
+  const periods=Array.from(new Set(records.map(r=>r.period))).sort();
+  const pair=(r,kind)=>{const d=kind==='results'?hivResultTotal(r,'determine'):hivMetric(r,'determineUsed'),s=kind==='results'?hivResultTotal(r,'statpak'):hivMetric(r,'statpakUsed');return d===null||s===null?null:d+s;};
+  const total=(rows,kind)=>{const vals=rows.map(r=>pair(r,kind)).filter(v=>v!==null);return {sum:vals.reduce((a,b)=>a+b,0),n:vals.length};};
+  const show=x=>x.n?x.sum+' <span class="xs faint">('+x.n+' paired centre-month'+(x.n===1?'':'s')+')</span>':'—';
+  const allResults=total(valid,'results'),allUsage=total(valid,'usage');
+  const monthly=periods.map(p=>{const rows=valid.filter(r=>r.period===p);return {p,results:total(rows,'results'),usage:total(rows,'usage')};});
+  const max=Math.max(1,...monthly.map(x=>x.results.sum));
+  const monthRows=monthly.map(x=>'<tr><td>'+U.esc(monthLabel(x.p))+'</td><td>'+show(x.results)+'</td><td>'+show(x.usage)+'</td><td>'+(x.results.n?'<span class="hiv-chart-track"><span style="display:block;height:100%;background:#087f8c;width:'+(100*x.results.sum/max)+'%"></span></span>':'—')+'</td></tr>').join('');
+  const centreRows=HIV_CENTRES.map(f=>{const rows=valid.filter(r=>r.facility===f);return '<tr><td>'+U.esc(f)+'</td><td>'+show(total(rows,'results'))+'</td><td>'+show(total(rows,'usage'))+'</td></tr>';}).join('');
+  return '<h3 style="margin-top:24px">All-time combined test tracker</h3><p>Determine + STAT-PAK, counted as tests, not people. Result sums and reported usage are separate; they may disagree and require review. A centre-month is included only when both test types are available for that measure; missing and duplicate responses are excluded, not zero. Totals reflect available records, not necessarily complete district history.</p><p><strong>Combined result sum: '+show(allResults)+'</strong> · <strong>Combined reported tests used: '+show(allUsage)+'</strong></p><div class="hiv-tables-grid"><section class="hiv-table-panel hiv-combined-panel"><h4>Monthly combined trend</h4><div class="dt-scroll"><table class="dt hiv-compact"><thead><tr><th>Month</th><th>Sum of results</th><th>Reported used</th><th>Results trend</th></tr></thead><tbody>'+monthRows+'</tbody></table></div></section><section class="hiv-table-panel hiv-combined-panel"><h4>All-time by centre</h4><div class="dt-scroll"><table class="dt hiv-compact"><thead><tr><th>Health centre</th><th>Sum of results</th><th>Reported used</th></tr></thead><tbody>'+centreRows+'</tbody></table></div></section></div>';
+}
 function hivStockAnalysis(records,period,checkedAt){
   const asOf=String(checkedAt||'').slice(0,10);
   const expiry=v=>{
@@ -592,8 +607,8 @@ function hivStockAnalysis(records,period,checkedAt){
 }
 function hivTab(){
   const stamp=hivData?'Source checked: '+U.esc(new Date(hivData.checkedAt).toLocaleString()):'No live data loaded';
-  const stale=hivData&&(Date.now()-Date.parse(hivData.checkedAt)>30*60000);
-  const notice=hivError||stale?'<p style="color:var(--crit)">'+U.esc(hivError||'Source check is more than 30 minutes old')+(hivData?' · showing the last successful result, which may be stale':'')+'</p>':'';
+  const stale=hivData&&(hivData.stale===true||Date.now()-Date.parse(hivData.checkedAt)>30*60000);
+  const notice=hivError||stale?'<p style="color:var(--crit)">'+U.esc(hivError||'Source is not current: automatic refresh has not succeeded within 30 minutes')+(hivData?' · showing the last successful result, which may be stale':'')+'</p>':'';
   if(!hivData)return UI.card({title:'HIV reporting timeliness',sub:'Live health-centre reporting; due by the 5th of the next month.',body:'<p>'+stamp+'</p>'+notice+'<button class="btn" data-hiv-refresh>'+(hivLoading?'Checking…':'Check for reports')+'</button>',foot:'<span>The live feed must be configured before it can display submissions.</span>'});
   const day=kigaliDay(new Date(hivData.checkedAt)), records=hivData.records, periods=new Set(records.map(r=>r.period));
   const last=prevPeriod(day), history=[];let year=2026, month=5;
@@ -604,7 +619,7 @@ function hivTab(){
   const rows=HIV_CENTRES.map(f=>{const r=records.find(x=>x.facility===f&&x.period===hivPeriod);return {f,r,status:hivStatus(hivPeriod,r,day)};});
   const counts=['On time','Submitted late','Overdue · not found','Not yet due · not found'].map(s=>rows.filter(x=>x.status===s).length);
   const table='<div class="dt-scroll"><table class="dt"><thead><tr><th>Health centre</th><th>Completion</th><th>Status</th></tr></thead><tbody>'+rows.map(x=>'<tr><td>'+U.esc(x.f)+'</td><td class="mono">'+(x.r?U.esc(x.r.completed.replace('T',' ')):'—')+'</td><td>'+U.esc(x.status)+(x.r&&x.r.responses>1?' · '+Number(x.r.responses)+' responses; review':'')+'</td></tr>').join('')+'</tbody></table></div>';
-  return UI.card({title:'HIV reporting timeliness',sub:'For each reporting month, submissions are on time through the 5th of the following month.',tools:'<button class="btn xs" data-hiv-refresh>'+(hivLoading?'Checking…':'Refresh now')+'</button>',body:'<p class="xs">'+stamp+' · this tab checks the feed every 3 minutes. Source checks are scheduled several times per hour and may be delayed or skipped.</p>'+notice+'<label>Reporting month <select class="select" id="hivPeriod">'+choices.map(x=>'<option value="'+x+'"'+(x===hivPeriod?' selected':'')+'>'+U.esc(monthLabel(x))+'</option>').join('')+'</select></label><p>'+counts[0]+' on time · '+counts[1]+' submitted late · '+counts[2]+' overdue, not found · '+counts[3]+' not yet due</p>'+hivVisualAnalysis(records,hivPeriod,hivAnalysis(records,history,day))+hivTestAnalysis(records,hivPeriod)+hivStockAnalysis(records,hivPeriod,hivData.checkedAt)+hivDeepAnalysis(hivAnalysis(records,history,day))+'<h3 style="margin-top:24px">Submission details · '+U.esc(monthLabel(hivPeriod))+'</h3>'+table,foot:'<span>Not found means no submission in this workbook. Confirm other channels; source timestamps are interpreted as displayed.</span>'});
+  return UI.card({title:'HIV reporting timeliness',sub:'For each reporting month, submissions are on time through the 5th of the following month.',tools:'<button class="btn xs" data-hiv-refresh>'+(hivLoading?'Checking…':'Refresh now')+'</button>',body:'<p class="xs">'+stamp+' · this tab checks the feed every 3 minutes. Source checks are scheduled several times per hour and may be delayed or skipped.</p>'+notice+'<label>Reporting month <select class="select" id="hivPeriod">'+choices.map(x=>'<option value="'+x+'"'+(x===hivPeriod?' selected':'')+'>'+U.esc(monthLabel(x))+'</option>').join('')+'</select></label><p>'+counts[0]+' on time · '+counts[1]+' submitted late · '+counts[2]+' overdue, not found · '+counts[3]+' not yet due</p>'+hivVisualAnalysis(records,hivPeriod,hivAnalysis(records,history,day))+hivCombinedAnalysis(records)+hivTestAnalysis(records,hivPeriod)+hivStockAnalysis(records,hivPeriod,hivData.checkedAt)+hivDeepAnalysis(hivAnalysis(records,history,day))+'<h3 style="margin-top:24px">Submission details · '+U.esc(monthLabel(hivPeriod))+'</h3>'+table,foot:'<span>Not found means no submission in this workbook. Confirm other channels; source timestamps are interpreted as displayed.</span>'});
 }
 async function loadHiv(){
  if(hivLoading)return;hivLoading=true;hivError='';if(rootEl&&rootEl.isConnected&&tab==='hiv')renderInner(rootEl);
@@ -613,7 +628,7 @@ async function loadHiv(){
    if(!res.ok)throw Error('Live feed is not reachable');const data=await res.json();
    if(data.version!==1||!Array.isArray(data.records)||!/^\d{4}-\d\d-\d\dT/.test(data.checkedAt)||!Number.isFinite(Date.parse(data.checkedAt))||data.records.length>5000||data.records.some(r=>!HIV_CENTRES.includes(r.facility)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(r.period)||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/.test(r.completed)))throw Error('Unexpected feed format');
    hivData=data;
- }catch(e){hivError='Could not update the live workbook feed';}
+ }catch(e){hivError='HIV feed unavailable. The source could not be checked; try again later.';}
  finally{hivLoading=false;if(rootEl&&rootEl.isConnected&&tab==='hiv')renderInner(rootEl);}
 }
 if(!hivTimer)hivTimer=setInterval(()=>{if(rootEl&&rootEl.isConnected&&tab==='hiv'&&document.visibilityState!=='hidden')loadHiv();},180000);

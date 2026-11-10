@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.142 — Combined HIV test trends and stale-feed fallback
+
+- Show combined Determine and STAT-PAK test/result trends only for complete paired records, with coverage and explicit distinction from people.
+- Serve the last privacy-filtered feed during refresh outages with its original check time and a prominent stale warning; this does not repair the automatic scheduler.
+
 ## v6.9.141 — Clarify HIV result sums and usage
 
 - Label result sums separately from reported use and warn that outcome charts include figures needing review. Add a regression test for separate Determine and STAT-PAK source columns.
