@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.143 — Revenue corrections and PBF visit details
+
+- Allow permitted users to edit or remove individual reimbursement lines and remove duplicate revenue sessions, with confirmation, retained deleted records and audit entries. The linked training roster is not removed.
+- Tap assessor compliance counts to see facilities, planned and actual dates and administrative holds.
+
 ## v6.9.142 — Combined HIV test trends and stale-feed fallback
 
 - Show combined Determine and STAT-PAK test/result trends only for complete paired records, with coverage and explicit distinction from people.

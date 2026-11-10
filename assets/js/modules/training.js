@@ -97,7 +97,7 @@ function trainingMapView(){
   const selected=all.find(t=>t.id===mapTrainingId)||all[0];
   if(selected) mapTrainingId=selected.id;
   const query=selected?[selected.facilityName,selected.location,'Rwanda'].filter(Boolean).join(', '):'';
-  const routes=selected&&LS.auth.can('revenue')?(S.db().trainingExpenses||[]).filter(x=>x.linkedTraining===selected.id)
+  const routes=selected&&LS.auth.can('revenue')?(S.db().trainingExpenses||[]).filter(x=>!x.deleted&&x.linkedTraining===selected.id)
     .flatMap(x=>(x.expenses||[]).filter(e=>e.cat==='Transport'&&e.routeFrom&&e.routeTo)):[];
   const totals=new Map(); let unknown=0;
   (S.db().trainings||[]).forEach(t=>{ const name=String(t.fundingPartner||'').trim();
