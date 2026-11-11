@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.146 — Training queue flow
+
+- Replace queue numbers with gold dots connected by a vertical line, without changing the order or training records.
+
 ## v6.9.145 — Training rotation and plan revisions
 
 - Restore the confirmed training order without changing training records; subsequent completed turns and bookings update the queue.
