@@ -5,7 +5,7 @@
 'use strict';
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.training=M;
-let rootEl=null, tab='fifo', q='', mapTrainingId='';
+let rootEl=null, tab='fifo', q='';
 
 /* In-house sessions held at Ruli DH do not reset a person's place in the queue:
    the FIFO is about who gets the next sponsored seat elsewhere, so only external
@@ -89,37 +89,7 @@ function previousGap(s, last){
   return Math.max(0,U.daysBetween(from,last.start));
 }
 const sessionKey=t=>t?String(t.start)+'|'+String(t.title||''):'';
-/* Map searches use the entered place, not assumed coordinates. A broad district is
-   explicitly labelled approximate; a third-party map may resolve a different place. */
-function trainingMapView(){
-  const all=(S.db().trainings||[]).filter(t=>String(t.facilityName||t.location||'').trim()).slice()
-    .sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
-  const selected=all.find(t=>t.id===mapTrainingId)||all[0];
-  if(selected) mapTrainingId=selected.id;
-  const query=selected?[selected.facilityName,selected.location,'Rwanda'].filter(Boolean).join(', '):'';
-  const routes=selected&&LS.auth.can('revenue')?(S.db().trainingExpenses||[]).filter(x=>!x.deleted&&x.linkedTraining===selected.id)
-    .flatMap(x=>(x.expenses||[]).filter(e=>!e.deleted&&e.cat==='Transport'&&e.routeFrom&&e.routeTo)):[];
-  const totals=new Map(); let unknown=0;
-  (S.db().trainings||[]).forEach(t=>{ const name=String(t.fundingPartner||'').trim();
-    if(!name){ unknown++; return; }
-    const key=name.toLocaleLowerCase(); const item=totals.get(key)||{name,count:0}; item.count++; totals.set(key,item);
-  });
-  const partners=Array.from(totals.values()).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
-  const max=partners.length?partners[0].count:1;
-  const chart=partners.length?'<div role="img" aria-label="Recorded trainings by funding partner">'+partners.map(p=>'<div style="margin-bottom:12px"><div class="row between"><span class="small">'+U.esc(p.name)+'</span><b class="mono xs">'+p.count+'</b></div><div class="meter gold" style="margin-top:5px"><i style="width:'+(p.count/max*100)+'%"></i></div></div>').join('')+'</div>'
-    :'<p class="small faint">No funding partners recorded yet. Edit a training to add its funding partner.</p>';
-  const map=selected?'<label class="small" for="trMapSelect">Choose a training</label><select class="select" id="trMapSelect" style="margin:6px 0 8px">'+all.map(t=>'<option value="'+U.esc(t.id)+'"'+(t.id===selected.id?' selected':'')+'>'+U.esc(t.title||'Untitled')+' · '+U.esc(t.facilityName||t.location||'')+'</option>').join('')+'</select>'
-    +'<div class="xs faint" style="margin-bottom:8px">'+(selected.facilityName?'Searching for the recorded facility':'Only a general location is recorded; this is not a confirmed venue')+': '+U.esc(query)+'. Confirm the result on the map.</div>'
-    +'<div class="training-map-toolbar"><button class="btn sm primary" data-find-on-map data-query="'+U.esc(query)+'">Find venue on map</button><a class="btn sm" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent(query)+'">Open Google Maps ↗</a></div>'
-    +'<div class="training-map-wrap"><div data-training-map class="training-map" role="region" aria-label="Interactive training map"></div></div>'
-    +'<div class="hint" data-map-status role="status" aria-live="polite">Loading the map…</div><div data-map-results></div>'
-    +'<div class="hint">Map tiles and searches use OpenStreetMap; ticket routes use OSRM. Places are sent to those services when searched. Internet is required.</div>'
-    +(routes.length?'<div style="margin-top:12px"><b class="small">Recorded ticket legs</b>'+routes.map(e=>'<div class="small" style="margin-top:8px">'+U.esc(e.routeFrom)+' → '+U.esc(e.routeTo)+' <button class="btn xs" data-map-route data-from="'+U.esc(e.routeFrom)+'" data-to="'+U.esc(e.routeTo)+'">Show route on map</button> · <a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&amp;origin='+encodeURIComponent(e.routeFrom)+'&amp;destination='+encodeURIComponent(e.routeTo)+'&amp;travelmode=driving">Open in Google Maps ↗</a></div>').join('')+'<div class="hint">Suggested driving roads, not the verified bus or taxi route.</div></div>':(LS.auth.can('revenue')?'<div class="hint" style="margin-top:8px">No complete ticket stops linked to this training yet. Add transport tickets in Training Revenue.</div>':''))
-    :'<p class="small faint">No training location recorded yet. Record a training with a location to show it on the map.</p>';
-  return '<div class="grid-12" style="margin-bottom:16px"><div class="c8">'+UI.card({title:'Training locations & travel',sub:'Choose a training to see its venue and ticket legs',icon:'map-pin',body:map})+'</div>'
-    +'<div class="c4">'+UI.card({title:'Trainings by funding partner',sub:'Count of training records with an explicitly recorded funder',icon:'chart-bar',body:chart+'<div class="hint">'+unknown+' training'+(unknown===1?'':'s')+' without a recorded funding partner. An organizer is not automatically assumed to be the funder.</div>'})+'</div></div>';
-}
-function fifoView(){
+function fifoData(){
   const all=S.activeStaff().map(s=>{ const last=lastNameTraining(s.id); const days=waitingDays(s);
     const all=allTrainingOf(s.id);
     /* what stopped the last session from serving a turn — said plainly */
@@ -146,9 +116,13 @@ function fifoView(){
       };
       return key(a).localeCompare(key(b));
     });
+  return all;
+}
+function fifoView(){
+  const all=fifoData();
   const nextName=all.length?all[0].s.name:'';
-  return trainingMapView()+'<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Manager-confirmed rotation · new staff follow the most recently served queue members',icon:'git-branch',
-      tools:'<button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
+  return '<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Manager-confirmed rotation · new staff follow the most recently served queue members',icon:'git-branch',
+      tools:'<button class="btn sm" data-flow-download>'+UI.ic('download',13)+'Download flow</button> <button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
       body:'<div class="xs faint" style="margin:0 0 8px">The confirmed queue starts with Patrick, Bernadette and Claudine. New staff join behind those already in the rotation. Later qualifying completed trainings move attendees to the back; booked attendees are shown at the back until their training. A turn is an external training of at least three days.</div>'
         +'<div class="fifo-flow">'+all.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
         const isNext=i===0;
@@ -170,6 +144,26 @@ function fifoView(){
         return up.length?up.map(t=>'<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(t.title)+'</div><div class="lr-sub">'+U.fmtDate(t.start)+' · '+U.esc(t.organizer||'—')+'</div></div><span class="pill gold">'+U.daysBetween(U.todayISO(),t.start)+'d</span></div>').join(''):'<p class="xs faint">No sessions scheduled. Use “Schedule training” to plan the next competency block.</p>';
       })()})
    +'</div></div></div>';
+}
+/* Export a standalone vector flow, built from the same ordered queue as the screen. */
+function flowSVG(){
+ const rows=fifoData(), width=1000, top=145, rowH=85, height=top+Math.max(1,rows.length)*rowH+55;
+ const text=(x,y,value,size,fill,weight)=>'<text x="'+x+'" y="'+y+'" font-size="'+size+'" fill="'+fill+'" font-weight="'+(weight||400)+'">'+U.esc(value)+'</text>';
+ let g='<rect width="100%" height="100%" fill="#fff"/>';
+ g+=text(55,62,'Training queue',34,'#17233a',700)+text(55,100,'Ruli District Hospital · '+U.todayISO()+' · order at download',17,'#687286');
+ if(rows.length>1)g+='<path d="M 80 '+(top+rowH/2)+' V '+(top+(rows.length-1)*rowH+rowH/2)+'" stroke="#ba8b29" stroke-width="3"/>';
+ rows.forEach((r,i)=>{const y=top+i*rowH;g+='<circle cx="80" cy="'+(y+rowH/2)+'" r="8" fill="#ba8b29"/>';
+  g+=text(115,y+34,r.s.name+(i===0?'  ·  NEXT':''),23,'#17233a',700);
+  const detail=(S.postOf(r.s)||r.s.role||'')+' · '+(r.booked?'Booked '+U.fmtDate(r.booked.start):r.last?'Returned '+U.fmtDate(r.last.end||r.last.start):r.s.joinDate?'Since '+U.fmtDate(r.s.joinDate):'No training date recorded');
+  g+=text(115,y+60,detail,16,'#687286'); });
+ if(!rows.length)g+=text(55,top+35,'No active staff in the queue.',20,'#687286');
+ return '<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'" viewBox="0 0 '+width+' '+height+'" font-family="Arial, sans-serif">'+g+'</svg>';
+}
+function downloadFlow(){
+ UI.modal({title:'Download training flow',sub:'The current queue, including booking status.',body:'<p class="small">Choose a format. The file contains staff names and should be shared appropriately.</p>',foot:'<button class="btn" data-close>Cancel</button><button class="btn" data-flow-format="svg">SVG</button><button class="btn primary" data-flow-format="png">PNG</button>',onMount:(el,close)=>el.querySelectorAll('[data-flow-format]').forEach(b=>b.onclick=async()=>{
+  const svg=flowSVG(),fmt=b.dataset.flowFormat;
+  try{let blob;if(fmt==='svg')blob=new Blob([svg],{type:'image/svg+xml'});else{await LS.shell.ensureCore('sheets');blob=await LS.sheets.toPNG(svg,2);}U.download('training-flow-'+U.todayISO()+'.'+fmt,blob);close();UI.toast('Training flow downloaded',{type:'ok'});}catch(e){UI.toast('Download failed: '+(e.message||e),{type:'err'});}
+ })});
 }
 function registryView(){
   const list=scope().slice(0,80);
@@ -359,96 +353,17 @@ function scheduleModal(id, opts){
       };
     }});
 }
-/* The map library is local and lazy-loaded. Tiles and named-place search are
-   separate services: if either fails, keep the register usable and say why. */
-let leafletPromise=null, lastGeoAt=0, geoQueue=Promise.resolve();
-function loadLeaflet(){
-  if(window.L) return Promise.resolve(window.L);
-  if(leafletPromise) return leafletPromise;
-  leafletPromise=new Promise((resolve,reject)=>{
-    if(!document.getElementById('leaflet-css')){ const link=document.createElement('link'); link.id='leaflet-css'; link.rel='stylesheet'; link.href='assets/vendor/leaflet/leaflet.css'; document.head.appendChild(link); }
-    const sc=document.createElement('script'); let done=false;
-    const finish=(err)=>{ if(done) return; done=true; clearTimeout(timer); if(err){sc.remove(); leafletPromise=null; reject(err);} else resolve(window.L); };
-    const timer=setTimeout(()=>finish(new Error('Map library did not load in time')),15000);
-    sc.src='assets/vendor/leaflet/leaflet.js'; sc.onload=()=>window.L?finish():finish(new Error('Map library unavailable')); sc.onerror=()=>finish(new Error('Map library could not be loaded')); document.head.appendChild(sc);
-  }); return leafletPromise;
-}
-function timedJSON(url){
-  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),12000);
-  return fetch(url,{signal:controller.signal,cache:'no-store'}).then(r=>{if(!r.ok) throw new Error('Service returned '+r.status); return r.json();}).finally(()=>clearTimeout(timer));
-}
-/* The public Nominatim service permits at most one request per second and no autocomplete. */
-function findPlace(q){
-  const task=geoQueue.catch(()=>{}).then(()=>new Promise(resolve=>setTimeout(resolve,Math.max(0,1100-(Date.now()-lastGeoAt)))))
-    .then(()=>{lastGeoAt=Date.now(); return timedJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q='+encodeURIComponent(q));});
-  geoQueue=task.catch(()=>{}); return task;
-}
-function setupTrainingMap(root){
-  const target=root.querySelector('[data-training-map]'); if(!target) return;
-  const status=root.querySelector('[data-map-status]'), results=root.querySelector('[data-map-results]');
-  let map, tiles, layers=[], request=0;
-  const alive=()=>target.isConnected;
-  const say=msg=>{if(alive()) status.textContent=msg;};
-  const clear=()=>{layers.forEach(layer=>map.removeLayer(layer)); layers=[];};
-  let ready=loadLeaflet().then(L=>{
-    if(!alive()) return null;
-    map=L.map(target,{scrollWheelZoom:false}).setView([-1.94,29.87],8);
-    tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'}).addTo(map);
-    let tileLoaded=false, tileFailed=false;
-    const tileTimer=setTimeout(()=>{if(!tileLoaded) say('Map tiles have not arrived. Check your connection or use Open Google Maps.');},12000);
-    tiles.on('tileload',()=>{tileLoaded=true; clearTimeout(tileTimer); if(!tileFailed&&/^Loading the map/.test(status.textContent)) say('Map ready. Select Find venue on map to locate the recorded place.');});
-    tiles.on('tileerror',()=>{tileFailed=true; clearTimeout(tileTimer); say('Some map tiles could not load. Check your connection or use Open Google Maps.');});
-    return L;
-  }).catch(err=>{say('Map could not load: '+err.message+'. Reload the page or use Open Google Maps.'); return null;});
-  const venue=root.querySelector('[data-find-on-map]');
-  if(venue) venue.onclick=async()=>{
-    const seq=++request; results.innerHTML=''; const L=await ready; if(!L||!alive()||seq!==request) return;
-    say('Searching OpenStreetMap for the recorded venue…');
-    try{ const places=await findPlace(venue.dataset.query); if(!alive()||seq!==request) return;
-      const valid=Array.isArray(places)?places.filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon)&&p.display_name):[];
-      if(!valid.length){say('No matching place found. Check the name or use Open Google Maps.'); return;}
-      say('Choose the correct result below. Results are not automatically verified.');
-      valid.forEach(p=>{const b=document.createElement('button'); b.type='button'; b.className='btn sm training-map-result'; b.textContent=p.display_name;
-        b.onclick=()=>{++request; clear(); const point=[+p.lat,+p.lon]; const marker=L.marker(point).addTo(map); layers.push(marker); marker.bindPopup(document.createTextNode(p.display_name)).openPopup(); map.setView(point,15); results.innerHTML=''; say('Showing selected search result. Verify it is the right venue; it is not saved to the record.');}; results.appendChild(b);});
-    }catch(e){if(seq===request) say('Venue search failed. Check your connection or use Open Google Maps.');}
-  };
-  root.querySelectorAll('[data-map-route]').forEach(b=>b.onclick=async()=>{
-    const seq=++request; results.innerHTML=''; const L=await ready; if(!L||!alive()||seq!==request) return;
-    say('Finding the ticket stops…');
-    try{
-      const from=await findPlace(b.dataset.from+', Rwanda'); if(!alive()||seq!==request) return;
-      const to=await findPlace(b.dataset.to+', Rwanda'); if(!alive()||seq!==request) return;
-      const a=from&&from[0], z=to&&to[0];
-      if(!a||!z||![a.lat,a.lon,z.lat,z.lon].every(v=>Number.isFinite(+v))) throw new Error('One or both stops were not found');
-      say('Finding a suggested driving route…');
-      const route=await timedJSON('https://router.project-osrm.org/route/v1/driving/'+[+a.lon,+a.lat].join(',')+';'+[+z.lon,+z.lat].join(',')+'?overview=full&geometries=geojson');
-      if(!alive()||seq!==request) return;
-      const coords=route.routes&&route.routes[0]&&route.routes[0].geometry&&route.routes[0].geometry.coordinates;
-      if(!Array.isArray(coords)||coords.length<2) throw new Error('No road route found');
-      const points=coords.filter(c=>Array.isArray(c)&&Number.isFinite(+c[0])&&Number.isFinite(+c[1])).map(c=>[+c[1],+c[0]]);
-      if(points.length<2) throw new Error('No road route found');
-      clear(); const start=L.marker(points[0]).addTo(map), end=L.marker(points[points.length-1]).addTo(map); layers.push(start,end);
-      start.bindPopup(document.createTextNode('Start: '+a.display_name)); end.bindPopup(document.createTextNode('End: '+z.display_name));
-      const line=L.polyline(points,{color:'#ba8b29',weight:5,opacity:.9}).addTo(map); layers.push(line); map.fitBounds(line.getBounds(),{padding:[22,22],maxZoom:15});
-      if(!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-        const path=line.getElement(); if(path&&path.animate) path.animate([{strokeDasharray:'0 2000'},{strokeDasharray:'2000 0'}],{duration:1600,easing:'ease-out'});
-      }
-      say('Suggested road route, not a GPS record. Check the resolved stops: '+a.display_name+' → '+z.display_name+'.');
-    }catch(e){ if(alive()&&seq===request) say('Could not draw the route: '+(e.name==='AbortError'?'the service timed out':e.message)+'. Check the stop names or use Open in Google Maps.'); }
-  });
-}
 
 function paint(){
   const host=rootEl.querySelector('#trBody'); if(!host) return;
-  host.innerHTML=tab==='fifo'?fifoView():tab==='map'?trainingMapView():tab==='registry'?registryView():historyView();
+  host.innerHTML=tab==='fifo'?fifoView():tab==='registry'?registryView():historyView();
   U.$$('[data-tr-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.trTab===tab));
   UI.animateCounts(host);
   wireBody();
 }
 function wireBody(){
   const r=rootEl;
-  const mapSelect=r.querySelector('#trMapSelect'); if(mapSelect) mapSelect.onchange=()=>{ mapTrainingId=mapSelect.value; paint(); };
-  setupTrainingMap(r);
+  r.querySelectorAll('[data-flow-download]').forEach(b=>b.onclick=downloadFlow);
   r.querySelectorAll('[data-schedule]').forEach(b=>b.onclick=()=>scheduleModal());
   r.querySelectorAll('[data-history]').forEach(b=>b.onclick=()=>scheduleModal(null,{history:true}));
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>{
@@ -480,11 +395,11 @@ function wireBody(){
   if(tab==='history') drawYears(r.querySelector('#trYears'),'trYrHist');
 }
 M.render=function(root,params){
-  rootEl=root; tab=params.tab||'fifo'; q=params.q||'';
+  rootEl=root; tab=params.tab==='map'?'fifo':(params.tab||'fifo'); q=params.q||'';
   root.innerHTML='<div class="page-head"><div><h1>Training roster</h1><div class="sub">Competency is a controlled asset: a FIFO queue that is visibly fair, a registry that survives staff turnover, and certificates on file.</div></div>'
    +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-history>'+UI.ic('history',15)+' Record past training</button><button class="btn primary" data-schedule>'+UI.ic('plus',15)+' Schedule training</button></div></div>'
    +kpis()
-   +'<div class="filters" style="margin-bottom:12px">'+[['fifo','FIFO queue'],['map','Map & partners'],['registry','Registry'],['history','History']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-tr-tab="'+k+'">'+l+'</button>').join('')+'</div>'
+   +'<div class="filters" style="margin-bottom:12px">'+[['fifo','FIFO queue'],['registry','Registry'],['history','History']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-tr-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="trBody"></div>';
   U.$$('[data-tr-tab]',root).forEach(b=>b.onclick=()=>{ tab=b.dataset.trTab; paint(); });
   paint();
