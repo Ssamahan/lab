@@ -25,7 +25,7 @@ const countsForFifo=t=>!isInHouse(t) && trainingDays(t)>=3;
 const MIN_COUNTING_DAYS=3;
 /* The last session that served a turn — the one the waiting time is measured from. */
 const lastNameTraining=id=>{
-  const list=S.db().trainings.filter(t=>(t.attendees||[]).includes(id) && countsForFifo(t));
+  const list=S.db().trainings.filter(t=>(t.attendees||[]).includes(id) && countsForFifo(t) && String(t.end||t.start)<=U.todayISO());
   return list.sort((a,b)=>String(b.end||b.start).localeCompare(String(a.end||a.start)))[0]||null;
 };
 /* Everything a person has attended, counting or not — the history is complete. */
@@ -132,18 +132,24 @@ function fifoView(){
     return {s,last,days,all,lastAny,why,count:all.length,
       counted:all.filter(countsForFifo).length,booked:bookedFor(s.id),gap:previousGap(s,last)}; })
     .sort((a,b)=>{
-      if(!!a.booked!==!!b.booked) return a.booked?1:-1;
-      if(b.days!==a.days) return b.days-a.days;
-      if(sessionKey(a.last)===sessionKey(b.last)){
-        const ga=a.gap==null?1e9:a.gap, gb=b.gap==null?1e9:b.gap;
-        if(ga!==gb) return ga-gb;
-      }
-      return String(a.s.name).localeCompare(String(b.s.name));
+      // Manager-confirmed queue as at 11 November 2026; later completed turns
+      // and genuinely new staff join behind the existing order, in date order.
+      const baseline=['s5','szy5ldejuej','sik67mpn5sy','s3','s4','s1','s6','s9'];
+      const anchor='2026-11-11';
+      const key=x=>{
+        const i=baseline.indexOf(x.s.id);
+        const newer=x.last&&String(x.last.end||x.last.start)>anchor?String(x.last.end||x.last.start):null;
+        if(x.booked)return '2|'+String(x.booked.start)+'|'+String(i<0?999:i).padStart(3,'0');
+        if(newer)return '1|'+newer+'|'+String(i<0?999:i).padStart(3,'0');
+        if(i<0)return '1|'+(x.s.joinDate&&x.s.joinDate>anchor?x.s.joinDate:anchor)+'|'+String(x.s.name);
+        return '0|'+String(i).padStart(3,'0');
+      };
+      return key(a).localeCompare(key(b));
     });
   const nextName=all.length?all[0].s.name:'';
-  return trainingMapView()+'<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Longest wait first · days served waiting, counted from the day they returned',icon:'git-branch',
+  return trainingMapView()+'<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Manager-confirmed rotation · new staff follow the most recently served queue members',icon:'git-branch',
       tools:'<button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
-      body:'<div class="xs faint" style="margin:0 0 8px">Everyone active stands in one queue, whichever post they hold — a post only decides who is <b>called by name</b> when a session is aimed at it, not who waits. Read from the history: a training of three days or more, held away from Ruli DH, is a turn served.</div>'
+      body:'<div class="xs faint" style="margin:0 0 8px">The confirmed queue starts with Patrick, Bernadette and Claudine. New staff join behind those already in the rotation. Later qualifying completed trainings move attendees to the back; booked attendees are shown at the back until their training. A turn is an external training of at least three days.</div>'
         +'<div style="display:flex;flex-direction:column;gap:2px">'+all.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
         const isNext=i===0;
         return '<div class="list-row'+(isNext?' fifo-next':'')+'">'
@@ -156,7 +162,7 @@ function fifoView(){
         +(x.why?'<div class="xs" style="color:var(--warn);margin-top:2px">last: '+U.esc(x.why)+'</div>':'')+'</div>'
         +'<div style="width:96px"><div class="meter '+(x.days>365?'rose':x.days>240?'amber':'teal')+'"><i style="width:'+Math.min(100,pct)+'%"></i></div><div class="xs faint" style="margin-top:3px">'+(x.last?'returned '+U.fmtDate(x.last.end||x.last.start):(x.s.joinDate?'since '+U.fmtDate(x.s.joinDate):'never'))+'</div></div>'
         +'<span class="mono xs" style="width:56px;text-align:right;color:'+(x.days>365?'var(--crit)':'var(--text-muted)')+'">'+(x.days>=999?'—':x.days+'d')+'</span></div>'; }).join('')+'</div>',
-      foot:'<span>Only a training held away from Ruli DH, of <b>3 days or more</b>, serves a turn · counted from the day the person returned · who is already booked for one is last</span><span class="mono">'+(nextName?'next: '+U.esc(nextName):all.length+' staff')+'</span>'})+'</div>'
+      foot:'<span>Confirmed starting order as at 11 November 2026 · later qualifying turns update it · bookings appear last</span><span class="mono">'+(nextName?'next: '+U.esc(nextName):all.length+' staff')+'</span>'})+'</div>'
    +'<div class="c5"><div class="col" style="gap:14px">'
      +UI.card({title:'Training by year',sub:'Sessions recorded, year by year',icon:'chart-bar',tools:'<a class="more" href="#/training?tab=history" style="color:var(--gold)">History '+UI.ic('arrow-right',12)+'</a>',body:'<div id="trYears"></div>'})
      +UI.card({title:'Upcoming & planned',sub:'Scheduled competency activity',icon:'calendar-days',body:(function(){

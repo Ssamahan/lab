@@ -3,7 +3,7 @@
    Strategy: precache the shell + core, stale-while-revalidate for modules,
    navigation fallback to index.html so deep links work with no network.
    ========================================================================== */
-const VERSION = 'v6.9.144';
+const VERSION = 'v6.9.145';
 const SHELL = 'lab-shell-' + VERSION;
 const RUNTIME = 'lab-runtime-' + VERSION;
 
@@ -21,26 +21,26 @@ const CORE = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/tokens.css?v=6.9.144',
-  './assets/css/app.css?v=6.9.144',
-  './assets/css/modules.css?v=6.9.144',
-  './assets/css/landing.css?v=6.9.144',
-  './assets/data/plan-archive.js?v=6.9.144',
-  './assets/js/core/icons.js?v=6.9.144',
-  './assets/js/core/seed.js?v=6.9.144',
-  './assets/js/core/utils.js?v=6.9.144',
-  './assets/js/core/store.js?v=6.9.144',
-  './assets/js/core/ui.js?v=6.9.144',
-  './assets/js/core/charts.js?v=6.9.144',
-  './assets/js/core/sheets.js?v=6.9.144',
-  './assets/js/core/i18n.js?v=6.9.144',
-  './assets/js/core/auth.js?v=6.9.144',
-  './assets/js/core/landing.js?v=6.9.144',
-  './assets/js/core/shared.js?v=6.9.144',
-  './assets/js/core/shell.js?v=6.9.144',
-  './assets/js/core/sync.js?v=6.9.144',
-  './assets/js/core/private-names.js?v=6.9.144',
-  './assets/js/core/boot.js?v=6.9.144',
+  './assets/css/tokens.css?v=6.9.145',
+  './assets/css/app.css?v=6.9.145',
+  './assets/css/modules.css?v=6.9.145',
+  './assets/css/landing.css?v=6.9.145',
+  './assets/data/plan-archive.js?v=6.9.145',
+  './assets/js/core/icons.js?v=6.9.145',
+  './assets/js/core/seed.js?v=6.9.145',
+  './assets/js/core/utils.js?v=6.9.145',
+  './assets/js/core/store.js?v=6.9.145',
+  './assets/js/core/ui.js?v=6.9.145',
+  './assets/js/core/charts.js?v=6.9.145',
+  './assets/js/core/sheets.js?v=6.9.145',
+  './assets/js/core/i18n.js?v=6.9.145',
+  './assets/js/core/auth.js?v=6.9.145',
+  './assets/js/core/landing.js?v=6.9.145',
+  './assets/js/core/shared.js?v=6.9.145',
+  './assets/js/core/shell.js?v=6.9.145',
+  './assets/js/core/sync.js?v=6.9.145',
+  './assets/js/core/private-names.js?v=6.9.145',
+  './assets/js/core/boot.js?v=6.9.145',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -51,7 +51,7 @@ const CORE = [
 
 /* The rest, brought in after the first screen is open (see the WARM message). */
 const LATER = [
-  './assets/js/core/xlsxread.js?v=6.9.144',
+  './assets/js/core/xlsxread.js?v=6.9.145',
   './assets/fonts/fraunces-latin-300-normal.woff2',
   './assets/fonts/fraunces-latin-400-italic.woff2',
   './assets/fonts/fraunces-latin-500-normal.woff2',
