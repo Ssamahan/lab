@@ -4,8 +4,8 @@ const click=e=>e.dispatchEvent(new e.ownerDocument.defaultView.MouseEvent('click
 (async()=>{
  const {w,go,errors}=await boot('#/training'); const d=w.document,S=w.LS.store;
  S.commit(db=>{db.trainings.unshift({id:'map-test-1',title:'Map training',location:'Musanze',facilityName:'Hotel & Hall',facilityType:'Hotel',fundingPartner:'Partner A',start:'2026-11-06',end:'2026-11-06',attendees:[]},{id:'map-test-2',title:'Second training',location:'Huye',fundingPartner:'partner a',start:'2026-01-01',end:'2026-01-01',attendees:[]},{id:'map-test-3',title:'Unknown funding',location:'Kigali',organizer:'Partner B',start:'2026-01-01',end:'2026-01-01',attendees:[]}); db.trainingExpenses.unshift({id:'map-exp',linkedTraining:'map-test-1',expenses:[{cat:'Transport',routeFrom:'Ruli & Gakenke',routeTo:'Musanze'}]});},{action:'test'});
- await go('#/training'); await tick();
- ok(!!d.querySelector('[data-training-map]'),'map visible on training landing page');
+ await go('#/revenue'); await tick();
+ ok(!!d.querySelector('[data-training-map]'),'map visible in Training Revenue');
  const select=d.querySelector('#trMapSelect'); select.value='map-test-1'; select.dispatchEvent(new w.Event('change',{bubbles:true}));
  let map=d.querySelector('[data-training-map]');
  ok(d.querySelector('[data-find-on-map]').dataset.query.includes('Hotel & Hall, Musanze, Rwanda'),'map search uses selected facility and location');
@@ -14,8 +14,8 @@ const click=e=>e.dispatchEvent(new e.ownerDocument.defaultView.MouseEvent('click
  ok(/Partner A\s*2/.test(funderCard.textContent),'counts partner case-insensitively',funderCard.textContent);
  ok(!funderCard.textContent.includes('Partner B'),'organizer not invented as funder');
  ok(!!d.querySelector('[data-map-route]'),'recorded ticket offers a map route');
- click(d.querySelector('[data-tr-tab="map"]')); ok(!!d.querySelector('[data-training-map]'),'dedicated map tab works');
- click(d.querySelector('[data-history]')); await tick();
+ ok(!!d.querySelector('[data-district-map]'),'district map also appears in Training Revenue');
+ await go('#/training'); await tick(); click(d.querySelector('[data-history]')); await tick();
  d.querySelector('#trTitle').value='New funded training'; d.querySelector('#trStart').value='2026-11-06'; d.querySelector('#trFunder').value='Partner C';
  click(d.querySelector('[data-save]')); await tick(500);
  ok(S.db().trainings.find(t=>t.title==='New funded training').fundingPartner==='Partner C','funding partner persists');

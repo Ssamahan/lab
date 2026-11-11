@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.147 — Training flow export and district maps
+
+- Download the current training queue as SVG or PNG; move the venue and ticket map to Training Revenue.
+- Add a past-session district overview, grouping Kigali and identifying unrecognised locations without guessing. Arrows are illustrative, not road routes.
+
 ## v6.9.146 — Training queue flow
 
 - Replace queue numbers with gold dots connected by a vertical line, without changing the order or training records.

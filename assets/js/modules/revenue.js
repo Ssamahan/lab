@@ -474,6 +474,18 @@ function addSession(){
       };
     }});
 }
+function mountMaps(root){
+ const host=root.querySelector('#revenueMaps');if(!host)return;
+ const render=()=>{
+  if(!host.isConnected||!LS.auth.can('revenue'))return;
+  const maps=LS.trainingMaps;
+  host.innerHTML='<div data-venue-map></div><div style="margin-bottom:16px">'+maps.districtCard()+'</div>';
+  const venue=host.querySelector('[data-venue-map]');
+  const showVenue=()=>{if(!venue.isConnected)return;venue.innerHTML=maps.trainingMapView();const sel=venue.querySelector('#trMapSelect');if(sel)sel.onchange=()=>{maps.setSelection(sel.value);showVenue();};maps.setupTrainingMap(venue);};
+  showVenue();maps.setupDistrictMap(host);
+ };
+ LS.shell.ensureCore('trainingMaps').then(render).catch(e=>{if(!host.isConnected)return;host.innerHTML='<div class="hint">Training maps could not load. The revenue ledger is unchanged. <button class="btn xs" data-maps-retry>Retry</button></div>';host.querySelector('[data-maps-retry]').onclick=()=>mountMaps(root);});
+}
 M.render=function(root,params){
   rootEl=root;
   if(!LS.auth.can('revenue')){
@@ -483,7 +495,8 @@ M.render=function(root,params){
   const d=data();
   root.innerHTML='<div class="page-head"><div><h1>Training revenue</h1><div class="sub">The honest ledger behind competency: every session, expense and reimbursement reconciled to the training registry.</div></div>'
    +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn primary" data-add>'+UI.ic('plus',15)+' Log session</button></div></div>'
-   +kpis()+table();
+   +kpis()+'<div id="revenueMaps"><div class="hint">Loading training maps…</div></div>'+table();
+  mountMaps(root);
   root.querySelector('[data-add]').onclick=addSession;
   root.querySelector('[data-export]').onclick=()=>{
     const rows=[['Session','Organizer','Location','Start','End','Expenses','Reimbursed','Net']].concat(d.list.map(t=>{ const e=sumExp(t),r=sumReimb(t); return [t.title,t.organizer,t.location,t.start,t.end,e,r,r-e]; }));

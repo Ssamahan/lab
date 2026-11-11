@@ -911,3 +911,10 @@
 .hiv-compact thead th { white-space:normal; line-height:1.2; padding:8px 6px; }
 .hiv-compact tbody td { height:auto; padding:8px 6px; }
 @media (max-width:1100px) { .hiv-tables-grid { grid-template-columns:1fr; } }
+
+/* Training Revenue: district overview remains readable on phones and offline. */
+.district-map{width:100%;max-width:760px;overflow:hidden;border-radius:10px;background:#f6f8fa}
+.district-map svg{display:block;width:100%;height:auto}
+.district-ranking{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+.district-chip{display:inline-flex;gap:8px;align-items:center;padding:4px 9px;border:1px solid var(--border-gold);border-radius:999px;font-size:12px}
+.district-chip b{color:var(--gold)}

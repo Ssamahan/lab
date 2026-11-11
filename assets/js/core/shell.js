@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.146';
+const APP_VERSION='6.9.147';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -60,7 +60,8 @@ SH.current=()=>parse().id;
    opened, once per visit, and the promise is remembered so two taps cost one download. */
 const CORE_LAZY={
   sheets:'assets/js/core/sheets.js',
-  xlsx:'assets/js/core/xlsxread.js'
+  xlsx:'assets/js/core/xlsxread.js',
+  trainingMaps:'assets/js/core/training-maps.js'
 };
 const coreLoading={};
 SH.ensureCore=function(kind){
