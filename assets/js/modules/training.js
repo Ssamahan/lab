@@ -150,10 +150,10 @@ function fifoView(){
   return trainingMapView()+'<div class="grid-12"><div class="c7">'+UI.card({title:'FIFO training queue',sub:'Manager-confirmed rotation · new staff follow the most recently served queue members',icon:'git-branch',
       tools:'<button class="btn sm primary" data-schedule>'+UI.ic('plus',13)+'Schedule training</button>',
       body:'<div class="xs faint" style="margin:0 0 8px">The confirmed queue starts with Patrick, Bernadette and Claudine. New staff join behind those already in the rotation. Later qualifying completed trainings move attendees to the back; booked attendees are shown at the back until their training. A turn is an external training of at least three days.</div>'
-        +'<div style="display:flex;flex-direction:column;gap:2px">'+all.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
+        +'<div class="fifo-flow">'+all.map((x,i)=>{ const pct=Math.min(100,x.days/365*100);
         const isNext=i===0;
         return '<div class="list-row'+(isNext?' fifo-next':'')+'">'
-        +'<div style="width:24px;font-family:var(--font-mono);font-size:10px;color:'+(isNext?'var(--gold)':'var(--text-faint)')+'">'+(i+1)+'</div>'
+        +'<span class="fifo-flow-marker" aria-hidden="true"><i></i></span>'
         +U.avatar(x.s.name,isNext?'sm fifo-ring':'sm')
         +'<div class="lr-main"><div class="lr-title">'+U.esc(x.s.name)+(isNext?' <span class="pill gold" style="font-size:8.5px;padding:1px 6px">next</span>':'')
         +(S.isRolePost(x.s)?' <span class="pill gold" style="font-size:8.5px;padding:1px 6px" title="'+U.esc(S.postOf(x.s))+' — a session aimed at this post is called to them by name">post</span>':'')
