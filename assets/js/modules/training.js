@@ -145,24 +145,12 @@ function fifoView(){
       })()})
    +'</div></div></div>';
 }
-/* Export a standalone vector flow, built from the same ordered queue as the screen. */
-function flowSVG(){
- const rows=fifoData(), width=1000, top=145, rowH=85, height=top+Math.max(1,rows.length)*rowH+55;
- const text=(x,y,value,size,fill,weight)=>'<text x="'+x+'" y="'+y+'" font-size="'+size+'" fill="'+fill+'" font-weight="'+(weight||400)+'">'+U.esc(value)+'</text>';
- let g='<rect width="100%" height="100%" fill="#fff"/>';
- g+=text(55,62,'Training queue',34,'#17233a',700)+text(55,100,'Ruli District Hospital · '+U.todayISO()+' · order at download',17,'#687286');
- if(rows.length>1)g+='<path d="M 80 '+(top+rowH/2)+' V '+(top+(rows.length-1)*rowH+rowH/2)+'" stroke="#ba8b29" stroke-width="3"/>';
- rows.forEach((r,i)=>{const y=top+i*rowH;g+='<circle cx="80" cy="'+(y+rowH/2)+'" r="8" fill="#ba8b29"/>';
-  g+=text(115,y+34,r.s.name+(i===0?'  ·  NEXT':''),23,'#17233a',700);
-  const detail=(S.postOf(r.s)||r.s.role||'')+' · '+(r.booked?'Booked '+U.fmtDate(r.booked.start):r.last?'Returned '+U.fmtDate(r.last.end||r.last.start):r.s.joinDate?'Since '+U.fmtDate(r.s.joinDate):'No training date recorded');
-  g+=text(115,y+60,detail,16,'#687286'); });
- if(!rows.length)g+=text(55,top+35,'No active staff in the queue.',20,'#687286');
- return '<svg xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'" viewBox="0 0 '+width+' '+height+'" font-family="Arial, sans-serif">'+g+'</svg>';
-}
+/* The flow sheet uses the same letterhead and signatures as the working plan. */
+function flowRows(){return fifoData().map(r=>({name:r.s.name,detail:(S.postOf(r.s)||r.s.role||'')+' · '+(r.booked?'Booked '+U.fmtDate(r.booked.start):r.last?'Returned '+U.fmtDate(r.last.end||r.last.start):r.s.joinDate?'Since '+U.fmtDate(r.s.joinDate):'No training date recorded')}));}
 function downloadFlow(){
- UI.modal({title:'Download training flow',sub:'The current queue, including booking status.',body:'<p class="small">Choose a format. The file contains staff names and should be shared appropriately.</p>',foot:'<button class="btn" data-close>Cancel</button><button class="btn" data-flow-format="svg">SVG</button><button class="btn primary" data-flow-format="png">PNG</button>',onMount:(el,close)=>el.querySelectorAll('[data-flow-format]').forEach(b=>b.onclick=async()=>{
-  const svg=flowSVG(),fmt=b.dataset.flowFormat;
-  try{let blob;if(fmt==='svg')blob=new Blob([svg],{type:'image/svg+xml'});else{await LS.shell.ensureCore('sheets');blob=await LS.sheets.toPNG(svg,2);}U.download('training-flow-'+U.todayISO()+'.'+fmt,blob);close();UI.toast('Training flow downloaded',{type:'ok'});}catch(e){UI.toast('Download failed: '+(e.message||e),{type:'err'});}
+ UI.modal({title:'Download training flow',sub:'A dated, unsigned queue snapshot with space for review and signatures.',body:'<p class="small">Choose a format. The file contains staff names and should be shared appropriately.</p>',foot:'<button class="btn" data-close>Cancel</button><button class="btn" data-flow-format="svg">SVG</button><button class="btn" data-flow-format="png">PNG</button><button class="btn primary" data-flow-format="pdf">PDF</button>',onMount:(el,close)=>el.querySelectorAll('[data-flow-format]').forEach(b=>b.onclick=async()=>{
+  const fmt=b.dataset.flowFormat;b.disabled=true;
+  try{await LS.shell.ensureCore('sheets');const svg=LS.sheets.trainingFlowSVG(flowRows(),U.todayISO());let blob;if(fmt==='svg')blob=new Blob([svg],{type:'image/svg+xml'});else if(fmt==='pdf')blob=await LS.sheets.toPDFPages([svg],{portrait:true,scale:2});else blob=await LS.sheets.toPNG(svg,2);if(!blob)throw Error('Image could not be created');U.download('training-flow-'+U.todayISO()+'.'+fmt,blob);close();UI.toast('Training flow downloaded',{type:'ok'});}catch(e){UI.toast('Download failed: '+(e.message||e),{type:'err'});}finally{b.disabled=false;}
  })});
 }
 function registryView(){

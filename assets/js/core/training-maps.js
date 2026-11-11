@@ -21,14 +21,16 @@ function trainingMapView(){
   const max=partners.length?partners[0].count:1;
   const chart=partners.length?'<div role="img" aria-label="Recorded trainings by funding partner">'+partners.map(p=>'<div style="margin-bottom:12px"><div class="row between"><span class="small">'+U.esc(p.name)+'</span><b class="mono xs">'+p.count+'</b></div><div class="meter gold" style="margin-top:5px"><i style="width:'+(p.count/max*100)+'%"></i></div></div>').join('')+'</div>'
     :'<p class="small faint">No funding partners recorded yet. Edit a training to add its funding partner.</p>';
-  const map=selected?'<label class="small" for="trMapSelect">Choose a training</label><select class="select" id="trMapSelect" style="margin:6px 0 8px">'+all.map(t=>'<option value="'+U.esc(t.id)+'"'+(t.id===selected.id?' selected':'')+'>'+U.esc(t.title||'Untitled')+' · '+U.esc(t.facilityName||t.location||'')+'</option>').join('')+'</select>'
+  const map=(selected?'<label class="small" for="trMapSelect">Choose a training</label><select class="select" id="trMapSelect" style="margin:6px 0 8px">'+all.map(t=>'<option value="'+U.esc(t.id)+'"'+(t.id===selected.id?' selected':'')+'>'+U.esc(t.title||'Untitled')+' · '+U.esc(t.facilityName||t.location||'')+'</option>').join('')+'</select>'
     +'<div class="xs faint" style="margin-bottom:8px">'+(selected.facilityName?'Searching for the recorded facility':'Only a general location is recorded; this is not a confirmed venue')+': '+U.esc(query)+'. Confirm the result on the map.</div>'
-    +'<div class="training-map-toolbar"><button class="btn sm primary" data-find-on-map data-query="'+U.esc(query)+'">Find venue on map</button><a class="btn sm" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent(query)+'">Open Google Maps ↗</a></div>'
+    :'<p class="small faint">No recorded training location yet. You can still search below.</p>')
+    +'<label class="small" for="mapPlaceQuery">Search a venue or place</label><div class="training-map-toolbar"><input class="input training-map-query" id="mapPlaceQuery" value="'+U.esc(query)+'" placeholder="e.g. Nyamata, Bugesera, Rwanda"><button class="btn sm primary" data-find-on-map data-query="'+U.esc(query)+'">Find venue on map</button><a class="btn sm" data-map-google-search target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent(query)+'">Open Google Maps ↗</a></div>'
     +'<div class="training-map-wrap"><div data-training-map class="training-map" role="region" aria-label="Interactive training map"></div></div>'
     +'<div class="hint" data-map-status role="status" aria-live="polite">Loading the map…</div><div data-map-results></div>'
     +'<div class="hint">Map tiles and searches use OpenStreetMap; ticket routes use OSRM. Places are sent to those services when searched. Internet is required.</div>'
+    +'<div class="training-map-manual"><b class="small">Try a route</b><div class="training-map-toolbar"><label class="small">From <input class="input" data-map-from placeholder="Ruli, Gakenke"></label><label class="small">To <input class="input" data-map-to placeholder="e.g. Musanze"></label><button class="btn sm" data-map-route-manual>Show suggested route</button><a class="btn sm" data-map-google-route target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1">Open directions ↗</a></div><div class="xs faint">Searches and routes are not saved. Verify both resolved stops; the line is not a GPS record.</div></div>'
     +(routes.length?'<div style="margin-top:12px"><b class="small">Recorded ticket legs</b>'+routes.map(e=>'<div class="small" style="margin-top:8px">'+U.esc(e.routeFrom)+' → '+U.esc(e.routeTo)+' <button class="btn xs" data-map-route data-from="'+U.esc(e.routeFrom)+'" data-to="'+U.esc(e.routeTo)+'">Show route on map</button> · <a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&amp;origin='+encodeURIComponent(e.routeFrom)+'&amp;destination='+encodeURIComponent(e.routeTo)+'&amp;travelmode=driving">Open in Google Maps ↗</a></div>').join('')+'<div class="hint">Suggested driving roads, not the verified bus or taxi route.</div></div>':(LS.auth.can('revenue')?'<div class="hint" style="margin-top:8px">No complete ticket stops linked to this training yet. Add transport tickets in Training Revenue.</div>':''))
-    :'<p class="small faint">No training location recorded yet. Record a training with a location to show it on the map.</p>';
+;
   return '<div class="grid-12" style="margin-bottom:16px"><div class="c8">'+UI.card({title:'Training locations & travel',sub:'Choose a training to see its venue and ticket legs',icon:'map-pin',body:map})+'</div>'
     +'<div class="c4">'+UI.card({title:'Trainings by funding partner',sub:'Count of training records with an explicitly recorded funder',icon:'chart-bar',body:chart+'<div class="hint">'+unknown+' training'+(unknown===1?'':'s')+' without a recorded funding partner. An organizer is not automatically assumed to be the funder.</div>'})+'</div></div>';
 }
@@ -73,11 +75,15 @@ function setupTrainingMap(root){
     tiles.on('tileerror',()=>{tileFailed=true; clearTimeout(tileTimer); say('Some map tiles could not load. Check your connection or use Open Google Maps.');});
     return L;
   }).catch(err=>{say('Map could not load: '+err.message+'. Reload the page or use Open Google Maps.'); return null;});
-  const venue=root.querySelector('[data-find-on-map]');
+  const venue=root.querySelector('[data-find-on-map]'), queryInput=root.querySelector('#mapPlaceQuery'), googleSearch=root.querySelector('[data-map-google-search]');
+  const updateSearch=()=>{googleSearch.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(queryInput.value.trim());};
+  if(queryInput){queryInput.addEventListener('input',updateSearch);queryInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();venue.click();}});}
   if(venue) venue.onclick=async()=>{
+    const query=queryInput.value.trim();if(!query){say('Enter a venue, district or other place to search.');return;}
+    updateSearch();
     const seq=++request; results.innerHTML=''; const L=await ready; if(!L||!alive()||seq!==request) return;
-    say('Searching OpenStreetMap for the recorded venue…');
-    try{ const places=await findPlace(venue.dataset.query); if(!alive()||seq!==request) return;
+    say('Searching OpenStreetMap for the entered place…');
+    try{ const places=await findPlace(query); if(!alive()||seq!==request) return;
       const valid=Array.isArray(places)?places.filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon)&&p.display_name):[];
       if(!valid.length){say('No matching place found. Check the name or use Open Google Maps.'); return;}
       say('Choose the correct result below. Results are not automatically verified.');
@@ -85,12 +91,17 @@ function setupTrainingMap(root){
         b.onclick=()=>{++request; clear(); const point=[+p.lat,+p.lon]; const marker=L.marker(point).addTo(map); layers.push(marker); marker.bindPopup(document.createTextNode(p.display_name)).openPopup(); map.setView(point,15); results.innerHTML=''; say('Showing selected search result. Verify it is the right venue; it is not saved to the record.');}; results.appendChild(b);});
     }catch(e){if(seq===request) say('Venue search failed. Check your connection or use Open Google Maps.');}
   };
-  root.querySelectorAll('[data-map-route]').forEach(b=>b.onclick=async()=>{
+  const fromInput=root.querySelector('[data-map-from]'),toInput=root.querySelector('[data-map-to]'),manual=root.querySelector('[data-map-route-manual]'),googleRoute=root.querySelector('[data-map-google-route]');
+  const updateRoute=()=>{googleRoute.href='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(fromInput.value.trim())+'&destination='+encodeURIComponent(toInput.value.trim())+'&travelmode=driving';};
+  if(manual){fromInput.addEventListener('input',updateRoute);toInput.addEventListener('input',updateRoute);updateRoute();manual.onclick=()=>drawRoute(fromInput.value.trim(),toInput.value.trim());}
+  root.querySelectorAll('[data-map-route]').forEach(b=>b.onclick=()=>drawRoute(b.dataset.from,b.dataset.to));
+  async function drawRoute(fromName,toName){
+    if(!fromName||!toName){say('Enter both a starting point and destination.');return;}
     const seq=++request; results.innerHTML=''; const L=await ready; if(!L||!alive()||seq!==request) return;
     say('Finding the ticket stops…');
     try{
-      const from=await findPlace(b.dataset.from+', Rwanda'); if(!alive()||seq!==request) return;
-      const to=await findPlace(b.dataset.to+', Rwanda'); if(!alive()||seq!==request) return;
+      const from=await findPlace(fromName+', Rwanda'); if(!alive()||seq!==request) return;
+      const to=await findPlace(toName+', Rwanda'); if(!alive()||seq!==request) return;
       const a=from&&from[0], z=to&&to[0];
       if(!a||!z||![a.lat,a.lon,z.lat,z.lon].every(v=>Number.isFinite(+v))) throw new Error('One or both stops were not found');
       say('Finding a suggested driving route…');
@@ -108,7 +119,7 @@ function setupTrainingMap(root){
       }
       say('Suggested road route, not a GPS record. Check the resolved stops: '+a.display_name+' → '+z.display_name+'.');
     }catch(e){ if(alive()&&seq===request) say('Could not draw the route: '+(e.name==='AbortError'?'the service timed out':e.message)+'. Check the stop names or use Open in Google Maps.'); }
-  });
+  }
 }
 
 /* District choropleth: only explicit district/city names or well-known local
