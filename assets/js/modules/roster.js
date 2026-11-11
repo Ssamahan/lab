@@ -206,6 +206,7 @@ function header(){
    +(p&&p.meta&&p.meta.label?'<span class="xs faint">'+U.esc(p.meta.label)+'</span>':'<span class="xs faint">Stored plans are never auto-generated — a month without a plan stays empty until someone creates one.</span>')+'</div></div>'
    +'<div class="actions">'
      +'<div class="seg" style="margin-right:4px"><button data-nav="-1" aria-label="Previous month">'+UI.ic('chevron-left',14)+'</button><button data-nav="0" style="font-family:var(--font-mono);font-size:11px;min-width:92px">'+U.esc(label)+'</button><button data-nav="1" aria-label="Next month">'+UI.ic('chevron-right',14)+'</button></div>'
+     +(p?'<button class="btn" data-revision>Revision details</button>':'')
      +(p&&!(p.meta&&p.meta.official)?'<button class="btn" data-publish>'+UI.ic('badge-check',15)+' Publish plan</button>':'')
      +'<button class="btn" data-leavefill>'+UI.ic('calendar-check',15)+' Fill the leaves</button>'
      +'<button class="btn" data-generate>'+UI.ic('sparkles',15)+' Generate draft</button>'
@@ -436,7 +437,7 @@ function weekView(){
           g={ok:false,why:r.name+' is reserve cover — the plan carries '+ctx.planCount+' staff (limit '+r.reserveMax+')'};
       }
       const breach=!!name&&!g.ok;
-      const tip=danger?st.label+' — not on duty that day':breach?g.why:ov?('Override by '+(ov.by||'manager')+' · '+(ov.rule||ov.why||'')):'';
+      const tip=danger?st.label+' — not on duty that day':breach?g.why:'';
       return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(tip?' data-tip="'+U.esc(tip)+'"':'')+'>'
         +(name?'<span class="small pn-wrap'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.nameHTML(String(name))+'</span>'
           :'<span class="xs faint">—</span>')
@@ -444,7 +445,6 @@ function weekView(){
                 return covers>1?'<span class="xs mono" style="display:block;font-size:8.5px;color:var(--text-faint)">'+covers+' benches</span>':''; })()
         +(()=>{ const o=(orientMap[iso]||{})[name];
                 return o?'<span class="pill blue" style="font-size:8.5px;padding:1px 5px;margin-top:2px">W'+o.week+'</span>':''; })()
-        +(ov?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">override</span>':'')
         +(breach?'<span class="pill rose" style="font-size:8.5px;padding:1px 5px;margin-top:2px">rule</span>':'')
         +'</td>';
     }).join('')+'</tr>').join('');
@@ -609,7 +609,7 @@ function benchRulesModal(name){
       +'<div class="field" style="margin-top:10px"><label>Never works these benches (hard block)</label>'+checks(r.never,'never')+'</div>'
       +'<div class="field" style="margin-top:10px"><label>Only when alone on the unit</label>'+checks(r.solo,'solo')+'</div>'
       +'<label class="row gap-sm" style="margin-top:12px;cursor:pointer"><input type="checkbox" id="brReserve"'+(r.reserve?' checked':'')+' style="accent-color:var(--gold)"><span class="small">Reserve cover — on the weekly roster only when the day\'s plan has no more than the threshold above</span></label>'
-      +'<div class="hint" style="margin-top:10px">A hard block can still be overridden for a single cell, with a reason and your name recorded against it. The weekly sheet and the grid both print that override.</div>',
+      +'<div class="hint" style="margin-top:10px">A hard block can still be overridden for a single cell, with a reason and your name recorded against it. The reason remains in the audit record.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-br-save>'+UI.ic('check',15)+'Save rules</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-br-save]').onclick=()=>{
@@ -713,7 +713,7 @@ function servicePicker(iso,svc){
   UI.modal({title:'Allocate '+svc,sub:U.fmtDate(iso)+' · '+U.DOWL[U.dow(iso)]+' · week of '+weekNavLabel(start),width:'min(560px,100%)',
     body:'<div class="field"><label>Staff member on this service</label><select class="select" id="alStaff"><option value="">— Unassigned —</option><optgroup label="On duty this day">'+onDuty.map(s=>opt(s,true)).join('')+'</optgroup><optgroup label="Off duty / leave">'+others.map(s=>opt(s,false)).join('')+'</optgroup></select></div>'
       +'<div class="field" style="margin-top:10px"><label>Reason (only needed for a recorded override)</label><input class="input" id="alWhy" placeholder="e.g. only technologist on the unit that morning"></div>'
-      +'<div class="hint" style="margin-top:10px">Bench rules are enforced: <b>never</b> benches, <b>alone-only</b> benches and the reserve threshold. Choosing someone the rules exclude asks you to confirm and writes a dated override against that cell — it then shows as <b>override</b> on the grid, in print and in the sheet.</div>'
+      +'<div class="hint" style="margin-top:10px">Bench rules are enforced: <b>never</b> benches, <b>alone-only</b> benches and the reserve threshold. Choosing someone the rules exclude asks you to confirm and writes a dated override against that cell — the reason remains in the audit record.</div>'
       +(alone?'<div class="hint" style="margin-top:6px">Only one person is on this unit today, so alone-only benches are open.</div>':''),
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>'+UI.ic('check',15)+'Allocate</button>',
     onMount:(el,close)=>{
@@ -724,7 +724,7 @@ function servicePicker(iso,svc){
         const mustOverride=!!(who&&whyBlocked(who));
         if(mustOverride){
           const ok=await UI.confirm({title:'Record an override for '+svc+'?',confirm:'Record override',
-            body:whyBlocked(who)+'. If you continue, this allocation is saved as a dated override by '+((LS.auth.user&&LS.auth.user.name)||'you')+' and flagged wherever the roster is shown or printed.'});
+            body:whyBlocked(who)+'. If you continue, this allocation is saved as a dated override by '+((LS.auth.user&&LS.auth.user.name)||'you')+' and kept in the audit record.'});
           if(!ok) return;
         }
         const at=U.nowISO(), by=(LS.auth.user&&LS.auth.user.name)||'';
@@ -1461,6 +1461,11 @@ async function publishMonth(){
   paint();
   UI.toast('Plan for '+U.monthLabel(mk)+' published',{type:'ok'});
 }
+function revisionModal(){
+ if(!LS.auth.guard('edit'))return;const p=plan(),key=mk;if(!p)return;
+ const prior=p.meta&&p.meta.revisions||[];
+ UI.modal({title:'Working-plan revision details',sub:'Record the actual revision date and reason. This does not change any shifts or publish the plan.',body:(prior.length?'<div class="hint">'+prior.map(r=>U.esc(r.date)+' · '+U.esc(r.reason)+(r.detail?' — '+U.esc(r.detail):'')).join('<br>')+'</div>':'')+'<div class="form-grid"><div class="field"><label>Revision date</label><input class="input" type="date" id="revisionDate" value="'+U.todayISO()+'"></div><div class="field"><label>Reason</label><select class="select" id="revisionReason"><option>Training requiring multiple staff</option><option>Sick leave</option><option>Other leave</option><option>Staffing change</option><option>Service coverage</option><option>Other</option></select></div><div class="field span2"><label>Details (optional)</label><input class="input" id="revisionDetail" maxlength="120" placeholder="Explain the reason"></div></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-revision-save>Record revision</button>',onMount:(el,close)=>{el.querySelector('[data-revision-save]').onclick=()=>{if(!LS.auth.guard('edit'))return;const date=el.querySelector('#revisionDate').value,reason=el.querySelector('#revisionReason').value,detail=el.querySelector('#revisionDetail').value.trim();if(!date||!reason)return UI.toast('Enter a date and reason',{type:'warn'});const current=S.db().workingPlans&&S.db().workingPlans[key]&&S.db().workingPlans[key].primary;if(!current||current!==p)return UI.toast('Plan changed; reopen revision details',{type:'warn'});S.commit(d=>{const m=d.workingPlans[key].primary.meta=d.workingPlans[key].primary.meta||{};m.revisions=m.revisions||[];m.revisions.push({date,reason,detail,by:LS.auth.user.name,recordedAt:U.nowISO()});m.revised=true;},{action:'roster.revision',entity:'workingPlans',entityId:key,detail:'Revision '+date+' · '+reason+(detail?' · '+detail:'')});close();paint();UI.toast('Revision details recorded; sync pending',{type:'ok'});};}});
+}
 async function generateMonth(){
   if(!LS.auth.guard('edit')) return;
   const key=mk, existing=plan();
@@ -1494,6 +1499,7 @@ function wireBody(){
   r.querySelectorAll('[data-generate]').forEach(b=>b.onclick=generateMonth);
   r.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>restoreVersion(+b.dataset.restore));
   r.querySelectorAll('[data-leavefill]').forEach(b=>b.onclick=fillLeaves);
+  r.querySelectorAll('[data-revision]').forEach(b=>b.onclick=revisionModal);
   r.querySelectorAll('[data-publish]').forEach(b=>b.onclick=publishMonth);
   r.querySelectorAll('[data-empty-generate]').forEach(b=>b.onclick=generateMonth);
   r.querySelectorAll('[data-open-month]').forEach(b=>b.onclick=()=>{ mk=b.dataset.openMonth; paint(); });

@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.145 — Training rotation and plan revisions
+
+- Restore the confirmed training order without changing training records; subsequent completed turns and bookings update the queue.
+- Keep roster override records and safety checks without printing override labels; record plan revision dates and reasons on working-plan outputs.
+
 ## v6.9.144 — Training expense corrections and stock recording
 
 - Make expense lines and ticket endpoints editable and removable; order revenue sessions by start date, newest first.

@@ -341,7 +341,8 @@ SH.monthlySVG=function(plan,opts){
      rather than running into Monday. */
   const labelW=560, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,cols.length);
-  const gridTop=opts.gridTop||470, bandH=48, dateH=40;
+  const revisions=(plan.meta&&Array.isArray(plan.meta.revisions)?plan.meta.revisions:[]);
+  const gridTop=(opts.gridTop||470)+revisions.length*30, bandH=48, dateH=40;
   /* Everything under the grid — the keys, the contacts and the three signatures —
      is measured first, and the rows take what is left: so a month with eight rows
      gets tall, readable rows instead of a short grid and a page of white. */
@@ -409,6 +410,7 @@ SH.monthlySVG=function(plan,opts){
   if(draft) metaBits.push('DRAFT — for review, not yet published');
   g+=text(W/2,412,metaBits.join('      '),{size:25,anchor:'middle',fill:draft?C.gold:'#3D4759'});
   g+=rect(pad,424,W-pad*2,2,C.goldLine);
+  revisions.forEach((r,i)=>{const line='Revision '+(r.date||'date not recorded')+' · '+(r.reason||'reason not recorded')+(r.detail?' — '+r.detail:'');g+=text(pad,453+i*30,line,{size:fitSize(line,W-pad*2,23,10),fill:'#3D4759'});});
 
   /* header bands */
   g+=rect(pad,gridTop,labelW,bandH,C.band);
@@ -1131,7 +1133,7 @@ SH.weeklySVG=function(data,opts){
   const headH=48, dateH=36, rowH=92, dayH=80, nightH=80;
   const top=446;
   /* A recorded override is part of the record, so the signed sheet prints it. */
-  const overrides=overrideLines(data.overrides||{}, alloc);
+  const overrides=[]; // Overrides remain in the register and audit, not on the sheet.
   const orient=orientationLines(data.orientation||{}, alloc);
   const noteH=(overrides.length?overrides.length*29+60:0)+(orient.length?orient.length*29+58:0);
   const H=top+headH+dateH+rowH*services.length+dayH+nightH+noteH+150;
@@ -1174,9 +1176,7 @@ SH.weeklySVG=function(data,opts){
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
       const who=we?'':((alloc[iso]&&alloc[iso][sv.name])||'');
         if(who){
-        const ov=(data.overrides&&data.overrides[iso]&&data.overrides[iso][sv.name]);
-        g+=nameBlock(x+colW/2,y+rowH/2-(ov?9:0), colW-20, who, {pref:34,min:19,anchor:'middle'});
-        if(ov) g+=text(x+colW/2,y+rowH/2+26,'OVERRIDE',{size:15,weight:700,anchor:'middle',fill:C.alInk||'#8A2B33'});
+        g+=nameBlock(x+colW/2,y+rowH/2, colW-20, who, {pref:34,min:19,anchor:'middle'});
         const orow=(data.orientation&&data.orientation[iso])||{};
         const o=orow[who||(alloc[iso]||{})[sv.name]];
         if(o) g+=text(x+colW/2,y+rowH/2+26,'WEEK '+o.week,{size:14,weight:700,anchor:'middle',fill:'#1F3F7A'});
@@ -1523,6 +1523,7 @@ SH.monthlyXLSX=function(plan){
     target.cells[col]={c:col,v:r.name+'  ·  '+(U.fmtPhone(st.phone)||'—'),s:12};
   });
   out.push({cells:[]});
+  (plan.meta&&Array.isArray(plan.meta.revisions)?plan.meta.revisions:[]).forEach(r=>out.push({cells:[{c:0,v:'Revision '+(r.date||'date not recorded')+' · '+(r.reason||'reason not recorded')+(r.detail?' — '+r.detail:''),s:0}]}));
   out.push({cells:[{c:0,v:'Prepared by: '+(s.prepared||''),s:3},{c:2,v:'Verified by: '+(s.verified||''),s:3},{c:4,v:'Approved by: '+(s.approved||''),s:3}]});
   out.push({cells:[{c:0,v:(s.preparedRole||'')+' · '+(s.verifiedRole||'')+' · '+(s.approvedRole||''),s:13}]});
   const widths=[30].concat(cols.map(()=>3.6));
@@ -1554,12 +1555,6 @@ SH.weeklyXLSX=function(data){
       cells.push({c:cells.length,v:(alloc[iso]&&alloc[iso][sv.name])||'',s:we?11:4}); });
     out.push({h:20,cells});
   });
-  const ovLines=[];
-  Object.keys(data.overrides||{}).forEach(iso=>{
-    const day=data.overrides[iso]||{};
-    Object.keys(day).forEach(bench=>{ ovLines.push(U.fmtDate(iso)+' · '+bench+' · OVERRIDE by '+((day[bench]||{}).by||'manager')); });
-  });
-  if(ovLines.length){ out.push({h:18,cells:[{c:0,v:'Overrides',s:3},{c:1,v:ovLines.join('  ·  '),s:4}]}); }
   const nrow=[{c:0,v:'Night Shift',s:2}];
   cols.forEach(iso=>nrow.push({c:nrow.length,v:night[iso]||'',s:6}));
   out.push({h:20,cells:nrow});
