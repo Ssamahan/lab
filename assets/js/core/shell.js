@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.152';
+const APP_VERSION='6.9.153';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -23,7 +23,7 @@ const ROUTES={
   leave:{title:'Leave & Timeline',sub:'Annual & authorised leave · plans · forecast',group:'Scheduling',icon:ICON.leave,file:'leave'},
   eqa:{title:'EQA / PT Scores',sub:'Proficiency testing · z-scores · CAPA',group:'Quality',icon:ICON.eqa,file:'eqa'},
   pbf:{title:'PBF Evaluation',sub:'Health-centre performance-based financing scores',group:'Quality',icon:ICON.pbf,file:'pbf'},
-  quality:{title:'Quality & Compliance',sub:'ISO 15189 readiness · SOPs · incidents · QC',group:'Quality',icon:ICON.quality,file:'quality'},
+  quality:{title:'Quality & Compliance',sub:'SOPs · incidents · QC',group:'Quality',icon:ICON.quality,file:'quality'},
   equipment:{title:'Equipment',sub:'Uptime · preventive & curative maintenance · supplier response',group:'Quality',icon:ICON.equipment,file:'equipment'},
   staff:{title:'Staff & Settings',sub:'Registry · roles · branding · data',group:'Admin',icon:ICON.staff,file:'staff'},
   security:{title:'Security Center',sub:'Sessions · 2FA · audit trail · residency',group:'Admin',icon:ICON.security,file:'security',permission:'security'},

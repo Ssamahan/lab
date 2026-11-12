@@ -1530,7 +1530,7 @@ M.render=function(root,params){
   rootEl=root; sort=params.sort||'total'; q=params.q||'';
   ensureSeeded();
   root.innerHTML='<div class="page-head"><div><h1>PBF evaluation</h1><div class="sub">Performance-based financing. Every centre is scored on the questions you keep in the bank, and a visit only counts once every question carries a mark.</div></div>'
-   +'<div class="actions"><a class="btn" href="#/quality">'+UI.ic('shield-check',15)+' ISO readiness</a><button class="btn" data-district>'+UI.ic('printer',15)+' District report</button><button class="btn primary" data-new-visit>'+UI.ic('plus',15)+' Record visit</button></div></div>'
+   +'<div class="actions"><a class="btn" href="#/quality">'+UI.ic('shield-check',15)+' Quality</a><button class="btn" data-district>'+UI.ic('printer',15)+' District report</button><button class="btn primary" data-new-visit>'+UI.ic('plus',15)+' Record visit</button></div></div>'
    +noMarksCard()
    +kpis()
    /* The index and the quarter-on-quarter trend answer the same question from two

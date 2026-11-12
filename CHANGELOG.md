@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.153 — report population and SOP register
+
+- Enter a calendar-year catchment population when opening January; new later months can inherit it without changing saved reports.
+- Remove the invented ISO readiness display while preserving checklist data. Add SOP registration and editing; email reminders are not yet configured.
+
 ## v6.9.152 — TB CQI recommendation follow-up
 
 - Track NRL recommendations with commitment dates and implementation status; require an explanation for partial or not implemented, and keep status history.

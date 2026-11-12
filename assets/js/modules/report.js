@@ -1622,14 +1622,20 @@ function newMonthModal(){
   if(!canEdit()) return UI.toast('Sign in to open a month',{type:'warn'});
   const next=(function(){ const last=months()[0]; const d=U.parseISO(last+'-01'); d.setMonth(d.getMonth()+1); return d.toISOString().slice(0,7); })();
   UI.modal({title:'Open a month',sub:'The form keeps its lines; only the figures start empty.',width:'min(460px,100%)',
-    body:'<div class="form-grid"><div class="field span2"><label>Month</label><input class="input mono" type="month" id="nmKey" value="'+next+'"></div></div>'
-      +'<div class="hint" style="margin-top:8px">Opening a month does not copy the previous figures — a new return starts empty, so nothing from last month can be mistaken for this one.</div>',
+    body:'<div class="form-grid"><div class="field span2"><label>Month</label><input class="input mono" type="month" id="nmKey" value="'+next+'"></div><div class="field span2" id="nmPopulationField"><label>Catchment population for this calendar year (optional)</label><input class="input mono" type="number" min="0" step="1" id="nmPopulation"></div></div>'
+      +'<div class="hint" style="margin-top:8px">Test and blood figures start empty. January’s population is copied to new reports in the same calendar year when available.</div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Open the month</button>',
     onMount:(el,close)=>{
+      const month=el.querySelector('#nmKey'), pop=el.querySelector('#nmPopulation'), field=el.querySelector('#nmPopulationField');
+      const showPopulation=()=>{field.hidden=!month.value.endsWith('-01');};
+      month.addEventListener('change',showPopulation); showPopulation();
       el.querySelector('[data-save]').onclick=()=>{
-        const k=el.querySelector('#nmKey').value;
+        const k=month.value;
         if(!k) return UI.toast('Choose a month',{type:'warn'});
-        S.commit(db=>{ db.reporting=db.reporting||{lines:[],months:{}}; if(!db.reporting.months[k]) db.reporting.months[k]=JSON.parse(JSON.stringify({month:k,meta:{},values:{},blood:{},notes:''})); },
+        if(k.endsWith('-01')&&pop.value!==''&&(!Number.isInteger(Number(pop.value))||Number(pop.value)<0)) return UI.toast('Enter a valid population',{type:'warn'});
+        const jan=S.reportMonth(k.slice(0,4)+'-01');
+        const population=k.endsWith('-01')?pop.value:(jan.meta||{}).catchment;
+        S.commit(db=>{ db.reporting=db.reporting||{lines:[],months:{}}; if(!db.reporting.months[k]) db.reporting.months[k]={month:k,meta:population==null||population===''?{}:{catchment:population},values:{},blood:{},notes:''}; },
           {action:'report.month',entity:'reporting',entityId:k,detail:'Monthly return opened for '+k});
         monthKey=k; close(); UI.toast('Return opened for '+monthLabel(k),{type:'ok'}); renderInner(rootEl);
       };
