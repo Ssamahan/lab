@@ -3786,6 +3786,19 @@ S.compliance=function(){
   const list=S.db().checklist||[]; const tw=U.sum(list,c=>c.weight); const dw=U.sum(list.filter(c=>c.done),c=>c.weight);
   return { pct: tw? Math.round(dw/tw*100):0, done:list.filter(c=>c.done).length, total:list.length };
 };
+/* Final seven calendar days of the current July–June fiscal quarter. */
+S.cqiQuarterWindow=function(iso){
+ const d=U.parseISO(iso||U.todayISO());if(!d||isNaN(d.getTime()))return null;
+ const endMonth=Math.floor(d.getMonth()/3)*3+3;
+ const end=U.isoLocal(new Date(d.getFullYear(),endMonth,0));
+ const start=U.addDays(end,-6);return {start,end,active:(iso||U.todayISO())>=start&&(iso||U.todayISO())<=end};
+};
+S.cqiQuarterReminder=function(iso){
+ const day=iso||U.todayISO(),window=S.cqiQuarterWindow(day);
+ if(!window||!window.active)return null;
+ const pending=(S.db().cqiRecommendations||[]).filter(r=>!r.deleted&&r.status!=='Fully implemented');
+ return pending.length?{start:window.start,end:window.end,count:pending.length}:null;
+};
 S.notifications=function(){
   const db=S.db(); const out=[]; const today=U.todayISO();
   const stats=S.sampleStats();
@@ -3806,6 +3819,8 @@ S.notifications=function(){
         title:'Supervision due · '+sc.hcName,
         detail:(sc.quarter||'')+' '+(sc.fy||'')+' · '+(inDays===0?'today':inDays===1?'tomorrow':'in '+inDays+' days')+' · '+U.fmtDate(sc.plannedDate),
         ts:new Date(sc.plannedDate+'T08:00:00').toISOString(),href:'#/pbf',icon:'calendar-check'}); });
+  const cqi=LS.auth&&LS.auth.can('edit')?S.cqiQuarterReminder(today):null;
+  if(cqi)out.push({id:'n-cqi-quarter-'+cqi.end+'-'+today,group:'Quality',tone:'amber',title:'Review TB CQI recommendations',detail:cqi.count+' recommendation'+(cqi.count===1?'':'s')+' not fully implemented · quarter ends '+U.fmtDate(cqi.end),ts:U.nowISO(),href:'#/eqa?tab=cqi',icon:'clipboard-check'});
   const nc=S.db().incidents.filter(i=>i.status!=='Closed').slice(0,2);
   nc.forEach(i=>out.push({id:'n-'+i.id,group:'Quality',tone:i.severity==='Critical'?'rose':'blue',title:i.ref+' · '+i.title,detail:i.severity+' · owner '+i.owner+' · due '+U.fmtDate(i.due),ts:i.opened,href:'#/quality?tab=incidents',icon:'shield-alert'}));
   out.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
