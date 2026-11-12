@@ -1183,6 +1183,25 @@ function printWeek(){
   SH.printSVG(SH.weeklySVG(weekData()),{title:'Weekly unit roster — week of '+U.fmtDateShort(weekStart())});
   S.audit({action:'roster.print.week',entity:'unitRosters',entityId:weekStart(),detail:'Printed weekly roster week of '+weekStart()}); S.save();
 }
+/* Warning only: a signed working plan must not be silently rewritten to guess a
+   replacement. Dates before today are never changed, and an unavailable night is
+   explicitly called out for review. */
+function trainingImpactCard(){
+ const p=plan();if(!p)return '';const today=U.todayISO(),db=S.db();const items=[];
+ (p.dates||[]).forEach((iso,di)=>{if(iso<today)return;
+  const sessions=(db.trainings||[]).filter(t=>!t.deleted&&!/^(cancelled|canceled|postponed)$/i.test(t.status||'')&&t.start&&iso>=t.start&&iso<=String(t.end||t.start));
+  if(!sessions.length)return;
+  const attendees=new Set(sessions.flatMap(t=>t.attendees||[]));
+  const affected=(p.staff||[]).filter(row=>{const person=S.staffById(row.id)||S.staffByName(row.name);return person&&attendees.has(person.id);});
+  if(!affected.length)return;
+  const affectedNames=affected.map(r=>r.name), originalNights=affected.filter(r=>['N','DN'].includes((r.codes||[])[di])).map(r=>r.name);
+  const manual=S.unitNight(S.weekStart(iso),iso);if(manual&&affectedNames.includes(manual)&&!originalNights.includes(manual))originalNights.push(manual+' (manual night)');
+  let days=0;(p.staff||[]).forEach(row=>{const st=S.staffById(row.id)||S.staffByName(row.name);if(!st||attendees.has(st.id)||S.leaveFor(st,iso))return;const c=(row.codes||[])[di];if(['D','DN','UO'].includes(c))days++;});
+  items.push({iso,affectedNames,originalNights,days,needed:required(iso).day});
+ });
+ if(!items.length)return '';
+ return '<div class="hint" role="status" style="margin-bottom:14px"><b>Training conflicts require plan review</b> · Training dates are not yet written into the signed plan and nights are not automatically reassigned. Review before publishing or relying on coverage.<details><summary>'+items.length+' affected day'+(items.length===1?'':'s')+' · show dates and coverage</summary>'+items.map(x=>'<div class="small" style="margin-top:6px">'+U.esc(U.fmtDate(x.iso))+' · training: '+x.affectedNames.map(U.esc).join(', ')+(x.originalNights.length?' · <b>night assignment affected — check replacement: '+x.originalNights.map(U.esc).join(', ')+'</b>':'')+' · '+x.days+' day staff remain before adjustments (required '+x.needed+')</div>').join('')+'</details></div>';
+}
 function paint(){ sheetSVG=null;
 
   /* the header carries the month label and the plan pill, so it has to be redrawn
@@ -1191,7 +1210,7 @@ function paint(){ sheetSVG=null;
   const head=rootEl.querySelector('#roHead');
   if(head) head.innerHTML=header();
   const host=rootEl.querySelector('#roBody'); if(!host) return;
-  host.innerHTML=view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView();
+  host.innerHTML=trainingImpactCard()+(view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView());
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
   wireBody();
 }

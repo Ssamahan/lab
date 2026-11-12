@@ -354,7 +354,7 @@ function planModal(staffId, leaveId){
           chargedFy:(q('#plCharge')&&q('#plCharge').value)||undefined,
           note:q('#plNote').value.trim(),requested:(l?l.requested:U.nowISO()),plannedBy:LS.auth.user.name,plannedAt:U.nowISO()};
         S.commit(d=>{
-          if(l){ const x=(d.leaves||[]).find(y=>y.id===l.id); if(x) Object.assign(x,rec); }
+          if(l){ const x=(d.leaves||[]).find(y=>y.id===l.id); if(x){ const before=Object.assign({},x); delete before.history; x.history=(x.history||[]).concat([Object.assign(before,{revisionRecordedAt:U.nowISO(),revisionRecordedBy:LS.auth.user.name})]); Object.assign(x,rec); } }
           else { d.leaves=d.leaves||[]; d.leaves.push(Object.assign({id:U.uid('l')},rec)); }
         },{action:l?'leave.plan.edit':'leave.plan.add',entity:'leave',entityId:l?l.id:id,
           detail:(l?'Edited':'Planned')+' '+rec.type+' '+from+' → '+to+' (FY '+rec.fy+')'});

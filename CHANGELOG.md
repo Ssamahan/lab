@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.149 — TB CQI findings and training conflict warnings
+
+- Record, edit and export NRL TB CQI mentorship findings with historical visit dates, follow-up and prior versions, separately from PT scores.
+- Warn when planned training affects the working plan and show nights needing review; this does not automatically change the signed plan or assign replacements. Preserve previous leave values on edits.
+
 ## v6.9.148 — Official training-flow sheet and map queries
 
 - Use the roster letterhead and signature spaces for an unsigned, dated training-flow snapshot, with a gold next-person highlight and SVG, PNG and PDF downloads.
