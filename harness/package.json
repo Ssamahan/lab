@@ -1,8 +1,20 @@
 {
   "name": "lab-harness",
   "private": true,
-  "description": "Local jsdom harness for the console — not part of the shipped app",
+  "description": "Local jsdom harness for the console \u2014 not part of the shipped app",
   "dependencies": {
     "jsdom": "^26.1.0"
+  },
+  "devDependencies": {
+    "@sparticuz/chromium": "133.0.0",
+    "eslint": "9.20.1",
+    "playwright-core": "1.50.1",
+    "typescript": "5.7.3"
+  },
+  "scripts": {
+    "test": "node population153.js && node quality153.js",
+    "lint": "cd .. && harness/node_modules/.bin/eslint --config eslint.config.mjs assets/js/modules/report.js assets/js/modules/quality.js assets/js/modules/dash.js harness/population153.js harness/quality153.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test:browser": "node browser-population153.js"
   }
 }

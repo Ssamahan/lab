@@ -46,7 +46,6 @@ function hero(){
   const u=LS.auth.user||{name:'Laboratory Manager'};
   const first=U.givenName(u.name);
   const st=S.sampleStats();
-  const comp=S.compliance();
   const today=U.fmtDateLong();
   const onDuty=S.onDuty();
   return '<section class="hero">'
@@ -65,7 +64,6 @@ function hero(){
       +'<div class="hstat"><span class="lb">Worklist</span><span class="vl"><span class="dot live" style="color:var(--pos)"></span>'+st.active+' open</span></div>'
       +'<div class="hstat"><span class="lb">STAT queue</span><span class="vl" style="color:'+(st.stat?'var(--crit)':'var(--pos)')+'">'+st.stat+' awaiting</span></div>'
       +'<div class="hstat"><span class="lb">TAT breach</span><span class="vl" style="color:'+(st.overdue?'var(--warn)':'var(--pos)')+'">'+st.overdue+'</span></div>'
-      +'<div class="hstat"><span class="lb">ISO readiness</span><span class="vl" style="color:var(--gold-bright)">'+comp.pct+'%</span></div>'
     +'</div>'
     +'<div class="row" style="gap:6px;flex-wrap:wrap">'
       +'<span class="pill teal"><span class="dot live"></span> All systems operational</span>'

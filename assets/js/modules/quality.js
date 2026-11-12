@@ -1,5 +1,5 @@
 /* ============================================================================
-   MODULE · QUALITY & COMPLIANCE — ISO 15189 readiness, SOPs, incidents
+   MODULE · QUALITY & COMPLIANCE — SOPs and incidents
    ========================================================================== */
 (function(){
 'use strict';
@@ -22,7 +22,6 @@ function metrics(){
 function kpis(){
   const m=metrics();
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
-   +'<div class="c3">'+UI.stat({label:'ISO 15189 readiness',value:S.compliance().pct,unit:'%',icon:'shield-check',formatted:'0',delta:4,note:S.compliance().done+' of '+S.compliance().total+' controls met',spark:C.spark([62,66,70,73,76,80,82,S.compliance().pct],{color:'var(--gold)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'TAT compliance',value:m.tat==null?0:m.tat,dec:1,unit:'%',icon:'timer',formatted:'0.0',
       note:m.tat==null?'No result on the register yet':m.tatWindow+'-day window · target per test',
       spark:C.spark(m.tat==null?[0,0,0,0,0,0,0,0]:[m.tat,m.tat,m.tat,m.tat,m.tat,m.tat,m.tat,m.tat],{color:'var(--pos)'})})+'</div>'
@@ -37,12 +36,6 @@ function overview(){
   const m=metrics(); const db=S.db();
   return '<div class="grid-12">'
    +'<div class="c12">'+UI.card({title:'Quality KPI trendlines',sub:'Referral TAT compliance and PT scores · 12 months',icon:'chart-line',cls:'gold',body:'<div id="qTrend"></div><div class="legend" style="margin-top:8px"><span class="lg"><span class="sw" style="background:var(--pos)"></span>TAT compliance %</span><span class="lg"><span class="sw" style="background:var(--gold)"></span>EQA composite %</span><span class="lg" style="margin-left:auto;color:var(--text-faint)">Blank months mean the register holds no result for that month</span></div>'})+'</div>'
-   +'<div class="c5">'+UI.card({title:'ISO 15189 readiness',sub:'Live compliance percentage across the control set',icon:'shield-check',
-      tools:'<a class="btn xs" href="#/quality?tab=iso">Open checklist</a>',body:(function(){
-        const g=U.groupBy(S.db().checklist,c=>c.section);
-        return '<div class="row" style="gap:18px;align-items:center;margin-bottom:12px">'+C.ring(S.compliance().pct,{size:88,stroke:7})+'<div><div class="strong">'+(S.compliance().pct>=90?'Accreditation ready':S.compliance().pct>=75?'Minor gaps remain':'Action plan required')+'</div><div class="xs faint" style="margin-top:3px">'+S.compliance().done+' of '+S.compliance().total+' controls evidenced<br>Next surveillance: Q2 FY 2026/27</div></div></div>'
-        +Object.keys(g).map(k=>'<div class="row between" style="padding:5px 0"><span class="small">'+U.esc(k)+'</span><span class="mono xs faint">'+g[k].filter(x=>x.done).length+'/'+g[k].length+'</span></div>').join('')+'';
-      })()})+'</div>'
    +'<div class="c3">'+UI.card({title:'Continuous improvement',sub:'Computed from the referral register',icon:'trending-up',body:
       '<div class="scorecard" style="padding:0"><div class="meta"><div class="eyebrow">TAT compliance</div><div class="serif" style="font-size:2.2rem;color:var(--text-strong);letter-spacing:-.03em">'+(m.tat==null?'—':m.tat)+'%</div><div class="xs faint">'+(m.tat==null?'No result on the register yet':m.tatWindow+'-day window')+'</div></div>'+C.ring(m.tat==null?0:m.tat,{size:76,stroke:6})+'</div>'
       +'<div class="thread" style="margin:12px 0"></div>'
@@ -60,18 +53,6 @@ function overview(){
           return '<tr><td class="mono small">'+U.esc(s.code)+'</td><td class="small">'+U.esc(s.title)+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td><td>'+(overdue?'<span class="pill rose">review due</span>':s.acknowledged?'<span class="pill teal">acknowledged</span>':'<span class="pill amber">pending</span>')+'</td></tr>'; }).join('')
         +'</tbody></table></div>';
       })()})+'</div></div>';
-}
-function isoView(){
-  const list=S.db().checklist; const g=U.groupBy(list,c=>c.section);
-  return '<div class="grid-12"><div class="c8">'+UI.card({title:'ISO 15189 readiness checklist',sub:'Toggle a control to record evidence · percentage recalculates live',icon:'shield-check',
-    tools:'<span class="pill '+(S.compliance().pct>=90?'teal':'amber')+'">'+S.compliance().pct+'% ready</span>',
-    body:Object.keys(g).map(sec=>'<div style="margin-bottom:16px"><div class="row between" style="margin-bottom:6px"><div class="eyebrow">'+U.esc(sec)+'</div><span class="mono xs faint">'+g[sec].filter(x=>x.done).length+'/'+g[sec].length+'</span></div>'
-      +g[sec].map(c=>'<label class="ob-item '+(c.done?'done':'')+'" data-ck="'+c.id+'" style="cursor:pointer"><span class="obx">'+UI.ic(c.done?'check':'circle-dot',10)+'</span><span class="obt">'+U.esc(c.item)+'</span><span class="xs faint">weight '+c.weight+'</span></label>').join('')+'</div>').join(''),
-    foot:'<span>Evidence is stored locally and included in the audit export</span><button class="btn xs" data-export-iso>'+UI.ic('download',12)+'Export</button>'})+'</div>'
-   +'<div class="c4">'+UI.card({title:'Readiness',sub:'Weighted compliance',icon:'gauge',body:'<div class="row" style="gap:16px">'+C.ring(S.compliance().pct,{size:110,stroke:8})+'<div class="xs muted" style="line-height:1.6">Sections are weighted by accreditation risk. Gaps are automatically listed in the CAPA register.</div></div>'})
-    +'<div style="margin-top:14px">'+UI.card({title:'Open gaps',sub:'Controls without evidence',icon:'circle-x',body:(function(){
-      const gaps=list.filter(c=>!c.done); return gaps.length?gaps.map(c=>'<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.5px">'+U.esc(c.item)+'</div><div class="lr-sub">'+U.esc(c.section)+'</div></div><span class="pill amber">open</span></div>').join(''):'<p class="xs faint">All controls evidenced.</p>';
-    })()})+'</div></div></div>';
 }
 function sopsView(){
   const db=S.db();
@@ -111,23 +92,35 @@ function logIncident(){
       };
     }});
 }
+function sopEditor(id){
+  if(!LS.auth.guard('edit')) return;
+  const existing=id?S.db().sops.find(x=>x.id===id):null;
+  if(id&&!existing) return;
+  const doc=existing||{};
+  const fields=[['Code','code','text'],['Title','title','text'],['Version','version','text'],['Effective date','effective','date'],['Next review','review','date'],['Owner','owner','text']];
+  UI.modal({title:existing?'Edit SOP':'Register SOP',sub:'Review and verify all template details before use.',width:'min(620px,100%)',
+    body:'<div class="form-grid">'+fields.map(([label,key,type])=>'<div class="field"><label>'+U.esc(label)+'</label><input class="input" type="'+type+'" data-sop-field="'+key+'" value="'+U.esc(doc[key]||'')+'"></div>').join('')+'<div class="field span2"><label>SOP text</label><textarea class="textarea" data-sop-field="content" rows="12">'+U.esc(doc.content||'')+'</textarea></div></div>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save-sop>Save SOP</button>',
+    onMount:(el,close)=>{el.querySelector('[data-save-sop]').onclick=()=>{
+      const record={};el.querySelectorAll('[data-sop-field]').forEach(input=>{record[input.dataset.sopField]=input.value.trim();});
+      if(!record.code||!record.title||!record.review) return UI.toast('Enter a code, title and next review date',{type:'warn'});
+      if(S.db().sops.some(x=>x.id!==id&&String(x.code).toLowerCase()===record.code.toLowerCase())) return UI.toast('This SOP code already exists',{type:'warn'});
+      S.commit(d=>{if(existing){const x=d.sops.find(y=>y.id===id);if(x){x.history=(x.history||[]).concat([{code:x.code,title:x.title,version:x.version,effective:x.effective,review:x.review,owner:x.owner,content:x.content||'',at:U.nowISO(),by:LS.auth.user.name}]);Object.assign(x,record);}}else d.sops.push(Object.assign({id:U.uid('sop'),acknowledged:false,history:[]},record));},{action:existing?'quality.sop.edit':'quality.sop.add',entity:'sops',entityId:id||'',detail:'SOP '+record.code});
+      close();paint();UI.toast('SOP saved',{type:'ok'});
+    };}
+  });
+}
 function sopDrawer(id){
   const s=S.db().sops.find(x=>x.id===id); if(!s) return;
-  UI.drawer({title:s.title,eyebrow:'Controlled document',sub:s.code+' · '+s.version,body:
-    '<div class="split-2">'+[['Code',s.code],['Version',s.version],['Effective',U.fmtDate(s.effective)],['Next review',U.fmtDate(s.review)],['Owner',s.owner],['Acknowledgement',s.acknowledged?'Recorded':'Pending']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
-    +'<div class="section-head"><h2>Version history</h2></div>'
-    +[['v'+s.version.replace('v',''),U.fmtDate(s.effective),'Current — approved by Laboratory Manager']].concat([['previous',U.addDays(s.effective,-365),'Superseded on controlled release']]).map(([v,d,n])=>'<div class="list-row"><div class="lr-main"><div class="lr-title mono" style="font-size:11.5px">'+U.esc(v)+'</div><div class="lr-sub">'+U.fmtDate(d)+' · '+U.esc(n)+'</div></div></div>').join('')
-    +'<div class="section-head"><h2>Staff acknowledgement</h2></div>'
-    +S.activeStaff().map(st=>'<div class="list-row">'+U.avatar(st.name,'sm')+'<div class="lr-main"><div class="lr-title" style="font-size:11.5px">'+U.esc(st.name)+'</div><div class="lr-sub">'+U.esc(st.role)+'</div></div>'+(s.acknowledged?'<span class="pill teal">signed</span>':'<button class="btn xs" data-ack>Sign</button>')+'</div>').join(''),
-    foot:'<button class="btn" data-close>Close</button><button class="btn primary" data-ackall>'+UI.ic('check',15)+'Record acknowledgement</button>',
-    onMount:(panel,close)=>{
-      panel.querySelector('[data-ackall]').onclick=()=>{ S.commit(d=>{ const x=d.sops.find(y=>y.id===s.id); if(x) x.acknowledged=true; },{action:'quality.sop.ack',entity:'sops',entityId:s.id,detail:'Acknowledged '+s.code}); close(); LS.shell.refresh(); UI.toast('Acknowledgement recorded',{type:'ok'}); };
-      panel.querySelectorAll('[data-ack]').forEach(b=>b.onclick=()=>{ S.commit(d=>{ const x=d.sops.find(y=>y.id===s.id); if(x) x.acknowledged=true; },{action:'quality.sop.ack',entity:'sops',entityId:s.id,detail:'Acknowledged '+s.code}); close(); LS.shell.refresh(); UI.toast('Acknowledgement recorded',{type:'ok'}); });
-    }});
+  UI.drawer({title:s.title,eyebrow:'SOP register',sub:s.code+' · '+s.version,
+    body:'<div class="split-2">'+[['Effective',U.fmtDate(s.effective)],['Next review',U.fmtDate(s.review)],['Owner',s.owner]].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v||'—')+'</span></div>').join('')+'</div><div class="section-head"><h2>SOP text</h2></div><p style="white-space:pre-wrap">'+U.esc(s.content||'No SOP text has been entered. Verify template details before use.')+'</p><div class="hint">'+(s.history||[]).length+' saved prior edit(s). No approval is inferred.</div>',
+    foot:'<button class="btn" data-close>Close</button><button class="btn primary" data-edit-sop>Edit SOP</button>',
+    onMount:(panel,close)=>{panel.querySelector('[data-edit-sop]').onclick=()=>{close();sopEditor(id);};}
+  });
 }
 function paint(){
   const host=rootEl.querySelector('#qBody'); if(!host) return;
-  host.innerHTML=tab==='overview'?overview():tab==='iso'?isoView():tab==='sops'?sopsView():incidentsView();
+  host.innerHTML=tab==='overview'?overview():tab==='sops'?sopsView():incidentsView();
   U.$$('[data-q-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.qTab===tab));
   wireBody();
 }
@@ -145,12 +138,6 @@ function wireBody(){
       {name:'PT score',color:'var(--gold)',values:tatSeries.map((x,i)=>{ const r=eqaRows[i]; return r?r.score:null; })}
     ],labels:months,yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%'});
   }
-  if(tab==='iso'){
-    r.querySelectorAll('[data-ck]').forEach(el=>el.onclick=()=>{ if(!LS.auth.guard('edit')) return; const id=el.dataset.ck;
-      S.commit(d=>{ const c=d.checklist.find(x=>x.id===id); if(c) c.done=!c.done; },{action:'quality.checklist',entity:'checklist',entityId:id,detail:'ISO control toggled'});
-      paint(); });
-    r.querySelector('[data-export-iso]').onclick=()=>{ U.exportCSV('iso-15189-checklist-'+U.todayISO()+'.csv',[['Section','Control','Weight','Evidenced']].concat(S.db().checklist.map(c=>[c.section,c.item,c.weight,c.done?'yes':'no'])),{title:'ISO 15189 readiness checklist',actor:LS.auth.user.name}); UI.toast('Checklist exported',{type:'ok'}); };
-  }
   if(tab==='sops'){
     r.querySelectorAll('[data-sop]').forEach(tr=>tr.onclick=()=>sopDrawer(tr.dataset.sop));
     r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); sopDrawer(b.dataset.open); });
@@ -167,14 +154,14 @@ function wireBody(){
     });
   }
   r.querySelectorAll('[data-add-inc]').forEach(b=>b.onclick=logIncident);
-  r.querySelectorAll('[data-add-sop]').forEach(b=>b.onclick=()=>UI.toast('Document registration is controlled by the quality officer — use Staff & Settings to change ownership.',{type:'info'}));
+  r.querySelectorAll('[data-add-sop]').forEach(b=>b.onclick=()=>sopEditor());
 }
 M.render=function(root,params){
-  rootEl=root; tab=params.tab||'overview';
-  root.innerHTML='<div class="page-head"><div><h1>Quality &amp; compliance</h1><div class="sub">ISO 15189 as a product feature — readiness evidenced live, documents controlled, non-conformances tracked to closure.</div></div>'
+  rootEl=root; tab=['overview','sops','incidents'].includes(params.tab)?params.tab:'overview';
+  root.innerHTML='<div class="page-head"><div><h1>Quality &amp; compliance</h1><div class="sub">SOP register and non-conformances.</div></div>'
    +'<div class="actions"><button class="btn" data-add-inc>'+UI.ic('plus',15)+' Log incident</button><a class="btn primary" href="#/eqa">'+UI.ic('target',15)+' EQA scorecard</a></div></div>'
    +kpis()
-   +'<div class="filters" style="margin-bottom:12px">'+[['overview','Overview'],['iso','ISO readiness'],['sops','SOP register'],['incidents','Non-conformances']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-q-tab="'+k+'">'+l+'</button>').join('')+'</div>'
+   +'<div class="filters" style="margin-bottom:12px">'+[['overview','Overview'],['sops','SOP register'],['incidents','Non-conformances']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-q-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="qBody"></div>';
   paint();
 };
