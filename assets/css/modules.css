@@ -918,3 +918,7 @@
 .district-ranking{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
 .district-chip{display:inline-flex;gap:8px;align-items:center;padding:4px 9px;border:1px solid var(--border-gold);border-radius:999px;font-size:12px}
 .district-chip b{color:var(--gold)}
+.training-map-query{flex:1 1 240px;min-width:0}
+.training-map-manual{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.training-map-manual label{display:flex;align-items:center;gap:6px;flex:1 1 175px;min-width:0}
+.training-map-manual label input{min-width:0;flex:1}

@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.148 — Official training-flow sheet and map queries
+
+- Use the roster letterhead and signature spaces for an unsigned, dated training-flow snapshot, with a gold next-person highlight and SVG, PNG and PDF downloads.
+- Show editable venue and route search fields in Training Revenue, including when no training location is recorded; keep ticket routes and external fallbacks.
+
 ## v6.9.147 — Training flow export and district maps
 
 - Download the current training queue as SVG or PNG; move the venue and ticket map to Training Revenue.

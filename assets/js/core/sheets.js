@@ -298,6 +298,43 @@ function letterhead(s,opts){
   return g;
 }
 
+/* A dated queue snapshot, styled with the working-plan letterhead. It is not
+   presented as signed: the three lines are for actual review and signatures. */
+SH.trainingFlowSVG=function(rows, date){
+  rows=rows||[];const settings=LS.store.settings(), W=2000,pad=100,top=560,rowH=160;
+  const end=top+Math.max(1,rows.length)*rowH, H=Math.max(2828,end+520);
+  let g='<rect width="'+W+'" height="'+H+'" fill="#fff"/>';
+  g+=letterhead(settings,{width:W,pad,top:18,rule1:288});
+  g+=text(W/2,370,'Training queue',{size:48,weight:700,anchor:'middle',fill:'#12203C'});
+  g+=text(W/2,415,'Queue snapshot · '+date+' · unsigned',{size:25,anchor:'middle',fill:'#5B6474'});
+  g+=rect(pad,440,W-pad*2,2,C.goldLine);
+  g+=text(pad+20,510,'TRAINING ROTATION',{size:22,weight:700,fill:'#3D4759',ls:'2'});
+  if(rows.length>1)g+=line(pad+68,top+rowH/2,pad+68,top+(rows.length-1)*rowH+rowH/2,C.goldLine,4);
+  rows.forEach((r,i)=>{
+    const y=top+i*rowH, cy=y+rowH/2;
+    if(i===0)g+='<rect x="'+(pad+16)+'" y="'+(y+7)+'" width="'+(W-pad*2-32)+'" height="'+(rowH-14)+'" rx="15" fill="#fbf2d9" stroke="#c9a84c" stroke-width="2"/>';
+    if(rows.length>1)g+=line(pad+68,Math.max(top+rowH/2,y),pad+68,Math.min(top+(rows.length-1)*rowH+rowH/2,y+rowH),C.goldLine,4);
+    g+='<circle cx="'+(pad+68)+'" cy="'+cy+'" r="11" fill="#b8860b"/>';
+    const nx=pad+115,name=r.name||'—';
+    g+=text(nx,y+63,name,{size:fitSize(name,1050,34,20),weight:700,fill:'#12203C'});
+    g+=text(nx,y+105,r.detail||'',{size:fitSize(r.detail||'',1300,24,16),fill:'#5B6474'});
+    if(i===0){g+='<rect x="'+(W-pad-195)+'" y="'+(y+48)+'" width="145" height="48" rx="24" fill="#b8860b"/>';g+=text(W-pad-122,y+81,'NEXT',{size:22,weight:700,anchor:'middle',fill:'#fff'});}
+    if(i<rows.length-1)g+=line(pad+115,y+rowH-1,W-pad-30,y+rowH-1,'#e6e8ec',1);
+  });
+  if(!rows.length)g+=text(pad+20,top+80,'No active staff in the queue.',{size:27,fill:'#5B6474'});
+  const sigY=Math.max(end+100,H-350);
+  g+=text(pad,sigY-40,'Review and signatures',{size:23,weight:700,fill:'#3D4759'});
+  [['Prepared by',settings.prepared||'',settings.preparedRole||'Laboratory Manager'],['Verified by',settings.verified||'',settings.verifiedRole||'Clinical Director'],['Approved by',settings.approved||'',settings.approvedRole||'Human Resources Officer']].forEach((entry,i)=>{
+    const x=pad+i*((W-pad*2)/3),width=(W-pad*2)/3-55;
+    g+=line(x,sigY+50,x+width,sigY+50,'#aeb7c4',2);
+    g+=text(x,sigY+88,entry[0],{size:23,weight:600,fill:'#12203C'});
+    g+=text(x,sigY+120,entry[1],{size:fitSize(entry[1],width,22,14),fill:'#12203C'});
+    g+=text(x,sigY+151,entry[2],{size:fitSize(entry[2],width,20,14),fill:'#5B6474'});
+  });
+  g+=text(W/2,H-55,'Training queue · current at download · signed only when reviewed and signed',{size:20,anchor:'middle',fill:'#5B6474'});
+  return svgDoc(W,H,g);
+};
+
 /* ——— Column model shared by screen, PNG/PDF and XLSX ————————— */
 function monthCols(plan){
   const dates=plan.dates||[];
