@@ -323,16 +323,33 @@ function eqaModal(id, presetProgram){
       };
     }});
 }
+/* CQI mentorship is an assessment record, not a PT score. Every finding is
+   independently dated and can be corrected or removed without inventing scores. */
+function cqiView(){
+ const rows=(S.db().cqiFindings||[]).filter(x=>!x.deleted).slice().sort((a,b)=>String(b.visitDate||'').localeCompare(String(a.visitDate||'')));
+ return UI.card({title:'NRL TB CQI mentorship',sub:'Continuous Quality Improvement · ISO-aligned mentorship findings for TB, including historical visits',icon:'clipboard-check',tools:'<button class="btn sm" data-cqi-export>Export findings</button> <button class="btn sm primary" data-cqi-add>'+UI.ic('plus',13)+'Add finding</button>',body:'<div class="hint">Record the assessment date, finding and follow-up as reported by NRL. These are separate from EQA/PT rounds and do not change PT scores.</div>'+(rows.length?'<div class="dt-scroll"><table class="dt"><thead><tr><th>Visit</th><th>Area / ISO reference</th><th>Finding</th><th>Action / follow-up</th><th>Status</th><th></th></tr></thead><tbody>'+rows.map(x=>'<tr><td class="num">'+U.fmtDate(x.visitDate)+'</td><td class="small">'+U.esc(x.area||'—')+(x.isoRef?'<br><span class="faint">'+U.esc(x.isoRef)+'</span>':'')+'</td><td class="small">'+U.esc(x.finding)+'</td><td class="small">'+U.esc(x.action||'—')+(x.due?'<br><span class="faint">Due '+U.fmtDate(x.due)+'</span>':'')+'</td><td>'+U.esc(x.status||'Not recorded')+'</td><td><button class="btn xs" data-cqi-edit="'+U.esc(x.id)+'">Edit</button> <button class="btn xs" data-cqi-delete="'+U.esc(x.id)+'">Remove</button></td></tr>').join('')+'</tbody></table></div>':'<p class="small faint">No mentorship findings recorded. Add an existing historical finding or a new one.</p>')});
+}
+function cqiModal(id){
+ if(!LS.auth.guard('edit'))return; const old=id?(S.db().cqiFindings||[]).find(x=>x.id===id&&!x.deleted):null;if(id&&!old)return;
+ const v=(k)=>U.esc(old&&old[k]||'');
+ UI.modal({title:old?'Edit TB CQI finding':'Record TB CQI finding',sub:'NRL mentorship · use the actual visit date, including for historical findings.',body:'<div class="form-grid"><div class="field"><label>Visit date</label><input class="input" type="date" id="cqDate" value="'+v('visitDate')+'"></div><div class="field"><label>Area assessed</label><input class="input" id="cqArea" value="'+v('area')+'" placeholder="e.g. quality management, TB testing"></div><div class="field"><label>ISO clause / reference (optional)</label><input class="input" id="cqRef" value="'+v('isoRef')+'"></div><div class="field"><label>Assessor / mentor (optional)</label><input class="input" id="cqAssessor" value="'+v('assessor')+'" placeholder="Name or NRL team"></div><div class="field span2"><label>Finding</label><textarea class="textarea" id="cqFinding">'+v('finding')+'</textarea></div><div class="field span2"><label>Corrective action / follow-up (optional)</label><textarea class="textarea" id="cqAction">'+v('action')+'</textarea></div><div class="field"><label>Due date (optional)</label><input class="input" type="date" id="cqDue" value="'+v('due')+'"></div><div class="field"><label>Status</label><select class="select" id="cqStatus">'+['Not recorded','Open','In progress','Closed'].map(x=>'<option'+((old&&old.status||'Not recorded')===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div><div class="field"><label>Closure date (optional)</label><input class="input" type="date" id="cqClosed" value="'+v('closedDate')+'"></div><div class="field"><label>Source / report reference (optional)</label><input class="input" id="cqSource" value="'+v('source')+'"></div></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-cqi-save>Save finding</button>',onMount:(el,close)=>{el.querySelector('[data-cqi-save]').onclick=()=>{if(!LS.auth.guard('edit'))return;const get=k=>el.querySelector(k).value.trim();const date=get('#cqDate'),finding=get('#cqFinding');if(!date||!finding)return UI.toast('Enter the visit date and finding',{type:'warn'});const rec={visitDate:date,area:get('#cqArea'),isoRef:get('#cqRef'),assessor:get('#cqAssessor'),finding,action:get('#cqAction'),due:get('#cqDue'),status:get('#cqStatus'),closedDate:get('#cqClosed'),source:get('#cqSource'),updatedAt:U.nowISO(),updatedBy:LS.auth.user.name};if(rec.closedDate&&rec.closedDate<date)return UI.toast('Closure cannot precede the visit',{type:'warn'});S.commit(d=>{d.cqiFindings=d.cqiFindings||[];if(old){const x=d.cqiFindings.find(y=>y.id===id&&!y.deleted);if(x){x.history=(x.history||[]).concat([Object.assign({},x,{history:undefined})]);Object.assign(x,rec);}}else d.cqiFindings.push(Object.assign({id:U.uid('cqi'),program:'TB',provider:'NRL',createdAt:U.nowISO(),createdBy:LS.auth.user.name},rec));},{action:old?'cqi.finding.edit':'cqi.finding.add',entity:'cqiFindings',entityId:id||date,detail:'NRL TB CQI finding · '+date});close();paint();UI.toast('CQI finding saved · sync pending',{type:'ok'});};}});
+}
+async function cqiDelete(id){if(!LS.auth.guard('edit'))return;const x=(S.db().cqiFindings||[]).find(y=>y.id===id&&!y.deleted);if(!x)return;const yes=await UI.confirm({title:'Remove this CQI finding?',body:'The finding is hidden but retained in the record for audit.',confirm:'Remove',danger:true});if(!yes)return;S.commit(d=>{const f=(d.cqiFindings||[]).find(y=>y.id===id);if(f){f.deleted=true;f.deletedAt=U.nowISO();f.deletedBy=LS.auth.user.name;}},{action:'cqi.finding.remove',entity:'cqiFindings',entityId:id,detail:'Removed NRL TB CQI finding · '+x.visitDate});paint();}
 function paint(){
   const host=rootEl.querySelector('#eqaBody'); if(!host) return;
-  host.innerHTML=tab==='scorecard'?scorecard():qcCalendar();
+  host.innerHTML=tab==='scorecard'?scorecard():tab==='cqi'?cqiView():qcCalendar();
   U.$$('[data-eqa-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.eqaTab===tab));
   wireBody();
 }
 function wireBody(){
   const r=rootEl;
   r.querySelectorAll('[data-eqa-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.eqaTab; paint(); });
-  if(tab==='scorecard'){
+  if(tab==='cqi'){
+    r.querySelectorAll('[data-cqi-export]').forEach(b=>b.onclick=()=>{const rows=(S.db().cqiFindings||[]).filter(x=>!x.deleted);U.exportCSV('nrl-tb-cqi-findings-'+U.todayISO()+'.csv',[['Visit date','Assessor','Area','ISO reference','Finding','Action','Due','Status','Closed','Source']].concat(rows.map(x=>[x.visitDate,x.assessor,x.area,x.isoRef,x.finding,x.action,x.due,x.status,x.closedDate,x.source])),{title:'NRL TB CQI mentorship findings',actor:(LS.auth.user&&LS.auth.user.name)||'Visitor'});});
+    r.querySelectorAll('[data-cqi-add]').forEach(b=>b.onclick=()=>cqiModal());
+    r.querySelectorAll('[data-cqi-edit]').forEach(b=>b.onclick=()=>cqiModal(b.dataset.cqiEdit));
+    r.querySelectorAll('[data-cqi-delete]').forEach(b=>b.onclick=()=>cqiDelete(b.dataset.cqiDelete));
+  } else if(tab==='scorecard'){
     const tr=trend();
     /* The axis opens only as far as the recorded scores need — it no longer runs
        from 70 % when nothing was ever scored that low. */
@@ -371,7 +388,7 @@ M.render=function(root,params){
   root.innerHTML='<div class="page-head"><div><h1>EQA / PT scores</h1><div class="sub">ISO 15189 as a product feature — proficiency testing, z-scores, Westgard rules and corrective action, in one auditable scorecard.</div></div>'
    +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-new-capa>'+UI.ic('clipboard-check',15)+' Open CAPA</button><button class="btn primary" data-new-eqa>'+UI.ic('plus',15)+' Record EQA round</button></div></div>'
    +kpis()
-   +'<div class="filters" style="margin-bottom:12px">'+[['scorecard','Scorecard'],['qc','QC calendar']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-eqa-tab="'+k+'">'+l+'</button>').join('')+'</div>'
+   +'<div class="filters" style="margin-bottom:12px">'+[['scorecard','Scorecard'],['qc','QC calendar'],['cqi','TB CQI mentorship']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-eqa-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="eqaBody"></div>';
   paint();
 };
