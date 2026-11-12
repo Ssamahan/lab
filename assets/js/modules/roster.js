@@ -1196,11 +1196,16 @@ function trainingImpactCard(){
   if(!affected.length)return;
   const affectedNames=affected.map(r=>r.name), originalNights=affected.filter(r=>['N','DN'].includes((r.codes||[])[di])).map(r=>r.name);
   const manual=S.unitNight(S.weekStart(iso),iso);if(manual&&affectedNames.includes(manual)&&!originalNights.includes(manual))originalNights.push(manual+' (manual night)');
-  let days=0;(p.staff||[]).forEach(row=>{const st=S.staffById(row.id)||S.staffByName(row.name);if(!st||attendees.has(st.id)||S.leaveFor(st,iso))return;const c=(row.codes||[])[di];if(['D','DN','UO'].includes(c))days++;});
-  items.push({iso,affectedNames,originalNights,days,needed:required(iso).day});
+  const missing=affected.filter(r=>(r.codes||[])[di]!=='TR');
+  const leaveConflicts=affected.filter(r=>S.leaveFor(S.staffById(r.id)||S.staffByName(r.name),iso));
+  let days=0, nights=0;(p.staff||[]).forEach(row=>{const st=S.staffById(row.id)||S.staffByName(row.name);if(!st||attendees.has(st.id)||S.leaveFor(st,iso))return;const c=(row.codes||[])[di];if(['D','DN','UO'].includes(c))days++;if(['N','DN'].includes(c))nights++;});
+  if(manual){const st=S.staffByName(manual);nights=st&&!attendees.has(st.id)&&!S.leaveFor(st,iso)?1:0;}
+  const needed=required(iso).day;
+  if(!missing.length&&!originalNights.length&&!leaveConflicts.length&&nights>0&&days>=needed)return;
+  items.push({iso,affectedNames,originalNights,leaveConflicts:leaveConflicts.map(r=>r.name),days,needed,missingNight:nights===0});
  });
  if(!items.length)return '';
- return '<div class="hint" role="status" style="margin-bottom:14px"><b>Training conflicts require plan review</b> · Training dates are not yet written into the signed plan and nights are not automatically reassigned. Review before publishing or relying on coverage.<details><summary>'+items.length+' affected day'+(items.length===1?'':'s')+' · show dates and coverage</summary>'+items.map(x=>'<div class="small" style="margin-top:6px">'+U.esc(U.fmtDate(x.iso))+' · training: '+x.affectedNames.map(U.esc).join(', ')+(x.originalNights.length?' · <b>night assignment affected — check replacement: '+x.originalNights.map(U.esc).join(', ')+'</b>':'')+' · '+x.days+' day staff remain before adjustments (required '+x.needed+')</div>').join('')+'</details></div>';
+ return '<div class="hint" role="status" style="margin-bottom:14px"><b>Training conflicts require plan review</b> · Some training dates, leave conflicts or night assignments need review. The warning does not automatically revise the plan or reassign nights.<details><summary>'+items.length+' affected day'+(items.length===1?'':'s')+' · show dates and coverage</summary>'+items.map(x=>'<div class="small" style="margin-top:6px">'+U.esc(U.fmtDate(x.iso))+' · training: '+x.affectedNames.map(U.esc).join(', ')+(x.originalNights.length?' · <b>night assignment affected — check replacement: '+x.originalNights.map(U.esc).join(', ')+'</b>':'')+(x.leaveConflicts.length?' · <b>overlaps leave: '+x.leaveConflicts.map(U.esc).join(', ')+'</b>':'')+(x.missingNight?' · <b>no night cover identified</b>':'')+' · '+x.days+' day staff remain before adjustments (required '+x.needed+')</div>').join('')+'</details></div>';
 }
 function paint(){ sheetSVG=null;
 
