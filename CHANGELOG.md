@@ -4,6 +4,14 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.151 — TB CQI assessment analysis
+
+- Record the four NRL TB CQI activity marks by fiscal year and quarter; calculate the total out of 55 and percentage to one decimal. Compare recorded periods and activities without treating missing marks as zero.
+
+## v6.9.150 — Accurate training conflict warnings
+
+- Do not warn that training is unwritten when all affected cells are already TR; retain warnings for overlapping leave and manual night assignments.
+
 ## v6.9.149 — TB CQI findings and training conflict warnings
 
 - Record, edit and export NRL TB CQI mentorship findings with historical visit dates, follow-up and prior versions, separately from PT scores.
