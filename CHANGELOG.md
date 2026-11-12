@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.152 — TB CQI recommendation follow-up
+
+- Track NRL recommendations with commitment dates and implementation status; require an explanation for partial or not implemented, and keep status history.
+- Show in-app quarter-end reminders for recommendations not fully implemented, in the final seven calendar days. No out-of-app notification is sent.
+
 ## v6.9.151 — TB CQI assessment analysis
 
 - Record the four NRL TB CQI activity marks by fiscal year and quarter; calculate the total out of 55 and percentage to one decimal. Compare recorded periods and activities without treating missing marks as zero.

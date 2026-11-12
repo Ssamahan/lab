@@ -326,7 +326,9 @@ M.render=function(root,params){
   /* Cards go in reading order into one packed grid. `data-span` says how much
      room a card earns: the throughput chart and the activity feed take two
      columns, the worklist table takes the whole width because it is a table. */
-  root.innerHTML=hero()+kpiRow()
+  const cqi=LS.auth&&LS.auth.can('edit')&&S.cqiQuarterReminder?S.cqiQuarterReminder():null;
+  const cqiBanner=cqi?'<div class="hint" role="status" style="margin-bottom:14px"><b>Quarter-end TB CQI review:</b> '+cqi.count+' recommendation'+(cqi.count===1?'':'s')+' not fully implemented. Quarter ends '+U.esc(U.fmtDate(cqi.end))+'. <a href="#/eqa?tab=cqi">Review implementation →</a></div>':'';
+  root.innerHTML=hero()+cqiBanner+kpiRow()
    +'<div class="dash-flow" id="dashFlow">'
      +'<div class="dash-card" data-span="wide">'+throughputCard()+'</div>'
      +'<div class="dash-card">'+dutyCard()+'</div>'
