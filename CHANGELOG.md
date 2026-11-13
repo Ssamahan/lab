@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.159 — fiscal-quarter EQA timeline
+
+- Align SD trends on a consistent oldest-first July–June fiscal-quarter timeline, including quarters with pending PT results without inventing scores. Flag ambiguous duplicate test results and unrecognised round labels.
+
 ## v6.9.158 — grouped EQA SD trends
 
 - Combine tests from each EQA programme on one colour-coded SD trend graph, with a legend and missing-result gaps.

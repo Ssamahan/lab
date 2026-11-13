@@ -26,18 +26,28 @@ function pctOf(e){
 /* The rounds grouped by the quarter they belong to, ordered by when the
    material actually went out. Nothing is extrapolated: a quarter with no
    recorded score simply does not appear. */
+function ptQuarter(code){
+  const raw=String(code||'').trim();
+  let m=/^Q([1-4])\s+(\d{4})\s*\/\s*(\d{2}|\d{4})$/i.exec(raw),year,q,end;
+  if(m){q=+m[1];year=+m[2];end=+m[3];}
+  else {m=/^(\d{4})\s*\/\s*(\d{2}|\d{4})\s+Q([1-4])$/i.exec(raw);if(!m)return null;year=+m[1];end=+m[2];q=+m[3];}
+  if(end<100) end=Math.floor(year/100)*100+end;
+  if(end!==year+1)return null;
+  return {index:year*4+q-1,label:year+'/'+end+' Q'+q};
+}
+function quarterLabel(index){const year=Math.floor(index/4);return year+'/'+(year+1)+' Q'+(index%4+1);}
 function quarters(){
   const map={};
   S.db().eqa.forEach(e=>{
     const pct=pctOf(e); if(pct==null) return;
-    const key=e.code||'Unlabelled round';
-    const q=map[key]=map[key]||{label:key,first:e.delivered||e.reported||'9999',pcts:[],schemes:[]};
+    const quarter=ptQuarter(e.code),key=quarter?quarter.label:(e.code||'Unlabelled round');
+    const q=map[key]=map[key]||{label:key,index:quarter?quarter.index:null,first:e.delivered||e.reported||'9999',pcts:[],schemes:[]};
     q.pcts.push(pct);
     q.schemes.push({name:e.program,pct,raw:e});
     const d=e.delivered||e.reported||''; if(d && d<q.first) q.first=d;
   });
   return Object.keys(map).map(k=>map[k])
-    .sort((a,b)=>String(a.first).localeCompare(String(b.first)))
+    .sort((a,b)=>a.index!=null&&b.index!=null?a.index-b.index:a.index!=null?-1:b.index!=null?1:String(a.first).localeCompare(String(b.first)))
     .map(q=>({label:q.label, first:q.first, count:q.pcts.length,
       value:Math.round(U.avg(q.pcts)*10)/10,
       schemes:q.schemes.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)))}));
@@ -192,26 +202,28 @@ function sdTrendData(){
     if(e.scoring!=='SD') return;
     const values={};
     Object.entries(e.analytes||{}).forEach(([name,value])=>{if(value!==null&&value!==''&&Number.isFinite(Number(value))) values[name]=Number(value);});
-    if(!Object.keys(values).length) return;
     const program=String(e.program||'Unspecified programme');
     if(!groups.has(program)) groups.set(program,{program,rounds:[]});
-    groups.get(program).rounds.push({values,date:e.scorePublished||e.reported||e.tested||e.delivered||'',round:e.code||'Unlabelled round',id:String(e.id||'')});
+    groups.get(program).rounds.push({values,date:e.scorePublished||e.reported||e.tested||e.delivered||'',round:e.code||'Unlabelled round',quarter:ptQuarter(e.code),pending:stageOf(e)==='awaiting'||(!Object.keys(values).length&&!e.scorePublished),id:String(e.id||'')});
   });
   return Array.from(groups.values()).sort((a,b)=>a.program.localeCompare(b.program)).map(g=>{
-    g.rounds.sort((a,b)=>a.date.localeCompare(b.date)||a.round.localeCompare(b.round)||a.id.localeCompare(b.id));
+    g.rounds.sort((a,b)=>a.quarter&&b.quarter?a.quarter.index-b.quarter.index||a.date.localeCompare(b.date)||a.id.localeCompare(b.id):a.quarter?-1:b.quarter?1:a.date.localeCompare(b.date));
     g.names=Array.from(new Set(g.rounds.flatMap(r=>Object.keys(r.values)))).sort((a,b)=>a.localeCompare(b));
+    const idx=g.rounds.filter(r=>r.quarter).map(r=>r.quarter.index);
+    const first=Math.min(2024*4,...idx),last=Math.max(2026*4,...idx);
+    g.indices=Array.from({length:Math.min(100,last-first+1)},(_,i)=>Math.max(first,last-99)+i);
     return g;
   });
 }
 function sdTrends(){
   const groups=sdTrendData();
-  return '<div class="hint" style="margin-bottom:14px">Each programme has one graph; colours identify tests. Only recorded SD-index results are shown; percentages and awaiting results are not converted to z-scores. Missing results are gaps, not zero. Smaller absolute values are closer to zero; provider interpretation still applies. Dates use score publication, then report, test or dispatch date. Verify historical entries against provider reports.</div>'
-   +(groups.length?'<div class="grid-12">'+groups.map((g,i)=>'<div class="c12">'+UI.card({title:U.esc(g.program),sub:g.names.length+' test'+(g.names.length===1?'':'s')+' · '+g.rounds.length+' recorded round'+(g.rounds.length===1?'':'s'),icon:'activity',body:'<div class="legend" style="margin-bottom:8px">'+g.names.map((name,j)=>'<span class="lg"><span class="sw" style="background:'+SD_COLORS[j%SD_COLORS.length]+'"></span>'+U.esc(name)+'</span>').join('')+'</div><div data-sd-chart="'+i+'"></div><div class="dt-scroll"><table class="dt"><thead><tr><th>Date used</th><th>Round</th><th>Test</th><th>SD index</th><th>Change in distance from zero</th></tr></thead><tbody>'+g.names.map(name=>{let previous=null;return g.rounds.filter(r=>Object.hasOwn(r.values,name)).map(r=>{const value=r.values[name],delta=previous===null?null:Math.abs(value)-Math.abs(previous);previous=value;return '<tr><td>'+U.esc(r.date||'Date not recorded')+'</td><td>'+U.esc(r.round)+'</td><td>'+U.esc(name)+'</td><td class="mono">'+(value>0?'+':'')+value.toFixed(2)+'</td><td>'+(delta==null?'—':Math.abs(delta)<1e-9?'No change':delta<0?'Closer to zero':'Further from zero')+'</td></tr>';}).join('');}).join('')+'</tbody></table></div>'})+'</div>').join('')+'</div>':'<p class="small faint">No SD-index results recorded yet.</p>');
+  return '<div class="hint" style="margin-bottom:14px">Each programme has one graph; colours identify tests. Only recorded SD-index results are shown; percentages and awaiting results are not converted to z-scores. Missing results are gaps, not zero. Smaller absolute values are closer to zero; provider interpretation still applies. Quarters follow the recorded round label (July–June fiscal year); unrecognised labels are listed but not plotted. Awaiting PT is shown without an invented score. Multiple values for the same test in one quarter are withheld from the graph for review.</div>'
+   +(groups.length?'<div class="grid-12">'+groups.map((g,i)=>'<div class="c12">'+UI.card({title:U.esc(g.program),sub:g.names.length+' test'+(g.names.length===1?'':'s')+' · '+g.rounds.length+' recorded round'+(g.rounds.length===1?'':'s'),icon:'activity',body:'<div class="legend" style="margin-bottom:8px">'+g.names.map((name,j)=>'<span class="lg"><span class="sw" style="background:'+SD_COLORS[j%SD_COLORS.length]+'"></span>'+U.esc(name)+'</span>').join('')+'</div><div data-sd-chart="'+i+'"></div><div class="row wrap gap-sm" aria-label="Fiscal quarter timeline">'+g.indices.map(idx=>'<span class="pill '+(g.rounds.some(r=>r.pending&&r.quarter&&r.quarter.index===idx)?'amber':'slate')+'">'+U.esc(quarterLabel(idx))+(g.rounds.some(r=>r.pending&&r.quarter&&r.quarter.index===idx)?' · awaiting':'')+'</span>').join('')+'</div><div class="dt-scroll"><table class="dt"><thead><tr><th>Date used</th><th>Round</th><th>Test</th><th>SD index</th><th>Change in distance from zero</th></tr></thead><tbody>'+g.names.map(name=>{let previous=null;return g.rounds.filter(r=>Object.hasOwn(r.values,name)).map(r=>{const value=r.values[name],delta=previous===null?null:Math.abs(value)-Math.abs(previous);previous=value;return '<tr><td>'+U.esc(r.date||'Date not recorded')+'</td><td>'+U.esc(r.quarter?r.quarter.label:r.round+' (quarter unrecognised)')+'</td><td>'+U.esc(name)+'</td><td class="mono">'+(value>0?'+':'')+value.toFixed(2)+'</td><td>'+(delta==null?'—':Math.abs(delta)<1e-9?'No change':delta<0?'Closer to zero':'Further from zero')+'</td></tr>';}).join('');}).join('')+'</tbody></table></div><div class="hint">'+g.rounds.filter(r=>r.pending).map(r=>'Awaiting PT: '+U.esc(r.quarter?r.quarter.label:r.round+' (quarter unrecognised)')+' · no score yet').join('<br>')+'</div>'})+'</div>').join('')+'</div>':'<p class="small faint">No SD-index results recorded yet.</p>');
 }
 function drawSdTrends(){
-  sdTrendData().forEach((g,i)=>{const series=g.names.map((name,j)=>({name,color:SD_COLORS[j%SD_COLORS.length],values:g.rounds.map(r=>Object.hasOwn(r.values,name)?r.values[name]:null),area:false}));
-    const values=series.flatMap(s=>s.values.filter(v=>v!==null)),range=Math.max(2,Math.ceil(Math.max(...values.map(Math.abs))));
-    C.line(rootEl.querySelector('[data-sd-chart="'+i+'"]'),{id:'sdTrend'+i,height:240,min:-range,max:range,zeroBase:false,series,labels:g.rounds.map(r=>(r.date||'Undated')+' · '+r.round),target:{value:0,label:'0.0 SD'},yFmt:v=>v.toFixed(1),tipFmt:v=>v.toFixed(2)+' SD',aria:U.esc(g.program+' SD indices over time')});
+  sdTrendData().forEach((g,i)=>{const series=g.names.map((name,j)=>({name,color:SD_COLORS[j%SD_COLORS.length],values:g.indices.map(idx=>{const hits=g.rounds.filter(r=>r.quarter&&r.quarter.index===idx&&Object.hasOwn(r.values,name));return hits.length===1?hits[0].values[name]:null;}),area:false}));
+    const values=series.flatMap(s=>s.values.filter(v=>v!==null)),range=Math.max(2,Math.ceil(Math.max(0,...values.map(Math.abs))));
+    C.line(rootEl.querySelector('[data-sd-chart="'+i+'"]'),{id:'sdTrend'+i,height:240,min:-range,max:range,zeroBase:false,series,labels:g.indices.map(quarterLabel),target:{value:0,label:'0.0 SD'},yFmt:v=>v.toFixed(1),tipFmt:v=>v.toFixed(2)+' SD',aria:U.esc(g.program+' SD indices by fiscal quarter')});
   });
 }
 function qcCalendar(){
