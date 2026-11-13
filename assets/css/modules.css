@@ -922,3 +922,11 @@
 .training-map-manual{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
 .training-map-manual label{display:flex;align-items:center;gap:6px;flex:1 1 175px;min-width:0}
 .training-map-manual label input{min-width:0;flex:1}
+
+/* Keep each programme's results beside its graph when there is room; on narrow
+   screens both retain readable widths instead of squeezing the table. */
+.sd-trend-layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:var(--sp-4);align-items:start}
+.sd-trend-layout>*{min-width:0}
+
+/* The generic table fitter must not cap a card that also contains a chart. */
+.card.sd-trend-card{max-width:none!important}

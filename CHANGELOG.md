@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.161 — SD trend tables beside graphs
+
+- Place each programme’s SD result table to the right of its graph when space permits, stacking on narrow screens.
+
 ## v6.9.160 — EQA timeline and MCV correction
 
 - Start each SD trend at its oldest quarter with a recorded included result, and continue through pending quarters.

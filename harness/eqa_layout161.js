@@ -1,0 +1,11 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,go}=await boot('#/dash');w.LS.sync.stopLive();const S=w.LS.store,d=w.document;
+ S.commit(db=>{db.eqa=[{id:'a',program:'Hematology',code:'Q3 2025/26',scoring:'SD',analytes:{WBC:-1,MCV:0.5}},{id:'b',program:'Hematology',code:'Q1 2026/27',scoring:'SD',stage:'awaiting',analytes:{}},{id:'c',program:'Biochemistry',code:'Q4 2025/26',scoring:'SD',analytes:{ALT:1.5}}];},{action:'test'});
+ const original=JSON.stringify(S.db().eqa);await go('#/eqa?tab=sd');
+ const layouts=[...d.querySelectorAll('.sd-trend-layout')];
+ ok(layouts.length===2,'each programme has its own chart and table layout');
+ ok(layouts.every(el=>el.children.length===2&&el.children[0].querySelector('[data-sd-chart]')&&el.children[1].querySelector('table')),'table follows its own chart in the side-by-side layout');
+ ok(layouts.some(el=>el.textContent.includes('WBC')&&el.querySelector('table').textContent.includes('-1.00')&&!el.textContent.includes('MCV')),'table preserves recorded SD results and excludes MCV');
+ ok(layouts.some(el=>el.textContent.includes('2026/2027 Q1 · awaiting')),'awaiting quarter remains visible');
+ ok(JSON.stringify(S.db().eqa)===original,'viewing the layout preserves records');done('eqa_layout161');
+})().catch(e=>{console.error(e);process.exit(1)});
