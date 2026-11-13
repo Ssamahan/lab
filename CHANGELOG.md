@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.162 — EQA JavaScript checking
+
+- Enable JavaScript type checking for the EQA module and make recommendation sort coercion explicit.
+
 ## v6.9.161 — SD trend tables beside graphs
 
 - Place each programme’s SD result table to the right of its graph when space permits, stacking on narrow screens.

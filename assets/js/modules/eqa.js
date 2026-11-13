@@ -421,7 +421,7 @@ function drawCqiCharts(){
  C.line(rootEl.querySelector('#cqiTotalTrend'),{id:'cqi-total',height:230,min:0,max:100,labels,series:[{name:'Total',color:'var(--gold)',values:entries.map(r=>r&&cqCalc(r)?cqCalc(r).pct:null)}],yFmt:v=>v.toFixed(0)+'%',tipFmt:v=>v.toFixed(1)+'%'});
  C.line(rootEl.querySelector('#cqiActivityTrend'),{id:'cqi-activities',height:230,min:0,max:100,labels,series:CQ_ACT.map((a,k)=>({name:'Activity '+(k+1),color:['var(--gold)','var(--teal, #3fb3a6)','#648cce','#e26d6d'][k],area:false,values:entries.map(r=>r&&r.marks&&r.marks[k]!=null&&Number.isFinite(+r.marks[k])&&+r.marks[k]>=0&&+r.marks[k]<=a.max?+r.marks[k]/a.max*100:null)})),yFmt:v=>v.toFixed(0)+'%',tipFmt:v=>v.toFixed(1)+'%'});
 }
-const cqiRecommendations=()=> (S.db().cqiRecommendations||[]).filter(r=>!r.deleted).slice().sort((a,b)=>(a.status==='Fully implemented')-(b.status==='Fully implemented')||String(a.commitDate||'').localeCompare(String(b.commitDate||'')));
+const cqiRecommendations=()=> (S.db().cqiRecommendations||[]).filter(r=>!r.deleted).slice().sort((a,b)=>Number(a.status==='Fully implemented')-Number(b.status==='Fully implemented')||String(a.commitDate||'').localeCompare(String(b.commitDate||'')));
 function cqiRecommendationsView(){
  const rows=cqiRecommendations(),reminder=LS.auth.can('edit')&&S.cqiQuarterReminder?S.cqiQuarterReminder():null;
  const reminderHTML=reminder?'<div class="hint" role="status"><b>Quarter-end review:</b> '+reminder.count+' recommendation'+(reminder.count===1?'':'s')+' not fully implemented. Update each status before '+U.esc(U.fmtDate(reminder.end))+'.</div>':'';
