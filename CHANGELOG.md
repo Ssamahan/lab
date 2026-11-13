@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.158 — grouped EQA SD trends
+
+- Combine tests from each EQA programme on one colour-coded SD trend graph, with a legend and missing-result gaps.
+
 ## v6.9.157 — EQA SD-index trends
 
 - Plot recorded signed SD indices by programme and analyte around zero, with round-by-round distances from zero. Percentage results and pending rounds are not plotted as SD.

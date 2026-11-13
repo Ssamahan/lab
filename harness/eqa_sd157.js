@@ -5,7 +5,7 @@ const pause=()=>new Promise(r=>setTimeout(r,180));
  S.commit(db=>{db.eqa=[{id:'a',program:'Biochemistry',code:'Q1',scoring:'SD',scorePublished:'2026-01-01',analytes:{Glucose:1.5,ALT:-1}},{id:'b',program:'Biochemistry',code:'Q2',scoring:'SD',scorePublished:'2026-04-01',analytes:{Glucose:-0.5,ALT:0}},{id:'c',program:'TB',code:'Q3',scoring:'%',scorePublished:'2026-05-01',analytes:{'TB Smear':100}},{id:'d',program:'Serology',code:'Q4',scoring:'SD',analytes:{}}];db.eqaAnalytes={};},{action:'test'});
  const before=JSON.stringify(S.db().eqa);
  await go('#/eqa?tab=sd');
- ok(d.querySelectorAll('[data-sd-chart]').length===2,'only analytes with real SD values get charts');
+ ok(d.querySelectorAll('[data-sd-chart]').length===1,'only programmes with real SD values get charts');
  ok(d.body.textContent.includes('Closer to zero')&&d.body.textContent.includes('-0.50')&&d.body.textContent.includes('0.00'),'signed results including zero and distance movement are displayed');
  ok(!d.querySelector('#eqaBody').textContent.includes('TB Smear'),'percentage results are not plotted as SD');
  ok(d.querySelector('[data-sd-chart] svg').textContent.includes('0.0 SD'),'chart identifies zero baseline');
