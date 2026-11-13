@@ -107,7 +107,7 @@ function text(x,y,str,o){
   const fam=(o.family||FONT.body).replace(/"/g,'');
   return '<text x="'+r2(x)+'" y="'+r2(y)+'" font-family=\''+fam+'\' font-size="'+size+'" font-weight="'+weight+'"'
     +(anchor!=='start'?' text-anchor="'+anchor+'"':'')+(o.fill?' fill="'+o.fill+'"':' fill="'+C.ink+'"')
-    +(o.ls?' letter-spacing="'+o.ls+'"':'')+(o.mono?' font-variant-numeric="tabular-nums"':'')+'>'+esc(str)+'</text>';
+    +(o.ls?' letter-spacing="'+o.ls+'"':'')+(o.mono?' font-variant-numeric="tabular-nums"':'')+(o.textLength?' textLength="'+r2(o.textLength)+'" lengthAdjust="spacingAndGlyphs"':'')+'>'+esc(str)+'</text>';
 }
 SH._h={rect,line,text,esc};
 
@@ -736,54 +736,48 @@ function repSpecFor(sec){
   return REP_MODES[row?row.line.mode:'pn2']||REP_MODES.pn2;
 }
 /* column geometry, fixed across the whole sheet so every section lines up */
-function repGeom(W){
-  const exam=W-5*150-190;
-  const cells=[0,1,2,3,4].map(i=>({x:exam+i*150,w:150}));
-  return {exam,total:{x:exam+5*150,w:190},cells};
+function repGeom(W,x){
+  const cell=W*0.095, total=W*0.105, exam=W-5*cell-total;
+  const cells=[0,1,2,3,4].map(i=>({x:x+exam+i*cell,w:cell}));
+  return {exam,total:{x:x+exam+5*cell,w:total},cells};
 }
 const REP_ROW=46, REP_BAND=40, REP_CAP=34, REP_HEAD=52;
 function reportPages(rep){
-  const H=REP.H, PAD=118;
-  const blocks=[];
+  const H=REP.H, PAD=118, TW=REP.W-PAD*2, GAP=32, CW=(TW-GAP)/2, FOOT=190;
+  const FIRST_TOP=912, NEXT_TOP=232, cap=H-FOOT, pages=[];
+  let page;
+  function open(){page={idx:pages.length,pages:pages.length+1,blocks:[],used:pages.length?NEXT_TOP:FIRST_TOP,cap,top:pages.length?NEXT_TOP:FIRST_TOP};pages.push(page);}
+  open();
   (rep.sections||[]).forEach(sec=>{
-    const spec=repSpecFor(sec);
-    blocks.push({kind:'sec',h:REP_BAND,sec,spec});
-    blocks.push({kind:'cap',h:REP_CAP,spec});
-    let i=0;
-    (sec.rows||[]).forEach(r=>{
-      const h=r.line.mode==='band'?(REP_ROW-6):REP_ROW;
-      blocks.push({kind:r.line.mode==='band'?'rub':'row',h,row:r,spec,zebra:(i++%2===1)});
-    });
-    blocks.push({kind:'sum',h:REP_ROW,sec,spec});
+    const spec=repSpecFor(sec), rows=sec.rows||[];let at=0, first=true;
+    do{
+      if(cap-page.used<REP_BAND+REP_CAP+REP_ROW*2) open();
+      const remaining=rows.length-at;
+      const slots=Math.floor((cap-page.used-REP_BAND-REP_CAP-REP_ROW)/REP_ROW);
+      if(slots<1){open();continue;}
+      const count=Math.min(remaining,slots*2), left=Math.ceil(count/2), height=Math.max(1,left)*REP_ROW;
+      const top=page.used;
+      page.blocks.push({kind:'sec',sec,spec,y:top,x:PAD,w:TW,continued:!first});
+      for(let col=0;col<2;col++){
+        const x=PAD+col*(CW+GAP);
+        page.blocks.push({kind:'cap',spec,y:top+REP_BAND,x,w:CW});
+        const start=col?left:0, end=col?count:left;
+        for(let i=start;i<end;i++){
+          const row=rows[at+i];page.blocks.push({kind:row.line.mode==='band'?'rub':'row',h:REP_ROW,row,spec,zebra:i%2===1,y:top+REP_BAND+REP_CAP+(i-start)*REP_ROW,x,w:CW});
+        }
+      }
+      page.used=top+REP_BAND+REP_CAP+height;at+=count;first=false;
+      if(at>=rows.length){page.blocks.push({kind:'sum',h:REP_ROW,sec,spec,y:page.used,x:PAD,w:TW});page.used+=REP_ROW;}
+    }while(at<rows.length);
   });
-  const TAIL=760;                                   /* totals + blood supply + signatures */
-  const FOOT=190;
-  /* the first page gives up the room the letterhead, the title and the two
-     identification blocks take; the pages after it need only a running head */
-  const FIRST_TOP=912, NEXT_TOP=232;
-  const pages=[]; let page=null;
-  const open=(first)=>{ page={idx:pages.length,pages:pages.length+1,blocks:[],used:first?FIRST_TOP:NEXT_TOP,
-    cap:H-FOOT,top:first?FIRST_TOP:NEXT_TOP}; pages.push(page); return page; };
-  open(true);
-  blocks.forEach(b=>{
-    if(page.used+b.h>page.cap && !(b.kind==='cap' && page.blocks.length && page.blocks[page.blocks.length-1].kind==='sec')){
-      open(false);
-    } else if(page.used+b.h>page.cap){
-      /* a caption never starts a page on its own — move the band with it */
-      const band=page.blocks.pop(); page.used-=band.h; open(false); page.blocks.push(band); page.used+=band.h;
-    }
-    page.blocks.push(b); page.used+=b.h;
-  });
-  if(page.used+TAIL>page.cap) open(false);
-  page.tail=true;
-  return pages;
+  if(page.used+760>cap) open();
+  page.tail=true;return pages;
 }
 SH.reportSVG=function(rep,pageObj,pages,opts){
   opts=opts||{};
   const T=repTheme();
   const W=REP.W, H=REP.H, PAD=118, TX=PAD, TW=W-PAD*2;
   const s=LS.store.settings();
-  const geom=repGeom(TW);
   const g=[];
   const total=pages.length;
   if(pageObj.idx===0){
@@ -809,10 +803,12 @@ SH.reportSVG=function(rep,pageObj,pages,opts){
   }
   /* the examinations */
   pageObj.blocks.forEach(b=>{
+    y=b.y;
+    const TX=b.x, TW=b.w, geom=repGeom(TW,TX);
     const spec=b.spec||REP_MODES.pn2;
     if(b.kind==='sec'){
       g.push(rect(TX,y,TW,REP_BAND-6,T.band));
-      g.push(text(TX+16,y+27,(b.sec.no?b.sec.no+'. ':'')+b.sec.title,{size:24,weight:600,fill:'#FFFFFF'}));
+      g.push(text(TX+16,y+27,(b.sec.no?b.sec.no+'. ':'')+b.sec.title+(b.continued?' (continued)':''),{size:24,weight:600,fill:'#FFFFFF'}));
       if(b.sec.key==='stool') g.push(text(TX+TW-16,y+27,U.fmtNum(b.sec.total)+' samples analysed',{size:19,anchor:'end',fill:'#EADDB2'}));
       else g.push(text(TX+TW-16,y+27,U.fmtNum(b.sec.total)+(b.sec.total===1?' test':' tests'),{size:19,anchor:'end',fill:'#EADDB2'}));
       y+=REP_BAND;
@@ -850,7 +846,8 @@ SH.reportSVG=function(rep,pageObj,pages,opts){
     if(b.zebra) g.push(rect(TX,y,TW,b.h,T.zebra));
     const indent=L.indent?26*L.indent:0;
     if(L.no) g.push(text(TX+16,y+28,L.no,{size:18,fill:T.faint,mono:true}));
-    g.push(text(TX+16+Math.max(indent,46),y+28,L.label,{size:21,fill:L.breakdown?T.muted:T.ink}));
+    const labelWidth=geom.exam-16-Math.max(indent,46)-12;
+    g.push(text(TX+16+Math.max(indent,46),y+28,L.label,{size:19,fill:L.breakdown?T.muted:T.ink,textLength:L.label.length*11>labelWidth?labelWidth:0}));
     /* A cell nobody filled is left empty, exactly as on the paper form; a 0 that was
        written down is printed as a 0. The district's sheet makes the same distinction. */
     spec.cols.forEach((c,i)=>{
@@ -972,7 +969,7 @@ function repBloodBlock(g,y,x,W,T,rep){
 }
 function repSignBlock(g,y,x,W,T,rep){
   const items=[['Prepared by','Kelvin SAMAHANI','Laboratory Manager'],
-    ['Validated by','Francois NTAMUGABUMWE','Data Manager']];
+    ['Validated by','Francois Xavier NTAMUGABUMWE','Data Manager']];
   const w=(W-24)/2;
   items.forEach((it,i)=>{
     const cx=x+i*(w+24);
@@ -1053,7 +1050,7 @@ SH.reportXLSX=function(rep){
   push(sc);
   push([]);
   push([{c:0,v:'Prepared by',s:3},{c:1,v:'Kelvin SAMAHANI',s:4},{c:2,v:'Laboratory Manager',s:4}]);
-  push([{c:0,v:'Validated by',s:3},{c:1,v:'Francois NTAMUGABUMWE',s:4},{c:2,v:'Data Manager',s:4}]);
+  push([{c:0,v:'Validated by',s:3},{c:1,v:'Francois Xavier NTAMUGABUMWE',s:4},{c:2,v:'Data Manager',s:4}]);
   const ncols=Math.max.apply(null,rows.map(r=>(r.cells||[]).length).concat([7]));
   return workbookFile('Monthly HMIS report',
     sheetXML(rows,{cols:Array.from({length:ncols},(_,i)=>i?17:52)}),STYLES);
