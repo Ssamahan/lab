@@ -12,13 +12,14 @@ let rootEl=null, tab='scorecard', celebrated=false;
    standard-deviation index use the provider's own criterion — |z| ≤ 2 is
    satisfactory, 2 to 3 is questionable, 3 and above is unsatisfactory — so a
    passing round reads 100 %, not a made-up "100 − z × 25". */
+function ptAnalyteIncluded(program,name){return !(String(program||'').trim().toLowerCase()==='hematology'&&String(name||'').trim().toLowerCase()==='mcv');}
 function pctOf(e){
   if(!e) return null;
   if(e.scorePercent!=null && isFinite(+e.scorePercent)) return Math.round(+e.scorePercent*10)/10;
-  const raw=Object.keys(e.analytes||{}).map(k=>e.analytes[k]).filter(v=>v!=null&&isFinite(v));
+  const raw=Object.keys(e.analytes||{}).filter(k=>ptAnalyteIncluded(e.program,k)).map(k=>e.analytes[k]).filter(v=>v!=null&&isFinite(v));
   if(/^%$/.test(e.scoring)){ if(raw.length) return Math.round(U.avg(raw)*10)/10; }
   const zs=raw.map(Math.abs);
-  if(e.score!=null&&isFinite(+e.score)) zs.push(Math.abs(+e.score));
+  if(!Object.keys(e.analytes||{}).length&&e.score!=null&&isFinite(+e.score)) zs.push(Math.abs(+e.score));
   if(!zs.length) return null;
   const z=Math.max.apply(null,zs);
   return z>=3?0:z>=2?50:100;
@@ -97,7 +98,7 @@ function kpis(){
   const schemes=Object.keys(latest);
   const passing=schemes.filter(k=>{ const e=latest[k]; return e.overall==='Pass'&&e.scorePercent>=S.EQA_MIN; }).length;
   const zs=[];
-  S.db().eqa.filter(e=>e.scoring==='SD').forEach(e=>Object.values(e.analytes||{}).forEach(v=>{if(v!=null&&v!==''&&Number.isFinite(Number(v))) zs.push(Math.abs(Number(v)));}));
+  S.db().eqa.filter(e=>e.scoring==='SD').forEach(e=>Object.entries(e.analytes||{}).forEach(([name,v])=>{if(ptAnalyteIncluded(e.program,name)&&v!=null&&v!==''&&Number.isFinite(Number(v))) zs.push(Math.abs(Number(v)));}));
   const waiting=awaitingRounds();
   const oldest=waiting.map(e=>U.daysBetween(e.delivered||U.todayISO(),U.todayISO())).sort((a,b)=>b-a)[0]||0;
   const closed=S.db().eqa.filter(e=>stageOf(e)==='scored'&&e.reported&&e.delivered);
@@ -114,7 +115,7 @@ function analyteCatalog(program){
   const seen={};
   S.db().eqa.filter(e=>e.program===program).forEach(e=>Object.keys(e.analytes||{}).forEach(a=>{ seen[a]=(seen[a]||0)+1; }));
   Object.keys((S.db().eqaAnalytes||{})[program]||{}).forEach(a=>{ seen[a]=(seen[a]||0)+1; });
-  return Object.keys(seen).sort((a,b)=>seen[b]-seen[a]||a.localeCompare(b));
+  return Object.keys(seen).filter(a=>ptAnalyteIncluded(program,a)).sort((a,b)=>seen[b]-seen[a]||a.localeCompare(b));
 }
 function schemeGroups(){
   const db=S.db(); const by={};
@@ -201,17 +202,19 @@ function sdTrendData(){
   (S.db().eqa||[]).forEach(e=>{
     if(e.scoring!=='SD') return;
     const values={};
-    Object.entries(e.analytes||{}).forEach(([name,value])=>{if(value!==null&&value!==''&&Number.isFinite(Number(value))) values[name]=Number(value);});
+    Object.entries(e.analytes||{}).forEach(([name,value])=>{if(ptAnalyteIncluded(e.program,name)&&value!==null&&value!==''&&Number.isFinite(Number(value))) values[name]=Number(value);});
     const program=String(e.program||'Unspecified programme');
     if(!groups.has(program)) groups.set(program,{program,rounds:[]});
-    groups.get(program).rounds.push({values,date:e.scorePublished||e.reported||e.tested||e.delivered||'',round:e.code||'Unlabelled round',quarter:ptQuarter(e.code),pending:stageOf(e)==='awaiting'||(!Object.keys(values).length&&!e.scorePublished),id:String(e.id||'')});
+    groups.get(program).rounds.push({values,date:e.scorePublished||e.reported||e.tested||e.delivered||'',round:e.code||'Unlabelled round',quarter:ptQuarter(e.code),pending:stageOf(e)==='awaiting'||(!Object.keys(e.analytes||{}).length&&!e.scorePublished),id:String(e.id||'')});
   });
   return Array.from(groups.values()).sort((a,b)=>a.program.localeCompare(b.program)).map(g=>{
     g.rounds.sort((a,b)=>a.quarter&&b.quarter?a.quarter.index-b.quarter.index||a.date.localeCompare(b.date)||a.id.localeCompare(b.id):a.quarter?-1:b.quarter?1:a.date.localeCompare(b.date));
     g.names=Array.from(new Set(g.rounds.flatMap(r=>Object.keys(r.values)))).sort((a,b)=>a.localeCompare(b));
-    const idx=g.rounds.filter(r=>r.quarter).map(r=>r.quarter.index);
-    const first=Math.min(2024*4,...idx),last=Math.max(2026*4,...idx);
-    g.indices=Array.from({length:Math.min(100,last-first+1)},(_,i)=>Math.max(first,last-99)+i);
+    const scored=g.rounds.filter(r=>r.quarter&&Object.keys(r.values).length).map(r=>r.quarter.index);
+    const available=g.rounds.filter(r=>r.quarter).map(r=>r.quarter.index);
+    const first=scored.length?Math.min(...scored):(available.length?Math.min(...available):null);
+    const last=available.length?Math.max(...available):null;
+    g.indices=first==null?[]:Array.from({length:Math.min(100,last-first+1)},(_,i)=>Math.max(first,last-99)+i);
     return g;
   });
 }
@@ -284,7 +287,7 @@ function eqaModal(id, presetProgram){
   const e=id?S.db().eqa.find(x=>x.id===id):null;
   const stage=e?stageOf(e):'awaiting';
   const scoring=e?e.scoring:'SD';
-  const an=e?e.analytes||{}:{};
+  const an=e?Object.fromEntries(Object.entries(e.analytes||{}).filter(([name])=>ptAnalyteIncluded(e.program,name))):{};
   const courses=U.uniq(S.db().eqa.map(x=>x.program).filter(Boolean).concat(PROGRAMS));
   const program=(e&&e.program)||presetProgram||courses[0];
   const known=analyteCatalog(program);
@@ -339,6 +342,7 @@ function eqaModal(id, presetProgram){
           const val=parseFloat(row.querySelector('[data-an="value"]').value);
           if(name && !isNaN(val)) analytes[name]=val;
         });
+        if(Object.keys(analytes).some(name=>!ptAnalyteIncluded(program,name))) return UI.toast('MCV is not included in Hematology PT',{type:'warn'});
         const hasResults=Object.keys(analytes).length>0;
         const reported=el.querySelector('#eqReported').value||'';
         if(!hasResults && (reported||el.querySelector('#eqOverall').value))
@@ -357,7 +361,7 @@ function eqaModal(id, presetProgram){
           d.eqaAnalytes=d.eqaAnalytes||{};
           d.eqaAnalytes[program]=d.eqaAnalytes[program]||{};
           Object.keys(analytes).forEach(a=>{ d.eqaAnalytes[program][a]=1; });
-          if(e){ const x=d.eqa.find(y=>y.id===e.id); if(x) Object.assign(x,rec); }
+          if(e){ const x=d.eqa.find(y=>y.id===e.id); if(x){Object.entries(x.analytes||{}).forEach(([name,value])=>{if(!ptAnalyteIncluded(x.program,name)) rec.analytes[name]=value;});Object.assign(x,rec);} }
           else d.eqa.unshift(Object.assign({id:U.uid('eqa')},rec));
         },{action:'eqa.round.'+(e?'edit':'add'),entity:'eqa',entityId:e?e.id:code,
           detail:program+' · '+code+' · '+stage+(hasResults?' · '+Object.keys(analytes).length+' analytes':'')});
@@ -497,7 +501,7 @@ function wireBody(){
         +(st==='awaiting'?'<span class="pill '+(waiting>30?'rose':'slate')+'">'+waiting+' days since dispatch</span>':'')
         +(tu.toResult!=null?'<span class="pill slate">report in '+tu.toResult+'d</span>':'')+'</div>'
         +'<div class="split-2">'+[['Delivered',U.fmtDate(e.delivered)],['Tested / submitted',U.fmtDate(e.tested)],['Results received',e.reported?U.fmtDate(e.reported):'waiting'],['Score published',U.fmtDate(e.scorePublished)],['Scoring',e.scoring==='%'?'Percentage':'Standard deviation index'],['Verdict',e.overall||'pending']].map(([k,v])=>'<div class="hstat"><span class="lb">'+k+'</span><span class="vl" style="font-size:11.5px">'+U.esc(v)+'</span></div>').join('')+'</div>'
-      +'<div class="section-head"><h2>Analyte detail</h2></div>'+Object.keys(e.analytes||{}).map(a=>{ const z=e.analytes[a]; const az=Math.abs(z); return '<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(a)+'</div><div class="lr-sub">'+(e.scoring==='%'?'recovery':'z-score')+' · '+(az>=3?'unsatisfactory':az>=2?'warning':'acceptable')+'</div></div><span class="pill '+(az>=3?'rose':az>=2?'amber':'teal')+' mono">'+(z>0?'+':'')+z+'</span></div>'; }).join('')
+      +'<div class="section-head"><h2>Analyte detail</h2></div>'+Object.keys(e.analytes||{}).filter(a=>ptAnalyteIncluded(e.program,a)).map(a=>{ const z=e.analytes[a]; const az=Math.abs(z); return '<div class="list-row"><div class="lr-main"><div class="lr-title">'+U.esc(a)+'</div><div class="lr-sub">'+(e.scoring==='%'?'recovery':'z-score')+' · '+(az>=3?'unsatisfactory':az>=2?'warning':'acceptable')+'</div></div><span class="pill '+(az>=3?'rose':az>=2?'amber':'teal')+' mono">'+(z>0?'+':'')+z+'</span></div>'; }).join('')
       +'<div class="hint" style="margin-top:12px">'+U.esc(e.note||'')+'</div>',foot:'<button class="btn" data-close>Close</button>'+'<button class="btn" data-edit-round>'+UI.ic('pencil',15)+(st==='awaiting'?'Add results':'Edit round')+'</button><button class="btn primary" data-capa2>Open CAPA</button>',onMount:(p)=>{ p.querySelector('[data-capa2]').onclick=()=>{ UI.closeAll(); newCapa(); }; p.querySelector('[data-edit-round]').onclick=()=>{ UI.closeAll(); eqaModal(e.id); }; }}); });
     capaList();
     r.querySelectorAll('[data-new-capa]').forEach(b=>b.onclick=newCapa);

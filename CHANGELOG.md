@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.160 — EQA timeline and MCV correction
+
+- Start each SD trend at its oldest quarter with a recorded included result, and continue through pending quarters.
+- Exclude MCV from Hematology PT displays and calculations without deleting any existing historical value.
+
 ## v6.9.159 — fiscal-quarter EQA timeline
 
 - Align SD trends on a consistent oldest-first July–June fiscal-quarter timeline, including quarters with pending PT results without inventing scores. Flag ambiguous duplicate test results and unrecognised round labels.

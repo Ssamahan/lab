@@ -1,0 +1,13 @@
+const {boot,ok,done}=require('./env');
+const wait=()=>new Promise(r=>setTimeout(r,180));
+(async()=>{const {w,go}=await boot('#/dash');w.LS.sync.stopLive();const S=w.LS.store,d=w.document;
+ S.commit(db=>{db.eqa=[{id:'h1',program:'Hematology',code:'Q3 2025/26',scoring:'SD',reported:'2026-04-01',analytes:{MCV:0.5,WBC:0.5},overall:'Pass'},{id:'p',program:'Hematology',code:'Q1 2026/27',scoring:'SD',stage:'awaiting',analytes:{}}];db.eqaAnalytes={Hematology:{MCV:1,WBC:1}};},{action:'test'});
+ const before=JSON.stringify(S.db().eqa);await go('#/eqa?tab=sd');
+ ok(!d.querySelector('#eqaBody').textContent.includes('MCV'),'MCV excluded from SD chart and table');
+ ok(d.querySelector('#eqaBody').textContent.includes('2025/2026 Q3')&&!d.querySelector('#eqaBody').textContent.includes('2024/2025 Q1'),'timeline starts with oldest available SD quarter');
+ ok(JSON.stringify(S.db().eqa)===before,'historical records not deleted');
+ await go('#/eqa');ok(!d.querySelector('#eqaBody').textContent.includes('MCV'),'MCV excluded from scheme scorecard');
+ d.querySelector('[data-eqa="h1"]').click();await wait();d.querySelector('[data-edit-round]').click();await wait();
+ ok(!Array.from(d.querySelectorAll('[data-an="name"]')).some(x=>x.value==='MCV'),'MCV not prefilled in editor');
+ d.querySelector('[data-save]').click();await wait();ok(S.db().eqa.find(x=>x.id==='h1').analytes.MCV===0.5,'editing another detail preserves hidden historical MCV value');done('eqa_mcv160');
+})().catch(e=>{console.error(e);process.exit(1)});
