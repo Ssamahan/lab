@@ -87,7 +87,7 @@ function kpis(){
   const schemes=Object.keys(latest);
   const passing=schemes.filter(k=>{ const e=latest[k]; return e.overall==='Pass'&&e.scorePercent>=S.EQA_MIN; }).length;
   const zs=[];
-  Object.values(S.db().eqa).forEach(e=>Object.values(e.analytes||{}).forEach(v=>zs.push(Math.abs(v))));
+  S.db().eqa.filter(e=>e.scoring==='SD').forEach(e=>Object.values(e.analytes||{}).forEach(v=>{if(v!=null&&v!==''&&Number.isFinite(Number(v))) zs.push(Math.abs(Number(v)));}));
   const waiting=awaitingRounds();
   const oldest=waiting.map(e=>U.daysBetween(e.delivered||U.todayISO(),U.todayISO())).sort((a,b)=>b-a)[0]||0;
   const closed=S.db().eqa.filter(e=>stageOf(e)==='scored'&&e.reported&&e.delivered);
@@ -185,6 +185,29 @@ function scorecard(){
       +'<div class="scheme-cells">'+(schemeTables||'<p class="xs faint">No EQA / PT rounds recorded yet.</p>')+'</div></div>'
    +'</div>';
 }
+function sdTrendData(){
+  const groups=new Map();
+  (S.db().eqa||[]).forEach(e=>{
+    if(e.scoring!=='SD') return;
+    Object.entries(e.analytes||{}).forEach(([name,value])=>{
+      if(value===null||value===''||!Number.isFinite(Number(value))) return;
+      const key=JSON.stringify([e.program,name]);
+      if(!groups.has(key)) groups.set(key,{program:e.program,name,points:[]});
+      groups.get(key).points.push({value:Number(value),date:e.scorePublished||e.reported||e.tested||e.delivered||'',round:e.code||'Unlabelled round'});
+    });
+  });
+  return Array.from(groups.values()).sort((a,b)=>String(a.program).localeCompare(String(b.program))||a.name.localeCompare(b.name)).map(g=>{g.points.sort((a,b)=>a.date.localeCompare(b.date)||a.round.localeCompare(b.round));return g;});
+}
+function sdTrends(){
+  const groups=sdTrendData();
+  return '<div class="hint" style="margin-bottom:14px">Only recorded SD-index results are shown; percentages and awaiting results are not converted to z-scores. The horizontal line is zero. Smaller absolute values are closer to zero; provider interpretation still applies. Dates use score publication, then report, test or dispatch date. Verify historical entries against provider reports.</div>'
+   +(groups.length?'<div class="grid-12">'+groups.map((g,i)=>'<div class="c6">'+UI.card({title:U.esc(g.program)+' · '+U.esc(g.name),sub:g.points.length+' recorded SD result'+(g.points.length===1?'':'s'),icon:'activity',body:'<div data-sd-chart="'+i+'"></div><div class="dt-scroll"><table class="dt"><thead><tr><th>Date used</th><th>Round</th><th>SD index</th><th>Change in distance from zero</th></tr></thead><tbody>'+g.points.map((p,j)=>{const prev=g.points[j-1],delta=prev?Math.abs(p.value)-Math.abs(prev.value):null;return '<tr><td>'+U.esc(p.date||'Date not recorded')+'</td><td>'+U.esc(p.round)+'</td><td class="mono">'+(p.value>0?'+':'')+p.value.toFixed(2)+'</td><td>'+(delta==null?'—':Math.abs(delta)<1e-9?'No change':delta<0?'Closer to zero':'Further from zero')+'</td></tr>';}).join('')+'</tbody></table></div>'})+'</div>').join('')+'</div>':'<p class="small faint">No SD-index results recorded yet.</p>');
+}
+function drawSdTrends(){
+  sdTrendData().forEach((g,i)=>{const values=g.points.map(p=>p.value),range=Math.max(2,Math.ceil(Math.max(...values.map(Math.abs))));
+    C.line(rootEl.querySelector('[data-sd-chart="'+i+'"]'),{id:'sdTrend'+i,height:210,min:-range,max:range,zeroBase:false,series:[{name:g.name,color:'var(--gold)',values,area:false}],labels:g.points.map(p=>p.date||p.round),target:{value:0,label:'0.0 SD'},yFmt:v=>v.toFixed(1),tipFmt:v=>v.toFixed(2)+' SD',aria:U.esc(g.program+' '+g.name+' SD index over time')});
+  });
+}
 function qcCalendar(){
   const db=S.db(); const runs=db.qc.runs;
   const days=28; const dates=[]; for(let i=days-1;i>=0;i--) dates.push(U.addDays(U.todayISO(),-i));
@@ -231,7 +254,7 @@ function newCapa(){
     close(); capaList(); UI.toast('CAPA opened and assigned',{type:'ok'}); }; }});
 }
 /* ——— Record / edit an EQA-PT round ————————————————— */
-const PROGRAMS=['Hematology','Biochemistry','Serology','HIV','TB','Microbiology','Parasitology','Blood bank','Molecular'];
+const PROGRAMS=['Serology'];
 function analyzeRow(a,v,scoring){
   return '<div class="row gap-sm" data-analyte-row style="margin-bottom:6px">'
     +'<input class="input mono" data-an="name" placeholder="Analyte" value="'+U.esc(a||'')+'" style="flex:1;min-width:110px">'
@@ -244,7 +267,7 @@ function eqaModal(id, presetProgram){
   const stage=e?stageOf(e):'awaiting';
   const scoring=e?e.scoring:'SD';
   const an=e?e.analytes||{}:{};
-  const courses=U.uniq(PROGRAMS.concat(S.db().eqa.map(x=>x.program)));
+  const courses=U.uniq(S.db().eqa.map(x=>x.program).filter(Boolean).concat(PROGRAMS));
   const program=(e&&e.program)||presetProgram||courses[0];
   const known=analyteCatalog(program);
   const rows=Object.keys(an).length
@@ -253,7 +276,8 @@ function eqaModal(id, presetProgram){
   const title=e?(stage==='awaiting'?'Add results — ':'Edit EQA / PT round — ')+e.program+' '+e.code:(presetProgram?'Record a '+presetProgram+' round':'Record an EQA / PT round');
   UI.modal({title,sub:'Record the dispatch now and come back for the results. Nothing is lost while you wait, and the wait itself is measured.',width:'min(820px,100%)',
     body:'<div class="form-grid">'
-      +'<div class="field"><label>Scheme / programme</label><select class="select" id="eqProgram">'+courses.map(c=>'<option'+(program===c?' selected':'')+'>'+U.esc(c)+'</option>').join('')+'</select></div>'
+      +'<div class="field"><label>Scheme / programme</label><select class="select" id="eqProgram">'+courses.map(c=>'<option'+(program===c?' selected':'')+'>'+U.esc(c)+'</option>').join('')+'<option value="__other">Add another programme…</option></select></div>'
+      +'<div class="field" id="eqOtherField" hidden><label>New programme</label><input class="input" id="eqOtherProgram"></div>'
       +'<div class="field"><label>Round code</label><input class="input mono" id="eqCode" value="'+U.esc(e?e.code:'')+'" placeholder="Q3 2026/27"></div>'
       +'<div class="field"><label>Scoring</label><select class="select" id="eqScoring"><option value="SD"'+(scoring==='SD'?' selected':'')+'>SD index (z-score)</option><option value="%'+(scoring==='%'?' selected':'')+'">Percentage recovery</option></select></div>'
       +'<div class="field"><label>Material delivered</label><input class="input" type="date" id="eqDelivered" value="'+(e&&e.delivered?String(e.delivered).slice(0,10):U.todayISO())+'"></div>'
@@ -277,6 +301,7 @@ function eqaModal(id, presetProgram){
       scoringSel.onchange=()=>host.querySelectorAll('[data-an="value"]').forEach(i=>i.placeholder=scoringSel.value==='%'?'%':'z');
       // switching scheme pre-fills that scheme's analytes (keeps any values already typed)
       el.querySelector('#eqProgram').onchange=ev=>{
+        el.querySelector('#eqOtherField').hidden=ev.target.value!=='__other';
         const list=analyteCatalog(ev.target.value);
         const typed={};
         host.querySelectorAll('[data-analyte-row]').forEach(r=>{ const n=r.querySelector('[data-an="name"]').value.trim(); const v=r.querySelector('[data-an="value"]').value; if(n) typed[n]=v; });
@@ -285,7 +310,9 @@ function eqaModal(id, presetProgram){
         bindRows();
       };
       el.querySelector('[data-save]').onclick=()=>{
-        const program=el.querySelector('#eqProgram').value;
+        const selected=el.querySelector('#eqProgram').value;
+        const program=selected==='__other'?el.querySelector('#eqOtherProgram').value.trim():selected;
+        if(!program) return UI.toast('Enter a programme name',{type:'warn'});
         const code=el.querySelector('#eqCode').value.trim()||'Round';
         const scoring=scoringSel.value;
         const analytes={};
@@ -412,7 +439,7 @@ function cqiModal(id){
 async function cqiDelete(id){if(!LS.auth.guard('edit'))return;const x=(S.db().cqiFindings||[]).find(y=>y.id===id&&!y.deleted);if(!x)return;const yes=await UI.confirm({title:'Remove this CQI finding?',body:'The finding is hidden but retained in the record for audit.',confirm:'Remove',danger:true});if(!yes)return;S.commit(d=>{const f=(d.cqiFindings||[]).find(y=>y.id===id);if(f){f.deleted=true;f.deletedAt=U.nowISO();f.deletedBy=LS.auth.user.name;}},{action:'cqi.finding.remove',entity:'cqiFindings',entityId:id,detail:'Removed NRL TB CQI finding · '+x.visitDate});paint();}
 function paint(){
   const host=rootEl.querySelector('#eqaBody'); if(!host) return;
-  host.innerHTML=tab==='scorecard'?scorecard():tab==='cqi'?cqiView():qcCalendar();
+  host.innerHTML=tab==='scorecard'?scorecard():tab==='cqi'?cqiView():sdTrends();
   U.$$('[data-eqa-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.eqaTab===tab));
   wireBody();
 }
@@ -434,6 +461,8 @@ function wireBody(){
     r.querySelectorAll('[data-cqi-add]').forEach(b=>b.onclick=()=>cqiModal());
     r.querySelectorAll('[data-cqi-edit]').forEach(b=>b.onclick=()=>cqiModal(b.dataset.cqiEdit));
     r.querySelectorAll('[data-cqi-delete]').forEach(b=>b.onclick=()=>cqiDelete(b.dataset.cqiDelete));
+  } else if(tab==='sd'||tab==='qc'){
+    drawSdTrends();
   } else if(tab==='scorecard'){
     const tr=trend();
     /* The axis opens only as far as the recorded scores need — it no longer runs
@@ -473,7 +502,7 @@ M.render=function(root,params){
   root.innerHTML='<div class="page-head"><div><h1>EQA / PT scores</h1><div class="sub">ISO 15189 as a product feature — proficiency testing, z-scores, Westgard rules and corrective action, in one auditable scorecard.</div></div>'
    +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-new-capa>'+UI.ic('clipboard-check',15)+' Open CAPA</button><button class="btn primary" data-new-eqa>'+UI.ic('plus',15)+' Record EQA round</button></div></div>'
    +kpis()
-   +'<div class="filters" style="margin-bottom:12px">'+[['scorecard','Scorecard'],['qc','QC calendar'],['cqi','TB CQI mentorship']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-eqa-tab="'+k+'">'+l+'</button>').join('')+'</div>'
+   +'<div class="filters" style="margin-bottom:12px">'+[['scorecard','Scorecard'],['sd','SD trends'],['cqi','TB CQI mentorship']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-eqa-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="eqaBody"></div>';
   paint();
 };
