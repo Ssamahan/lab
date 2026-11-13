@@ -1,0 +1,10 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,go}=await boot('#/dash');w.LS.sync.stopLive();const S=w.LS.store,d=w.document;
+ S.commit(db=>{db.eqa=[{id:'a',program:'Hematology',code:'Q4 2025/2026',scoring:'SD',scorePublished:'2026-05-01',analytes:{WBC:1}},{id:'b',program:'Hematology',code:'Q3 2025/26',scoring:'SD',scorePublished:'2026-04-01',analytes:{WBC:-1}},{id:'p',program:'Hematology',code:'Q1 2026/27',scoring:'SD',stage:'awaiting',analytes:{}},{id:'u',program:'Hematology',code:'not a quarter',scoring:'SD',analytes:{WBC:5}},{id:'d',program:'Hematology',code:'2025/2026 Q4',scoring:'SD',analytes:{WBC:2}},{id:'t',program:'TB',code:'Q1 2024/25',scoring:'%',analytes:{'TB Smear':100}}];},{action:'test'});
+ const original=JSON.stringify(S.db().eqa),calls=[];const draw=w.LS.charts.line;w.LS.charts.line=(el,cfg)=>{if(cfg.id.startsWith('sdTrend'))calls.push(cfg);return draw(el,cfg);};await go('#/eqa?tab=sd');
+ const cfg=calls.find(x=>x.series.some(s=>s.name==='WBC')),v=cfg.series.find(s=>s.name==='WBC').values;
+ ok(cfg.labels[0]==='2024/2025 Q1'&&cfg.labels[8]==='2026/2027 Q1'&&cfg.labels.length===9,'full timeline uses harmonised quarters oldest first');
+ ok(v[6]===-1&&v[7]===null&&v[8]===null,'real quarter result plotted; duplicate and pending stay blank');
+ ok(d.querySelector('#eqaBody').textContent.includes('2026/2027 Q1 · awaiting')&&d.querySelector('#eqaBody').textContent.includes('Awaiting PT: 2026/2027 Q1 · no score yet'),'waiting PT is clearly marked with no invented score');
+ ok(!v.includes(5)&&d.querySelector('#eqaBody').textContent.includes('quarter unrecognised'),'unrecognised period is listed but not guessed');
+ ok(JSON.stringify(S.db().eqa)===original,'records are preserved');done('eqa_quarters159');})().catch(e=>{console.error(e);process.exit(1)});
