@@ -1117,8 +1117,9 @@ SH.offerReport=function(rep,opts){
     ['png','PNG · one file per page','an image per page, for email or WhatsApp','image'],
     ['xlsx','Excel · .xlsx','the same rows, editable','table-2']];
   UI2.modal({title:'Export the return',sub:'Laid out like the paper HMIS sheet, in the same house style as the working plan and the roster.',width:'min(620px,100%)',
-    body:'<div class="rep-exp"><div class="rep-exp-preview">'
-      +svgs[0].replace(/width="\d+" height="\d+"/,'width="100%" height="auto" style="display:block;border-radius:6px"')+'</div>'
+    body:'<div class="rep-exp"><div class="hint">Preview all '+svgs.length+' page'+(svgs.length===1?'':'s')+' below. PDF includes every page; PNG downloads one image per page.</div>'
+      +'<div class="rep-exp-preview" style="max-height:60vh;overflow:auto" aria-label="Full report preview">'
+      +svgs.map((svg,i)=>'<div style="margin:12px 0"><div class="small strong">Page '+(i+1)+' of '+svgs.length+'</div>'+svg.replace(/width="\d+" height="\d+"/,'width="100%" height="auto" style="display:block;border-radius:6px"')+'</div>').join('')+'</div>'
       +'<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">'+items.map(([k,t,s2,ic])=>
         '<button class="choice" data-fmt="'+k+'"><span class="kpi-ic" style="width:30px;height:30px">'+UI2.ic(ic,15)+'</span>'
         +'<span class="grow" style="text-align:left;margin-left:10px"><span class="ct">'+t+'</span><span class="cs" style="display:block">'+s2+'</span></span>'

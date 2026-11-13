@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.155 — full monthly report preview
+
+- Show every page in the monthly report export preview before downloading PDF or PNG.
+
 ## v6.9.154 — monthly report signatories
 
 - Show Kelvin SAMAHANI as preparer and Francois NTAMUGABUMWE, Data Manager, as validator on monthly report exports; signature lines remain unsigned.
