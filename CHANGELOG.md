@@ -4,6 +4,10 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.154 — monthly report signatories
+
+- Show Kelvin SAMAHANI as preparer and Francois NTAMUGABUMWE, Data Manager, as validator on monthly report exports; signature lines remain unsigned.
+
 ## v6.9.153 — report population and SOP register
 
 - Enter a calendar-year catchment population when opening January; new later months can inherit it without changing saved reports.

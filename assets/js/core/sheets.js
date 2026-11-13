@@ -901,7 +901,7 @@ function repApproveBlock(g,y,x,W,T,rep){
   g.push(rect(x,y,W,36,'#F3F5F9',{stroke:T.rule}));
   g.push(text(x+14,y+25,'Processing · approval and transmission',{size:19,weight:600,fill:T.navy}));
   y+=36;
-  const items=[['Prepared by',m.charge||'Kelvin SAMAHANI',m.qualification||''],
+  const items=[['Prepared by','Kelvin SAMAHANI','Laboratory Manager'],
     ['Date sent',m.sentDate?U.fmtDate(m.sentDate):'',''],
     ['Received by / date','',''],
     ['Signature','','']];
@@ -971,11 +971,9 @@ function repBloodBlock(g,y,x,W,T,rep){
   return y+40+30;
 }
 function repSignBlock(g,y,x,W,T,rep){
-  const m=rep.meta||{}, s=LS.store.settings();
-  const items=[['Prepared by',m.charge||'Kelvin SAMAHANI','Laboratory Manager'],
-    ['Verified by',s.verified||'Dr. Judson B. MUMBERE',s.verifiedRole||'Clinical Director'],
-    ['Approved by',s.approved||'Jean de Dieu SIBOMANA',s.approvedRole||'Human Resources Officer']];
-  const w=(W-48)/3;
+  const items=[['Prepared by','Kelvin SAMAHANI','Laboratory Manager'],
+    ['Validated by','Francois NTAMUGABUMWE','Data Manager']];
+  const w=(W-24)/2;
   items.forEach((it,i)=>{
     const cx=x+i*(w+24);
     g.push(line(cx,y+56,cx+w,y+56,T.rule,1));
@@ -1053,6 +1051,9 @@ SH.reportXLSX=function(rep){
   fields.forEach((f,i)=>sc.push({c:i+1,v:bt[f[0]]||0,s:6}));
   sc.push({c:fields.length+1,v:bt.end||0,s:6});
   push(sc);
+  push([]);
+  push([{c:0,v:'Prepared by',s:3},{c:1,v:'Kelvin SAMAHANI',s:4},{c:2,v:'Laboratory Manager',s:4}]);
+  push([{c:0,v:'Validated by',s:3},{c:1,v:'Francois NTAMUGABUMWE',s:4},{c:2,v:'Data Manager',s:4}]);
   const ncols=Math.max.apply(null,rows.map(r=>(r.cells||[]).length).concat([7]));
   return workbookFile('Monthly HMIS report',
     sheetXML(rows,{cols:Array.from({length:ncols},(_,i)=>i?17:52)}),STYLES);
