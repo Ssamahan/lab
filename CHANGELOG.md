@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.157 — EQA SD-index trends
+
+- Plot recorded signed SD indices by programme and analyte around zero, with round-by-round distances from zero. Percentage results and pending rounds are not plotted as SD.
+- Base programme choices on recorded rounds, retain serology for future expansion, and allow additional programmes. Replace the synthetic QC calendar display with SD trends; stored records are not removed.
+
 ## v6.9.156 — compact monthly report
 
 - Show Francois Xavier NTAMUGABUMWE as the Data Manager validating monthly reports.
