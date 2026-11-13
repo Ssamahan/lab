@@ -4,6 +4,11 @@ Newest first. Each entry says what changed and why, so a version can be justifie
 
 ---
 
+## v6.9.156 — compact monthly report
+
+- Show Francois Xavier NTAMUGABUMWE as the Data Manager validating monthly reports.
+- Arrange examination rows in two columns under full-width section headings; retain a full-width blood supply table and automatic pagination.
+
 ## v6.9.155 — full monthly report preview
 
 - Show every page in the monthly report export preview before downloading PDF or PNG.
