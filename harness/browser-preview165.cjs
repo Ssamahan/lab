@@ -26,13 +26,15 @@ const http=require('http');
   const blocked=await page.evaluate(async()=>{
    const violations=[];document.addEventListener('securitypolicyviolation',e=>violations.push(e.effectiveDirective));
    let rejected=false;try{await fetch('https://lkjwztvhmzhasclmlocx.supabase.co/rest/v1/lab_registers',{method:'POST',body:'{}'});}catch{rejected=true;}
-   await new Promise(r=>setTimeout(r,200));return {rejected,violations};
+   let workerRejected=false;try{await navigator.serviceWorker.register('/assets/js/core/boot.js');}catch{workerRejected=true;}
+   const image=document.createElement('img');image.src='https://lkjwztvhmzhasclmlocx.supabase.co/test';document.body.appendChild(image);
+   await new Promise(r=>setTimeout(r,200));return {rejected,workerRejected,violations};
   });
-  if(!blocked.rejected||!blocked.violations.includes('connect-src')||external)throw Error('external request not blocked: '+JSON.stringify({blocked,external}));
+  if(!blocked.rejected||!blocked.workerRejected||!['connect-src','worker-src','img-src'].every(x=>blocked.violations.includes(x))||external)throw Error('preview isolation failed: '+JSON.stringify({blocked,external}));
   await page.evaluate(()=>{LS.sync.stopLive();LS.auth.user={id:'test',username:'test',name:'Test',role:'Admin'};['auth','landing'].forEach(id=>{const e=document.getElementById(id);if(e)e.hidden=true;});document.getElementById('app').hidden=false;LS.shell.route();});
   await page.locator('[data-view="week"]').click();
   if(!await page.locator('[data-temperature-row]').isVisible())throw Error('weekly roster missing');
   await page.setViewportSize({width:390,height:844}); if(!await page.locator('[data-temperature-row]').isVisible())throw Error('weekly roster missing on mobile');
-  console.log('Chromium: preview boots, shows warning and roster, and CSP blocks an attempted live-database write.');
+  console.log('Chromium: preview boots, shows warning and roster, and CSP blocks live-database writes, external images and service-worker registration.');
  }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));rmSync(dir,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});
