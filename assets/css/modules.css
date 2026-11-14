@@ -930,3 +930,7 @@
 
 /* The generic table fitter must not cap a card that also contains a chart. */
 .card.sd-trend-card{max-width:none!important}
+
+/* The weekly roster keeps given names together above the family name. */
+.cal .weekly-name .pn-g, .cal .weekly-name .pn-s { display:block; }
+.cal td.unit-duty { vertical-align:middle; }
