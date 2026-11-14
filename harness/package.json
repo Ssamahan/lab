@@ -13,7 +13,7 @@
   },
   "scripts": {
     "test": "node population153.js && node quality153.js",
-    "lint": "cd .. && harness/node_modules/.bin/eslint --config eslint.config.mjs assets/js/modules/report.js assets/js/modules/quality.js assets/js/modules/dash.js harness/population153.js harness/quality153.js assets/js/modules/eqa.js assets/js/modules/roster.js assets/js/core/sheets.js harness/temperature163.js harness/browser-temperature163.js harness/weekly164.js harness/browser-weekly164.js harness/weekroster68.js harness/eqa_layout161.js harness/browser-eqa-layout161.js harness/cqi_sort162.js",
+    "lint": "cd .. && harness/node_modules/.bin/eslint --config eslint.config.mjs assets/js/modules/report.js assets/js/modules/quality.js assets/js/modules/dash.js harness/population153.js harness/quality153.js assets/js/modules/eqa.js assets/js/modules/roster.js assets/js/core/sheets.js harness/temperature163.js harness/browser-temperature163.js harness/weekly164.js harness/browser-weekly164.js harness/weekroster68.js harness/preview165.mjs harness/browser-preview165.cjs scripts/build-lab-preview.mjs harness/eqa_layout161.js harness/browser-eqa-layout161.js harness/cqi_sort162.js",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig-eqa.json",
     "test:browser": "node browser-population153.js"
   }

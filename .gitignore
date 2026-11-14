@@ -10,3 +10,6 @@ private-deliverables/
 
 # Lock dependencies used by the private HIV timeliness runner
 !workers/hiv-feed/package-lock.json
+
+# Generated, isolated Cloudflare preview assets
+.preview-assets/
