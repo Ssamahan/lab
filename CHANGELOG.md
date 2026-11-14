@@ -1,3 +1,7 @@
+## 6.9.163
+
+- Show day temperature-monitoring responsibility above night duty on weekly rosters and exports, derived from the working plan.
+
 # Changelog — Lab Systems
 
 Newest first. Each entry says what changed and why, so a version can be justified later.
