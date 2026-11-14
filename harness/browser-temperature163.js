@@ -14,7 +14,7 @@ const binary=require('@sparticuz/chromium');
   if(!result.next.includes('Night'))throw Error('monitoring row is not directly above night');
   result.cells.forEach((v,i)=>{if(v!=='—'&&!result.duty[i].some(n=>v.includes(n)))throw Error('monitor not on day duty: '+JSON.stringify({v,duty:result.duty[i]}));});
   const xlsx=await page.evaluate(async()=>{const dates=LS.store.weekDates(LS.store.weekStart(LSU.todayISO()));return await LS.sheets.weeklyXLSX({weekStart:dates[0],dates,services:[],alloc:{},night:{},temperature:{[dates[0]]:'Patrick Test'}}).text();});
-  if(!xlsx.includes('Temperature monitoring')||xlsx.indexOf('Temperature monitoring')>xlsx.indexOf('Night Shift')||!xlsx.includes('Patrick Test'))throw Error('XLSX monitoring row missing or misplaced');
+  if(!xlsx.includes('Temperature monitoring')||xlsx.indexOf('Temperature monitoring')>xlsx.indexOf('Night Shift')||!xlsx.includes('Patrick\nTest'))throw Error('XLSX monitoring row missing or misplaced');
   await page.setViewportSize({width:390,height:844}); if(!(await row.isVisible()))throw Error('monitoring row hidden on mobile');
   console.log('Chromium: real roster monitor row precedes night, names are on day duty, visible on mobile.');
  }finally{await browser.close();}

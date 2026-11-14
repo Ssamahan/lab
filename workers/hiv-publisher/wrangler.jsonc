@@ -4,6 +4,15 @@
   "compatibility_date": "2026-10-20",
   "workers_dev": true,
   "observability": { "logs": { "enabled": true, "invocation_logs": true, "persist": true } },
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "STATE",
+        "database_name": "lab-hiv-preview",
+        "database_id": "fbf856b8-f1d5-4a41-a603-824e9d490afd"
+      }
+    ]
+  },
   "d1_databases": [
     {
       "binding": "STATE",

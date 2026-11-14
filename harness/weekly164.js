@@ -1,0 +1,44 @@
+const {boot,ok,done}=require('./env');
+const {TextEncoder}=require('util');
+(async()=>{
+ const {w,errors}=await boot('#/roster',{seed:win=>{win.TextEncoder=TextEncoder;}}); const S=w.LS.store,U=w.LSU,doc=w.document;
+ doc.querySelector('[data-view="week"]').click(); await new Promise(r=>setTimeout(r,300));
+ const start=S.weekStart(U.todayISO()), dates=S.weekDates(start), staff=S.activeStaff();
+ const find=part=>staff.find(s=>s.name.toLowerCase().includes(part));
+ const kelvin=find('kelvin'), jean=find('jean paul'), beatrice=find('beatrice');
+ if(!kelvin||!jean||!beatrice) throw Error('Expected staff missing from fixture');
+ const db=S.db();
+ dates.forEach(d=>{const month=d.slice(0,7);db.workingPlans[month]={primary:{dates:dates.filter(x=>x.slice(0,7)===month),staff:[kelvin,jean,beatrice].map(s=>({id:s.id,name:s.name,codes:dates.filter(x=>x.slice(0,7)===month).map(x=>x===dates[5]?'D':x===dates[2]?(s.id===jean.id?'D':'OFF'):(s.id===jean.id?'D':'OFF'))}))}};});
+ db.holidays=[{date:dates[2],name:'Test holiday'}];
+ db.unitRosters[start]={weekStart:start,assignments:{[dates[0]]:{Reception:jean.name,Phlebotomy:beatrice.name}}};
+ const render=()=>w.LS.modules.roster.render(doc.querySelector('#roBody').parentElement,{tab:'week'}); render();
+ const table=doc.querySelector('table.cal');
+ ok(![...table.tFoot.rows].some(r=>r.textContent.includes('Day duty')),'day-duty count row removed');
+ const bodyRows=[...table.tBodies[0].rows], serviceCount=S.services().length;
+ const weekend=bodyRows[0].querySelector('[data-unit-duty="'+dates[5]+'"]');
+ const holiday=bodyRows[0].querySelector('[data-unit-duty="'+dates[2]+'"]');
+ ok(weekend&&weekend.rowSpan===serviceCount&&weekend.textContent.includes('Jean Paul'),'weekend services are merged and show day-duty staff');
+ ok(holiday&&holiday.rowSpan===serviceCount&&holiday.textContent.includes('Jean Paul')&&!holiday.textContent.includes('Kelvin'),'holiday services are merged using the plan, excluding off-duty Kelvin');
+ const nameCells=[...table.querySelectorAll('[data-wcell]')];
+ for(const [name,given,surname] of [[jean.name,'Jean Paul','NSENGIYUMVA'],[beatrice.name,'Beatrice','NGEZEKURE']]){
+   const cell=nameCells.find(c=>c.textContent.includes(surname));
+   ok(cell&&cell.querySelector('.pn-g')?.textContent===given&&cell.querySelector('.pn-s')?.textContent===surname&&cell.querySelector('.pn')?.classList.contains('weekly-name'),'weekly name uses dedicated two-line formatting for '+name);
+ }
+ const tempCells=[...table.querySelector('[data-temperature-row]').cells];
+ ok(!tempCells[3].textContent.includes('Kelvin'),'temperature monitor does not include Kelvin when he is off duty');
+ const savedLeaves=db.leaves;
+ db.leaves=(db.leaves||[]).concat([{id:'test-leave',staffId:jean.id,from:dates[2],to:dates[2],type:'AL',status:'Approved'}]);
+ render();
+ ok(!doc.querySelector('[data-unit-duty="'+dates[2]+'"]').textContent.includes('Jean Paul'),'leave overrides day duty in the working plan');
+ db.leaves=savedLeaves;
+ const month=dates[5].slice(0,7), savedPlan=db.workingPlans[month];
+ delete db.workingPlans[month]; render();
+ ok(doc.querySelector('[data-unit-duty="'+dates[5]+'"]').textContent.trim()==='—','missing plan does not invent weekend duty from contract patterns');
+ db.workingPlans[month]=savedPlan;
+ const d={weekStart:start,dates,services:S.services(),alloc:db.unitRosters[start].assignments,dayDuty:{[dates[2]]:[jean.name],[dates[5]]:[jean.name]},weekend:{[dates[2]]:'Test holiday',[dates[5]]:'Saturday'},night:{},temperature:{}};
+ const svg=w.LS.sheets.weeklySVG(d);
+ ok(!svg.includes('Day duty')&&svg.includes('Jean Paul')&&svg.includes('NSENGIYUMVA'),'print sheet removes count row and shows the duty name');
+ const blob=w.LS.sheets.weeklyXLSX(d); const text=await new Promise((resolve,reject)=>{const r=new w.FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsText(blob);});
+ ok(text.includes('D8:D14')&&text.includes('G8:G14')&&text.includes('Jean Paul\nNSENGIYUMVA'),'XLSX merges holiday and weekend service cells with day duty');
+ ok(!errors.length,'no runtime errors',errors.join(' | ')); done('weekly164');
+})().catch(e=>{console.error(e);process.exit(1);});
