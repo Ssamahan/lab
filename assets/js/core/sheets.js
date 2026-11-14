@@ -144,7 +144,7 @@ function nameBlock(x,y,w,name,o){
      name printed on one line is what the register reads and the label column is
      only as wide as the longest name needs. Two lines remain for a name that will
      not fit even at `min`. */
-  if(!n.sub || textW(full,min)<=w || textW(full,pref)<=w){
+  if(!n.sub || (!o.forceLines && (textW(full,min)<=w || textW(full,pref)<=w))){
     const size=Math.max(min,Math.min(pref, w/Math.max(1,String(full).length*ADV)));
     return text(x,y,full,{size:size,weight:weight,fill:fill,anchor:o.anchor});
   }
@@ -1172,7 +1172,7 @@ SH.weeklySVG=function(data,opts){
   const overrides=[]; // Overrides remain in the register and audit, not on the sheet.
   const orient=orientationLines(data.orientation||{}, alloc);
   const noteH=(overrides.length?overrides.length*29+60:0)+(orient.length?orient.length*29+58:0);
-  const H=top+headH+dateH+rowH*services.length+dayH+dayH+nightH+noteH+150;
+  const H=top+headH+dateH+rowH*services.length+dayH+nightH+noteH+150;
 
   let g='';
   g+='<rect width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
@@ -1206,54 +1206,38 @@ SH.weeklySVG=function(data,opts){
     g+=rect(pad,y,labelW,rowH,'#FFFFFF');
     g+=text(pad+24,y+rowH/2+10,sv.name,{size:fitSize(sv.name,labelW-44,30,20),weight:600,fill:'#12203C'});
     dates.forEach((iso,i)=>{
-      const we=isWeekend(iso);
-      const x=gridX+i*colW;
-      g+=rect(x,y,colW,rowH,we?C.creamBand:'#FFFFFF');
+      const we=isWeekend(iso), x=gridX+i*colW;
+      if(we){
+        if(ri) return;
+        const height=rowH*services.length, names=dayDuty[iso]||[];
+        g+=rect(x,y,colW,height,C.creamBand);
+        g+=rect(x,y,colW,height,'none',{stroke:C.line,sw:1});
+        const label=weekend[iso]||(U.dow(iso)===5?'Saturday':'Sunday');
+        g+=text(x+colW/2,y+28,String(label).toUpperCase(),{size:16,weight:700,anchor:'middle',fill:C.alInk});
+        names.forEach((name,j)=>{g+=nameBlock(x+colW/2,y+height/2+(j-(names.length-1)/2)*80,colW-20,name,{pref:34,min:19,anchor:'middle',forceLines:true});});
+        if(!names.length) g+=text(x+colW/2,y+height/2,'—',{size:24,anchor:'middle',fill:'#98A2B3'});
+        return;
+      }
+      g+=rect(x,y,colW,rowH,'#FFFFFF');
       g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
-      const who=we?'':((alloc[iso]&&alloc[iso][sv.name])||'');
-        if(who){
-        g+=nameBlock(x+colW/2,y+rowH/2, colW-20, who, {pref:34,min:19,anchor:'middle'});
-        const orow=(data.orientation&&data.orientation[iso])||{};
-        const o=orow[who||(alloc[iso]||{})[sv.name]];
+      const who=(alloc[iso]&&alloc[iso][sv.name])||'';
+      if(who){
+        g+=nameBlock(x+colW/2,y+rowH/2,colW-20,who,{pref:34,min:19,anchor:'middle',forceLines:true});
+        const o=((data.orientation&&data.orientation[iso])||{})[who];
         if(o) g+=text(x+colW/2,y+rowH/2+26,'WEEK '+o.week,{size:14,weight:700,anchor:'middle',fill:'#1F3F7A'});
       }
     });
     g+=rect(pad,y,labelW,rowH,'none',{stroke:C.line,sw:1});
   });
 
-  /* ——— the day duty, from the working plan ——— */
-  const dy=top+headH+dateH+services.length*rowH;
-  g+=rect(pad,dy,labelW,dayH,'#FFFFFF');
-  g+=text(pad+24,dy+dayH/2-2,'Day duty',{size:28,weight:700,fill:'#12203C'});
-  g+=text(pad+24,dy+dayH/2+24,'08:00–17:00 · from the plan',{size:17,fill:'#5B6474'});
-  dates.forEach((iso,i)=>{
-    const x=gridX+i*colW, we=isWeekend(iso);
-    g+=rect(x,dy,colW,dayH,we?C.creamBand:'#FFFFFF');
-    g+=rect(x,dy,colW,dayH,'none',{stroke:C.line,sw:1});
-    const names=dayDuty[iso]||[];
-    const tag=weekend[iso]||'';
-    if(we&&tag) g+=text(x+colW/2,dy+22,String(tag).toUpperCase().slice(0,16),{size:13,weight:700,anchor:'middle',fill:C.alInk});
-    /* the weekend names the duty itself; a weekday already has the names in the grid */
-    if(we&&names.length){
-      const txt=names.length>2?names.length+' on duty':names.join(' · ');
-      g+=nameBlock(x+colW/2,dy+dayH/2+16,colW-18,txt,{pref:24,min:14,anchor:'middle'});
-    } else if(!we&&names.length){
-      g+=text(x+colW/2,dy+dayH/2+8,names.length+' on duty',{size:20,anchor:'middle',fill:'#5B6474'});
-    } else {
-      g+=text(x+colW/2,dy+dayH/2+8,'—',{size:22,anchor:'middle',fill:'#98A2B3'});
-    }
-  });
-  g+=rect(pad,dy,labelW,dayH,'none',{stroke:C.line,sw:1});
-  g+=rect(pad,dy,W-pad*2,2,C.goldLine);
-
-  const ty=dy+dayH;
+  const ty=top+headH+dateH+services.length*rowH;
   g+=rect(pad,ty,labelW,dayH,'#FFFFFF');
   g+=text(pad+24,ty+dayH/2+9,'Temperature monitoring',{size:27,weight:700,fill:'#12203C'});
   dates.forEach((iso,i)=>{
     const x=gridX+i*colW, who=(data.temperature||{})[iso]||'';
     g+=rect(x,ty,colW,dayH,isWeekend(iso)?C.creamBand:'#FFFFFF');
     g+=rect(x,ty,colW,dayH,'none',{stroke:C.line,sw:1});
-    if(who) g+=nameBlock(x+colW/2,ty+dayH/2,colW-20,who,{pref:28,min:16,anchor:'middle'});
+    if(who) who.split(' · ').forEach((name,j,all)=>{ g+=nameBlock(x+colW/2,ty+dayH/2+(j-(all.length-1)/2)*36,colW-20,name,{pref:28,min:16,anchor:'middle',forceLines:true}); });
   });
   g+=rect(pad,ty,labelW,dayH,'none',{stroke:C.line,sw:1});
   const ny=ty+dayH;
@@ -1264,7 +1248,7 @@ SH.weeklySVG=function(data,opts){
     g+=rect(x,ny,colW,nightH,C.nightBand);
     g+=rect(x,ny,colW,nightH,'none',{stroke:'#2A3A5C',sw:1});
     const who=night[iso]||'';
-    if(who) g+=nameBlock(x+colW/2,ny+nightH/2, colW-20, who, {pref:34,min:19,anchor:'middle',fill:'#FFFFFF',subFill:'#C9D4E8'});
+    if(who) g+=nameBlock(x+colW/2,ny+nightH/2, colW-20, who, {pref:34,min:19,anchor:'middle',fill:'#FFFFFF',subFill:'#C9D4E8',forceLines:true});
   });
   g+=rect(pad,ny+nightH,W-pad*2,3,C.goldLine);
 
@@ -1436,7 +1420,7 @@ const STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 +'<border><left style="thin"><color rgb="FFC9CFDA"/></left><right style="thin"><color rgb="FFC9CFDA"/></right><top style="thin"><color rgb="FFC9CFDA"/></top><bottom style="thin"><color rgb="FFC9CFDA"/></bottom><diagonal/></border>'
 +'</borders>'
 +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-+'<cellXfs count="14">'
++'<cellXfs count="16">'
 +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'                                            // 0 plain
 +'<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' // 1 title
 +'<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>' // 2 band header
@@ -1451,6 +1435,8 @@ const STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 +'<xf numFmtId="0" fontId="0" fillId="7" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' // 11 weekend empty
 +'<xf numFmtId="0" fontId="3" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' // 12 contact
 +'<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/>' // 13 footnote
++'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' // 14 wrapped weekly names
++'<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' // 15 wrapped weekly nights
 +'</cellXfs>'
 +'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
 +'</styleSheet>';
@@ -1587,30 +1573,40 @@ SH.weeklyXLSX=function(data){
   out.push({cells:[]});
   out.push({h:22,cells:[{c:0,v:'Weekly Unit Roster — Week of '+U.fmtDateShort(data.weekStart)+' '+U.parseISO(data.weekStart).getFullYear(),s:1}]});
   out.push({cells:[]});
+  const isWeekend=iso=>!!(data.weekend||{})[iso]||U.dow(iso)>=5;
+  const formatted=name=>{const p=U.nameParts(name); return p.given?p.given+'\n'+p.surname:p.surname;};
   const head=[{c:0,v:'Unit / Day',s:2}];
-  cols.forEach(iso=>{ const d=U.parseISO(iso), we=d.getDay()===0||d.getDay()===6;
+  cols.forEach(iso=>{ const d=U.parseISO(iso), we=isWeekend(iso);
     head.push({c:head.length,v:U.DOWL[(d.getDay()+6)%7],s:we?10:2}); });
   out.push({h:20,cells:head});
   const dateRow=[{c:0,v:'Date',s:3}];
-  cols.forEach(iso=>{ const d=U.parseISO(iso), we=d.getDay()===0||d.getDay()===6;
+  cols.forEach(iso=>{ const d=U.parseISO(iso), we=isWeekend(iso);
     dateRow.push({c:dateRow.length,v:d.getDate(),s:we?10:4}); });
   out.push({h:18,cells:dateRow});
-  services.forEach(sv=>{
+  const merges=['A1:'+colName(nCols)+'1','A2:'+colName(nCols)+'2','A4:'+colName(nCols)+'4'];
+  services.forEach((sv,ri)=>{
     const cells=[{c:0,v:sv.name,s:3}];
-    cols.forEach(iso=>{ const we=U.parseISO(iso).getDay()%6===0;
-      cells.push({c:cells.length,v:(alloc[iso]&&alloc[iso][sv.name])||'',s:we?11:4}); });
-    out.push({h:20,cells});
+    cols.forEach((iso,i)=>{
+      if(isWeekend(iso)){
+        if(ri===0){
+          const names=((data.dayDuty||{})[iso]||[]).map(formatted).join('\n');
+          cells.push({c:i+1,v:names,s:14});
+          if(services.length>1) merges.push(colName(i+2)+'8:'+colName(i+2)+(7+services.length));
+        }
+      } else cells.push({c:i+1,v:formatted((alloc[iso]&&alloc[iso][sv.name])||''),s:14});
+    });
+    out.push({h:34,cells});
   });
   const trow=[{c:0,v:'Temperature monitoring',s:3}];
-  cols.forEach(iso=>trow.push({c:trow.length,v:(data.temperature||{})[iso]||'',s:4}));
-  out.push({h:20,cells:trow});
+  cols.forEach(iso=>trow.push({c:trow.length,v:((data.temperature||{})[iso]||'').split(' · ').filter(Boolean).map(formatted).join('\n'),s:14}));
+  out.push({h:34,cells:trow});
   const nrow=[{c:0,v:'Night Shift',s:2}];
-  cols.forEach(iso=>nrow.push({c:nrow.length,v:night[iso]||'',s:6}));
-  out.push({h:20,cells:nrow});
+  cols.forEach(iso=>nrow.push({c:nrow.length,v:formatted(night[iso]||''),s:15}));
+  out.push({h:34,cells:nrow});
   out.push({cells:[]});
   out.push({cells:[{c:0,v:'Week of '+U.fmtDateShort(data.weekStart)+' · Generated '+U.todayISO()+' · Ruli District Hospital Laboratory',s:13}]});
   const sheet=sheetXML(out,{cols:[26].concat(cols.map(()=>25)),freeze:2,
-    merges:['A1:'+colName(nCols)+'1','A2:'+colName(nCols)+'2','A4:'+colName(nCols)+'4']});
+    merges});
   return workbookFile('Weekly Roster',sheet,STYLES);
 };
 

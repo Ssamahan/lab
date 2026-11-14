@@ -72,14 +72,16 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   const cal=doc.querySelector('table.cal');
   ok(!!cal,'the week grid is drawn');
   const foot=[...cal.querySelectorAll('tfoot tr')].map(r=>r.textContent.replace(/\s+/g,' '));
-  ok(foot.some(t=>/Day duty/.test(t)),'the grid carries a day-duty row read from the plan');
+  ok(!foot.some(t=>/Day duty/.test(t)),'the day-duty count row is removed');
   ok(foot.some(t=>/Night/.test(t)),'and the night row');
-  const dayRow=[...cal.querySelectorAll('tfoot tr')].find(r=>/Day duty/.test(r.textContent));
-  const cells=[...dayRow.children].slice(1).map(c=>c.textContent.replace(/\s+/g,' ').trim());
-  ok(cells[5]&&cells[5]!=='—','Saturday names the duty ('+cells[5]+')');
-  ok(cells[6]&&cells[6]!=='—','Sunday names the duty ('+cells[6]+')');
-  ok(/Beatrice/.test(cells[6]),'and it is the name the plan puts there ('+cells[6]+')');
-  ok(!/Jeanne/.test(cells[6]),'not the newcomer the manager saw');
+  const satDuty=cal.querySelector('[data-unit-duty="'+sat+'"]');
+  const sunDuty=cal.querySelector('[data-unit-duty="'+sun+'"]');
+  const satText=satDuty?satDuty.textContent.replace(/\s+/g,' ').trim():'';
+  const sunText=sunDuty?sunDuty.textContent.replace(/\s+/g,' ').trim():'';
+  ok(satDuty&&satDuty.rowSpan===S.services().length&&satText!=='—','Saturday merges services and names the duty ('+satText+')');
+  ok(sunDuty&&sunDuty.rowSpan===S.services().length&&sunText!=='—','Sunday merges services and names the duty ('+sunText+')');
+  ok(/Beatrice/.test(sunText),'and it is the name the plan puts there ('+sunText+')');
+  ok(!/Jeanne/.test(sunText),'not the newcomer the manager saw');
   const heads=[...cal.querySelectorAll('thead th')].slice(1).map(c=>c.textContent.replace(/\s+/g,' ').trim());
   ok(/unit duty/i.test(heads[5])&&/unit duty/i.test(heads[6]),'the weekend columns say they are one unit duty ('+heads.slice(5).join(' / ')+')');
   /* the empty-slot count does not count the weekend benches as empty */
@@ -87,7 +89,7 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   ok(pills.some(t=>/^0 empty slots$/.test(t)),'the weekend is not counted as empty slots ('+pills.filter(t=>/slot/.test(t)).join(' · ')+')');
 
   /* ── 6 · clicking a weekend cell names the day instead of filling it ── */
-  const satCell=[...cal.querySelectorAll('tbody tr')][0].children[6];
+  const satCell=cal.querySelector('[data-unit-duty="'+sat+'"]');
   click(satCell); await tick(350);
   const modal=doc.querySelector('.modal');
   ok(!modal,'a weekend bench does not open the allocator');
@@ -105,9 +107,9 @@ const click=el=>el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('cl
   const svg=SH.weeklySVG({weekStart:START,dates,services:S.services(),alloc,night:{},
     dayDuty:{'2026-11-01':[ 'Beatrice NGEZEKURE' ]},weekend:{'2026-10-31':'Saturday','2026-11-01':'Sunday'},
     planLabel:'October 2026 + November 2026'});
-  ok(/Day duty/.test(svg),'the printed week has the day-duty row');
+  ok(!/Day duty/.test(svg),'the printed week removes the day-duty count row');
   ok(/SATURDAY/.test(svg)&&/SUNDAY/.test(svg),'the weekend columns are labelled');
-  ok(/Beatrice NGEZEKURE/.test(svg),'Sunday names the duty');
+  ok(/Beatrice/.test(svg)&&/NGEZEKURE/.test(svg),'Sunday names the duty');
   ok(/plan: October 2026 \+ November 2026/.test(svg),'and the foot says which plans were read');
 
   ok(errors.length===0,'no console errors during the run');

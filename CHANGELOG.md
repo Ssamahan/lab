@@ -1,3 +1,7 @@
+## 6.9.164
+
+- Merge weekend and holiday service columns into plan-based day duty, remove day-duty counts, and show weekly names on two lines.
+
 ## 6.9.163
 
 - Show day temperature-monitoring responsibility above night duty on weekly rosters and exports, derived from the working plan.

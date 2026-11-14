@@ -344,7 +344,10 @@ function holidayAt(iso){ return ((S.db().holidays)||[]).find(h=>h.date===iso)||n
 function weekendish(iso){ return U.dow(iso)>=5 || !!holidayAt(iso); }
 function weekendLabel(iso){ const h=holidayAt(iso); return h?(h.name||'Public holiday'):(U.dow(iso)===5?'Saturday':'Sunday'); }
 /* everyone the plan puts on the day, and the one it puts on the night */
-function dayDutyOf(iso){ return S.onDuty(iso).filter(x=>x.kind==='day'||x.kind==='daynight').map(x=>x.staff.name); }
+function dayDutyOf(iso){
+  if(!S.planCovers(iso)) return [];
+  return S.activeStaff().filter(st=>{ const state=S.shiftState(st,iso); return state.source==='plan' && (state.kind==='day'||state.kind==='daynight'||state.kind==='worked'); }).map(st=>st.name);
+}
 function dayOnly(iso){ return S.onDuty(iso).filter(x=>x.kind==='day').map(x=>x.staff.name); }
 function nightOf(iso){ return S.onDuty(iso).filter(x=>x.kind==='night'||x.kind==='daynight').map(x=>x.staff.name); }
 /* Temperature monitoring is an additional duty, not a bench allocation: it is
@@ -436,7 +439,7 @@ function weekView(){
       +'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div>'
       +(weekendish(iso)?'<div style="font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold)">'+U.esc(holidayAt(iso)?'holiday':'unit duty')+'</div>':'')+'</th>';
   }).join('')+'</tr></thead>';
-  const body=svcs.map(sv=>'<tr><td class="staff-cell"><div class="nm">'+U.esc(sv.name)+'</div><div class="rl mono">'+U.esc(sv.code)+' · min '+sv.min+'</div></td>'
+  const body=svcs.map((sv,serviceIndex)=>'<tr><td class="staff-cell"><div class="nm">'+U.esc(sv.name)+'</div><div class="rl mono">'+U.esc(sv.code)+' · min '+sv.min+'</div></td>'
     +dates.map(iso=>{
       const name=cellStaff(iso,sv.name); const st=name?statusOf(iso,name):null;
       const danger=st&&(st.kind==='off'||st.kind==='leave'||st.kind==='exited');
@@ -445,11 +448,11 @@ function weekView(){
       const ov=(overrides[iso]||{})[sv.name];
       const ctx=ctxOf(iso);
       if(weekendish(iso)){
-        /* the weekend column carries no benches: the day duty is named once, under
-           the grid, and the whole unit is theirs for the day */
-        return '<td class="day wkend" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'
-          +' data-tip="'+U.esc(weekendLabel(iso)+' — one duty for the whole unit. The day is named under the grid, on the plan."')+'">'
-          +(name?'<span class="xs" style="color:var(--gold)">'+U.esc(U.surname(name)||name)+'</span>':'<span class="xs faint">·</span>')+'</td>';
+        if(serviceIndex) return '';
+        const duty=dayDutyOf(iso);
+        const tip=weekendLabel(iso)+' — day duty for all services, from the working plan';
+        return '<td class="day wkend unit-duty" data-unit-duty="'+iso+'" rowspan="'+svcs.length+'" data-tip="'+U.esc(tip)+'">'
+          +(duty.length?duty.map(n=>'<span class="small pn-wrap">'+U.nameHTML(n,{cls:'weekly-name'})+'</span>').join(''):'<span class="xs faint">—</span>')+'</td>';
       }
       let g=name?gate(ctx.rules[name],sv.name,{alone:ctx.alone,override:!!ov}):{ok:true};
       if(g.ok&&name&&!ov){
@@ -460,7 +463,7 @@ function weekView(){
       const breach=!!name&&!g.ok;
       const tip=danger?st.label+' — not on duty that day':breach?g.why:'';
       return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(tip?' data-tip="'+U.esc(tip)+'"':'')+'>'
-        +(name?'<span class="small pn-wrap'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.nameHTML(String(name))+'</span>'
+        +(name?'<span class="small pn-wrap'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.nameHTML(String(name),{cls:'weekly-name'})+'</span>'
           :'<span class="xs faint">—</span>')
         +(()=>{ const covers=name?Object.keys(alloc[iso]||{}).filter(b=>alloc[iso][b]===name).length:0;
                 return covers>1?'<span class="xs mono" style="display:block;font-size:8.5px;color:var(--text-faint)">'+covers+' benches</span>':''; })()
@@ -487,27 +490,15 @@ function weekView(){
     +'<button class="btn sm primary" data-week-sheet>'+UI.ic('file-down',13)+' Sheet</button></div></div>'
     +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal"><thead>'+head.slice(7)+'<tbody>'+body+'</tbody>'
     +'<tfoot>'
-    +'<tr><td class="staff-cell"><div class="nm">Day duty</div><div class="rl">08:00–17:00 · from the plan</div></td>'
-    +dates.map(iso=>{
-        const who=dayDutyOf(iso), we=weekendish(iso);
-        const tip=who.length?(we?weekendLabel(iso)+' — day duty':'On duty in the day')+' · '+who.join(' · '):(S.planCovers(iso)?'Nobody on the day in the working plan':'No working plan covers this day');
-        /* on a weekday the names are already in the grid; on the weekend this row is
-           the only place the duty is named, so it carries the names themselves */
-        const inner=we
-          ? (who.length?who.map(n=>'<span class="small pn-wrap" style="display:block;line-height:1.3">'+U.nameHTML(String(n))+'</span>').join('')
-             :'<span class="xs faint">—</span>')
-          : (who.length?'<span class="xs faint">'+who.length+' on duty</span>':'<span class="xs faint">—</span>');
-        return '<td class="day '+(we?'wkend':'')+'" style="'+(we?'background:var(--cream-50, #FBF3E2)':'')+'" data-tip="'+U.esc(tip)+'">'+inner+'</td>';
-      }).join('')+'</tr>'
     +'<tr data-temperature-row><td class="staff-cell"><div class="nm">Temperature monitoring</div><div class="rl">Day · night attendant monitors at night</div></td>'
-    +dates.map(iso=>'<td class="day '+(weekendish(iso)?'wkend':'')+'">'+(temperature[iso]?'<span class="small pn-wrap">'+U.nameHTML(String(temperature[iso]))+'</span>':'<span class="xs faint">—</span>')+'</td>').join('')+'</tr>'
+    +dates.map(iso=>'<td class="day '+(weekendish(iso)?'wkend':'')+'">'+(temperature[iso]?'<span class="small pn-wrap">'+temperature[iso].split(' · ').map(n=>U.nameHTML(n,{cls:'weekly-name'})).join('<br>')+'</span>':'<span class="xs faint">—</span>')+'</td>').join('')+'</tr>'
     +'<tr class="night-row"><td class="staff-cell"><div class="nm">Night</div><div class="rl">17:00–08:00</div></td>'
     +dates.map(iso=>{ const n=S.nightCover(iso); const nm=n.name||'';
         const tag=n.source==='manual'?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">by hand</span>'
           :n.source==='plan'?'<span class="pill teal" style="font-size:8.5px;padding:1px 5px;margin-top:2px">plan</span>'
           :n.source==='pattern'?'<span class="pill slate" style="font-size:8.5px;padding:1px 5px;margin-top:2px">pattern</span>':'';
         return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+'" data-night="'+iso+'" style="cursor:pointer"'+(nm?' data-tip="'+U.esc(nm+' · '+(n.source==='plan'?'from the working plan':'set '+n.source))+'"':'')+'>'
-          +(nm?'<span class="small pn-wrap" style="display:block;line-height:1.3">'+U.nameHTML(String(nm))+'</span>':'<span class="xs faint">—</span>')+tag+'</td>'; }).join('')
+          +(nm?'<span class="small pn-wrap" style="display:block;line-height:1.3">'+U.nameHTML(String(nm),{cls:'weekly-name'})+'</span>':'<span class="xs faint">—</span>')+tag+'</td>'; }).join('')
     +'</tr></tfoot></table></div>'
     +'<div class="card-foot"><span>Click any weekday cell to allocate a staff member · '+svcs.length+' services · plan read: '+U.esc(planMonthLabel(dates))+'</span><span class="mono">'+dates.length+' days</span></div></div></div>'
     +'<div class="c3"><div class="col" style="gap:14px">'
@@ -705,7 +696,7 @@ function servicePicker(iso,svc){
   /* Saturday, Sunday and a public holiday carry one duty for the whole unit: the
      bench grid is not filled there, and the day is named under it. */
   if(weekendish(iso)){
-    UI.toast(weekendLabel(iso)+' is one duty for the whole unit — the day is named on the Day duty row, from the working plan. Benches are rostered on weekdays.',{type:'warn',duration:6000});
+    UI.toast(weekendLabel(iso)+' is one duty for the whole unit — the day is named in the merged service column, from the working plan. Benches are rostered on weekdays.',{type:'warn',duration:6000});
     return;
   }
   const start=weekStart(); const w=S.db().unitRosters&&S.db().unitRosters[start];
