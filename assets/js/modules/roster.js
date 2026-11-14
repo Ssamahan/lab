@@ -347,6 +347,26 @@ function weekendLabel(iso){ const h=holidayAt(iso); return h?(h.name||'Public ho
 function dayDutyOf(iso){ return S.onDuty(iso).filter(x=>x.kind==='day'||x.kind==='daynight').map(x=>x.staff.name); }
 function dayOnly(iso){ return S.onDuty(iso).filter(x=>x.kind==='day').map(x=>x.staff.name); }
 function nightOf(iso){ return S.onDuty(iso).filter(x=>x.kind==='night'||x.kind==='daynight').map(x=>x.staff.name); }
+/* Temperature monitoring is an additional duty, not a bench allocation: it is
+   derived from the current plan without rewriting historical roster records. */
+function temperatureWeek(dates,alloc){
+  const names=iso=>dayDutyOf(iso);
+  const isKelvin=n=>/\bkelvin\b/i.test(n);
+  const excluded=n=>isKelvin(n)||/\bbeatrice\b/i.test(n);
+  const weekdays=dates.slice(0,5);
+  const full=weekdays.length===5 ? names(weekdays[0]).filter(n=>!excluded(n)&&weekdays.every(d=>names(d).includes(n))) : [];
+  const parasitology=iso=>(alloc[iso]||{}).Parasitology||'';
+  const weekly=full.find(n=>weekdays.some(d=>parasitology(d)===n))||full[0]||'';
+  const result={};
+  dates.forEach(iso=>{
+    const available=names(iso);
+    if(weekendish(iso)){ result[iso]=available.join(' · '); return; }
+    if(weekly){ result[iso]=weekly; return; }
+    const candidates=available.filter(n=>!excluded(n));
+    result[iso]=(candidates.includes(parasitology(iso))?parasitology(iso):candidates[0]) || available.find(isKelvin) || available[0] || '';
+  });
+  return result;
+}
 function planMonthsOf(dates){ return U.uniq(dates.map(d=>String(d).slice(0,7))); }
 function planMonthLabel(dates){
   const ms=planMonthsOf(dates).filter(m=>S.planForMonth(m));
@@ -378,6 +398,7 @@ function weekView(){
   const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
   const p=plan();
   const cellStaff=(iso,svc)=>alloc[iso]&&alloc[iso][svc]?alloc[iso][svc]:'';
+  const temperature=temperatureWeek(dates,alloc);
   const wRec=(S.db().unitRosters||{})[start]||{};
   const overrides=wRec.overrides||{};
   const orientMap=wRec.orientation||{};
@@ -478,6 +499,8 @@ function weekView(){
           : (who.length?'<span class="xs faint">'+who.length+' on duty</span>':'<span class="xs faint">—</span>');
         return '<td class="day '+(we?'wkend':'')+'" style="'+(we?'background:var(--cream-50, #FBF3E2)':'')+'" data-tip="'+U.esc(tip)+'">'+inner+'</td>';
       }).join('')+'</tr>'
+    +'<tr data-temperature-row><td class="staff-cell"><div class="nm">Temperature monitoring</div><div class="rl">Day · night attendant monitors at night</div></td>'
+    +dates.map(iso=>'<td class="day '+(weekendish(iso)?'wkend':'')+'">'+(temperature[iso]?'<span class="small pn-wrap">'+U.nameHTML(String(temperature[iso]))+'</span>':'<span class="xs faint">—</span>')+'</td>').join('')+'</tr>'
     +'<tr class="night-row"><td class="staff-cell"><div class="nm">Night</div><div class="rl">17:00–08:00</div></td>'
     +dates.map(iso=>{ const n=S.nightCover(iso); const nm=n.name||'';
         const tag=n.source==='manual'?'<span class="pill amber" style="font-size:8.5px;padding:1px 5px;margin-top:2px">by hand</span>'
@@ -1441,7 +1464,7 @@ function weekData(){
   dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
   dates.forEach(iso=>{ const d=dayDutyOf(iso); if(d.length) day[iso]=d; if(weekendish(iso)) weekend[iso]=weekendLabel(iso); });
   const wRec=(S.db().unitRosters||{})[start]||{};
-  return {weekStart:start,dates,services:S.services(),alloc,night,dayDuty:day,weekend,
+  return {weekStart:start,dates,services:S.services(),alloc,night,dayDuty:day,weekend,temperature:temperatureWeek(dates,alloc),
     overrides:wRec.overrides||{},orientation:wRec.orientation||{},planLabel:planMonthLabel(dates)};
 }
 /* Kept as the one call the sheet builders use; the plan does the deciding. */

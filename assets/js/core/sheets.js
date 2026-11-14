@@ -1172,7 +1172,7 @@ SH.weeklySVG=function(data,opts){
   const overrides=[]; // Overrides remain in the register and audit, not on the sheet.
   const orient=orientationLines(data.orientation||{}, alloc);
   const noteH=(overrides.length?overrides.length*29+60:0)+(orient.length?orient.length*29+58:0);
-  const H=top+headH+dateH+rowH*services.length+dayH+nightH+noteH+150;
+  const H=top+headH+dateH+rowH*services.length+dayH+dayH+nightH+noteH+150;
 
   let g='';
   g+='<rect width="'+W+'" height="'+H+'" fill="#FFFFFF"/>';
@@ -1246,7 +1246,17 @@ SH.weeklySVG=function(data,opts){
   g+=rect(pad,dy,labelW,dayH,'none',{stroke:C.line,sw:1});
   g+=rect(pad,dy,W-pad*2,2,C.goldLine);
 
-  const ny=dy+dayH;
+  const ty=dy+dayH;
+  g+=rect(pad,ty,labelW,dayH,'#FFFFFF');
+  g+=text(pad+24,ty+dayH/2+9,'Temperature monitoring',{size:27,weight:700,fill:'#12203C'});
+  dates.forEach((iso,i)=>{
+    const x=gridX+i*colW, who=(data.temperature||{})[iso]||'';
+    g+=rect(x,ty,colW,dayH,isWeekend(iso)?C.creamBand:'#FFFFFF');
+    g+=rect(x,ty,colW,dayH,'none',{stroke:C.line,sw:1});
+    if(who) g+=nameBlock(x+colW/2,ty+dayH/2,colW-20,who,{pref:28,min:16,anchor:'middle'});
+  });
+  g+=rect(pad,ty,labelW,dayH,'none',{stroke:C.line,sw:1});
+  const ny=ty+dayH;
   g+=rect(pad,ny,labelW,nightH,C.nightBand);
   g+=text(pad+24,ny+nightH/2+10,'Night Shift',{size:28,weight:700,fill:'#E9D9A7'});
   dates.forEach((iso,i)=>{
@@ -1591,12 +1601,15 @@ SH.weeklyXLSX=function(data){
       cells.push({c:cells.length,v:(alloc[iso]&&alloc[iso][sv.name])||'',s:we?11:4}); });
     out.push({h:20,cells});
   });
+  const trow=[{c:0,v:'Temperature monitoring',s:3}];
+  cols.forEach(iso=>trow.push({c:trow.length,v:(data.temperature||{})[iso]||'',s:4}));
+  out.push({h:20,cells:trow});
   const nrow=[{c:0,v:'Night Shift',s:2}];
   cols.forEach(iso=>nrow.push({c:nrow.length,v:night[iso]||'',s:6}));
   out.push({h:20,cells:nrow});
   out.push({cells:[]});
   out.push({cells:[{c:0,v:'Week of '+U.fmtDateShort(data.weekStart)+' · Generated '+U.todayISO()+' · Ruli District Hospital Laboratory',s:13}]});
-  const sheet=sheetXML(out,{cols:[26].concat(cols.map(()=>3.6)),freeze:2,
+  const sheet=sheetXML(out,{cols:[26].concat(cols.map(()=>25)),freeze:2,
     merges:['A1:'+colName(nCols)+'1','A2:'+colName(nCols)+'2','A4:'+colName(nCols)+'4']});
   return workbookFile('Weekly Roster',sheet,STYLES);
 };
