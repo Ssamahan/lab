@@ -1,3 +1,9 @@
+- Added all 70 rows from the SOP review Register sheet, including original master-list dates and unresolved notes.
+
+# v6.9.170
+
+- Link ten individually opened revised SOP drafts and document specific reconciliation issues with action comments. Source dates and approval remain unverified.
+
 # v6.9.168
 
 - Show recorded SOP review-date bands and section counts; hide untouched generated non-conformances while preserving stored records, and require an evidence reference for new findings.

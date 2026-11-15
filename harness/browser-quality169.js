@@ -8,7 +8,7 @@ const binary=require('@sparticuz/chromium');
   await page.waitForFunction(()=>window.LS&&LS.store&&LS.shell);
   await page.evaluate(()=>{LS.sync.stopLive();LS.auth.user={id:'test',name:'Test manager',role:'Admin'};location.hash='#/quality?tab=sops';});
   await page.locator('[data-review-band="unknown"]').waitFor();
-  if(!await page.locator('[data-review-band="unknown"]').innerText().then(x=>x.includes('12')))throw Error('Unknown date count missing');
+  if(!await page.locator('[data-review-band="unknown"]').innerText().then(x=>x.includes('22')))throw Error('Unknown date count missing');
   await page.evaluate(()=>{location.hash='#/quality?tab=incidents';});await page.locator('#qBody [data-add-inc]').click();
   await page.locator('#inTitle').fill('Synthetic evidence test');await page.locator('#inEvidence').fill('Synthetic test log');await page.locator('[data-save]').last().click();
   await page.getByText('Synthetic evidence test').waitFor();

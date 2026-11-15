@@ -6,7 +6,7 @@ const click=e=>e.dispatchEvent(new e.ownerDocument.defaultView.MouseEvent('click
  const d=w.document,S=w.LS.store,code='RliDHL-HEM-SOP-005-VERS-001';
  const row=()=>d.querySelector('[data-source-code="'+code+'"]');
  ok(!!row()&&row().textContent.includes('Waiting for approval'),'source SOP starts waiting for approval');
- ok(d.querySelectorAll('[data-source-code]').length===12 && !!d.querySelector('[data-source-code="RliDHL-ADM-SOP-063-VERS-001"] a[href*="drive.google.com"]'),'seven Drive equipment SOPs are linked alongside five repository documents');
+ ok(d.querySelectorAll('[data-source-code]').length===22 && !!d.querySelector('[data-source-code="RliDHL-ADM-SOP-063-VERS-001"] a[href*="drive.google.com"]'),'seven Drive equipment SOPs are linked alongside five repository documents');
  const checkbox=row()&&row().querySelector('[data-approve-source]');
  ok(!!checkbox&&!checkbox.checked,'approval tick starts unchecked');
  if(!checkbox){done('sop-approval168');return;}
