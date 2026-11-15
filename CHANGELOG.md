@@ -1,3 +1,9 @@
+## 6.9.165
+
+- Flush pending device saves when leaving or backgrounding the app, preventing immediate navigation from losing the last edit.
+- Simplify the public overview and shared console surfaces, reserving the laboratory illustration as the focal point.
+- Remove unsupported security and residency claims from the sign-in and overview screens.
+
 ## 6.9.164
 
 - Merge weekend and holiday service columns into plan-based day duty, remove day-duty counts, and show weekly names on two lines.

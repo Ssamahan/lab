@@ -185,16 +185,16 @@ button.chip:hover{border-color:var(--gold); color:var(--text-strong); background
 /* ——— 5. Cards ————————————————————————————————————— */
 .card{
   position:relative; background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--r-lg); box-shadow:var(--shadow-2); overflow:hidden;
+  border-radius:var(--r-md); box-shadow:var(--shadow-1); overflow:hidden;
   transition:border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
   isolation:isolate;
 }
-.card::before{content:""; position:absolute; top:0; left:0; right:0; height:1px; background:var(--gold-thread); opacity:.30; z-index:2}
+.card.gold::before{content:""; position:absolute; top:0; left:0; right:0; height:2px; background:var(--gold); z-index:2}
 .card.raised{background:linear-gradient(180deg,var(--surface-2),var(--surface))}
 .card.gold{border-color:var(--border-gold)}
 .card.gold::before{opacity:.9}
 .card.pad{padding:var(--pad-card)}
-.card.hover:hover{border-color:var(--border-strong); box-shadow:var(--shadow-3); transform:translateY(-1px)}
+.card.hover:hover{border-color:var(--border-strong)}
 .card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:16px 18px 0}
 .card-title{font-size:.865rem; font-weight:600; letter-spacing:-.006em; color:var(--text-strong); display:flex; align-items:center; gap:7px}
 .card-title .ic{color:var(--gold)}
@@ -212,8 +212,6 @@ button.chip:hover{border-color:var(--gold); color:var(--text-strong); background
 .card-foot{margin-top:auto}
 .grid-12>*{min-width:0}
 
-/* Entrance stagger */
-.stagger>*{animation:riseIn var(--dur-4) var(--spring-soft) both; animation-delay:calc(var(--i,0) * 40ms)}
 @keyframes riseIn{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
 
 /* ——— 6. Buttons ——————————————————————————————————— */
@@ -228,13 +226,10 @@ button.chip:hover{border-color:var(--gold); color:var(--text-strong); background
 .btn:hover{background:var(--surface-hover); border-color:var(--border-strong)}
 .btn:active{transform:scale(.98)}
 .btn.primary{
-  background:linear-gradient(180deg,#E9D9A7 0%,#D4B76A 42%,#C09B40 100%);
-  color:#241A06; border-color:rgba(233,217,167,.55); font-weight:600;
-  box-shadow:0 1px 0 rgba(255,255,255,.5) inset, 0 6px 18px -8px rgba(201,168,76,.65);
+  background:#D4B76A; color:#241A06; border-color:#C09B40; font-weight:600;
+  box-shadow:none;
 }
-.btn.primary:hover{background:linear-gradient(180deg,#F2E7C4 0%,#DEC781 42%,#C9A84C 100%); box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 10px 26px -10px rgba(201,168,76,.8)}
-.btn.primary::after{content:""; position:absolute; inset:0; background:var(--gold-sheen); transform:translateX(-130%); transition:transform .65s var(--ease); pointer-events:none}
-.btn.primary:hover::after{transform:translateX(130%)}
+.btn.primary:hover{background:#E0C98E; border-color:#B18F38; box-shadow:none}
 .btn.outline{background:transparent; border-color:var(--border-strong)}
 .btn.ghost{background:transparent; border-color:transparent; color:var(--text-muted)}
 .btn.ghost:hover{background:var(--surface-hover); color:var(--text)}
