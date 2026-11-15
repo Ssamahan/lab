@@ -35,13 +35,70 @@ const sourceSops=[
   ['RliDHL-HEM-SOP-001-VERS-002','Venous Blood Sample Collection'],
   ['RliDHL-HEM-SOP-005-VERS-001','Sysmex XN-330 examination'],
   ['RliDHL-HEM-SOP-006-VERS-001','Sysmex XQ-320 examination'],
-  ['RliDHL-IMM-SOP-005-VERS-001','Alere Pima CD4 examination']
+  ['RliDHL-IMM-SOP-005-VERS-001','Alere Pima CD4 examination'],
+  ['RliDHL-ADM-SOP-050-VERS-001','Use, Care and Preventive Maintenance of the Microscope','13cFatvwV1FzYRygDGku_4S3_iK7S_Da3','a44342383275216bbc99a22641ba0729'],
+  ['RliDHL-ADM-SOP-051-VERS-001','Operation, Care and Preventive Maintenance of the Centrifuge','1wtl4fNgOmmS8P45w6mC1-OkjkMbTol0S','c29f21ac13f81970ab6429937a3efc13'],
+  ['RliDHL-ADM-SOP-052-VERS-001','Operation, Care and Preventive Maintenance of the Water Bath','1Xg77ZUbUHmf6-DUPwTImw-UP5AwqyPlZ','cf735331507cfd44d45ebfdc761290dd'],
+  ['RliDHL-ADM-SOP-060-VERS-001','Management and Maintenance of Non-Medical Laboratory Equipment','13IjTFY12v_DCXsYr291YWNlbg-l1EJWj','0d526796468c3df7a224453ce809bfd2'],
+  ['RliDHL-ADM-SOP-061-VERS-001','Maintenance of Laboratory ICT Equipment and the Laboratory Information System','11oahJ0Ul2F1FqTfYTq_vZij6KPWk2mem','7772dbff247b5155e5b317ca303432f6'],
+  ['RliDHL-ADM-SOP-062-VERS-001','Use, Care and Preventive Maintenance of Hematology Analysers','1rNrhxrCvk8KdurpN3KFKRl3zwqTJt48b','041b0dfac08d58e28f099570efddd1f3'],
+  ['RliDHL-ADM-SOP-063-VERS-001','Use, Care and Preventive Maintenance of the GeneXpert Dx System','1M_6rmFZAB-k3TFHBYV7jO7m81OmMWehe','99277edb6d2a80a994f7a8f9af521395']
 ];
+// A pinned snapshot prevents a later repository edit inheriting an older approval.
+const sourceRevision='c98700c504c5185d9c621a5f57411a91d15bb1ac';
+function approvalFor(code,revision){
+  return (S.db().sopApprovalEvents||[]).filter(e=>e.code===code && e.sourceRevision===revision)
+    .sort((a,b)=>String(b.at).localeCompare(String(a.at)) || String(b.id).localeCompare(String(a.id)))[0]||null;
+}
+const sectionNames={ADM:'Crosscutting / administration',BAC:'Bacteriology',BIO:'Biochemistry',HEM:'Haematology',IMM:'Immunology',MYC:'Mycobacteriology',PAR:'Parasitology',SER:'Serology',STC:'Stock',MOL:'Molecular'};
+function sopSection(code){
+  const m=String(code||'').toUpperCase().match(/(?:^|[- ])(ADM|BAC|BIO|HEM|IMM|MYC|PAR|SER|STC|MOL)(?:[- ])/);
+  return m?sectionNames[m[1]]:'Other / section not recorded';
+}
+function reviewBand(review){
+  const value=String(review||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'unknown';
+  const date=new Date(value+'T00:00:00Z');
+  if(isNaN(date.getTime())||date.toISOString().slice(0,10)!==value) return 'unknown';
+  const days=Math.round((date-new Date(U.todayISO()+'T00:00:00Z'))/86400000);
+  return days<0?'overdue':days<=30?'0-30':days<=90?'31-90':days<=180?'91-180':days<=360?'181-360':'beyond';
+}
+function sopAnalysis(){
+  const manual=registeredSops();
+  const manualCodes=new Set(manual.map(s=>String(s.code||'').toLowerCase()));
+  const docs=manual.concat(sourceSops.filter(x=>!manualCodes.has(x[0].toLowerCase())).map(x=>({code:x[0],review:''})));
+  const bands=[['overdue','Overdue'],['0-30','0–30 days'],['31-90','31–90 days'],['91-180','91–180 days'],['181-360','181–360 days'],['beyond','Beyond 360 days'],['unknown','Unknown review date']];
+  const sections={}; docs.forEach(s=>{const section=sopSection(s.code); sections[section]=(sections[section]||0)+1;});
+  return '<div class="card pad" style="margin-bottom:16px"><h2>Review-date analysis</h2><p class="small">'+docs.length+' listed documents in this view; not yet a complete inventory. Counts use recorded next-review dates, not assumed expiry dates. Source documents without verified dates are unknown.</p><div class="row wrap gap-sm">'+bands.map(([key,label])=>'<span class="pill slate" data-review-band="'+key+'">'+U.esc(label)+': '+docs.filter(s=>reviewBand(s.review)===key).length+'</span>').join('')+'</div><p class="small">By section: '+Object.keys(sections).sort().map(k=>U.esc(k)+' '+sections[k]).join(' · ')+'</p></div>';
+}
 function sourceCatalog(){
-  return '<div class="card pad" style="margin-bottom:16px"><h2>Repository SOP documents</h2><p class="small">Source documents in the SOPs repository. Approval, effective dates, review dates and acknowledgements have not been verified here. Confirm the controlled version before use.</p><ul>'+sourceSops.map(([code,title])=>{
+  return '<div class="card pad" style="margin-bottom:16px"><h2>SOP source documents</h2><p class="small">Approval, effective dates and review dates are not verified here. Waiting for approval means no DG signature has been recorded in this register. Confirm the controlled version before use. A tick records your confirmation; it is not a digital signature. Drive links can change and require permission; the app cannot detect changes to them. Recheck the document and correct the tick if it changes.</p><div class="dt-scroll"><table class="dt"><thead><tr><th>Section</th><th>Document</th><th>Approval</th><th>DG signed</th></tr></thead><tbody>'+sourceSops.slice().sort((a,b)=>sopSection(a[0]).localeCompare(sopSection(b[0])) || a[0].localeCompare(b[0])).map(([code,title,driveId,checksum])=>{
     const path=encodeURIComponent(code+' - '+title+'.pdf');
-    return '<li><a href="https://github.com/Ssamahan/SOPs/blob/main/sop/'+path+'" target="_blank" rel="noopener noreferrer">'+U.esc(code)+' · '+U.esc(title)+'</a></li>';
-  }).join('')+'</ul></div>';
+    const revision=driveId?'drive-md5:'+checksum:sourceRevision;
+    const url=driveId?'https://drive.google.com/file/d/'+driveId+'/view':'https://github.com/Ssamahan/SOPs/blob/'+sourceRevision+'/sop/'+path;
+    const event=approvalFor(code,revision), approved=!!(event && event.approved);
+    const detail=event?' · recorded by '+U.esc(event.by)+' on '+U.esc(U.fmtDate(event.at)):'';
+    return '<tr data-source-code="'+U.esc(code)+'"><td>'+U.esc(sopSection(code))+'</td><td><a href="'+U.esc(url)+'" target="_blank" rel="noopener noreferrer">'+U.esc(code)+' · '+U.esc(title)+'</a>'+(driveId?' <span class="xs faint">Drive · may change</span>':'')+'</td><td><span class="pill '+(approved?'teal':'amber')+'">'+(approved?'Approved':'Waiting for approval')+'</span><div class="xs faint">'+detail+'</div></td><td><label><input type="checkbox" data-approve-source="'+U.esc(code)+'" '+(approved?'checked ':'')+(LS.auth.can('edit')?'':'disabled ')+'aria-label="DG signed '+U.esc(code)+'"> Approved</label></td></tr>';
+  }).join('')+'</tbody></table></div></div>';
+}
+function confirmSourceApproval(code,approved){
+  if(!LS.auth.guard('edit')){ paint(); return; }
+  const doc=sourceSops.find(item=>item[0]===code);
+  if(!doc){ paint(); return; }
+  const revision=doc[2]?'drive-md5:'+doc[3]:sourceRevision;
+  UI.modal({title:approved?'Record DG approval':'Correct approval status',
+    sub:approved?'Only confirm after the DG has signed this exact document.':'This records a correction; earlier entries remain in the history.',
+    body:'<p class="small">'+U.esc(code)+'</p><p class="small">'+(approved?'I confirm the Director General signed this version. This tick does not sign or change the source document.':'Return this version to waiting for approval?')+'</p>',
+    foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-confirm-approval>'+(approved?'Confirm approval':'Return to waiting')+'</button>',
+    onMount:(el,close)=>{el.querySelector('[data-confirm-approval]').onclick=()=>{
+      if(!LS.auth.guard('edit')) return;
+      const previous=approvalFor(code,revision);
+      const at=new Date(Math.max(Date.now(),previous?Date.parse(previous.at)+1:0)).toISOString();
+      S.commit(d=>{(d.sopApprovalEvents=d.sopApprovalEvents||[]).push({id:U.uid('sa'),code,sourceRevision:revision,approved,at,by:LS.auth.user.name});},
+        {action:approved?'quality.sop.approval':'quality.sop.approval.correct',entity:'sopApprovalEvents',entityId:code,detail:approved?'DG approval recorded':'Approval status corrected to waiting'});
+      close();paint();UI.toast('Approval status recorded',{type:'ok'});
+    };}
+  });
 }
 
 function metrics(){
@@ -50,8 +107,8 @@ function metrics(){
   return {
     rejection:st.rejectionRate, repeat:st.repeatRate, tat:st.tatCompliance, tatWindow:st.tatWindow,
     eqa:(function(){ const r=S.eqaSeries('__all'); return r.length?Math.round(U.avg(r.map(x=>x.score))*10)/10:null; })(),
-    openIncidents:db.incidents.filter(i=>i.status!=='Closed').length,
-    overdueIncidents:db.incidents.filter(i=>i.status!=='Closed'&&i.due<U.todayISO()).length,
+    openIncidents:S.realIncidents().filter(i=>i.status!=='Closed').length,
+    overdueIncidents:S.realIncidents().filter(i=>i.status!=='Closed'&&i.due<U.todayISO()).length,
     sopOverdue:registeredSops().filter(s=>s.review && s.review<U.todayISO()).length,
     ackPct:Math.round(registeredSops().length ? registeredSops().filter(s=>s.acknowledged).length/registeredSops().length*100 : 0)
   };
@@ -78,24 +135,24 @@ function overview(){
       +'<div class="thread" style="margin:12px 0"></div>'
       +[['Repeat rate',m.repeat==null?'no record':m.repeat+'%','teal'],['Rejection rate',m.rejection==null?'no record':m.rejection+'%','amber'],['Referred samples',S.referredSamples().length+'','slate']].map(([k,v,t])=>'<div class="row between" style="padding:6px 0"><span class="small">'+k+'</span><span class="pill '+t+' mono">'+v+'</span></div>').join('')})+'</div>'
    +'<div class="c4">'+UI.card({title:'Non-conformances',sub:'Severity · owner · resolution SLA',icon:'alert-triangle',
-      tools:'<a class="btn xs" href="#/quality?tab=incidents">All '+db.incidents.length+'</a>',body:(function(){
-        const open=db.incidents.filter(i=>i.status!=='Closed').sort((a,b)=>String(a.due).localeCompare(String(b.due))).slice(0,5);
+      tools:'<a class="btn xs" href="#/quality?tab=incidents">All '+S.realIncidents().length+'</a>',body:(function(){
+        const open=S.realIncidents().filter(i=>i.status!=='Closed').sort((a,b)=>String(a.due).localeCompare(String(b.due))).slice(0,5);
         return open.length?open.map(i=>{ const late=i.due<U.todayISO();
           return '<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:11.8px">'+U.esc(i.ref)+' · '+U.esc(i.title)+'</div><div class="lr-sub">'+U.esc(i.owner)+' · due '+U.fmtDate(i.due)+'</div></div><span class="pill '+(i.severity==='Critical'?'rose':i.severity==='Major'?'amber':'slate')+'">'+U.esc(i.severity)+(late?' · late':'')+'</span></div>'; }).join(''):'<p class="xs faint">No open non-conformances.</p>';
       })()})+'</div>'
    +'<div class="c12">'+UI.card({title:'Document control',sub:'SOP register · versions, review dates and acknowledgements',icon:'file-text',
       tools:'<a class="btn xs" href="#/quality?tab=sops">SOP register</a>',body:(function(){
-        return '<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Code</th><th>Title</th><th>Version</th><th>Effective</th><th>Next review</th><th>Owner</th><th>Status</th></tr></thead><tbody>'
+        return '<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Code</th><th>Title</th><th>Section</th><th>Version</th><th>Effective</th><th>Next review</th><th>Owner</th><th>Status</th></tr></thead><tbody>'
         +registeredSops().slice(0,6).map(s=>{ const overdue=!!s.review && s.review<U.todayISO();
-          return '<tr><td class="mono small">'+U.esc(s.code)+'</td><td class="small">'+U.esc(s.title)+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td><td>'+(overdue?'<span class="pill rose">review due</span>':s.acknowledged?'<span class="pill teal">acknowledged</span>':'<span class="pill amber">pending</span>')+'</td></tr>'; }).join('')
+          return '<tr><td class="mono small">'+U.esc(s.code)+'</td><td class="small">'+U.esc(s.title)+'</td><td class="small">'+U.esc(sopSection(s.code))+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td><td>'+(overdue?'<span class="pill rose">review due</span>':s.acknowledged?'<span class="pill teal">acknowledged</span>':'<span class="pill amber">pending</span>')+'</td></tr>'; }).join('')
         +'</tbody></table></div>';
       })()})+'</div></div>';
 }
 function sopsView(){
-  return sourceCatalog()+'<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="sopSearch" placeholder="Search SOP code, title, owner…"></div><span class="grow"></span><button class="btn sm" data-add-sop>'+UI.ic('plus',13)+'Register SOP</button></div>'
-   +'<div class="dt-scroll"><table class="dt" id="sopTable"><thead><tr><th>Code</th><th>Title</th><th>Version</th><th>Effective</th><th>Next review</th><th>Owner</th><th>Acknowledgement</th><th></th></tr></thead><tbody>'
+  return sopAnalysis()+sourceCatalog()+'<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="sopSearch" placeholder="Search SOP code, title, owner…"></div><span class="grow"></span><button class="btn sm" data-add-sop>'+UI.ic('plus',13)+'Register SOP</button></div>'
+   +'<div class="dt-scroll"><table class="dt" id="sopTable"><thead><tr><th>Code</th><th>Title</th><th>Section</th><th>Version</th><th>Effective</th><th>Next review</th><th>Owner</th><th>Acknowledgement</th><th></th></tr></thead><tbody>'
    +registeredSops().map(s=>{ const overdue=!!s.review && s.review<U.todayISO();
-      return '<tr data-sop="'+s.id+'"><td class="mono small">'+U.esc(s.code)+'</td><td class="small strong">'+U.esc(s.title)+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num" style="color:'+(overdue?'var(--crit)':'')+'">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td>'
+      return '<tr data-sop="'+s.id+'"><td class="mono small">'+U.esc(s.code)+'</td><td class="small strong">'+U.esc(s.title)+'</td><td class="small">'+U.esc(sopSection(s.code))+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num" style="color:'+(overdue?'var(--crit)':'')+'">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td>'
       +'<td>'+(s.acknowledged?'<span class="pill teal">'+UI.ic('check',10)+'acknowledged</span>':'<span class="pill amber">pending</span>')+'</td><td><button class="icon-btn" style="width:26px;height:26px" data-open="'+s.id+'">'+UI.ic('chevron-right',14)+'</button></td></tr>'; }).join('')
    +'</tbody></table></div><div class="card-foot"><span>'+registeredSops().filter(s=>s.review && s.review<U.todayISO()).length+' documents past review date</span><span class="mono">'+registeredSops().length+' registered documents</span></div></div></div></div>';
 }
@@ -103,12 +160,12 @@ function incidentsView(){
   const db=S.db();
   return '<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="incSearch" placeholder="Search non-conformance, owner…"></div><span class="grow"></span><button class="btn sm" data-add-inc>'+UI.ic('plus',13)+'Log incident</button></div>'
    +'<div class="dt-scroll"><table class="dt" id="incTable"><thead><tr><th>Ref</th><th>Finding</th><th>Severity</th><th>Owner</th><th>Opened</th><th>Due</th><th>Status</th></tr></thead><tbody>'
-   +db.incidents.map(i=>{ const late=i.due<U.todayISO()&&i.status!=='Closed';
+   +S.realIncidents().map(i=>{ const late=i.due<U.todayISO()&&i.status!=='Closed';
       return '<tr data-inc="'+i.id+'"><td class="mono small">'+U.esc(i.ref)+'</td><td><div class="primary-cell"><b>'+U.esc(i.title)+'</b><small>'+U.esc(i.rootCause||'')+'</small></div></td>'
       +'<td><span class="pill '+(i.severity==='Critical'?'rose':i.severity==='Major'?'amber':'slate')+'">'+U.esc(i.severity)+'</span></td>'
       +'<td class="small">'+U.esc(i.owner)+'</td><td class="num">'+U.fmtDate(i.opened)+'</td><td class="num" style="color:'+(late?'var(--crit)':'')+'">'+U.fmtDate(i.due)+(late?' · late':'')+'</td>'
       +'<td><span class="pill '+(i.status==='Closed'?'teal':i.status==='Open'?'rose':'amber')+'">'+U.esc(i.status)+'</span></td></tr>'; }).join('')
-   +'</tbody></table></div><div class="card-foot"><span>Resolution SLA: Critical 48h · Major 7d · Minor 30d</span><span class="mono">'+db.incidents.filter(i=>i.status!=='Closed').length+' open</span></div></div></div></div>';
+   +'</tbody></table></div><div class="card-foot"><span>Resolution SLA: Critical 48h · Major 7d · Minor 30d</span><span class="mono">'+S.realIncidents().filter(i=>i.status!=='Closed').length+' open</span></div></div></div></div>';
 }
 function logIncident(){
   if(!LS.auth.guard('edit')) return;
@@ -116,13 +173,16 @@ function logIncident(){
     body:'<div class="form-grid"><div class="field span2"><label>Finding</label><input class="input" id="inTitle" placeholder="e.g. Fridge excursion during inventory"></div>'
      +'<div class="field"><label>Severity</label><select class="select" id="inSev"><option>Minor</option><option>Major</option><option>Critical</option></select></div>'
      +'<div class="field"><label>Owner</label><select class="select" id="inOwner">'+S.activeStaff().map(s=>'<option>'+U.esc(s.name)+'</option>').join('')+'</select></div>'
+     +'<div class="field span2"><label>Evidence reference (no patient identifiers)</label><input class="input" id="inEvidence" placeholder="e.g. maintenance log and date"></div>'
      +'<div class="field span2"><label>Root cause</label><textarea class="textarea" id="inRoot"></textarea></div>'
      +'<div class="field span2"><label>Corrective action</label><textarea class="textarea" id="inCapa"></textarea></div></div>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>Open non-conformance</button>',
     onMount:(el,close)=>{
       el.querySelector('[data-save]').onclick=()=>{
+        const title=el.querySelector('#inTitle').value.trim(), evidence=el.querySelector('#inEvidence').value.trim();
+        if(!title || !evidence) return UI.toast('Enter the finding and an evidence reference',{type:'warn'});
         const sev=el.querySelector('#inSev').value; const sla=sev==='Critical'?2:sev==='Major'?7:30;
-        S.commit(d=>{ d.incidents.unshift({id:U.uid('nc'),ref:'NC-2026-'+String(46+d.incidents.length).padStart(3,'0'),title:el.querySelector('#inTitle').value||'Untitled finding',severity:sev,owner:el.querySelector('#inOwner').value,opened:U.todayISO(),due:U.addDays(U.todayISO(),sla),status:'Open',rootCause:el.querySelector('#inRoot').value,capa:el.querySelector('#inCapa').value}); },
+        S.commit(d=>{ d.incidents.unshift({id:U.uid('nc'),ref:'NC-2026-'+String(46+d.incidents.length).padStart(3,'0'),title,evidence,severity:sev,owner:el.querySelector('#inOwner').value,opened:U.todayISO(),due:U.addDays(U.todayISO(),sla),status:'Open',rootCause:el.querySelector('#inRoot').value,capa:el.querySelector('#inCapa').value}); },
           {action:'quality.incident',entity:'incidents',detail:sev+' non-conformance logged'});
         close(); LS.shell.refresh(); UI.toast('Non-conformance logged · SLA clock started',{type:'ok'});
       };
@@ -175,6 +235,7 @@ function wireBody(){
     ],labels:months,yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%'});
   }
   if(tab==='sops'){
+    r.querySelectorAll('[data-approve-source]').forEach(input=>input.onchange=()=>{ const approved=input.checked; input.checked=!approved; confirmSourceApproval(input.dataset.approveSource,approved); });
     r.querySelectorAll('[data-sop]').forEach(tr=>tr.onclick=()=>sopDrawer(tr.dataset.sop));
     r.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{ e.stopPropagation(); sopDrawer(b.dataset.open); });
     const s=r.querySelector('#sopSearch'); if(s) s.addEventListener('input',()=>{ const q=s.value.toLowerCase(); U.$$('#sopTable tbody tr',r).forEach(tr=>tr.style.display=tr.textContent.toLowerCase().indexOf(q)>=0?'':'none'); });
@@ -182,6 +243,7 @@ function wireBody(){
   if(tab==='incidents'){
     r.querySelectorAll('[data-inc]').forEach(tr=>tr.onclick=()=>{ const i=S.db().incidents.find(x=>x.id===tr.dataset.inc);
       UI.drawer({title:i.ref,eyebrow:'Non-conformance',sub:i.title,body:'<div class="row wrap gap-sm" style="margin-bottom:14px"><span class="pill '+(i.severity==='Critical'?'rose':i.severity==='Major'?'amber':'slate')+'">'+U.esc(i.severity)+'</span><span class="pill '+(i.status==='Closed'?'teal':'amber')+'">'+U.esc(i.status)+'</span><span class="pill slate">Owner · '+U.esc(i.owner)+'</span></div>'
+        +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:12px"><div class="eyebrow">Evidence reference</div><p class="small">'+U.esc(i.evidence||'Not recorded')+'</p></div>'
         +'<div class="card pad" style="background:var(--surface-inset);margin-bottom:12px"><div class="eyebrow">Root cause</div><p class="small" style="margin-top:4px">'+U.esc(i.rootCause||'—')+'</p></div>'
         +'<div class="card pad" style="background:var(--surface-inset)"><div class="eyebrow">Corrective / preventive action</div><p class="small" style="margin-top:4px">'+U.esc(i.capa||'—')+'</p></div>'
         +'<div class="hint" style="margin-top:12px">Opened '+U.fmtDate(i.opened)+' · SLA due '+U.fmtDate(i.due)+'</div>',

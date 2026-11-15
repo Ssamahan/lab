@@ -132,17 +132,6 @@ function dropInventedPbf(db){
     try{ db.meta=db.meta||{}; db.meta.pbfInventedPurged=true; }catch(e){}
   }
 }
-function buildIncidents(){
-  const t=U.todayISO();
-  return [
-    {id:'nc1',ref:'NC-2026-041',title:'Blood culture bottle leaked in transit from Coko HC',severity:'Major',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-9),due:U.addDays(t,5),status:'Open',rootCause:'Cap not torqued; transport box without secondary containment',capa:'Refresher to 8 health centres; secondary bags issued'},
-    {id:'nc2',ref:'NC-2026-039',title:'GeneXpert module 2 error — invalid result on repeat',severity:'Minor',owner:'Jean Paul NSENGIYUMVA',opened:U.addDays(t,-18),due:U.addDays(t,-2),status:'CAPA in progress',rootCause:'Probe check failure after power dip',capa:'UPS installed; module recalibrated'},
-    {id:'nc3',ref:'NC-2026-036',title:'QC 1-3s violation — Creatinine level 2',severity:'Major',owner:'Diane UWASE',opened:U.addDays(t,-26),due:U.addDays(t,-12),status:'Closed',rootCause:'Reagent lot degradation',capa:'Lot quarantined, new lot verified'},
-    {id:'nc4',ref:'NC-2026-044',title:'SOP-LAB-009 past due for review',severity:'Minor',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-3),due:U.addDays(t,12),status:'Open',rootCause:'Document control review cycle',capa:'Review scheduled 12 Nov 2026'},
-    {id:'nc5',ref:'NC-2026-045',title:'Fridge 2–8 °C excursion to 9.4 °C for 42 minutes',severity:'Critical',owner:'Beatrice NGEZEKURE',opened:U.addDays(t,-1),due:U.addDays(t,2),status:'Open',rootCause:'Door left ajar during inventory',capa:'Door alarm latch; monthly drill'},
-    {id:'nc6',ref:'NC-2026-033',title:'Two samples rejected for insufficient volume',severity:'Minor',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-41),due:U.addDays(t,-28),status:'Closed',rootCause:'Paediatric draw technique',capa:'Microtainer training completed'}
-  ];
-}
 function buildChecklist(){
   return [
     {id:'ck1', section:'Organisation & management', item:'Quality manual approved and communicated', done:true, weight:5},
@@ -239,17 +228,29 @@ function buildChecklist(){
 function buildSOPs(){
   return [];
 }
-function buildIncidents(){
-  const t=U.todayISO();
-  return [
-    {id:'nc1',ref:'NC-2026-041',title:'Blood culture bottle leaked in transit from Coko HC',severity:'Major',type:'Pre-analytical',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-9),due:U.addDays(t,5),status:'Open',root:'Cap not torqued; transport box lacking secondary containment',capa:'Refresher to 8 health centres; secondary bags issued'},
-    {id:'nc2',ref:'NC-2026-039',title:'GeneXpert module 2 invalid result on repeat',severity:'Minor',type:'Analytical',owner:'Jean Paul NSENGIYUMVA',opened:U.addDays(t,-18),due:U.addDays(t,-2),status:'CAPA in progress',root:'Probe check failure after power dip',capa:'UPS installed; module recalibrated'},
-    {id:'nc3',ref:'NC-2026-036',title:'QC 1-3s violation — Creatinine level 2',severity:'Major',type:'Analytical',owner:'Aurelie YANSONEYE',opened:U.addDays(t,-26),due:U.addDays(t,-12),status:'Closed',root:'Reagent lot degradation',capa:'Lot quarantined, new lot verified'},
-    {id:'nc4',ref:'NC-2026-044',title:'SOP-LAB-009 past due for review',severity:'Minor',type:'Document control',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-3),due:U.addDays(t,12),status:'Open',root:'Annual review cycle slipped',capa:'Review scheduled 12 Nov 2026'},
-    {id:'nc5',ref:'NC-2026-045',title:'Fridge 2–8 °C excursion to 9.4 °C for 42 minutes',severity:'Critical',type:'Facilities',owner:'Beatrice NGEZEKURE',opened:U.addDays(t,-1),due:U.addDays(t,2),status:'Open',root:'Door left ajar during inventory',capa:'Door alarm latch fitted; monthly drill'},
-    {id:'nc6',ref:'NC-2026-033',title:'Two samples rejected for insufficient volume',severity:'Minor',type:'Pre-analytical',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-41),due:U.addDays(t,-28),status:'Closed',root:'Paediatric draw technique',capa:'Microtainer training completed'}
-  ];
-}
+// The exact generated examples are hidden, not deleted, so edits and sync history survive.
+const exampleIncidents=[
+  {id:'nc1',ref:'NC-2026-041',title:'Blood culture bottle leaked in transit from Coko HC',severity:'Major',type:'Pre-analytical',owner:'Kelvin SAMAHANI',status:'Open',root:'Cap not torqued; transport box lacking secondary containment',capa:'Refresher to 8 health centres; secondary bags issued'},
+  {id:'nc2',ref:'NC-2026-039',title:'GeneXpert module 2 invalid result on repeat',severity:'Minor',type:'Analytical',owner:'Jean Paul NSENGIYUMVA',status:'CAPA in progress',root:'Probe check failure after power dip',capa:'UPS installed; module recalibrated'},
+  {id:'nc3',ref:'NC-2026-036',title:'QC 1-3s violation — Creatinine level 2',severity:'Major',type:'Analytical',owner:'Aurelie YANSONEYE',status:'Closed',root:'Reagent lot degradation',capa:'Lot quarantined, new lot verified'},
+  {id:'nc4',ref:'NC-2026-044',title:'SOP-LAB-009 past due for review',severity:'Minor',type:'Document control',owner:'Kelvin SAMAHANI',status:'Open',root:'Annual review cycle slipped',capa:'Review scheduled 12 Nov 2026'},
+  {id:'nc5',ref:'NC-2026-045',title:'Fridge 2–8 °C excursion to 9.4 °C for 42 minutes',severity:'Critical',type:'Facilities',owner:'Beatrice NGEZEKURE',status:'Open',root:'Door left ajar during inventory',capa:'Door alarm latch fitted; monthly drill'},
+  {id:'nc6',ref:'NC-2026-033',title:'Two samples rejected for insufficient volume',severity:'Minor',type:'Pre-analytical',owner:'Kelvin SAMAHANI',status:'Closed',root:'Paediatric draw technique',capa:'Microtainer training completed'}
+];
+const exampleIncidentDays=[14,16,14,15,3,13];
+function buildIncidents(){ return []; }
+S.realIncidents=function(){
+  return (S.db().incidents||[]).filter(item=>{
+    const n=Number(String(item.id).slice(2))-1, example=exampleIncidents[n];
+    if(!example || item.id!==example.id) return true;
+    const keys=Object.keys(example);
+    const onlySeedFields=Object.keys(item).every(k=>keys.includes(k)||k==='opened'||k==='due');
+    return !(onlySeedFields && keys.every(k=>item[k]===example[k]) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(String(item.opened||'')) && !isNaN(U.parseISO(item.opened)) &&
+      item.due===U.addDays(item.opened,exampleIncidentDays[n]));
+  });
+};
+
 /* Real stock only. The previous build generated a 12-month issue log and three
    lots per consumable so the charts looked busy; those were invented numbers and
    are no longer created. Everything below fills catalogue defaults the UI needs
@@ -3797,7 +3798,7 @@ S.notifications=function(){
         ts:new Date(sc.plannedDate+'T08:00:00').toISOString(),href:'#/pbf',icon:'calendar-check'}); });
   const cqi=LS.auth&&LS.auth.can('edit')?S.cqiQuarterReminder(today):null;
   if(cqi)out.push({id:'n-cqi-quarter-'+cqi.end+'-'+today,group:'Quality',tone:'amber',title:'Review TB CQI recommendations',detail:cqi.count+' recommendation'+(cqi.count===1?'':'s')+' not fully implemented · quarter ends '+U.fmtDate(cqi.end),ts:U.nowISO(),href:'#/eqa?tab=cqi',icon:'clipboard-check'});
-  const nc=S.db().incidents.filter(i=>i.status!=='Closed').slice(0,2);
+  const nc=S.realIncidents().filter(i=>i.status!=='Closed').slice(0,2);
   nc.forEach(i=>out.push({id:'n-'+i.id,group:'Quality',tone:i.severity==='Critical'?'rose':'blue',title:i.ref+' · '+i.title,detail:i.severity+' · owner '+i.owner+' · due '+U.fmtDate(i.due),ts:i.opened,href:'#/quality?tab=incidents',icon:'shield-alert'}));
   out.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
   return out.map(n=>Object.assign(n,{read:(db.notifRead||[]).includes(n.id)}));

@@ -1,3 +1,8 @@
+# v6.9.168
+
+- Show recorded SOP review-date bands and section counts; hide untouched generated non-conformances while preserving stored records, and require an evidence reference for new findings.
+- Link seven unsigned equipment SOPs on Drive and record per-document DG approval confirmations without changing the source files. Approval records are not digital signatures; Drive links can change.
+
 # v6.9.167
 
 - Replace untouched example SOPs in the quality view with links to five repository documents; approval and dates remain unverified. Existing edited records and stored legacy rows are preserved.

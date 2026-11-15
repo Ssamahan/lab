@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.167';
+const APP_VERSION='6.9.168';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -152,7 +152,7 @@ function updateBadges(){
     set('samples', st.active);
     set('stock', S.stockOverview().filter(x=>x.low).length);
     set('leave', S.db().leaves.filter(l=>l.status==='Pending').length);
-    set('quality', S.db().incidents.filter(i=>i.status!=='Closed').length);
+    set('quality', S.realIncidents().filter(i=>i.status!=='Closed').length);
   }catch(e){}
 }
 function activeNav(id){
