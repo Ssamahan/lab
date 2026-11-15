@@ -132,21 +132,6 @@ function dropInventedPbf(db){
     try{ db.meta=db.meta||{}; db.meta.pbfInventedPurged=true; }catch(e){}
   }
 }
-function buildSOPs(){
-  const docs=[
-    ['SOP-LAB-001','Specimen collection, labelling and transport','v4.2','2026-02-11','2027-02-11','Kelvin SAMAHANI',true],
-    ['SOP-LAB-002','Sample acceptance and rejection criteria','v3.1','2026-04-02','2027-04-02','Kelvin SAMAHANI',true],
-    ['SOP-LAB-006','GeneXpert MTB/RIF testing procedure','v5.0','2026-06-18','2027-06-18','Jean Paul NSENGIYUMVA',true],
-    ['SOP-LAB-009','Internal quality control & Westgard rules','v2.3','2025-11-30','2026-11-30','Diane UWASE',false],
-    ['SOP-LAB-012','Blood culture contamination prevention','v1.4','2026-01-14','2027-01-14','Kelvin SAMAHANI',true],
-    ['SOP-LAB-015','Cold-chain temperature monitoring','v3.0','2026-08-01','2027-08-01','Beatrice NGEZEKURE',true],
-    ['SOP-LAB-018','External quality assessment handling','v2.0','2026-03-22','2027-03-22','Kelvin SAMAHANI',false],
-    ['SOP-LAB-021','Waste segregation and sharps safety','v4.0','2026-07-09','2027-07-09','Beatrice NGEZEKURE',true],
-    ['SOP-LAB-024','Result verification and critical value reporting','v1.8','2025-12-12','2026-12-12','Kelvin SAMAHANI',false],
-    ['SOP-LAB-027','Non-conformance and CAPA management','v2.1','2026-05-06','2027-05-06','Kelvin SAMAHANI',true]
-  ];
-  return docs.map(d=>({id:d[0],code:d[0],title:d[1],version:d[2],effective:d[3],review:d[4],owner:d[5],acknowledged:d[6]}));
-}
 function buildIncidents(){
   const t=U.todayISO();
   return [
@@ -252,20 +237,7 @@ function buildChecklist(){
   return rows.map((r,i)=>({id:'cl'+i, section:r[1], code:'ISO-'+r[0]+'-'+String(i+1).padStart(2,'0'), item:r[2], weight:r[3], done:r[4]}));
 }
 function buildSOPs(){
-  const docs=[
-    ['SOP-LAB-001','Specimen collection, labelling and transport','v4.2','2026-02-11','2027-02-11','Kelvin SAMAHANI'],
-    ['SOP-LAB-002','Sample acceptance and rejection criteria','v3.1','2026-04-02','2027-04-02','Kelvin SAMAHANI'],
-    ['SOP-LAB-006','GeneXpert MTB/RIF testing procedure','v5.0','2026-06-18','2027-06-18','Jean Paul NSENGIYUMVA'],
-    ['SOP-LAB-009','Internal quality control & Westgard rules','v2.3','2025-09-14','2026-09-14','Aurelie YANSONEYE'],
-    ['SOP-LAB-012','Blood culture contamination prevention','v1.4','2026-01-14','2027-01-14','Beatrice NGEZEKURE'],
-    ['SOP-LAB-015','Cold-chain temperature monitoring','v3.0','2026-08-01','2027-08-01','Beatrice NGEZEKURE'],
-    ['SOP-LAB-018','External quality assessment handling','v2.0','2026-03-22','2027-03-22','Kelvin SAMAHANI'],
-    ['SOP-LAB-021','Waste segregation and sharps safety','v4.0','2026-07-09','2027-07-09','Dieudonne MUNYANEZA'],
-    ['SOP-LAB-024','Result verification and critical value reporting','v1.8','2025-12-12','2026-12-12','Kelvin SAMAHANI'],
-    ['SOP-LAB-027','Non-conformance and CAPA management','v2.1','2026-05-06','2027-05-06','Kelvin SAMAHANI']
-  ];
-  return docs.map((d,i)=>({id:'sop'+i, code:d[0], title:d[1], version:d[2], effective:d[3], review:d[4], owner:d[5],
-    status:d[4]<U.todayISO()?'review-due':'current', ack:i%3===0?2:i%3===1?9:6, acknowledged:(i%3!==2)}));
+  return [];
 }
 function buildIncidents(){
   const t=U.todayISO();

@@ -1,3 +1,7 @@
+# v6.9.167
+
+- Replace untouched example SOPs in the quality view with links to five repository documents; approval and dates remain unverified. Existing edited records and stored legacy rows are preserved.
+
 ## 6.9.166
 
 - Add an online-only, access-controlled view for protected NRL result reports, separate from the shared register.

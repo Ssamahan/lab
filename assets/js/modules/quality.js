@@ -7,6 +7,43 @@ const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.quality=M;
 let rootEl=null, tab='overview';
 
+// Hide only untouched examples; leave persisted data and any edits intact across sync.
+const exampleSops=[
+  ['SOP-LAB-001','Specimen collection, labelling and transport','v4.2','2026-02-11','2027-02-11','Kelvin SAMAHANI'],
+  ['SOP-LAB-002','Sample acceptance and rejection criteria','v3.1','2026-04-02','2027-04-02','Kelvin SAMAHANI'],
+  ['SOP-LAB-006','GeneXpert MTB/RIF testing procedure','v5.0','2026-06-18','2027-06-18','Jean Paul NSENGIYUMVA'],
+  ['SOP-LAB-009','Internal quality control & Westgard rules','v2.3','2025-09-14','2026-09-14','Aurelie YANSONEYE'],
+  ['SOP-LAB-012','Blood culture contamination prevention','v1.4','2026-01-14','2027-01-14','Beatrice NGEZEKURE'],
+  ['SOP-LAB-015','Cold-chain temperature monitoring','v3.0','2026-08-01','2027-08-01','Beatrice NGEZEKURE'],
+  ['SOP-LAB-018','External quality assessment handling','v2.0','2026-03-22','2027-03-22','Kelvin SAMAHANI'],
+  ['SOP-LAB-021','Waste segregation and sharps safety','v4.0','2026-07-09','2027-07-09','Dieudonne MUNYANEZA'],
+  ['SOP-LAB-024','Result verification and critical value reporting','v1.8','2025-12-12','2026-12-12','Kelvin SAMAHANI'],
+  ['SOP-LAB-027','Non-conformance and CAPA management','v2.1','2026-05-06','2027-05-06','Kelvin SAMAHANI']
+];
+function isExample(s){
+  const i=Number(String(s.id).slice(3));
+  if(s.id!=='sop'+i || !exampleSops[i]) return false;
+  const keys=['code','title','version','effective','review','owner'];
+  return keys.every((key,n)=>s[key]===exampleSops[i][n]) &&
+    s.ack===[2,9,6][i%3] && s.acknowledged===(i%3!==2) &&
+    ['current','review-due'].includes(s.status) &&
+    Object.keys(s).every(key=>keys.concat(['id','ack','acknowledged','status']).includes(key));
+}
+function registeredSops(){ return S.db().sops.filter(s=>!isExample(s)); }
+const sourceSops=[
+  ['RliDHL-BIO-SOP-001-VERS-005','Glucose Testing using Cobas c 111'],
+  ['RliDHL-HEM-SOP-001-VERS-002','Venous Blood Sample Collection'],
+  ['RliDHL-HEM-SOP-005-VERS-001','Sysmex XN-330 examination'],
+  ['RliDHL-HEM-SOP-006-VERS-001','Sysmex XQ-320 examination'],
+  ['RliDHL-IMM-SOP-005-VERS-001','Alere Pima CD4 examination']
+];
+function sourceCatalog(){
+  return '<div class="card pad" style="margin-bottom:16px"><h2>Repository SOP documents</h2><p class="small">Source documents in the SOPs repository. Approval, effective dates, review dates and acknowledgements have not been verified here. Confirm the controlled version before use.</p><ul>'+sourceSops.map(([code,title])=>{
+    const path=encodeURIComponent(code+' - '+title+'.pdf');
+    return '<li><a href="https://github.com/Ssamahan/SOPs/blob/main/sop/'+path+'" target="_blank" rel="noopener noreferrer">'+U.esc(code)+' · '+U.esc(title)+'</a></li>';
+  }).join('')+'</ul></div>';
+}
+
 function metrics(){
   const st=S.sampleStats();
   const db=S.db();
@@ -15,8 +52,8 @@ function metrics(){
     eqa:(function(){ const r=S.eqaSeries('__all'); return r.length?Math.round(U.avg(r.map(x=>x.score))*10)/10:null; })(),
     openIncidents:db.incidents.filter(i=>i.status!=='Closed').length,
     overdueIncidents:db.incidents.filter(i=>i.status!=='Closed'&&i.due<U.todayISO()).length,
-    sopOverdue:db.sops.filter(s=>s.review<U.todayISO()).length,
-    ackPct:Math.round(db.sops.filter(s=>s.acknowledged).length/db.sops.length*100)
+    sopOverdue:registeredSops().filter(s=>s.review && s.review<U.todayISO()).length,
+    ackPct:Math.round(registeredSops().length ? registeredSops().filter(s=>s.acknowledged).length/registeredSops().length*100 : 0)
   };
 }
 function kpis(){
@@ -49,19 +86,18 @@ function overview(){
    +'<div class="c12">'+UI.card({title:'Document control',sub:'SOP register · versions, review dates and acknowledgements',icon:'file-text',
       tools:'<a class="btn xs" href="#/quality?tab=sops">SOP register</a>',body:(function(){
         return '<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Code</th><th>Title</th><th>Version</th><th>Effective</th><th>Next review</th><th>Owner</th><th>Status</th></tr></thead><tbody>'
-        +db.sops.slice(0,6).map(s=>{ const overdue=s.review<U.todayISO();
+        +registeredSops().slice(0,6).map(s=>{ const overdue=!!s.review && s.review<U.todayISO();
           return '<tr><td class="mono small">'+U.esc(s.code)+'</td><td class="small">'+U.esc(s.title)+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td><td>'+(overdue?'<span class="pill rose">review due</span>':s.acknowledged?'<span class="pill teal">acknowledged</span>':'<span class="pill amber">pending</span>')+'</td></tr>'; }).join('')
         +'</tbody></table></div>';
       })()})+'</div></div>';
 }
 function sopsView(){
-  const db=S.db();
-  return '<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="sopSearch" placeholder="Search SOP code, title, owner…"></div><span class="grow"></span><button class="btn sm" data-add-sop>'+UI.ic('plus',13)+'Register SOP</button></div>'
+  return sourceCatalog()+'<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="sopSearch" placeholder="Search SOP code, title, owner…"></div><span class="grow"></span><button class="btn sm" data-add-sop>'+UI.ic('plus',13)+'Register SOP</button></div>'
    +'<div class="dt-scroll"><table class="dt" id="sopTable"><thead><tr><th>Code</th><th>Title</th><th>Version</th><th>Effective</th><th>Next review</th><th>Owner</th><th>Acknowledgement</th><th></th></tr></thead><tbody>'
-   +db.sops.map(s=>{ const overdue=s.review<U.todayISO();
+   +registeredSops().map(s=>{ const overdue=!!s.review && s.review<U.todayISO();
       return '<tr data-sop="'+s.id+'"><td class="mono small">'+U.esc(s.code)+'</td><td class="small strong">'+U.esc(s.title)+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num" style="color:'+(overdue?'var(--crit)':'')+'">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td>'
       +'<td>'+(s.acknowledged?'<span class="pill teal">'+UI.ic('check',10)+'acknowledged</span>':'<span class="pill amber">pending</span>')+'</td><td><button class="icon-btn" style="width:26px;height:26px" data-open="'+s.id+'">'+UI.ic('chevron-right',14)+'</button></td></tr>'; }).join('')
-   +'</tbody></table></div><div class="card-foot"><span>'+db.sops.filter(s=>s.review<U.todayISO()).length+' documents past review date</span><span class="mono">'+db.sops.length+' controlled documents</span></div></div></div></div>';
+   +'</tbody></table></div><div class="card-foot"><span>'+registeredSops().filter(s=>s.review && s.review<U.todayISO()).length+' documents past review date</span><span class="mono">'+registeredSops().length+' registered documents</span></div></div></div></div>';
 }
 function incidentsView(){
   const db=S.db();
