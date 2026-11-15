@@ -1,3 +1,7 @@
+## 6.9.166
+
+- Add an online-only, access-controlled view for protected NRL result reports, separate from the shared register.
+
 ## 6.9.165
 
 - Flush pending device saves when leaving or backgrounding the app, preventing immediate navigation from losing the last edit.
