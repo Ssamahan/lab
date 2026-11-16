@@ -228,27 +228,19 @@ function buildChecklist(){
 function buildSOPs(){
   return [];
 }
-// The exact generated examples are hidden, not deleted, so edits and sync history survive.
-const exampleIncidents=[
-  {id:'nc1',ref:'NC-2026-041',title:'Blood culture bottle leaked in transit from Coko HC',severity:'Major',type:'Pre-analytical',owner:'Kelvin SAMAHANI',status:'Open',root:'Cap not torqued; transport box lacking secondary containment',capa:'Refresher to 8 health centres; secondary bags issued'},
-  {id:'nc2',ref:'NC-2026-039',title:'GeneXpert module 2 invalid result on repeat',severity:'Minor',type:'Analytical',owner:'Jean Paul NSENGIYUMVA',status:'CAPA in progress',root:'Probe check failure after power dip',capa:'UPS installed; module recalibrated'},
-  {id:'nc3',ref:'NC-2026-036',title:'QC 1-3s violation — Creatinine level 2',severity:'Major',type:'Analytical',owner:'Aurelie YANSONEYE',status:'Closed',root:'Reagent lot degradation',capa:'Lot quarantined, new lot verified'},
-  {id:'nc4',ref:'NC-2026-044',title:'SOP-LAB-009 past due for review',severity:'Minor',type:'Document control',owner:'Kelvin SAMAHANI',status:'Open',root:'Annual review cycle slipped',capa:'Review scheduled 12 Nov 2026'},
-  {id:'nc5',ref:'NC-2026-045',title:'Fridge 2–8 °C excursion to 9.4 °C for 42 minutes',severity:'Critical',type:'Facilities',owner:'Beatrice NGEZEKURE',status:'Open',root:'Door left ajar during inventory',capa:'Door alarm latch fitted; monthly drill'},
-  {id:'nc6',ref:'NC-2026-033',title:'Two samples rejected for insufficient volume',severity:'Minor',type:'Pre-analytical',owner:'Kelvin SAMAHANI',status:'Closed',root:'Paediatric draw technique',capa:'Microtainer training completed'}
-];
-const exampleIncidentDays=[14,16,14,15,3,13];
+// These references were explicitly identified as generated examples. Keep stored
+// rows intact for recovery, but exclude them even if old clients added metadata.
+const exampleIncidentRefs=new Set(['NC-2026-041','NC-2026-039','NC-2026-036','NC-2026-044','NC-2026-045','NC-2026-033']);
 function buildIncidents(){ return []; }
 S.realIncidents=function(){
-  return (S.db().incidents||[]).filter(item=>{
-    const n=Number(String(item.id).slice(2))-1, example=exampleIncidents[n];
-    if(!example || item.id!==example.id) return true;
-    const keys=Object.keys(example);
-    const onlySeedFields=Object.keys(item).every(k=>keys.includes(k)||k==='opened'||k==='due');
-    return !(onlySeedFields && keys.every(k=>item[k]===example[k]) &&
-      /^\d{4}-\d{2}-\d{2}$/.test(String(item.opened||'')) && !isNaN(U.parseISO(item.opened)) &&
-      item.due===U.addDays(item.opened,exampleIncidentDays[n]));
-  });
+  return (S.db().incidents||[]).filter(item=>!exampleIncidentRefs.has(String(item.ref||'').trim().toUpperCase()));
+};
+S.nextIncidentRef=function(date,incidents){
+  const prefix='NC-'+String(date).slice(0,4)+'-';
+  const used=new Set((incidents||[]).map(item=>String(item.ref||'').trim().toUpperCase()));
+  exampleIncidentRefs.forEach(ref=>used.add(ref));
+  let n=1; while(used.has(prefix+String(n).padStart(3,'0'))) n++;
+  return prefix+String(n).padStart(3,'0');
 };
 
 /* Real stock only. The previous build generated a 12-month issue log and three

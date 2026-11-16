@@ -1,0 +1,22 @@
+const {boot,ok,done}=require('./env');
+(async()=>{
+ const {w,go}=await boot('#/quality?tab=incidents');w.LS.sync.stopLive();const S=w.LS.store,d=w.document;
+ const refs=['NC-2026-041','NC-2026-039','NC-2026-036','NC-2026-044','NC-2026-045','NC-2026-033'];
+ const fake=refs.map((ref,i)=>({id:'old'+i,ref,title:'Previously modified example '+i,status:'Open',severity:'Major',evidence:'extra metadata'}));
+ const actual={id:'real',ref:'NC-2026-046',title:'Actual recorded finding',status:'Open',severity:'Minor',evidence:'Reviewed log'};
+ S.db().incidents=[...fake,actual];await go('#/quality?tab=incidents');
+ ok(S.nextIncidentRef('2026-10-20',Array.from({length:32},(_,i)=>({ref:'NC-2026-'+String(i+1).padStart(3,'0')})))==='NC-2026-034','new references skip reserved example numbers');
+ ok(S.nextIncidentRef('2027-01-01',[])==='NC-2027-001','new references use the current year');
+ ok(refs.every(ref=>!d.querySelector('#qBody').textContent.includes(ref)),'all six identified examples hidden despite edits or sync metadata');
+ ok(d.querySelector('#qBody').textContent.includes(actual.title),'unrelated recorded finding remains visible');
+ ok(S.db().incidents.length===7,'legacy data retained in storage');
+ ok(!S.notifications().some(n=>refs.some(ref=>n.title.includes(ref))),'examples do not generate notifications');
+ const codes=['001','002','006','009','012','015','018','021','024','027'].map(x=>'SOP-LAB-'+x);
+ S.db().sops=codes.map((code,i)=>({id:'legacy'+i,code,title:'Edited example '+i,history:[{note:'metadata'}]})).concat([{id:'real-sop',code:'RliDHL-ADM-SOP-002',title:'Real manual entry'}]);
+ await go('#/quality?tab=sops');
+ ok(codes.every(code=>!d.querySelector('#qBody').textContent.includes(code)),'all ten specified fake SOP codes hidden even if edited');
+ ok(d.querySelector('#qBody').textContent.includes('Real manual entry'),'real manual SOP remains visible');
+ ok(S.db().sops.length===11,'legacy SOP data retained in storage');
+ ok(d.querySelectorAll('[data-register-row]').length===70,'Drive register rows retained');
+ done('quality-examples172');
+})().catch(e=>{console.error(e);process.exit(1)});

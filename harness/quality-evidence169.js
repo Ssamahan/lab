@@ -7,6 +7,7 @@ const {boot,ok,done}=require('./env');
  ok(S.db().incidents.length===1,'existing stored data is preserved');
  ok(!S.notifications().some(n=>n.title.includes(sample.ref)),'fictional incident does not create a notification');
  sample.evidence='Reviewed by user';await go('#/quality?tab=incidents');
- ok(d.querySelector('#qBody').textContent.includes(sample.title),'edited incident is preserved and visible');
+ ok(!d.querySelector('#qBody').textContent.includes(sample.title),'identified example stays hidden after edits');
+ ok(S.db().incidents[0].evidence==='Reviewed by user','edited legacy data remains stored');
  done('quality-evidence169');
 })().catch(e=>{console.error(e);process.exit(1)});

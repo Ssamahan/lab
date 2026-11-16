@@ -7,28 +7,9 @@ const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.quality=M;
 let rootEl=null, tab='overview';
 
-// Hide only untouched examples; leave persisted data and any edits intact across sync.
-const exampleSops=[
-  ['SOP-LAB-001','Specimen collection, labelling and transport','v4.2','2026-02-11','2027-02-11','Kelvin SAMAHANI'],
-  ['SOP-LAB-002','Sample acceptance and rejection criteria','v3.1','2026-04-02','2027-04-02','Kelvin SAMAHANI'],
-  ['SOP-LAB-006','GeneXpert MTB/RIF testing procedure','v5.0','2026-06-18','2027-06-18','Jean Paul NSENGIYUMVA'],
-  ['SOP-LAB-009','Internal quality control & Westgard rules','v2.3','2025-09-14','2026-09-14','Aurelie YANSONEYE'],
-  ['SOP-LAB-012','Blood culture contamination prevention','v1.4','2026-01-14','2027-01-14','Beatrice NGEZEKURE'],
-  ['SOP-LAB-015','Cold-chain temperature monitoring','v3.0','2026-08-01','2027-08-01','Beatrice NGEZEKURE'],
-  ['SOP-LAB-018','External quality assessment handling','v2.0','2026-03-22','2027-03-22','Kelvin SAMAHANI'],
-  ['SOP-LAB-021','Waste segregation and sharps safety','v4.0','2026-07-09','2027-07-09','Dieudonne MUNYANEZA'],
-  ['SOP-LAB-024','Result verification and critical value reporting','v1.8','2025-12-12','2026-12-12','Kelvin SAMAHANI'],
-  ['SOP-LAB-027','Non-conformance and CAPA management','v2.1','2026-05-06','2027-05-06','Kelvin SAMAHANI']
-];
-function isExample(s){
-  const i=Number(String(s.id).slice(3));
-  if(s.id!=='sop'+i || !exampleSops[i]) return false;
-  const keys=['code','title','version','effective','review','owner'];
-  return keys.every((key,n)=>s[key]===exampleSops[i][n]) &&
-    s.ack===[2,9,6][i%3] && s.acknowledged===(i%3!==2) &&
-    ['current','review-due'].includes(s.status) &&
-    Object.keys(s).every(key=>keys.concat(['id','ack','acknowledged','status']).includes(key));
-}
+// These system-generated codes were identified by the user; retain raw rows for recovery.
+const exampleSopCodes=new Set(['001','002','006','009','012','015','018','021','024','027'].map(n=>'SOP-LAB-'+n));
+function isExample(s){ return exampleSopCodes.has(String(s.code||'').trim().toUpperCase()); }
 function registeredSops(){ return S.db().sops.filter(s=>!isExample(s)); }
 const sourceSops=[
   ['RliDHL-BIO-SOP-001-VERS-005','Glucose Testing using Cobas c 111'],
@@ -1155,7 +1136,7 @@ function logIncident(){
         const title=el.querySelector('#inTitle').value.trim(), evidence=el.querySelector('#inEvidence').value.trim();
         if(!title || !evidence) return UI.toast('Enter the finding and an evidence reference',{type:'warn'});
         const sev=el.querySelector('#inSev').value; const sla=sev==='Critical'?2:sev==='Major'?7:30;
-        S.commit(d=>{ d.incidents.unshift({id:U.uid('nc'),ref:'NC-2026-'+String(46+d.incidents.length).padStart(3,'0'),title,evidence,severity:sev,owner:el.querySelector('#inOwner').value,opened:U.todayISO(),due:U.addDays(U.todayISO(),sla),status:'Open',rootCause:el.querySelector('#inRoot').value,capa:el.querySelector('#inCapa').value}); },
+        S.commit(d=>{ d.incidents.unshift({id:U.uid('nc'),ref:S.nextIncidentRef(U.todayISO(),d.incidents),title,evidence,severity:sev,owner:el.querySelector('#inOwner').value,opened:U.todayISO(),due:U.addDays(U.todayISO(),sla),status:'Open',rootCause:el.querySelector('#inRoot').value,capa:el.querySelector('#inCapa').value}); },
           {action:'quality.incident',entity:'incidents',detail:sev+' non-conformance logged'});
         close(); LS.shell.refresh(); UI.toast('Non-conformance logged · SLA clock started',{type:'ok'});
       };
@@ -1173,6 +1154,7 @@ function sopEditor(id){
     onMount:(el,close)=>{el.querySelector('[data-save-sop]').onclick=()=>{
       const record={};el.querySelectorAll('[data-sop-field]').forEach(input=>{record[input.dataset.sopField]=input.value.trim();});
       if(!record.code||!record.title||!record.review) return UI.toast('Enter a code, title and next review date',{type:'warn'});
+      if(isExample(record)) return UI.toast('This code belongs to a removed example. Enter the verified document code.',{type:'warn'});
       if(S.db().sops.some(x=>x.id!==id&&String(x.code).toLowerCase()===record.code.toLowerCase())) return UI.toast('This SOP code already exists',{type:'warn'});
       S.commit(d=>{if(existing){const x=d.sops.find(y=>y.id===id);if(x){x.history=(x.history||[]).concat([{code:x.code,title:x.title,version:x.version,effective:x.effective,review:x.review,owner:x.owner,content:x.content||'',at:U.nowISO(),by:LS.auth.user.name}]);Object.assign(x,record);}}else d.sops.push(Object.assign({id:U.uid('sop'),acknowledged:false,history:[]},record));},{action:existing?'quality.sop.edit':'quality.sop.add',entity:'sops',entityId:id||'',detail:'SOP '+record.code});
       close();paint();UI.toast('SOP saved',{type:'ok'});

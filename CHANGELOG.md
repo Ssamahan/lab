@@ -1,3 +1,7 @@
+# v6.9.172
+
+- Hide the six user-identified fictitious non-conformances and ten example SOP codes even if previously edited; retain underlying legacy data. Allocate new incident references without reusing example numbers.
+
 - Added all 70 rows from the SOP review Register sheet, including original master-list dates and unresolved notes.
 
 # v6.9.170
