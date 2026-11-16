@@ -15,14 +15,14 @@
 <meta name="apple-mobile-web-app-title" content="Lab Systems">
 <link rel="preload" href="assets/fonts/fraunces-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.164">
-<link rel="stylesheet" href="assets/css/app.css?v=6.9.164">
-<link rel="stylesheet" href="assets/css/landing.css?v=6.9.164">
+<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.172">
+<link rel="stylesheet" href="assets/css/app.css?v=6.9.172">
+<link rel="stylesheet" href="assets/css/landing.css?v=6.9.172">
 <!-- Blocking, deliberately. It was made non-blocking in 6.9.134 to save 71 KB of waiting,
      and that is exactly the sort of cleverness that produces an unstyled, unreadable
      console on a device where the deferred swap does not happen. Reliability first: the
      stylesheet is there before the first screen is drawn, every time. -->
-<link rel="stylesheet" href="assets/css/modules.css?v=6.9.164">
+<link rel="stylesheet" href="assets/css/modules.css?v=6.9.172">
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
@@ -50,7 +50,7 @@
   <div class="boot-sub">Ruli District Hospital · Laboratory</div>
   <div class="boot-thread"><i></i></div>
   <div class="boot-status" id="bootStatus">Calibrating QC engines…</div>
-  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.164</span></div>
+  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.172</span></div>
 </div>
 
 
@@ -170,7 +170,7 @@
         </svg>
       </div>
       <span class="land-eyebrow">FY 2026 / 2027 · Gakenke District · Rwanda</span>
-      <h1>The laboratory register of a <em>hospital that never closes.</em></h1>
+      <h1>A working register for <em>Ruli laboratory.</em></h1>
       <p>Referred samples and chain of custody, commodity security, the working plan and night
         cover, EQA and ISO 15189 quality, equipment and district PBF scoring —
         one workspace that keeps working when the network does not.</p>
@@ -183,7 +183,7 @@
         <div><b data-land-staff>—</b><small>Technical staff</small></div>
         <div><b data-land-centres>—</b><small>Health centres</small></div>
         <div><b data-land-tests>—</b><small>Referral tests</small></div>
-        <div><b>100%</b><small>Offline capable</small></div>
+        <div><b>Offline</b><small>Work when disconnected</small></div>
       </div>
     </section>
 
@@ -253,10 +253,10 @@
   </main>
 
   <footer class="land-foot">
-    <span>© 2026 Ruli District Hospital · Laboratory Department · Data residency: Rwanda</span>
+    <span>© 2026 Ruli District Hospital · Laboratory Department</span>
     <span class="row" style="gap:12px">
       <button class="land-back" type="button" id="landConsole" hidden>Back to the console</button>
-      <span class="mono">Lab Systems v6.9.164</span>
+      <span class="mono">Lab Systems v6.9.172</span>
     </span>
   </footer>
 </section>
@@ -282,20 +282,17 @@
     </div>
     <div class="auth-hero">
       <div class="eyebrow">FY 2026 / 2027 · Gakenke District</div>
-      <h1>The operating console for a <em>laboratory that never closes.</em></h1>
-      <p>Referred samples, chain of custody, commodity security, rosters and ISO 15189 quality — engineered into a single instrument, calibrated for the bench and the boardroom.</p>
+      <h1>The laboratory register for <em>Ruli District Hospital.</em></h1>
+      <p>Referred samples, supplies, rosters and quality records in one workspace.</p>
       <div class="auth-stats">
         <div class="st"><b data-land-staff>6</b><small>Technical staff</small></div>
         <div class="st"><b>8</b><small>Health centres</small></div>
         <div class="st"><b>20</b><small>Test menu</small></div>
-        <div class="st"><b>100%</b><small>Offline capable</small></div>
+        <div class="st"><b>Offline</b><small>Work when disconnected</small></div>
       </div>
     </div>
     <div class="auth-trust">
       <span class="trust-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>ISO 15189 aligned</span>
-      <span class="trust-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>AES-256 at rest</span>
-      <span class="trust-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>Data residency · Rwanda</span>
-      <span class="trust-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18"/></svg>GDPR &amp; HIPAA-ready</span>
     </div>
   </div>
 
@@ -304,7 +301,7 @@
       <button class="land-back" type="button" id="authBack" style="float:right;margin-top:2px">Overview</button>
       <div class="eyebrow" style="margin-bottom:8px">Secure sign-in</div>
       <h2>Welcome back.</h2>
-      <p class="lead">Sign in to the Ruli DH laboratory register. Access is role-scoped and every action is written to a tamper-evident audit trail.</p>
+      <p class="lead">Sign in to the Ruli DH laboratory register. Use your laboratory account to continue.</p>
 
       <div class="auth-tabs" role="tablist">
         <button class="on" data-auth-tab="pass" role="tab">Password</button>
@@ -351,11 +348,11 @@
 
       <div class="secure-strip">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
-        <span>Encrypted at rest on this device. Optional cloud sync is end-to-end over TLS. <b style="color:var(--text)">Data residency: Rwanda</b>.</span>
+        <span>Records may be stored on this device. Protect shared devices and exported files.</span>
       </div>
       <div class="auth-foot">
         Accounts are issued by the laboratory manager in Security Center.<br>
-        Lab Systems v6.9.164 · © 2026 Ruli District Hospital · Laboratory Department
+        Lab Systems v6.9.172 · © 2026 Ruli District Hospital · Laboratory Department
       </div>
     </div>
   </div>
@@ -459,29 +456,29 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <noscript><div style="padding:40px;text-align:center;font-family:system-ui">Lab Systems requires JavaScript. Contact the laboratory manager for an offline APK build.</div></noscript>
 
-<script src="assets/js/core/icons.js?v=6.9.164"></script>
-<script src="assets/js/core/seed.js?v=6.9.164"></script>
-<script src="assets/data/plan-archive.js?v=6.9.164"></script>
-<script src="assets/js/core/utils.js?v=6.9.164"></script>
-<script src="assets/js/core/store.js?v=6.9.164"></script>
-<script src="assets/js/core/ui.js?v=6.9.164"></script>
-<script src="assets/js/core/charts.js?v=6.9.164"></script>
+<script src="assets/js/core/icons.js?v=6.9.172"></script>
+<script src="assets/js/core/seed.js?v=6.9.172"></script>
+<script src="assets/data/plan-archive.js?v=6.9.172"></script>
+<script src="assets/js/core/utils.js?v=6.9.172"></script>
+<script src="assets/js/core/store.js?v=6.9.172"></script>
+<script src="assets/js/core/ui.js?v=6.9.172"></script>
+<script src="assets/js/core/charts.js?v=6.9.172"></script>
 <!-- The sheet layout engine (sheets.js) is loaded with everything else, in parallel.
      6.9.109 deferred it and made thirteen screens *wait* for it before their own file
      even started: on a slow link that is an extra 91 KB of stall on every first visit to
      every screen, and if the request hangs the screen never draws at all. Back in the
      list, where a slow file only slows its own download — not the whole console. -->
-<script src="assets/js/core/sheets.js?v=6.9.164"></script>
+<script src="assets/js/core/sheets.js?v=6.9.172"></script>
 <!-- The workbook reader is still on demand (SH.ensureCore('xlsx')): nothing renders
      without it, and only an import needs it. -->
-<script src="assets/js/core/i18n.js?v=6.9.164"></script>
-<script src="assets/js/core/auth.js?v=6.9.164"></script>
-<script src="assets/js/core/landing.js?v=6.9.164"></script>
-<script src="assets/js/core/shell.js?v=6.9.164"></script>
-<script src="assets/js/core/shared.js?v=6.9.164"></script>
-<script src="assets/js/core/sync.js?v=6.9.164"></script>
-<script src="assets/js/core/private-names.js?v=6.9.164"></script>
-<script src="assets/js/core/boot.js?v=6.9.164"></script>
+<script src="assets/js/core/i18n.js?v=6.9.172"></script>
+<script src="assets/js/core/auth.js?v=6.9.172"></script>
+<script src="assets/js/core/landing.js?v=6.9.172"></script>
+<script src="assets/js/core/shell.js?v=6.9.172"></script>
+<script src="assets/js/core/shared.js?v=6.9.172"></script>
+<script src="assets/js/core/sync.js?v=6.9.172"></script>
+<script src="assets/js/core/private-names.js?v=6.9.172"></script>
+<script src="assets/js/core/boot.js?v=6.9.172"></script>
 <script>
 /* ——— The last line of defence ————————————————————————————————
    Written inline, and deliberately dependent on nothing: if the console's own scripts

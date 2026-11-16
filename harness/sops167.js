@@ -1,0 +1,24 @@
+const {boot,ok,done}=require('./env');
+(async()=>{
+ const {w,go}=await boot('#/quality?tab=sops'); w.LS.sync.stopLive();
+ await go('#/quality?tab=sops');
+ const body=w.document.querySelector('#qBody');
+ ok(!body.textContent.includes('SOP-LAB-001'),'fictional seeded SOP is not displayed');
+ ok(body.textContent.includes('RliDHL-HEM-SOP-001-VERS-002'),'real repository SOP is listed');
+ ok(!!body.querySelector('a[href*="github.com/Ssamahan/SOPs"]'),'source document links to SOPs repository');
+ ok(body.textContent.toLowerCase().includes('approval'), 'source approval is not assumed');
+ const example={id:'sop0',code:'SOP-LAB-001',title:'Specimen collection, labelling and transport',version:'v4.2',effective:'2026-02-11',review:'2027-02-11',owner:'Kelvin SAMAHANI',status:'current',ack:2,acknowledged:true};
+ w.LS.store.db().sops.push(example);
+ await go('#/quality?tab=sops');
+ ok(!w.document.querySelector('#qBody').textContent.includes('SOP-LAB-001'),'untouched legacy seed is hidden');
+ ok(!!example,'legacy seed remains stored to avoid destructive sync');
+ example.title='User edited title';
+ await go('#/quality?tab=sops');
+ ok(!w.document.querySelector('#qBody').textContent.includes('User edited title'),'identified example stays hidden even after edits');
+ example.title='Specimen collection, labelling and transport';
+ example.history=[{title:'previous edit'}];
+ await go('#/quality?tab=sops');
+ ok(!w.document.querySelector('#qBody').textContent.includes('SOP-LAB-001'),'identified example with edit history stays hidden');
+ ok(example.history.length===1,'legacy edit history remains stored');
+ done('sops167');
+})().catch(e=>{console.error(e);process.exit(1)});

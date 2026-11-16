@@ -75,6 +75,17 @@ P.loadReportSource=async function(){
   if(!S.setReportSource(payload.months,payload.workbookCells)) throw Error('Protected history has an invalid format.');
   return Object.keys(payload.months).length;
 };
+/* Results remain in memory only; they never enter the shared register or its exports. */
+P.referralResults=async function(){
+  guard(); const session=token, all=[]; let cursor='';
+  for(;;){
+    const page=await request('/rest/v1/rpc/private_referral_results',{method:'POST',headers:headers(),body:JSON.stringify({p_after:cursor})});
+    guard(); if(session!==token) throw Error('The private session changed.');
+    if(!Array.isArray(page)||page.length>100||page.some(x=>!x||typeof x.sample_id!=='string'||!x.report||typeof x.report!=='object')) throw Error('Unexpected private results response.');
+    for(const row of page){ if(row.sample_id<=cursor) throw Error('Invalid private results page.'); cursor=row.sample_id; all.push(row); }
+    if(page.length<100) return all;
+  }
+};
 P.status=()=>message;
 P.conflicts=()=>conflicts.map(c=>Object.assign({},c));
 P.isMissingName=missingName;

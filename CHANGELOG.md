@@ -1,3 +1,32 @@
+# v6.9.172
+
+- Hide the six user-identified fictitious non-conformances and ten example SOP codes even if previously edited; retain underlying legacy data. Allocate new incident references without reusing example numbers.
+
+- Added all 70 rows from the SOP review Register sheet, including original master-list dates and unresolved notes.
+
+# v6.9.170
+
+- Link ten individually opened revised SOP drafts and document specific reconciliation issues with action comments. Source dates and approval remain unverified.
+
+# v6.9.168
+
+- Show recorded SOP review-date bands and section counts; hide untouched generated non-conformances while preserving stored records, and require an evidence reference for new findings.
+- Link seven unsigned equipment SOPs on Drive and record per-document DG approval confirmations without changing the source files. Approval records are not digital signatures; Drive links can change.
+
+# v6.9.167
+
+- Replace untouched example SOPs in the quality view with links to five repository documents; approval and dates remain unverified. Existing edited records and stored legacy rows are preserved.
+
+## 6.9.166
+
+- Add an online-only, access-controlled view for protected NRL result reports, separate from the shared register.
+
+## 6.9.165
+
+- Flush pending device saves when leaving or backgrounding the app, preventing immediate navigation from losing the last edit.
+- Simplify the public overview and shared console surfaces, reserving the laboratory illustration as the focal point.
+- Remove unsupported security and residency claims from the sign-in and overview screens.
+
 ## 6.9.164
 
 - Merge weekend and holiday service columns into plan-based day duty, remove day-duty counts, and show weekly names on two lines.

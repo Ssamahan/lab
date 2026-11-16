@@ -140,6 +140,29 @@ function privateNamesModal(){
       el.querySelectorAll('[data-pn-remote]').forEach(b=>b.onclick=()=>run(b,()=>P.resolve(b.dataset.pnRemote,'remote')));
     }});
 }
+/* Historical NRL reports are deliberately separate from the public sample register. */
+function privateResultsModal(){
+  const P=LS.privateNames;
+  if(!P||!P.connected()){ UI.toast('Connect private names first to open protected results.',{type:'warn'}); return; }
+  UI.modal({title:'Protected NRL results',width:'min(850px,100%)',
+    sub:'Historical reports · visible only while your private session is active. Online access required.',
+    body:'<div data-private-results role="status">Loading protected results…</div>',
+    onMount:async el=>{
+      const host=el.querySelector('[data-private-results]');
+      const timer=setInterval(()=>{
+        if(!el.isConnected){clearInterval(timer);return;}
+        if(!P.connected()){host.textContent='Private session ended. Connect again to view results.';clearInterval(timer);}
+      },1000);
+      try{
+        const rows=await P.referralResults();
+        if(!el.isConnected||!P.connected()) return;
+        host.innerHTML=rows.length?rows.map(x=>{
+          const r=x.report, lines=[['Patient',r.patient_name],['Patient identifier',r.patient_id],['Date of birth',r.date_of_birth],['Sex',r.sex],['Specimen',r.specimen],['Test',r.test],['Collected',r.collection_date],['Received by NRL',r.received_date],['Tested',r.tested_date],['Reviewed',r.reviewed_date],['Result',r.result],['Interpretation',r.interpretation],['Source',r.source]];
+          return '<article style="border-top:1px solid var(--border);padding:12px 0"><b>Sample '+U.esc(x.sample_id)+'</b>'+lines.filter(v=>v[1]!=null&&v[1]!=='').map(v=>'<div class="small"><b>'+U.esc(v[0])+':</b> '+U.esc(String(v[1]))+'</div>').join('')+'</article>';
+        }).join(''):'<p>No protected reports have been imported yet.</p>';
+      }catch(e){ if(el.isConnected) host.textContent=e.message||'Protected results could not be loaded.'; }
+    }});
+}
 /* The name of a specimen for anything that has to identify it — the record view, the
    printed manifest, an export. Recorded names come from the device name store and need no
    unlock; a visitor still gets the mask, and where no name was ever recorded the old
@@ -258,7 +281,7 @@ function tableHTML(){
      +'<span class="grow"></span>'
      +'<div class="row gap-sm">'
      +(namesUnlockable()?'<button class="btn sm" data-names-bulk title="Record the names of orders that have none">'+UI.ic('pencil',13)+' Record names'+(function(){ const miss=S.db().samples.filter(x=>!S.recordedName(x)).length; return miss?(' · '+miss):''; })()+'</button>':'')
-       +(LS.privateNames&&LS.auth.user&&LS.auth.user.id==='u1'?'<button class="btn sm" data-private-names title="Sign in to the separate patient name store">Private names</button>':'')
+       +(LS.privateNames&&LS.auth.user&&LS.auth.user.id==='u1'?'<button class="btn sm" data-private-names title="Sign in to the separate patient name store">Private names</button><button class="btn sm" data-private-results-open>Protected NRL results</button>':'')
        +(LS.privateNames&&LS.auth.user&&LS.auth.user.id==='u1'?'<span class="xs faint" data-private-status>'+U.esc(LS.privateNames.status())+'</span>':'')
        +namesButton()
        +'<button class="btn sm" data-saved>'+UI.ic('book-marked',13)+' Saved views</button>'
@@ -1144,6 +1167,7 @@ function wire(){
   r.querySelectorAll('[data-saved]').forEach(b=>b.onclick=savedViews);
   r.querySelectorAll('[data-export]').forEach(b=>b.onclick=exportCSV);
   const pn=r.querySelector('[data-private-names]'); if(pn) pn.onclick=privateNamesModal;
+  const pr=r.querySelector('[data-private-results-open]'); if(pr) pr.onclick=privateResultsModal;
   const nt=r.querySelector('[data-names-toggle]'); if(nt) nt.onclick=namesModal;
   const nb=r.querySelector('[data-names-bulk]'); if(nb) nb.onclick=recordNamesBulk;
   r.querySelectorAll('[data-name-add]').forEach(b=>b.onclick=ev=>{

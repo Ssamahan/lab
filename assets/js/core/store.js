@@ -132,32 +132,6 @@ function dropInventedPbf(db){
     try{ db.meta=db.meta||{}; db.meta.pbfInventedPurged=true; }catch(e){}
   }
 }
-function buildSOPs(){
-  const docs=[
-    ['SOP-LAB-001','Specimen collection, labelling and transport','v4.2','2026-02-11','2027-02-11','Kelvin SAMAHANI',true],
-    ['SOP-LAB-002','Sample acceptance and rejection criteria','v3.1','2026-04-02','2027-04-02','Kelvin SAMAHANI',true],
-    ['SOP-LAB-006','GeneXpert MTB/RIF testing procedure','v5.0','2026-06-18','2027-06-18','Jean Paul NSENGIYUMVA',true],
-    ['SOP-LAB-009','Internal quality control & Westgard rules','v2.3','2025-11-30','2026-11-30','Diane UWASE',false],
-    ['SOP-LAB-012','Blood culture contamination prevention','v1.4','2026-01-14','2027-01-14','Kelvin SAMAHANI',true],
-    ['SOP-LAB-015','Cold-chain temperature monitoring','v3.0','2026-08-01','2027-08-01','Beatrice NGEZEKURE',true],
-    ['SOP-LAB-018','External quality assessment handling','v2.0','2026-03-22','2027-03-22','Kelvin SAMAHANI',false],
-    ['SOP-LAB-021','Waste segregation and sharps safety','v4.0','2026-07-09','2027-07-09','Beatrice NGEZEKURE',true],
-    ['SOP-LAB-024','Result verification and critical value reporting','v1.8','2025-12-12','2026-12-12','Kelvin SAMAHANI',false],
-    ['SOP-LAB-027','Non-conformance and CAPA management','v2.1','2026-05-06','2027-05-06','Kelvin SAMAHANI',true]
-  ];
-  return docs.map(d=>({id:d[0],code:d[0],title:d[1],version:d[2],effective:d[3],review:d[4],owner:d[5],acknowledged:d[6]}));
-}
-function buildIncidents(){
-  const t=U.todayISO();
-  return [
-    {id:'nc1',rootCause:'Cap not torqued; transport box without secondary containment',ref:'NC-2026-041',title:'Blood culture bottle leaked in transit from Coko HC',severity:'Major',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-9),due:U.addDays(t,5),status:'Open',rootCause:'Cap not torqued; transport box without secondary containment',capa:'Refresher to 8 health centres; secondary bags issued'},
-    {id:'nc2',rootCause:'Probe check failure after power dip',ref:'NC-2026-039',title:'GeneXpert module 2 error — invalid result on repeat',severity:'Minor',owner:'Jean Paul NSENGIYUMVA',opened:U.addDays(t,-18),due:U.addDays(t,-2),status:'CAPA in progress',rootCause:'Probe check failure after power dip',capa:'UPS installed; module recalibrated'},
-    {id:'nc3',rootCause:'Reagent lot degradation',ref:'NC-2026-036',title:'QC 1-3s violation — Creatinine level 2',severity:'Major',owner:'Diane UWASE',opened:U.addDays(t,-26),due:U.addDays(t,-12),status:'Closed',rootCause:'Reagent lot degradation',capa:'Lot quarantined, new lot verified'},
-    {id:'nc4',rootCause:'Annual review cycle slipped',ref:'NC-2026-044',title:'SOP-LAB-009 past due for review',severity:'Minor',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-3),due:U.addDays(t,12),status:'Open',rootCause:'Document control review cycle',capa:'Review scheduled 12 Nov 2026'},
-    {id:'nc5',rootCause:'Door left ajar during inventory',ref:'NC-2026-045',title:'Fridge 2–8 °C excursion to 9.4 °C for 42 minutes',severity:'Critical',owner:'Beatrice NGEZEKURE',opened:U.addDays(t,-1),due:U.addDays(t,2),status:'Open',rootCause:'Door left ajar during inventory',capa:'Door alarm latch; monthly drill'},
-    {id:'nc6',rootCause:'Paediatric draw technique',ref:'NC-2026-033',title:'Two samples rejected for insufficient volume',severity:'Minor',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-41),due:U.addDays(t,-28),status:'Closed',rootCause:'Paediatric draw technique',capa:'Microtainer training completed'}
-  ];
-}
 function buildChecklist(){
   return [
     {id:'ck1', section:'Organisation & management', item:'Quality manual approved and communicated', done:true, weight:5},
@@ -252,32 +226,23 @@ function buildChecklist(){
   return rows.map((r,i)=>({id:'cl'+i, section:r[1], code:'ISO-'+r[0]+'-'+String(i+1).padStart(2,'0'), item:r[2], weight:r[3], done:r[4]}));
 }
 function buildSOPs(){
-  const docs=[
-    ['SOP-LAB-001','Specimen collection, labelling and transport','v4.2','2026-02-11','2027-02-11','Kelvin SAMAHANI'],
-    ['SOP-LAB-002','Sample acceptance and rejection criteria','v3.1','2026-04-02','2027-04-02','Kelvin SAMAHANI'],
-    ['SOP-LAB-006','GeneXpert MTB/RIF testing procedure','v5.0','2026-06-18','2027-06-18','Jean Paul NSENGIYUMVA'],
-    ['SOP-LAB-009','Internal quality control & Westgard rules','v2.3','2025-09-14','2026-09-14','Aurelie YANSONEYE'],
-    ['SOP-LAB-012','Blood culture contamination prevention','v1.4','2026-01-14','2027-01-14','Beatrice NGEZEKURE'],
-    ['SOP-LAB-015','Cold-chain temperature monitoring','v3.0','2026-08-01','2027-08-01','Beatrice NGEZEKURE'],
-    ['SOP-LAB-018','External quality assessment handling','v2.0','2026-03-22','2027-03-22','Kelvin SAMAHANI'],
-    ['SOP-LAB-021','Waste segregation and sharps safety','v4.0','2026-07-09','2027-07-09','Dieudonne MUNYANEZA'],
-    ['SOP-LAB-024','Result verification and critical value reporting','v1.8','2025-12-12','2026-12-12','Kelvin SAMAHANI'],
-    ['SOP-LAB-027','Non-conformance and CAPA management','v2.1','2026-05-06','2027-05-06','Kelvin SAMAHANI']
-  ];
-  return docs.map((d,i)=>({id:'sop'+i, code:d[0], title:d[1], version:d[2], effective:d[3], review:d[4], owner:d[5],
-    status:d[4]<U.todayISO()?'review-due':'current', ack:i%3===0?2:i%3===1?9:6, acknowledged:(i%3!==2)}));
+  return [];
 }
-function buildIncidents(){
-  const t=U.todayISO();
-  return [
-    {id:'nc1',ref:'NC-2026-041',title:'Blood culture bottle leaked in transit from Coko HC',severity:'Major',type:'Pre-analytical',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-9),due:U.addDays(t,5),status:'Open',root:'Cap not torqued; transport box lacking secondary containment',capa:'Refresher to 8 health centres; secondary bags issued'},
-    {id:'nc2',ref:'NC-2026-039',title:'GeneXpert module 2 invalid result on repeat',severity:'Minor',type:'Analytical',owner:'Jean Paul NSENGIYUMVA',opened:U.addDays(t,-18),due:U.addDays(t,-2),status:'CAPA in progress',root:'Probe check failure after power dip',capa:'UPS installed; module recalibrated'},
-    {id:'nc3',ref:'NC-2026-036',title:'QC 1-3s violation — Creatinine level 2',severity:'Major',type:'Analytical',owner:'Aurelie YANSONEYE',opened:U.addDays(t,-26),due:U.addDays(t,-12),status:'Closed',root:'Reagent lot degradation',capa:'Lot quarantined, new lot verified'},
-    {id:'nc4',ref:'NC-2026-044',title:'SOP-LAB-009 past due for review',severity:'Minor',type:'Document control',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-3),due:U.addDays(t,12),status:'Open',root:'Annual review cycle slipped',capa:'Review scheduled 12 Nov 2026'},
-    {id:'nc5',ref:'NC-2026-045',title:'Fridge 2–8 °C excursion to 9.4 °C for 42 minutes',severity:'Critical',type:'Facilities',owner:'Beatrice NGEZEKURE',opened:U.addDays(t,-1),due:U.addDays(t,2),status:'Open',root:'Door left ajar during inventory',capa:'Door alarm latch fitted; monthly drill'},
-    {id:'nc6',ref:'NC-2026-033',title:'Two samples rejected for insufficient volume',severity:'Minor',type:'Pre-analytical',owner:'Kelvin SAMAHANI',opened:U.addDays(t,-41),due:U.addDays(t,-28),status:'Closed',root:'Paediatric draw technique',capa:'Microtainer training completed'}
-  ];
-}
+// These references were explicitly identified as generated examples. Keep stored
+// rows intact for recovery, but exclude them even if old clients added metadata.
+const exampleIncidentRefs=new Set(['NC-2026-041','NC-2026-039','NC-2026-036','NC-2026-044','NC-2026-045','NC-2026-033']);
+function buildIncidents(){ return []; }
+S.realIncidents=function(){
+  return (S.db().incidents||[]).filter(item=>!exampleIncidentRefs.has(String(item.ref||'').trim().toUpperCase()));
+};
+S.nextIncidentRef=function(date,incidents){
+  const prefix='NC-'+String(date).slice(0,4)+'-';
+  const used=new Set((incidents||[]).map(item=>String(item.ref||'').trim().toUpperCase()));
+  exampleIncidentRefs.forEach(ref=>used.add(ref));
+  let n=1; while(used.has(prefix+String(n).padStart(3,'0'))) n++;
+  return prefix+String(n).padStart(3,'0');
+};
+
 /* Real stock only. The previous build generated a 12-month issue log and three
    lots per consumable so the charts looked busy; those were invented numbers and
    are no longer created. Everything below fills catalogue defaults the UI needs
@@ -1996,10 +1961,14 @@ S.reloadFromStorage=function(){
   }catch(e){ return false; }
 };
 S.save=function(immediate){
-  clearTimeout(saveTimer);
+  clearTimeout(saveTimer); saveTimer=null;
   if(immediate) return S._persist();
-  saveTimer=setTimeout(S._persist,220);
+  saveTimer=setTimeout(()=>{ saveTimer=null; S._persist(); },220);
 };
+/* A navigation or a backgrounded mobile tab can interrupt the debounce. */
+function flushPendingSave(){ if(saveTimer!==null) S.save(true); }
+window.addEventListener('pagehide',flushPendingSave);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) flushPendingSave(); });
 S.subscribe=function(fn){ listeners.push(fn); return ()=>{ listeners=listeners.filter(f=>f!==fn); }; };
 S.emit=function(reason){ listeners.forEach(f=>{ try{ f(reason); }catch(e){ console.warn('listener',e); } }); window.dispatchEvent(new CustomEvent('ls:changed',{detail:reason})); };
 /* Local edits waiting to reach the shared copy. The sync layer reads this to know
@@ -3821,7 +3790,7 @@ S.notifications=function(){
         ts:new Date(sc.plannedDate+'T08:00:00').toISOString(),href:'#/pbf',icon:'calendar-check'}); });
   const cqi=LS.auth&&LS.auth.can('edit')?S.cqiQuarterReminder(today):null;
   if(cqi)out.push({id:'n-cqi-quarter-'+cqi.end+'-'+today,group:'Quality',tone:'amber',title:'Review TB CQI recommendations',detail:cqi.count+' recommendation'+(cqi.count===1?'':'s')+' not fully implemented · quarter ends '+U.fmtDate(cqi.end),ts:U.nowISO(),href:'#/eqa?tab=cqi',icon:'clipboard-check'});
-  const nc=S.db().incidents.filter(i=>i.status!=='Closed').slice(0,2);
+  const nc=S.realIncidents().filter(i=>i.status!=='Closed').slice(0,2);
   nc.forEach(i=>out.push({id:'n-'+i.id,group:'Quality',tone:i.severity==='Critical'?'rose':'blue',title:i.ref+' · '+i.title,detail:i.severity+' · owner '+i.owner+' · due '+U.fmtDate(i.due),ts:i.opened,href:'#/quality?tab=incidents',icon:'shield-alert'}));
   out.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
   return out.map(n=>Object.assign(n,{read:(db.notifRead||[]).includes(n.id)}));
