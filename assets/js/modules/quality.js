@@ -1015,16 +1015,23 @@ function sopAnalysis(){
 function registerCatalog(){
   const bands=[['overdue','Overdue'],['0-30','0–30 days'],['31-90','31–90 days'],['91-180','91–180 days'],['181-360','181–360 days'],['beyond','Beyond 360 days'],['unknown','Unknown']];
   const sections=[...new Set(reviewRegister.map(x=>x.section))].sort();
-  const summary=bands.map(([key,label])=>'<span class="pill slate">'+U.esc(label)+': '+reviewRegister.filter(x=>reviewBand(x.review)===key).length+'</span>').join('');
-  return '<div class="card pad" style="margin-bottom:16px"><h2>Review register · 70 rows</h2><p class="small">Snapshot of the <a href="https://drive.google.com/file/d/1P8CmmhIm8FvXO2wmyPCk61KBY_EkucHT/view" target="_blank" rel="noopener noreferrer">Register sheet</a>, prepared 13 November 2026 for the 31 March 2027 cutoff. Dates below are master-list dates as recorded in that sheet, not confirmed current dates. The sheet may contain conflicts or later versions; retain separate rows until corrected. The dated status is historical, not a live approval status.</p><div class="row wrap gap-sm">'+summary+'</div><p class="small">Bands are relative to today and use the register’s master-list date; missing dates are unknown. These 70 rows are counted separately from the source-document and manual registers below to avoid implying that versions have been reconciled.</p>'+sections.map(section=>{
+  const stats=[['Rows',reviewRegister.length,'Snapshot records'],['Overdue',reviewRegister.filter(x=>reviewBand(x.review)==='overdue').length,'Master-list review date'],['Next 30 days',reviewRegister.filter(x=>reviewBand(x.review)==='0-30').length,'Non-cumulative window'],['Unknown',reviewRegister.filter(x=>reviewBand(x.review)==='unknown').length,'Review date not recorded']];
+  return '<section class="sop-register" aria-labelledby="registerHeading"><div class="sop-register-intro"><div><div class="sop-kicker">DOCUMENT CONTROL <span> / </span> REVIEW REGISTER</div><h2 id="registerHeading">Find the right SOP, faster.</h2><p>Browse the 70-row review snapshot by section, review date or keyword. Source documents and approval records remain separate until versions are reconciled.</p></div><a class="btn" href="https://drive.google.com/file/d/1P8CmmhIm8FvXO2wmyPCk61KBY_EkucHT/view" target="_blank" rel="noopener noreferrer">Open source register ↗</a></div>'
+   +'<div class="sop-summary">'+stats.map(([name,value,sub])=>'<div class="sop-stat"><span>'+U.esc(name)+'</span><strong>'+value+'</strong><small>'+U.esc(sub)+'</small></div>').join('')+'</div>'
+   +'<div class="sop-register-body"><div class="sop-register-heading"><div><h3>Review register <span>70 rows</span></h3><p>Snapshot prepared 13 November 2026 for the 31 March 2027 cutoff.</p></div><a href="#sopSources">Browse linked source copies ↓</a></div>'
+   +'<p class="sop-context">Review dates are master-list dates recorded in the snapshot, not confirmed current dates. Statuses are historical, not live approvals; duplicate codes remain separate. Review-date bands are relative to today.</p>'
+   +'<div class="sop-register-filters"><label class="sop-search"><span>Search the review register</span><input class="input" id="registerSearch" type="search" placeholder="Search title, code, notes or action…"></label><label><span>Section</span><select class="select" id="registerSection"><option value="">All sections</option>'+sections.map(section=>'<option value="'+U.esc(section)+'">'+U.esc(section)+'</option>').join('')+'</select></label><label><span>Review date</span><select class="select" id="registerBand"><option value="">All review dates</option>'+bands.map(([key,label])=>'<option value="'+key+'">'+U.esc(label)+'</option>').join('')+'</select></label></div>'
+   +'<div class="sop-results" id="registerResults" aria-live="polite">70 of 70 documents · open a section to browse</div>'
+   +'<div class="sop-groups">'+sections.map(section=>{
     const rows=reviewRegister.filter(x=>x.section===section);
-    return '<h3>'+U.esc(section)+' · '+rows.length+'</h3><div class="dt-scroll"><table class="dt"><thead><tr><th>Document / master-list code</th><th>Master-list review date</th><th>Register status and notes</th><th>Action</th></tr></thead><tbody>'+rows.map(x=>{
+    return '<details class="sop-group" data-register-section="'+U.esc(section)+'"><summary><span class="sop-group-name">'+U.esc(section)+'</span><span class="sop-group-count" data-section-count>'+rows.length+' documents</span><span class="sop-group-toggle" aria-hidden="true">+</span></summary><div class="dt-scroll"><table class="dt sop-register-table"><thead><tr><th>Document / master-list code</th><th>Master-list review date</th><th>Register status and notes</th><th>Action</th></tr></thead><tbody>'+rows.map(x=>{
       const key='register:'+x.no;
       const comments=issueActions(key).map(a=>'<div class="xs">'+U.esc(a.comment)+' · '+U.esc(a.by)+' · '+U.esc(U.fmtDate(a.at))+'</div>').join('');
-      return '<tr data-register-row="'+U.esc(x.no)+'"><td>'+U.esc(x.title)+'<div class="xs faint">#'+U.esc(x.no)+' · '+U.esc(x.code)+'</div></td><td>'+U.esc(x.review || 'Unknown')+'</td><td>'+U.esc(x.status)+'<details><summary>Source details</summary><p>Due by 31 March 2027: '+U.esc(x.due || 'Not recorded')+'</p><p>Latest found: '+U.esc(x.latest || 'Not recorded')+'</p><p>Document dates: '+U.esc(x.documentDates || 'Not recorded')+'</p><p>Notes: '+U.esc(x.notes || 'None recorded')+'</p></details></td><td>'+(LS.auth.can('edit')?'<button class="btn xs" data-register-action="'+U.esc(key)+'">Record action</button>':'')+comments+'</td></tr>';
-    }).join('')+'</tbody></table></div>';
-  }).join('')+'</div>';
+      return '<tr data-register-row="'+U.esc(x.no)+'" data-band="'+reviewBand(x.review)+'"><td><strong>'+U.esc(x.title)+'</strong><div class="xs faint">#'+U.esc(x.no)+' · '+U.esc(x.code)+'</div></td><td>'+U.esc(x.review || 'Unknown')+'</td><td>'+U.esc(x.status)+'<details><summary>Source details</summary><p>Due by 31 March 2027: '+U.esc(x.due || 'Not recorded')+'</p><p>Latest found: '+U.esc(x.latest || 'Not recorded')+'</p><p>Document dates: '+U.esc(x.documentDates || 'Not recorded')+'</p><p>Notes: '+U.esc(x.notes || 'None recorded')+'</p></details></td><td>'+(LS.auth.can('edit')?'<button class="btn xs" data-register-action="'+U.esc(key)+'">Record action</button>':'')+comments+'</td></tr>';
+    }).join('')+'</tbody></table></div></details>';
+  }).join('')+'</div></div></section>';
 }
+
 function sourceCatalog(){
   return '<div class="card pad" style="margin-bottom:16px"><h2>SOP source documents</h2><p class="small">Approval, effective dates and review dates are not verified here. Waiting for approval means no DG signature has been recorded in this register. Confirm the controlled version before use. A tick records your confirmation; it is not a digital signature. Drive links can change and require permission; the app cannot detect changes to them. Recheck the document and correct the tick if it changes.</p><div class="dt-scroll"><table class="dt"><thead><tr><th>Section</th><th>Document</th><th>Approval</th><th>DG signed</th></tr></thead><tbody>'+sourceSops.slice().sort((a,b)=>sopSection(a[0]).localeCompare(sopSection(b[0])) || a[0].localeCompare(b[0])).map(([code,title,driveId,checksum])=>{
     const path=encodeURIComponent(code+' - '+title+'.pdf');
@@ -1103,7 +1110,7 @@ function overview(){
       })()})+'</div></div>';
 }
 function sopsView(){
-  return registerCatalog()+sopAnalysis()+sourceCatalog()+'<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="sopSearch" placeholder="Search SOP code, title, owner…"></div><span class="grow"></span><button class="btn sm" data-add-sop>'+UI.ic('plus',13)+'Register SOP</button></div>'
+  return registerCatalog()+'<details class="sop-secondary" id="sopSources"><summary><span><strong>Linked source documents</strong><small>Open available copies and check approval records</small></span><span class="sop-secondary-count">'+sourceSops.length+' sources　＋</span></summary>'+sourceCatalog()+'</details><details class="sop-secondary"><summary><span><strong>Additional review-date analysis</strong><small>Manual and source documents, counted separately</small></span><span class="sop-secondary-count">＋</span></summary>'+sopAnalysis()+'</details><div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="sopSearch" placeholder="Search SOP code, title, owner…"></div><span class="grow"></span><button class="btn sm" data-add-sop>'+UI.ic('plus',13)+'Register SOP</button></div>'
    +'<div class="dt-scroll"><table class="dt" id="sopTable"><thead><tr><th>Code</th><th>Title</th><th>Section</th><th>Version</th><th>Effective</th><th>Next review</th><th>Owner</th><th>Acknowledgement</th><th></th></tr></thead><tbody>'
    +registeredSops().map(s=>{ const overdue=!!s.review && s.review<U.todayISO();
       return '<tr data-sop="'+s.id+'"><td class="mono small">'+U.esc(s.code)+'</td><td class="small strong">'+U.esc(s.title)+'</td><td class="small">'+U.esc(sopSection(s.code))+'</td><td class="mono xs">'+U.esc(s.version)+'</td><td class="num">'+U.fmtDate(s.effective)+'</td><td class="num" style="color:'+(overdue?'var(--crit)':'')+'">'+U.fmtDate(s.review)+'</td><td class="small">'+U.esc(s.owner)+'</td>'
@@ -1190,6 +1197,25 @@ function wireBody(){
     ],labels:months,yFmt:v=>Math.round(v)+'%',tipFmt:v=>v+'%'});
   }
   if(tab==='sops'){
+    const registerSearch=r.querySelector('#registerSearch'), registerSection=r.querySelector('#registerSection'), registerBand=r.querySelector('#registerBand');
+    const filterRegister=()=>{
+      const q=registerSearch.value.trim().toLowerCase(), section=registerSection.value, band=registerBand.value;
+      let visible=0;
+      r.querySelectorAll('[data-register-section]').forEach(group=>{
+        let count=0;
+        group.querySelectorAll('[data-register-row]').forEach(row=>{
+          const matches=(!section || group.dataset.registerSection===section) && (!band || row.dataset.band===band) && (!q || row.textContent.toLowerCase().includes(q));
+          row.hidden=!matches; if(matches) count++;
+        });
+        group.hidden=count===0; group.querySelector('[data-section-count]').textContent=count+' document'+(count===1?'':'s');
+        if(q || section || band) group.open=count>0;
+        visible+=count;
+      });
+      r.querySelector('#registerResults').textContent=visible+' of '+reviewRegister.length+' documents'+(visible?' · open a section to browse':' · no matching documents');
+    };
+    registerSearch.addEventListener('input',filterRegister);registerSection.addEventListener('change',filterRegister);registerBand.addEventListener('change',filterRegister);
+    const sourceJump=r.querySelector('a[href="#sopSources"]');
+    sourceJump.addEventListener('click',event=>{event.preventDefault();const sources=r.querySelector('#sopSources');sources.open=true;sources.scrollIntoView({behavior:'smooth',block:'start'});});
     r.querySelectorAll('[data-register-action]').forEach(button=>button.onclick=()=>recordSourceAction(button.dataset.registerAction));
     r.querySelectorAll('[data-source-action]').forEach(button=>button.onclick=()=>recordSourceAction(button.dataset.sourceAction));
     r.querySelectorAll('[data-approve-source]').forEach(input=>input.onchange=()=>{ const approved=input.checked; input.checked=!approved; confirmSourceApproval(input.dataset.approveSource,approved); });
