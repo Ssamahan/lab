@@ -12,7 +12,7 @@
     "typescript": "5.7.3"
   },
   "scripts": {
-    "test": "node population153.js && node quality153.js && node persistence165.js && node sop-approval168.js && node quality-evidence169.js && node incident-evidence169.js && node sop-analysis169.js && node sop-review170.js && node sop-register171.js && node quality-examples172.js && node sops167.js",
+    "test": "node population153.js && node quality153.js && node persistence165.js && node sop-approval168.js && node quality-evidence169.js && node incident-evidence169.js && node sop-analysis169.js && node sop-review170.js && node sop-register171.js && node sop-ui173.js && node quality-examples172.js && node sops167.js",
     "lint": "cd .. && harness/node_modules/.bin/eslint --config eslint.config.mjs assets/js/modules/report.js assets/js/modules/quality.js assets/js/modules/dash.js harness/population153.js harness/quality153.js assets/js/modules/eqa.js assets/js/modules/roster.js assets/js/core/sheets.js assets/js/core/store.js assets/js/core/private-names.js assets/js/modules/samples.js harness/browser-private-results166.js harness/persistence165.js harness/browser-population153.js harness/browser-design165.js harness/temperature163.js harness/browser-temperature163.js harness/weekly164.js harness/browser-weekly164.js harness/weekroster68.js harness/preview165.mjs harness/browser-preview165.cjs scripts/build-lab-preview.mjs harness/eqa_layout161.js harness/browser-eqa-layout161.js harness/cqi_sort162.js",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig-eqa.json",
     "test:browser": "node browser-population153.js && node browser-design165.js && node browser-private-results166.js"
