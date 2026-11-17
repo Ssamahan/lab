@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#05070D">
+<meta name="theme-color" content="#FAFAF9">
 <meta name="description" content="Lab Systems — the laboratory operating console of Ruli District Hospital. Referred samples, stock, scheduling, quality and PBF evaluation in one offline-first workspace.">
 <title>Lab Systems · Ruli District Hospital</title>
 <link rel="manifest" href="manifest.json">
@@ -13,16 +13,15 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Lab Systems">
-<link rel="preload" href="assets/fonts/fraunces-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.173">
-<link rel="stylesheet" href="assets/css/app.css?v=6.9.173">
-<link rel="stylesheet" href="assets/css/landing.css?v=6.9.173">
+<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.174">
+<link rel="stylesheet" href="assets/css/app.css?v=6.9.174">
+<link rel="stylesheet" href="assets/css/landing.css?v=6.9.174">
 <!-- Blocking, deliberately. It was made non-blocking in 6.9.134 to save 71 KB of waiting,
      and that is exactly the sort of cleverness that produces an unstyled, unreadable
      console on a device where the deferred swap does not happen. Reliability first: the
      stylesheet is there before the first screen is drawn, every time. -->
-<link rel="stylesheet" href="assets/css/modules.css?v=6.9.173">
+<link rel="stylesheet" href="assets/css/modules.css?v=6.9.174">
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
@@ -34,7 +33,7 @@
     <svg viewBox="0 0 48 48" fill="none">
       <defs>
         <linearGradient id="bootGold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#8C6E29"/><stop offset="45%" stop-color="#E9D9A7"/><stop offset="100%" stop-color="#C9A84C"/>
+          <stop offset="0%" stop-color="#0F766E"/><stop offset="45%" stop-color="#0F766E"/><stop offset="100%" stop-color="#0F766E"/>
         </linearGradient>
       </defs>
       <path d="M24 3.4 41.2 13v21.8L24 44.6 6.8 34.8V13z" stroke="url(#bootGold)" stroke-width="1.3" class="draw" style="--len:132;--d:.05s"/>
@@ -50,7 +49,7 @@
   <div class="boot-sub">Ruli District Hospital · Laboratory</div>
   <div class="boot-thread"><i></i></div>
   <div class="boot-status" id="bootStatus">Calibrating QC engines…</div>
-  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.173</span></div>
+  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.174</span></div>
 </div>
 
 
@@ -58,7 +57,7 @@
 <section class="landing" id="landing" hidden>
   <header class="land-top">
     <button class="land-brand" id="landBrand" type="button" aria-label="Ruli District Hospital — Laboratory">
-      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><defs><linearGradient id="landGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8C6E29"/><stop offset="45%" stop-color="#E9D9A7"/><stop offset="100%" stop-color="#C9A84C"/></linearGradient></defs>
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><defs><linearGradient id="landGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0F766E"/><stop offset="45%" stop-color="#0F766E"/><stop offset="100%" stop-color="#0F766E"/></linearGradient></defs>
         <path d="M24 3.4 41.2 13v21.8L24 44.6 6.8 34.8V13z" stroke="url(#landGold)" stroke-width="1.3"/>
         <path d="M24 9.4 35.7 16v14.9L24 37.6 12.3 30.9V16z" stroke="url(#landGold)" stroke-width=".8" stroke-opacity=".5"/>
         <path d="M24 16.4v7.2M24 23.6l-6.4 3.9M24 23.6l6.4 3.9" stroke="url(#landGold)" stroke-width="1.1" stroke-linecap="round"/>
@@ -89,8 +88,8 @@
               <stop offset="100%" stop-color="#2FA98F" stop-opacity=".14"/>
             </linearGradient>
             <linearGradient id="labGoldLiquid" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#C9A84C" stop-opacity=".40"/>
-              <stop offset="100%" stop-color="#C9A84C" stop-opacity=".14"/>
+              <stop offset="0%" stop-color="#0F766E" stop-opacity=".40"/>
+              <stop offset="100%" stop-color="#0F766E" stop-opacity=".14"/>
             </linearGradient>
             <linearGradient id="labStroke" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stop-color="#A98833" stop-opacity=".85"/>
@@ -132,7 +131,7 @@
           <!-- a test tube, standing in the rack -->
           <g clip-path="url(#labTubeClip)">
             <rect x="300" y="196" width="30" height="60" fill="url(#labGoldLiquid)"/>
-            <path d="M300 196h30" stroke="#C9A84C" stroke-opacity=".5"/>
+            <path d="M300 196h30" stroke="#0F766E" stroke-opacity=".5"/>
           </g>
           <path d="M300 128 v104 a15 15 0 0 0 30 0 V128" stroke="url(#labStroke)" stroke-width="1.4"/>
           <path d="M296 128h38" stroke="url(#labStroke)" stroke-width="1.4" stroke-linecap="round"/>
@@ -159,7 +158,7 @@
             <circle cx="196" cy="240" r="3.2" fill="#2FA98F" fill-opacity=".38"/>
             <circle cx="212" cy="214" r="2.2" fill="#2FA98F" fill-opacity=".3"/>
             <circle cx="184" cy="188" r="2.6" fill="#2FA98F" fill-opacity=".24"/>
-            <circle cx="318" cy="180" r="2" fill="#C9A84C" fill-opacity=".4"/>
+            <circle cx="318" cy="180" r="2" fill="#0F766E" fill-opacity=".4"/>
           </g>
 
           <!-- droplets and a cross, echoing the crest -->
@@ -256,7 +255,7 @@
     <span>© 2026 Ruli District Hospital · Laboratory Department</span>
     <span class="row" style="gap:12px">
       <button class="land-back" type="button" id="landConsole" hidden>Back to the console</button>
-      <span class="mono">Lab Systems v6.9.173</span>
+      <span class="mono">Lab Systems v6.9.174</span>
     </span>
   </footer>
 </section>
@@ -267,7 +266,7 @@
     <div class="glow"></div><div class="glow2"></div>
     <div class="auth-top">
       <svg width="38" height="38" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-        <defs><linearGradient id="authGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8C6E29"/><stop offset="45%" stop-color="#E9D9A7"/><stop offset="100%" stop-color="#C9A84C"/></linearGradient></defs>
+        <defs><linearGradient id="authGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0F766E"/><stop offset="45%" stop-color="#0F766E"/><stop offset="100%" stop-color="#0F766E"/></linearGradient></defs>
         <path d="M24 3.4 41.2 13v21.8L24 44.6 6.8 34.8V13z" stroke="url(#authGold)" stroke-width="1.3"/>
         <path d="M24 16.4v7.2M24 23.6l-6.4 3.9M24 23.6l6.4 3.9" stroke="url(#authGold)" stroke-width="1.1" stroke-linecap="round"/>
         <circle cx="24" cy="15.6" r="2.4" stroke="url(#authGold)" stroke-width="1.1"/>
@@ -332,7 +331,7 @@
           </div>
         </div>
         <div class="auth-row">
-          <label class="row gap-sm" style="cursor:pointer"><input type="checkbox" id="authRemember" style="accent-color:#C9A84C"> <span>Keep me signed in for 24h</span></label>
+          <label class="row gap-sm" style="cursor:pointer"><input type="checkbox" id="authRemember" style="accent-color:#0F766E"> <span>Keep me signed in for 24h</span></label>
           <span class="xs faint">SSO available</span>
         </div>
         <div id="authErr" class="pill rose" style="height:auto;padding:8px 10px;display:none;line-height:1.4"></div>
@@ -352,7 +351,7 @@
       </div>
       <div class="auth-foot">
         Accounts are issued by the laboratory manager in Security Center.<br>
-        Lab Systems v6.9.173 · © 2026 Ruli District Hospital · Laboratory Department
+        Lab Systems v6.9.174 · © 2026 Ruli District Hospital · Laboratory Department
       </div>
     </div>
   </div>
@@ -363,7 +362,7 @@
   <aside class="rail" aria-label="Primary navigation">
     <div class="rail-brand">
       <svg class="crest" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-        <defs><linearGradient id="railGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8C6E29"/><stop offset="45%" stop-color="#E9D9A7"/><stop offset="100%" stop-color="#C9A84C"/></linearGradient></defs>
+        <defs><linearGradient id="railGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0F766E"/><stop offset="45%" stop-color="#0F766E"/><stop offset="100%" stop-color="#0F766E"/></linearGradient></defs>
         <path d="M24 3.4 41.2 13v21.8L24 44.6 6.8 34.8V13z" stroke="url(#railGold)" stroke-width="1.3"/>
         <path d="M24 9.4 35.7 16v14.9L24 37.6 12.3 30.9V16z" stroke="url(#railGold)" stroke-width=".8" stroke-opacity=".5"/>
         <path d="M24 16.4v7.2M24 23.6l-6.4 3.9M24 23.6l6.4 3.9" stroke="url(#railGold)" stroke-width="1.1" stroke-linecap="round"/>
@@ -456,29 +455,29 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <noscript><div style="padding:40px;text-align:center;font-family:system-ui">Lab Systems requires JavaScript. Contact the laboratory manager for an offline APK build.</div></noscript>
 
-<script src="assets/js/core/icons.js?v=6.9.173"></script>
-<script src="assets/js/core/seed.js?v=6.9.173"></script>
-<script src="assets/data/plan-archive.js?v=6.9.173"></script>
-<script src="assets/js/core/utils.js?v=6.9.173"></script>
-<script src="assets/js/core/store.js?v=6.9.173"></script>
-<script src="assets/js/core/ui.js?v=6.9.173"></script>
-<script src="assets/js/core/charts.js?v=6.9.173"></script>
+<script src="assets/js/core/icons.js?v=6.9.174"></script>
+<script src="assets/js/core/seed.js?v=6.9.174"></script>
+<script src="assets/data/plan-archive.js?v=6.9.174"></script>
+<script src="assets/js/core/utils.js?v=6.9.174"></script>
+<script src="assets/js/core/store.js?v=6.9.174"></script>
+<script src="assets/js/core/ui.js?v=6.9.174"></script>
+<script src="assets/js/core/charts.js?v=6.9.174"></script>
 <!-- The sheet layout engine (sheets.js) is loaded with everything else, in parallel.
      6.9.109 deferred it and made thirteen screens *wait* for it before their own file
      even started: on a slow link that is an extra 91 KB of stall on every first visit to
      every screen, and if the request hangs the screen never draws at all. Back in the
      list, where a slow file only slows its own download — not the whole console. -->
-<script src="assets/js/core/sheets.js?v=6.9.173"></script>
+<script src="assets/js/core/sheets.js?v=6.9.174"></script>
 <!-- The workbook reader is still on demand (SH.ensureCore('xlsx')): nothing renders
      without it, and only an import needs it. -->
-<script src="assets/js/core/i18n.js?v=6.9.173"></script>
-<script src="assets/js/core/auth.js?v=6.9.173"></script>
-<script src="assets/js/core/landing.js?v=6.9.173"></script>
-<script src="assets/js/core/shell.js?v=6.9.173"></script>
-<script src="assets/js/core/shared.js?v=6.9.173"></script>
-<script src="assets/js/core/sync.js?v=6.9.173"></script>
-<script src="assets/js/core/private-names.js?v=6.9.173"></script>
-<script src="assets/js/core/boot.js?v=6.9.173"></script>
+<script src="assets/js/core/i18n.js?v=6.9.174"></script>
+<script src="assets/js/core/auth.js?v=6.9.174"></script>
+<script src="assets/js/core/landing.js?v=6.9.174"></script>
+<script src="assets/js/core/shell.js?v=6.9.174"></script>
+<script src="assets/js/core/shared.js?v=6.9.174"></script>
+<script src="assets/js/core/sync.js?v=6.9.174"></script>
+<script src="assets/js/core/private-names.js?v=6.9.174"></script>
+<script src="assets/js/core/boot.js?v=6.9.174"></script>
 <script>
 /* ——— The last line of defence ————————————————————————————————
    Written inline, and deliberately dependent on nothing: if the console's own scripts
@@ -494,7 +493,7 @@
       +'<div style="font-family:Georgia,serif;font-size:1.4rem;color:#EFE7D6;margin-bottom:8px">The console did not load on this device</div>'
       +'<p style="color:#B9AE99;font-size:12.5px;line-height:1.65;margin:0">A required file did not finish loading. The cause is not yet known. Do not clear browser data or reset the register.</p>'
       +'<div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">'
-        +'<a href="check.html" style="padding:9px 14px;border-radius:8px;background:#C9A84C;color:#241A06;font-weight:600;font-size:13px;text-decoration:none">Connection check</a>'
+        +'<a href="check.html" style="padding:9px 14px;border-radius:8px;background:#0F766E;color:#FFFFFF;font-weight:600;font-size:13px;text-decoration:none">Connection check</a>'
         +'<a href="" style="padding:9px 14px;border-radius:8px;color:#EFE7D6;border:1px solid #4A4335;font-size:13px;text-decoration:none">Reload</a>'
       +'</div></div>';
   },10000);

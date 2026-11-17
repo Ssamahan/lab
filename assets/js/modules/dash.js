@@ -8,10 +8,6 @@ const M={}; LS.modules.dash=M;
 let timers=[];
 function clearTimers(){ timers.forEach(t=>clearInterval(t)); timers=[]; }
 
-function greeting(){
-  const h=+new Date().toLocaleString('en-GB',{hour:'2-digit',hour12:false,timeZone:'Africa/Kigali'});
-  return h<12?'Good morning':h<17?'Good afternoon':'Good evening';
-}
 function trend(values){
   if(values.length<4) return 0;
   const half=Math.floor(values.length/2);
@@ -30,7 +26,7 @@ function kpiRow(){
   const eqaCmp=eqaRows.length?Math.round(U.avg(eqaRows.map(x=>x.score))*10)/10:null;
   const complianceSpark=st.tatCompliance==null?[0,0,0,0,0,0,0,0]:S.throughput(30).map(()=>Math.round(st.tatCompliance));
   return '<div class="grid-12 stagger" style="margin-bottom:16px">'
-   +'<div class="c3">'+UI.stat({label:'Active worklist',value:st.active,icon:'flask-conical',formatted:'0',delta:trend(reg),note:st.today+' registered today',spark:C.spark(reg,{color:'var(--gold)'})})+'</div>'
+   +'<div class="c3">'+UI.stat({label:'Active worklist',value:st.active,icon:'flask-conical',formatted:'0',delta:trend(reg),note:st.today+' registered today',spark:C.spark(reg,{color:'var(--accent)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'TAT compliance · '+st.tatWindow+'d',value:st.tatCompliance==null?0:st.tatCompliance,dec:1,unit:'%',icon:'timer',formatted:'0.0',delta:trend(res),
       note:st.tatCompliance==null?'No result on the register yet':st.overdue+' past target now',spark:C.spark(complianceSpark,{color:'var(--pos)'})})+'</div>'
    +'<div class="c3">'+UI.stat({label:'Days of stock cover',value:cover.median===null?0:cover.median,unit:'median days',icon:'package',formatted:'0',
@@ -43,33 +39,12 @@ function kpiRow(){
 }
 
 function hero(){
-  const u=LS.auth.user||{name:'Laboratory Manager'};
-  const first=U.givenName(u.name);
-  const st=S.sampleStats();
-  const today=U.fmtDateLong();
-  const onDuty=S.onDuty();
-  return '<section class="hero">'
-   +'<div class="hero-grid"><div>'
-    +'<div class="eyebrow">'+U.esc(today)+' · FY '+U.fyLabel()+'</div>'
-    +'<h1>'+greeting()+', <em>'+U.esc(first.charAt(0)+first.slice(1).toLowerCase())+'</em>.</h1>'
-    +'<p class="lede">'+st.active+' samples are in the worklist, '+st.overdue+' are past their turnaround target, and '+onDuty.length+' staff are on duty. Everything below is live and stored on this device.</p>'
-    +'<div class="hero-actions">'
-      +'<button class="btn primary magnetic" data-hero-register>'+U.ic('flask-conical',16)+' Register sample</button>'
-      +'<button class="btn magnetic" data-hero-manifest>'+U.ic('clipboard-list',16)+' Build manifest</button>'
-      +'<button class="btn magnetic" data-hero-report>'+U.ic('file-text',16)+' Monthly report</button>'
-    +'</div>'
-   +'</div>'
-   +'<div class="hero-side">'
-    +'<div class="hero-status">'
-      +'<div class="hstat"><span class="lb">Worklist</span><span class="vl"><span class="dot live" style="color:var(--pos)"></span>'+st.active+' open</span></div>'
-      +'<div class="hstat"><span class="lb">STAT queue</span><span class="vl" style="color:'+(st.stat?'var(--crit)':'var(--pos)')+'">'+st.stat+' awaiting</span></div>'
-      +'<div class="hstat"><span class="lb">TAT breach</span><span class="vl" style="color:'+(st.overdue?'var(--warn)':'var(--pos)')+'">'+st.overdue+'</span></div>'
-    +'</div>'
-    +'<div class="row" style="gap:6px;flex-wrap:wrap">'
-      +'<span class="pill teal"><span class="dot live"></span> All systems operational</span>'
-      +'<span class="pill slate mono">SYNC · LOCAL</span>'
-    +'</div>'
-   +'</div></div></section>';
+  return '<section class="hero"><div class="dashboard-heading"><h1>Dashboard</h1><span class="dashboard-meta">'+U.esc(U.fmtDateLong())+' · FY '+U.esc(U.fyLabel())+'</span></div>'
+   +'<div class="hero-actions" aria-label="Dashboard actions">'
+   +'<button class="btn primary" data-hero-register>'+U.ic('flask-conical',16)+' Register sample</button>'
+   +'<button class="btn" data-hero-manifest>'+U.ic('clipboard-list',16)+' Build manifest</button>'
+   +'<button class="btn" data-hero-report>'+U.ic('file-text',16)+' Monthly report</button>'
+   +'</div></section>';
 }
 
 function throughputCard(){
@@ -78,7 +53,7 @@ function throughputCard(){
   const cats=S.throughputCats();
   return UI.card({title:'Throughput — registered vs resulted',sub:'Past 12 months · monthly buckets, all referral routes',icon:'chart-line',cls:'gold',
     tools:'<span class="pill teal mono">'+reg+' registered · 12 mo</span>',
-    body:'<div class="legend" style="margin-bottom:6px"><span class="lg"><span class="sw" style="background:var(--gold)"></span>Registered</span><span class="lg"><span class="sw" style="background:var(--teal-400)"></span>Resulted</span><span class="lg" style="margin-left:auto"><span class="sw sq" style="background:var(--pos);opacity:.4"></span>12-month mean</span></div>'
+    body:'<div class="legend" style="margin-bottom:6px"><span class="lg"><span class="sw" style="background:var(--gold)"></span>Registered</span><span class="lg"><span class="sw" style="background:var(--chart-2)"></span>Resulted</span></div>'
       +'<div id="thrChart"></div>'
       +'<div class="row wrap gap-sm" style="margin-top:10px">'+cats.map(c=>'<span class="chip">'+U.esc(c)+'</span>').join('')+'</div>',
     foot:'<span>Monthly buckets — TB culture and viral load report months after registration, so a slow assay shows as a gap between the two lines</span><span class="mono">'+thr[thr.length-1].registered+' this month</span>'});
@@ -343,8 +318,8 @@ M.render=function(root,params){
   // throughput chart
   const thr=S.monthlyThroughput(12);
   C.line(root.querySelector('#thrChart'),{id:'thr',height:238,series:[
-    {name:'Registered',color:'var(--gold)',values:thr.map(d=>d.registered)},
-    {name:'Resulted',color:'var(--teal-400)',values:thr.map(d=>d.resulted)}
+    {name:'Registered',color:'var(--gold)',area:false,values:thr.map(d=>d.registered)},
+    {name:'Resulted',color:'var(--chart-2)',area:false,values:thr.map(d=>d.resulted)}
   ],labels:thr.map(d=>d.label),tipFmt:v=>U.fmtNum(v)+' samples',extraTip:i=>'<div class="tr"><span class="k">STAT</span><span class="v">'+thr[i].stat+'</span></div><div class="tr"><span class="k">Gap</span><span class="v">'+(thr[i].registered-thr[i].resulted)+'</span></div>'});
   // TAT bars
   C.hbars(root.querySelector('#tatBars'),{items:(function(){
@@ -363,7 +338,7 @@ M.render=function(root,params){
       return;
     }
     C.line(host,{id:'eqa',height:236,labels:rows.map(x=>x.code),yFmt:v=>Math.round(v)+'%',
-      series:[{name:'PT score',color:'var(--gold)',values:rows.map(x=>x.score)}],
+      series:[{name:'PT score',color:'var(--accent)',values:rows.map(x=>x.score)}],
       bands:[{from:0,to:S.EQA_MIN,color:'rgba(226,109,109,.08)'}],
       min:0,max:100,target:{value:S.EQA_MIN,label:S.EQA_MIN+' % minimum'},
       tipFmt:v=>v+'%',extraTip:i=>'<div class="tr"><span class="k">Scheme</span><span class="v">'+U.esc(rows[i].program)+'</span></div><div class="tr"><span class="k">Reported</span><span class="v">'+U.fmtDate(String(rows[i].at||'').slice(0,10))+'</span></div>'});

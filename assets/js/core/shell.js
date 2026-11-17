@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const U=window.LSU; const UI=LS.ui; const S=LS.store; const SH={}; LS.shell=SH;
-const APP_VERSION='6.9.173';
+const APP_VERSION='6.9.174';
 window.LS.modules = window.LS.modules || {};
 
 const ICON={
@@ -292,7 +292,7 @@ function applyTheme(){
   U.$$('[data-theme-label]').forEach(e=>e.textContent=theme==='ink'?'Ink':'Porcelain');
   U.$$('[data-theme-icon]').forEach(e=>e.innerHTML=U.ic(theme==='ink'?'moon':'sun',15));
   U.$$('[data-theme-label]').forEach(e=>e.textContent=(S.settings().theme==='auto'?'Auto · ':'')+(theme==='ink'?'Ink':'Porcelain'));
-  const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.content=theme==='ink'?'#05070D':'#F2EFE7';
+  const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.content=theme==='ink'?'#171717':'#FAFAF9';
 }
 SH.applyTheme=applyTheme;
 SH.resolvedTheme=resolvedTheme;

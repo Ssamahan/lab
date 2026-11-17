@@ -45,7 +45,7 @@ function itemRow(x){
   const tone=x.low?'rose':days!=null&&days<21?'amber':'teal';
   const expiry=x.nearest?U.daysBetween(U.todayISO(),x.nearest.expiry):null;
   const expTone=expiry==null?'slate':expiry<=0?'rose':expiry<=30?'amber':'teal';
-  return '<tr data-item="'+x.id+'">'
+  return '<tr data-item="'+x.id+'" class="'+(x.low?'stock-low':expiry!=null&&expiry<=30?'stock-expiring':'')+'">'
    +'<td><div class="primary-cell"><b>'+U.esc(x.name)+'</b><small>'+U.esc(x.unit)+'</small></div></td>'
    +'<td class="num">'+U.fmtNum(x.onHand)+'</td>'
    +'<td class="num hide-sm">'+U.fmtNum(x.threshold||0)+'</td>'
@@ -75,14 +75,14 @@ function archivedStrip(){
 function overview(){
   const items=S.stockOverview();
   return '<div class="hint" style="margin-bottom:12px">Some older stock lots and issue records may be demonstration data. Do not treat the displayed balance as verified until you reconcile it against the physical stock and receipt records. Nothing has been automatically removed.</div><div class="grid-12">'
-   +'<div class="c8"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="stkSearch" placeholder="Search consumable, lot, supplier…"></div>'
+   +'<div class="c9"><div class="card table-card"><div class="toolbar"><div class="searchbox">'+UI.ic('search',15)+'<input class="input" id="stkSearch" placeholder="Search consumable, lot, supplier…"></div>'
      +'<span class="grow"></span><button class="btn sm" data-receive>'+UI.ic('plus',13)+' Receive stock</button><button class="btn sm" data-pr>'+UI.ic('file-text',13)+' Purchase request</button></div>'
      +'<div class="dt-scroll"><table class="dt" id="stkTable"><thead><tr><th>Consumable</th><th>On hand</th><th class="hide-sm">Min</th><th>Burn &amp; capacity</th><th>Cover</th><th>Expiry</th><th class="hide-sm">Cover trend</th><th></th></tr></thead><tbody>'
      +items.map(itemRow).join('')+'</tbody></table></div>'
      +'<div class="card-foot"><span>'+items.filter(x=>x.low).length+' lines below minimum · '+items.filter(x=>x.expiring).length+' nearing expiry</span><span class="mono">'+items.length+' lines</span></div></div>'
      +archivedStrip()+'</div>'
-   +'<div class="c4"><div class="col" style="gap:14px">'
-     +UI.card({title:'Reorder radar',sub:'Suggested purchase quantities',icon:'alert-triangle',body:'<div id="reorderList"></div>',foot:'<button class="btn xs primary" data-pr>'+UI.ic('file-text',12)+' Generate request</button>'})
+   +'<div class="c3"><div class="col" style="gap:14px">'
+     +UI.card({title:'Reorder radar',sub:'Suggested purchase quantities',icon:'alert-triangle',body:'<div id="reorderList"></div>',foot:'<button class="btn xs" data-pr>'+UI.ic('file-text',12)+' Generate request</button>'})
      +supplierMini()
    +'</div></div></div>';
 }
@@ -370,7 +370,7 @@ function wireBody(){
 function syncTabs(){ U.$$('[data-stk-tab]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.stkTab===tab)); }
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'overview';
-  root.innerHTML='<div class="page-head"><div><h1>Stock &amp; supplies</h1><div class="sub">Commodity security with a trading-desk read: expiry health, burn-rate forecasts, lot traceability and supplier performance.</div></div>'
+  root.innerHTML='<div class="page-head"><div><h1>Stock &amp; supplies</h1><div class="sub">Monitor stock levels, consumption, expiry and suppliers.</div></div>'
    +'<div class="actions"><button class="btn" data-record-use>Record use / loss</button><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-receive>'+UI.ic('plus',15)+' Receive</button><button class="btn primary" data-pr>'+UI.ic('file-text',15)+' Purchase request</button></div></div>'
    +kpis()
    +'<div class="filters" style="margin-bottom:12px">'+[['overview','Overview'],['lots','Lots &amp; expiry'],['consumption','Consumption'],['suppliers','Suppliers']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-stk-tab="'+k+'">'+l+'</button>').join('')+'</div>'
