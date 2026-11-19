@@ -23,6 +23,8 @@ let bloodTrendGroup='O+', compareTests=['x67','x64'], compareYearA=null, compare
 const HIV_FEED='https://lab-hiv-timeliness.smhnklvn.workers.dev/';
 const HIV_CENTRES=['Coko HC','Minazi HC','Muhondo HC','Muyongwe HC','Nyange HC','Ruli HC','Rushashi HC','Rwankuba HC'];
 let hivData=null,hivError='',hivLoading=false,hivPeriod=null,hivTimer=null;
+let historyLoading=false, historyChecked=0, historyError='', historyTimer=null, historyRenderPending=false;
+const HISTORY_CHECK_MS=5*60*1000;
 
 const MODES={
   pn:   {cols:['pos','neg'], heads:['Positives','Negatives']},
@@ -404,6 +406,7 @@ function head(sm){
      +'<div class="rep-month"><label class="xs faint">Return for</label><select class="select mono" id="repMonth">'+opts+'</select></div>'
      +(LS.privateNames&&LS.privateNames.connected()?'<button class="btn" data-private-reports>Load protected history</button>':'')
      +(S.reportSourceSheets&&S.reportSourceSheets().length?'<button class="btn" data-original-sheets>Original sheet values</button>':'')
+     +'<a class="btn" data-report-source-link href="https://docs.google.com/spreadsheets/d/1KHAK1Wsd-xAuIgP3mNcd9100qaf0h15u/edit" target="_blank" rel="noopener noreferrer">Original Drive workbook</a>'
      +'<button class="btn" data-new-month>'+UI.ic('calendar-days',15)+'New month</button>'
      +'<button class="btn" data-import>'+UI.ic('upload',15)+'Load a past month</button>'
      +'<button class="btn" data-delete-month="'+U.esc(pickMonth())+'"'+(canEdit()?'':' disabled')
@@ -460,7 +463,8 @@ function renderInner(root){
   root.querySelectorAll('.rep-hist tr[data-month]').forEach(tr=>tr.onclick=()=>{
     monthKey=tr.dataset.month; tab='return'; renderInner(root);
   });
-  root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderInner(root); if(tab==='hiv'&&!hivData&&!hivLoading)loadHiv(); });
+  root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderInner(root); if(tab==='analysis') startHistoryRefresh(); if(tab==='hiv'&&!hivData&&!hivLoading)loadHiv(); });
+  const refreshHistory=root.querySelector('[data-history-refresh]'); if(refreshHistory) refreshHistory.onclick=()=>refreshProtectedHistory(true);
   const hp=root.querySelector('#hivPeriod'); if(hp) hp.onchange=()=>{hivPeriod=hp.value;renderInner(root);};
   const hr=root.querySelector('[data-hiv-refresh]'); if(hr) hr.onclick=loadHiv;
   wire(root);
@@ -857,7 +861,7 @@ function analysisTab(sm){
   const all=S.reportSeries();
   const deltas=S.reportDeltaSeries();
   const cur=deltas.find(x=>x.key===sm.key)||{};
-  return '<div class="rep-panel">'
+  return historyStatus()+'<div class="rep-panel">'
     +timelineBar(sm)
     +'<div class="rep-cmp-wrap">'+compareStrip(sm)+'</div>'
     +'<div class="grid-12" style="gap:14px;margin-top:14px">'
@@ -1662,9 +1666,56 @@ M.render=async function(root,params){
   if(params&&params.month) monthKey=params.month;
   monthKey=pickMonth();
   renderInner(root);
+  startHistoryRefresh();
 };
-// Hide protected source immediately when the private session expires or signs out.
-window.addEventListener('ls:changed',ev=>{if(ev.detail==='report.source' && rootEl && rootEl.isConnected) renderInner(rootEl);});
+/* The workbook is a protected snapshot, not a live connection to Excel. Refresh it
+   only with an authorised private session; never copy it into the shared register. */
+function historyStatus(){
+  const connected=!!(LS.privateNames&&LS.privateNames.connected());
+  let text;
+  if(!connected) text='Showing months available on this device. Protected workbook history requires a private session.';
+  else if(historyLoading) text='Checking protected workbook snapshot…';
+  else if(historyError) text='Protected snapshot could not be refreshed: '+historyError+' Existing available months are unchanged.';
+  else if(historyChecked) text='Protected workbook snapshot checked '+U.relTime(historyChecked)+'. Changes to the original workbook appear only after the protected snapshot is updated.';
+  else text='Protected workbook snapshot has not been checked in this session.';
+  return '<div class="hint" data-history-status role="status">'+U.esc(text)+(connected?' <button class="btn xs" data-history-refresh '+(historyLoading?'disabled':'')+'>Check protected snapshot</button>':'')+'</div>';
+}
+function historyActive(){ return !!(rootEl&&rootEl.isConnected); }
+function renderHistorySafely(immediate){
+  if(!rootEl||!rootEl.isConnected) return;
+  const active=document.activeElement, tag=(active&&active.tagName||'').toLowerCase();
+  if(!immediate&&(active&&rootEl.contains(active)&&(/^(input|textarea|select)$/.test(tag)||active.isContentEditable))){historyRenderPending=true;return;}
+  historyRenderPending=false;renderInner(rootEl);
+}
+async function refreshProtectedHistory(force){
+  if(!historyActive()||historyLoading||!LS.privateNames||!LS.privateNames.connected()) return;
+  if(!force&&historyChecked&&Date.now()-historyChecked<HISTORY_CHECK_MS) return;
+  historyLoading=true; historyError=''; renderHistorySafely(false);
+  try{ await LS.privateNames.loadReportSource(); historyChecked=Date.now(); }
+  catch(e){ historyError=e.message||'Connection failed'; }
+  finally{historyLoading=false; if(historyActive()) renderHistorySafely(false);}
+}
+function startHistoryRefresh(){
+  refreshProtectedHistory(false);
+  if(historyTimer) return;
+  historyTimer=setInterval(()=>{
+    if(!historyActive()){clearInterval(historyTimer);historyTimer=null;return;}
+    if(document.visibilityState!=='hidden') refreshProtectedHistory(false);
+  },60000);
+}
+window.addEventListener('ls:changed',ev=>{
+  const reason=String(ev.detail||'');
+  if(reason==='report.source'){
+    // Removing the private overlay must never wait for focus or a dialog.
+    if(!S.hasReportSource()){historyChecked=0;historyError='';renderHistorySafely(true);}
+    else renderHistorySafely(false);
+  }else if(historyActive()&&(/^(report\.|tab$|import$|reset$)/.test(reason))) renderHistorySafely(false);
+});
+document.addEventListener('focusout',()=>{
+  if(historyRenderPending) setTimeout(()=>{if(historyRenderPending)renderHistorySafely(false);},0);
+},true);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&historyActive())refreshProtectedHistory(false);});
+window.addEventListener('ls:private-session',()=>{if(historyActive())startHistoryRefresh();});
 M.month=()=>pickMonth();
 /* Test seams — the reader and the matcher are the one place a workbook can be
    misread, so they are reachable from the harness without going through the DOM. */

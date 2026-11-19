@@ -54,10 +54,11 @@ P.signIn=async function(email,password){
   message='Private names connected';showStatus();
   // Verify server authorization before calling this a successful connection.
   try{ await heads(); }catch(e){ P.signOut(); throw e; }
+  window.dispatchEvent(new CustomEvent('ls:private-session'));
   ticker=setInterval(()=>{ if(!P.connected()){if(token){message='Private names session expired; sign in again';showStatus();}return;} if(document.visibilityState!=='hidden') P.schedule(); },60000);
   return P.sync();
 };
-P.signOut=function(){if(S.clearReportSource) S.clearReportSource();token=null;expires=0;conflicts=[];message='Private name sync: not signed in';if(timer) clearTimeout(timer);timer=null;if(ticker)clearInterval(ticker);ticker=null;rerun=false;showStatus();};
+P.signOut=function(){token=null;expires=0;if(S.clearReportSource) S.clearReportSource();conflicts=[];message='Private name sync: not signed in';if(timer) clearTimeout(timer);timer=null;if(ticker)clearInterval(ticker);ticker=null;rerun=false;showStatus();};
 P.connected=()=>{const ok=allowed()&&!!token&&Date.now()<expires; if(!ok&&S.hasReportSource&&S.hasReportSource()) S.clearReportSource(); return ok;};
 P.loadReportSource=async function(){
   guard();
