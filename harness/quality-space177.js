@@ -1,0 +1,2 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,go}=await boot('#/quality');await go('#/quality');const cards=Array.from(w.document.querySelectorAll('.card'));const card=cards.find(c=>c.textContent.includes('Continuous improvement'));const nc=cards.find(c=>c.textContent.includes('Non-conformances')&&c.querySelector('.card-title'));ok(card&&nc&&card.parentElement.classList.contains('c6')&&nc.parentElement.classList.contains('c6'),'overview cards fill the row without a five-column gap');done('quality-space177')})().catch(e=>{console.error(e);process.exit(1)});

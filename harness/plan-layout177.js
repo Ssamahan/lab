@@ -1,0 +1,2 @@
+const {boot,ok,done}=require('./env');
+(async()=>{const {w,go}=await boot('#/roster');const S=w.LS.store;const key=Object.keys(S.db().workingPlans||{})[0];if(!key)throw Error('missing plan fixture');const e=S.db().workingPlans[key];e.versions=[{meta:{label:'Archived test',date:'2026-01-01'},dates:['2026-01-01']}];await go('#/roster?month='+key);ok(!!w.document.querySelector('.plan-history-grid'),'plan history presents archived versions in a responsive grid');done('plan-layout177')})().catch(e=>{console.error(e);process.exit(1)});

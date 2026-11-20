@@ -1091,11 +1091,11 @@ function overview(){
   const m=metrics(); const db=S.db();
   return '<div class="grid-12">'
    +'<div class="c12">'+UI.card({title:'Quality KPI trendlines',sub:'Referral TAT compliance and PT scores · 12 months',icon:'chart-line',cls:'gold',body:'<div id="qTrend"></div><div class="legend" style="margin-top:8px"><span class="lg"><span class="sw" style="background:var(--pos)"></span>TAT compliance %</span><span class="lg"><span class="sw" style="background:var(--gold)"></span>EQA composite %</span><span class="lg" style="margin-left:auto;color:var(--text-faint)">Blank months mean the register holds no result for that month</span></div>'})+'</div>'
-   +'<div class="c3">'+UI.card({title:'Continuous improvement',sub:'Computed from the referral register',icon:'trending-up',body:
+   +'<div class="c6">'+UI.card({title:'Continuous improvement',sub:'Computed from the referral register',icon:'trending-up',body:
       '<div class="scorecard" style="padding:0"><div class="meta"><div class="eyebrow">TAT compliance</div><div class="serif" style="font-size:2.2rem;color:var(--text-strong);letter-spacing:-.03em">'+(m.tat==null?'—':m.tat)+'%</div><div class="xs faint">'+(m.tat==null?'No result on the register yet':m.tatWindow+'-day window')+'</div></div>'+C.ring(m.tat==null?0:m.tat,{size:76,stroke:6})+'</div>'
       +'<div class="thread" style="margin:12px 0"></div>'
       +[['Repeat rate',m.repeat==null?'no record':m.repeat+'%','teal'],['Rejection rate',m.rejection==null?'no record':m.rejection+'%','amber'],['Referred samples',S.referredSamples().length+'','slate']].map(([k,v,t])=>'<div class="row between" style="padding:6px 0"><span class="small">'+k+'</span><span class="pill '+t+' mono">'+v+'</span></div>').join('')})+'</div>'
-   +'<div class="c4">'+UI.card({title:'Non-conformances',sub:'Severity · owner · resolution SLA',icon:'alert-triangle',
+   +'<div class="c6">'+UI.card({title:'Non-conformances',sub:'Severity · owner · resolution SLA',icon:'alert-triangle',
       tools:'<a class="btn xs" href="#/quality?tab=incidents">All '+S.realIncidents().length+'</a>',body:(function(){
         const open=S.realIncidents().filter(i=>i.status!=='Closed').sort((a,b)=>String(a.due).localeCompare(String(b.due))).slice(0,5);
         return open.length?open.map(i=>{ const late=i.due<U.todayISO();

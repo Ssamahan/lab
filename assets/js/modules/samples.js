@@ -1229,11 +1229,14 @@ function viewTabsHTML(){
 function pressureChart(scope){
   if(!scope) return;
   const host=scope.querySelector('#smpPressure'); if(!host) return;
-  C.hbars(host,{items:(function(){
-    const active=S.db().samples.filter(s=>!s.resultedAt);
-    const buckets=[['> 100% (breached)',active.filter(s=>S.tatFor(s).ratio>1).length,'rose'],['80–100% (at risk)',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.8&&r<=1;}).length,'amber'],['40–80%',active.filter(s=>{const r=S.tatFor(s).ratio; return r>.4&&r<=.8;}).length,'gold'],['< 40%',active.filter(s=>S.tatFor(s).ratio<=.4).length,'teal']];
-    return buckets.map(([label,value,tone])=>({label,value:Math.max(value,0),display:value+'',tone}));
-  })()});
+  const active=S.db().samples.filter(s=>!s.resultedAt).map(s=>S.tatFor(s));
+  const timed=active.filter(t=>t.started&&Number.isFinite(t.ratio)&&t.ratio>=0);
+  const buckets=[['> 100% (breached)',timed.filter(t=>t.ratio>1).length,'rose'],['80–100% (at risk)',timed.filter(t=>t.ratio>.8&&t.ratio<=1).length,'amber'],['40–80%',timed.filter(t=>t.ratio>.4&&t.ratio<=.8).length,'gold'],['< 40%',timed.filter(t=>t.ratio<=.4).length,'teal']];
+  C.hbars(host,{items:buckets.map(([label,value,tone])=>({label,value,display:value+'',tone}))});
+  // This chart is painted after the page reveal pass, so its rows need revealing here.
+  host.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+  const unclassified=active.length-timed.length;
+  if(unclassified) host.insertAdjacentHTML('beforeend','<p class="xs faint" style="margin-top:8px">'+unclassified+' active sample'+(unclassified===1?'':'s')+' not classified: awaiting reception or missing a valid TAT clock.</p>');
 }
 /* The phone must show what the machine shows. This chip is the answer to "is this the
    latest?" — it names the last read and pulls the shared copy on a press. */

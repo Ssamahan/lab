@@ -54,7 +54,7 @@ const certGiven=t=>t.certificateGiven!=null ? !!t.certificateGiven : /cert/i.tes
 const certLabel=t=>certGiven(t)?'Certified':'Not certified';
 const certPill=t=>certGiven(t)?'<span class="pill teal">'+UI.ic('badge-check',10)+'Certified</span>':'<span class="pill slate">Not certified</span>';
 function scope(){
-  return S.db().trainings.filter(t=>!q || [t.title,t.organizer,t.location,t.facilityName,t.facilityType,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join(' ')].join(' ').toLowerCase().indexOf(q)>=0);
+  return S.db().trainings.filter(t=>!q || [t.title,t.organizer,t.location,t.facilityName,t.facilityType,(t.attendees||[]).map(a=>(S.staffById(a)||{}).name).join(' ')].join(' ').toLowerCase().indexOf(q.toLowerCase())>=0);
 }
 function kpis(){
   const db=S.db(); const active=S.activeStaff();
@@ -385,11 +385,12 @@ function wireBody(){
 M.render=function(root,params){
   rootEl=root; tab=params.tab==='map'?'fifo':(params.tab||'fifo'); q=params.q||'';
   root.innerHTML='<div class="page-head"><div><h1>Training roster</h1><div class="sub">Competency is a controlled asset: a FIFO queue that is visibly fair, a registry that survives staff turnover, and certificates on file.</div></div>'
-   +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-history>'+UI.ic('history',15)+' Record past training</button><button class="btn primary" data-schedule>'+UI.ic('plus',15)+' Schedule training</button></div></div>'
+   +'<div class="actions"><button class="btn" data-search-training>'+UI.ic('search',15)+' Search trainings</button><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn" data-history>'+UI.ic('history',15)+' Record past training</button><button class="btn primary" data-schedule>'+UI.ic('plus',15)+' Schedule training</button></div></div>'
    +kpis()
    +'<div class="filters" style="margin-bottom:12px">'+[['fifo','FIFO queue'],['registry','Registry'],['history','History']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-tr-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="trBody"></div>';
   U.$$('[data-tr-tab]',root).forEach(b=>b.onclick=()=>{ tab=b.dataset.trTab; paint(); });
+  root.querySelector('[data-search-training]').onclick=()=>{ tab='registry'; paint(); const input=root.querySelector('#trSearch'); if(input) input.focus(); };
   paint();
 };
 })();
