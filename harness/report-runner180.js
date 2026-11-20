@@ -1,0 +1,2 @@
+const assert=require('node:assert/strict');const {run}=require('../scripts/report-runner.cjs');
+(async()=>{const events=[];const fetch=async(url,opts)=>{events.push(url);throw Error('synthetic HTTP failure');};await assert.rejects(()=>run({fetch,env:{REPORT_PUBLISHER_SECRET:'test'},log:()=>{}}),/failure/);assert.equal(events.length,1);assert(events[0].includes('drive.usercontent.google.com'));console.log('report-runner180: download failure aborts before any protected write');})().catch(e=>{console.error(e);process.exit(1)});
