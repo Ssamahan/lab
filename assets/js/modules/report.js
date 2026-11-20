@@ -117,8 +117,9 @@ function reviewCard(key){
     +'<b>Needs your review · '+pending.length+' source '+(pending.length===1?'item':'items')+'</b>'
     +'<p class="xs">The workbook figures below remain recorded. Compare them with the original; editing is disabled for protected source months until safe syncing is available.</p>'
     +pending.map(({item:x,index})=>'<div style="padding:8px 0;border-top:1px solid #b42318">'
-      +'<b>'+U.esc(x.label)+'</b>'+(x.sourceRow?' · Excel row '+U.esc(x.sourceRow):'')+'<br>'
+      +'<b>'+U.esc(x.label||(x.group==='blood'?'Blood group ':'')+(x.id||'Source item'))+'</b>'+(x.sourceRow?' · Excel row '+U.esc(x.sourceRow):'')+'<br>'
       +(x.kind==='device-conflict'?'Workbook '+U.esc(x.field)+': '+U.esc(x.sourceValue)+'; device value: '+U.esc(x.deviceValue)
+        :x.kind==='source-conflict'?'Previous source '+U.esc(x.field)+': '+U.esc(x.originalValue)+'; New workbook: '+U.esc(x.incomingValue)
         :x.kind==='total-mismatch'?'Workbook: positive '+U.esc(x.pos)+', negative-column '+U.esc(x.neg)+', total '+U.esc(x.sourceTotal)+'; sum '+U.esc(x.calculated)
         :'Negative-column value '+U.esc(x.neg)+'; confirm whether it is negative or total tests. Age columns: '+U.esc(x.under5)+' and '+U.esc(x.over5))
       +(x.formulas&&Object.keys(x.formulas).length?'<div class="xs">Workbook formulas: '+U.esc(Object.values(x.formulas).join(' · '))+'</div>':'')
