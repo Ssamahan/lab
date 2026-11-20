@@ -391,10 +391,9 @@ function statusLine(r){
   const st=r.state||{key:'due',label:'Not yet visited',detail:''};
   if(st.key==='visited'){
     const m=r.visit?visitMarks(r.visit):null;
-    /* A form that has grown since the visit does not rewrite the visit: the line says
-       how many questions the score was marked on, and how many have been added since. */
+    /* Flag questions added after the visit without implying the old visit was rescored. */
     const since=m&&m.addedSince.length?(' · '+m.addedSince.length+' question'+(m.addedSince.length===1?'':'s')+' added since'):'';
-    return (r.assessor||'District PBF team')+' · '+U.fmtDate(r.submitted)+(m&&m.total?(' · scored on '+m.total+' questions'):'')+since;
+    return (r.assessor||'District PBF team')+' · '+U.fmtDate(r.submitted)+since;
   }
   return st.label+' · '+st.detail;
 }
@@ -1290,7 +1289,7 @@ function scheduleCard(){
   ahead.forEach(sc=>{ const k=String(sc.plannedDate).slice(0,7); (byMonth[k]=byMonth[k]||[]).push(sc); });
   return UI.card({title:'Supervision calendar',sub:'What is planned, and what is still waiting for a record',icon:'calendar-clock',
     tools:'<button class="btn xs" data-plan-quarter>'+UI.ic('calendar-plus',12)+'Plan quarter</button><button class="btn xs" data-schedule>'+UI.ic('plus',12)+'Visit</button>',
-    body:'<div id="pbfCal" class="cal-wrap">'+calendarHTML()+'</div>'
+    body:'<div class="pbf-supervision-blocks"><div id="pbfCal" class="cal-wrap">'+calendarHTML()+'</div><div class="pbf-supervision-plan">'
       +(ahead.length?'<div class="row wrap gap-sm" style="margin-bottom:10px;margin-top:12px">'+Object.keys(byMonth).sort().map(k=>{
         const [y,m]=k.split('-');
         return '<div class="card pad" style="background:var(--surface-inset);min-width:150px;flex:1"><div class="eyebrow">'+U.MONTHS[+m-1]+' '+y+'</div>'
@@ -1316,7 +1315,7 @@ function scheduleCard(){
             +(why?'<div class="xs '+(why.admin?'faint':'')+'" style="margin-top:3px;'+(why.admin?'color:var(--text-muted)':'color:var(--warn)')+'">'+U.esc(why.label)+(why.admin?' · admin':'')+'</div>':'')+'</td>'
           +'<td class="num">'+act+'</td></tr>';
       }).join('')+'</tbody></table></div>'
-      :'<p class="xs faint" style="margin:0">Nothing planned yet. Record the quarter’s supervision dates — every centre without a visit keeps reading “not yet visited”, never “missed”.</p>'),
+      :'<p class="xs faint" style="margin:0">Nothing planned yet. Record the quarter’s supervision dates — every centre without a visit keeps reading “not yet visited”, never “missed”.</p>')+'</div></div>',
     foot:'<span>Planned visits appear in the notification centre as upcoming live events.</span><span class="mono">'+pending+' planned</span>'});
 }
 function planQuarterModal(){

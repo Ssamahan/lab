@@ -319,9 +319,9 @@ function serviceModal(preId, presetKind){
         +'<div class="field"><label>Email sent to supplier</label><input class="input" type="datetime-local" id="svSent" max="'+nowLocalInput()+'"></div>'
         +'<div class="field"><label>Supplier intervened at</label><input class="input" type="datetime-local" id="svInterv" max="'+nowLocalInput()+'"></div>'
         +'<div class="field span2"><div class="hint" id="svResp">Enter the email time and the intervention time — the supplier response speed is calculated from the two.</div></div>'
-        +'<div class="field"><label>Repaired on site?</label><select class="select" id="svSite"><option value="1">Yes — back in service</option><option value="0">No — shipped to supplier</option></select></div>'
-        +'<div class="field"><label>Shipment date</label><input class="input" type="date" id="svShip" value="'+U.todayISO()+'" max="'+U.todayISO()+'" disabled></div>'
-        +'<div class="field span2"><label>Backup analyser provided</label><select class="select" id="svBackup" disabled><option value="">None available</option>'
+        +'<div class="field"><label>Repair status</label><select class="select" id="svSite"><option value="1">Repaired on site</option><option value="pending">Not repaired / not shipped</option><option value="0">Shipped to supplier</option></select></div>'
+        +'<div class="field"><label>Shipment date</label><input class="input" type="date" id="svShip" max="'+U.todayISO()+'"></div>'
+        +'<div class="field span2"><label>Backup analyser provided</label><select class="select" id="svBackup"><option value="">None available</option>'
            +pool.map(b=>'<option value="'+b.id+'">'+U.esc(b.name+' · '+b.serial)+'</option>').join('')+'</select></div>'
         +'<div class="field span2"><div class="hint" id="svShipHint">A shipped analyser is added to the backup inventory and stays under downtime calculation until you mark it returned.</div></div>'
         +'</div></div></div>'
@@ -349,9 +349,8 @@ function serviceModal(preId, presetKind){
       const site=q('#svSite');
       const paintSite=()=>{
         const off=site.value==='0';
-        q('#svShip').disabled=!off; q('#svBackup').disabled=!off;
         if(off) q('#svShipHint').innerHTML='<b style="color:var(--text)">Shipped out:</b> the analyser stays in the downtime ledger and the backup is marked deployed until the analyser is marked returned.';
-        else q('#svShipHint').innerHTML='A shipped analyser is added to the backup inventory and stays under downtime calculation until you mark it returned.';
+        else q('#svShipHint').innerHTML='Shipment and backup are recorded only when “Shipped to supplier” is selected.';
       };
       site.onchange=paintSite;
       q('#svEq').onchange=()=>{ const e=db.equipment.find(x=>x.id===q('#svEq').value); if(e){ q('#svSupplier').value=e.vendor||e.manufacturer||''; q('#svSupplierEmail').value=e.vendorEmail||''; } };
@@ -374,8 +373,9 @@ function serviceModal(preId, presetKind){
           ev.responseH=hBetween(sent,interv);
           const onsite=q('#svSite').value==='1';
           ev.onsite=onsite;
-          if(!onsite){
-            ev.offsite=true; ev.shippedOn=q('#svShip').value||date;
+          if(q('#svSite').value==='0'){
+            if(!q('#svShip').value) return UI.toast('Enter the shipment date',{type:'warn'});
+            ev.offsite=true; ev.shippedOn=q('#svShip').value;
             ev.backupId=q('#svBackup').value||null;
             const owner=S.db().equipment.find(x=>x.id===id);
             if(!owner||openCase(owner)||owner.deployedFor) return UI.toast('This equipment already has an open case or backup assignment; reopen the form.',{type:'warn'});
@@ -393,7 +393,7 @@ function serviceModal(preId, presetKind){
                 const b=d.equipment.find(x=>x.id===ev.backupId);
                 if(b){ b.status='deployed'; b.deployedTo=e.name; b.deployedAt=ev.shippedOn; b.deployedFor=e.id; }
               }
-            }else if(['offline','offsite','maintenance','warning'].indexOf(e.status)>=0 && ev.interventionAt){
+            }else if(ev.onsite && ['offline','offsite','maintenance','warning'].indexOf(e.status)>=0 && ev.interventionAt){
               e.status='operational';
             }
           }else{
@@ -418,6 +418,8 @@ function histRow(){
    +'<div class="field"><label>Downtime (h)</label><input class="input mono hHours" type="number" min="0" step="0.5" value="0"></div>'
    +'<div class="field"><label>Email to supplier</label><input class="input hSent" type="datetime-local" max="'+nowLocalInput()+'"></div>'
    +'<div class="field"><label>Supplier intervened</label><input class="input hInterv" type="datetime-local" max="'+nowLocalInput()+'"></div>'
+   +'<div class="field"><label>Shipped on (optional)</label><input class="input hShip" type="date" max="'+U.todayISO()+'"></div>'
+   +'<div class="field"><label>Returned on (optional)</label><input class="input hReturn" type="date" max="'+U.todayISO()+'"></div>'
    +'<div class="field span2"><label>Work performed / note</label><input class="input hNote" placeholder="What was done"></div>'
    +'</div></div>';
 }
@@ -440,6 +442,11 @@ function historyModal(preId){
       el.querySelector('[data-save]').onclick=()=>{
         const id=el.querySelector('#hEq').value;
         const payload=[];
+        const invalid=rows().some(r=>{
+          const date=r.querySelector('.hDate').value, ship=r.querySelector('.hShip').value, returned=r.querySelector('.hReturn').value;
+          return (ship||returned)&&(!date||!ship||(returned&&returned<ship)||ship<date||ship>U.todayISO()||returned>U.todayISO());
+        });
+        if(invalid) return UI.toast('Check shipment and return dates; return must follow shipment.',{type:'warn'});
         rows().forEach(r=>{
           const date=r.querySelector('.hDate').value;
           if(!date) return;
@@ -454,6 +461,8 @@ function historyModal(preId){
             ev.emailAt=sent||null; ev.interventionAt=interv||null;
             ev.responseH=hBetween(sent,interv);
           }
+          const ship=r.querySelector('.hShip').value, returned=r.querySelector('.hReturn').value;
+          if(ship){ ev.offsite=true; ev.onsite=false; ev.shippedOn=ship; if(returned) ev.returnedOn=returned; }
           payload.push(ev);
         });
         if(!payload.length) return UI.toast('Add at least one past event with a date',{type:'warn'});

@@ -1016,3 +1016,9 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text)}
 /* Forecast cards stay readable while sharing the available horizontal space. */
 .leave-forecast-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px}
 .leave-forecast-grid > .card{margin-bottom:0!important}
+
+/* Keep the calendar and visit list distinct and side by side when space permits. */
+.pbf-supervision-blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;align-items:start}
+.pbf-supervision-blocks > *{min-width:0}
+.plan-history-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px}
+.plan-history-item{border:1px solid var(--border);padding:10px;display:grid;gap:6px;min-width:0}

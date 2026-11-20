@@ -144,14 +144,12 @@ function historyCard(){
       :'<span class="pill slate">Edited</span>'; };
   const rows=vers.map((v,i)=>({v,i})).reverse().map(({v,i})=>{
     const m=v.meta||{};
-    return '<tr><td class="xs">'+(m.date?U.fmtDate(m.date):'—')+'</td>'
-      +'<td class="small">'+U.esc(m.label||m.period||('Version '+(i+1)))+'</td>'
-      +'<td class="num">'+((v.dates||[]).length||'—')+'</td>'
-      +'<td>'+state(v)+'</td>'
-      +'<td style="text-align:right"><button class="btn xs" data-restore="'+i+'">'+UI.ic('rotate-cw',12)+'Restore</button></td></tr>';
+    return '<div class="plan-history-item"><div class="small strong">'+U.esc(m.label||m.period||('Version '+(i+1)))+'</div>'
+      +'<div class="xs faint">Archived '+(m.date?U.fmtDate(m.date):'—')+' · '+((v.dates||[]).length||'—')+' days</div>'
+      +'<div class="row between">'+state(v)+'<button class="btn xs" data-restore="'+i+'">'+UI.ic('rotate-cw',12)+'Restore</button></div></div>';
   }).join('');
   return '<div style="margin-top:14px">'+UI.card({title:'Plan history',sub:U.monthLabel(key)+' · every version this month has carried, newest first',icon:'clock',body:
-    '<div class="dt-scroll" style="max-height:none"><table class="dt"><thead><tr><th>Archived</th><th>What it was</th><th>Days</th><th>State</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    '<div class="plan-history-grid">'+rows+'</div>'
     +'<div class="card-foot"><span>Restoring puts a version back as the plan in force; the one it replaces is archived first, so a mistake can always be undone.</span><span class="mono">'+vers.length+' version'+(vers.length===1?'':'s')+'</span></div>'})+'</div>';
 }
 async function restoreVersion(i){
