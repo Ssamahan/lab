@@ -227,7 +227,7 @@ function forecastCard(){
   const rows=S.activeStaff().map(s=>S.staffLeaveForecast(s,180));
   return UI.card({title:'Authorised leave & absence forecast',sub:'Per staff member · next 180 days · built from that person\'s own records',icon:'calendar-days',
     tools:'<span class="pill slate">'+rows.filter(r=>r.unexcused.length).length+' with unexcused absence</span>',
-    body:rows.map(r=>{
+    body:'<div class="leave-forecast-grid">'+rows.map(r=>{
       const b=r.book;
       return '<div class="card pad" style="background:var(--surface-inset);margin-bottom:9px">'
         +'<div class="row between wrap gap-sm" style="align-items:flex-start"><div class="row gap-sm">'+U.avatar(r.staff.name,'sm')+'<div><div class="strong" style="font-size:12.5px">'+U.esc(r.staff.name)+'</div><div class="xs faint">'+U.esc(r.staff.role||'')+'</div></div></div>'
@@ -242,7 +242,7 @@ function forecastCard(){
         +'<div style="margin-top:8px">'+UI.meter(U.clamp((b.taken+b.planned)/Math.max(1,b.entitlement.days)*100,0,100),b.over?'rose':'teal')+'</div>'
         +'<div class="xs faint" style="margin-top:4px">FY '+r.fy+': '+b.charged+' of '+b.entitlement.days+' days charged'+(r.prev.charged?' · FY '+r.prevFy+': '+r.prev.charged+'d':'')+'</div>'
       +'</div>';
-    }).join('')
+    }).join('')+'</div>'
     +'<div class="hint">A person is only described as <b>absent</b> when an unexcused-absence record exists. Everything else is annual leave or authorised leave with a date.</div>',
     foot:'<span>Annual leave · authorised leave · unexcused absence — never mixed</span><span class="mono">180 days</span>'});
 }

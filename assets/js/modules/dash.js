@@ -303,21 +303,21 @@ M.render=function(root,params){
   const cqiBanner=cqi?'<div class="hint" role="status" style="margin-bottom:14px"><b>Quarter-end TB CQI review:</b> '+cqi.count+' recommendation'+(cqi.count===1?'':'s')+' not fully implemented. Quarter ends '+U.esc(U.fmtDate(cqi.end))+'. <a href="#/eqa?tab=cqi">Review implementation →</a></div>':'';
   root.innerHTML=hero()+cqiBanner+kpiRow()
    +'<div class="dash-flow" id="dashFlow">'
-     +'<div class="dash-card" data-span="wide">'+throughputCard()+'</div>'
+     +'<div class="dash-card" data-span="half">'+throughputCard()+'</div>'
      +'<div class="dash-card">'+dutyCard()+'</div>'
      +'<div class="dash-card">'+tatCard()+'</div>'
      +'<div class="dash-card">'+referralCard()+'</div>'
      +'<div class="dash-card">'+eqaCard()+'</div>'
      +'<div class="dash-card">'+equipmentCard()+'</div>'
      +'<div class="dash-card" data-span="half">'+worklistCard()+'</div>'
-     +'<div class="dash-card" data-span="half" id="feedCol">'+feedCard()+'</div>'
+     +'<div class="dash-card" data-span="wide" id="feedCol">'+feedCard()+'</div>'
    +'</div>'
    +(onboardingCard()?'<div style="margin-top:16px" id="obCol">'+onboardingCard()+'</div>':'')
    +trustFooter();
 
   // throughput chart
   const thr=S.monthlyThroughput(12);
-  C.line(root.querySelector('#thrChart'),{id:'thr',height:238,series:[
+  C.line(root.querySelector('#thrChart'),{id:'thr',height:180,series:[
     {name:'Registered',color:'var(--gold)',area:false,values:thr.map(d=>d.registered)},
     {name:'Resulted',color:'var(--chart-2)',area:false,values:thr.map(d=>d.resulted)}
   ],labels:thr.map(d=>d.label),tipFmt:v=>U.fmtNum(v)+' samples',extraTip:i=>'<div class="tr"><span class="k">STAT</span><span class="v">'+thr[i].stat+'</span></div><div class="tr"><span class="k">Gap</span><span class="v">'+(thr[i].registered-thr[i].resulted)+'</span></div>'});

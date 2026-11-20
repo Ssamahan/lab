@@ -1012,3 +1012,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text)}
 #boot{background:var(--bg);color:var(--text)}#boot .halo{display:none}.boot-word{color:var(--text-strong);font-family:var(--font-ui);font-weight:600}.boot-thread i{background:var(--accent)}
 .auth,[data-theme="porcelain"] .auth{background:var(--bg)}.auth-brand{background:var(--surface-inset);color:var(--text);border-right:1px solid var(--border)}.auth-brand::after,.auth-brand .glow,.auth-brand .glow2{display:none}
 .auth-hero .eyebrow,.auth-top small,.auth-hero p,.auth-stats .st small{color:var(--text-muted)}.auth-hero h1{font-size:24px;font-weight:600;line-height:1.2;color:var(--text-strong)}.auth-hero h1 em{font-style:normal;font-weight:600;color:var(--text-strong)}.auth-stats .st b{color:var(--text-strong);font-weight:600}.auth-trust{border-color:var(--border)}.trust-badge{border-color:var(--border);background:var(--surface);color:var(--text-muted)}.trust-badge svg{color:var(--text-muted)}.auth-card h2{font-size:24px;font-weight:600}
+
+/* Forecast cards stay readable while sharing the available horizontal space. */
+.leave-forecast-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px}
+.leave-forecast-grid > .card{margin-bottom:0!important}
