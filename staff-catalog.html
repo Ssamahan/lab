@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer"><title>Staff catalog · Laboratory</title>
+  <link rel="stylesheet" href="assets/css/tokens.css"><link rel="stylesheet" href="assets/css/app.css">
+  <style>
+    body{margin:0;padding:20px;background:var(--bg);color:var(--text)} main{max-width:1100px;margin:auto}
+    label{display:block;margin-top:12px} input{width:min(100%,400px);box-sizing:border-box} button{margin-top:16px}
+    section{margin-top:32px} .scroll{overflow-x:auto} table{width:100%;border-collapse:collapse}
+    th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border);vertical-align:top} [hidden]{display:none!important}
+  </style>
+</head>
+<body><main>
+  <h1>Staff catalog</h1>
+  <p>This read-only catalog shows selected staff, training and equipment information. It is not the complete laboratory register.</p>
+  <p id="status" role="status" aria-live="polite">Sign in with your staff account.</p>
+  <form id="login-form">
+    <label for="email">Email</label><input class="input" id="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label><input class="input" id="password" type="password" autocomplete="current-password" required>
+    <div><button class="btn primary" type="submit">Sign in</button></div>
+  </form>
+  <div id="catalog" hidden>
+    <button class="btn" id="sign-out" type="button">Sign out</button>
+    <nav aria-label="Staff catalog"><a href="#staff">Staff</a> · <a href="#trainings">Training</a> · <a href="#equipment">Equipment</a></nav>
+    <section id="staff"><h2>Staff</h2><div class="scroll"><table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th></tr></thead><tbody></tbody></table></div></section>
+    <section id="trainings"><h2>Training</h2><div class="scroll"><table><thead><tr><th>Training</th><th>Start</th><th>End</th><th>Organizer</th><th>Location</th></tr></thead><tbody></tbody></table></div></section>
+    <section id="equipment"><h2>Equipment</h2><div class="scroll"><table><thead><tr><th>Equipment</th><th>Model</th><th>Status</th><th>Location</th></tr></thead><tbody></tbody></table></div></section>
+  </div>
+  <p><a href="./">Return to the laboratory site</a></p>
+</main><script src="assets/js/core/shared.js"></script><script src="assets/js/core/staff-catalog.js"></script></body>
+</html>

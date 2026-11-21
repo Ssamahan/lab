@@ -15,11 +15,13 @@ async function setup(hash,verifyOK=true){
   assert.equal(w.location.hash,'');assert.equal(calls.length,1);assert.equal(calls[0].options.method,'GET');
   assert.equal(calls[0].options.headers.Authorization,'Bearer token123');assert(!w.document.body.textContent.includes('token123'));
   assert.equal(w.document.querySelector('form').hidden,false);
+  assert.equal(w.document.querySelector('#staff-link').hidden,true);
   w.document.querySelector('#password').value='long-enough-password';w.document.querySelector('#confirmation').value='different-password';
   w.document.querySelector('form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,0));assert.equal(calls.length,1);
   w.document.querySelector('#confirmation').value='long-enough-password';w.document.querySelector('form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,0));
   assert.equal(calls.length,2);assert.equal(calls[1].options.method,'PUT');assert.equal(JSON.parse(calls[1].options.body).password,'long-enough-password');
   assert.equal(w.document.querySelector('form').hidden,true);assert(!w.document.documentElement.outerHTML.includes('token123'));
+  assert.equal(w.document.querySelector('#staff-link').hidden,false);assert.equal(w.document.querySelector('#staff-link a').getAttribute('href'),'staff-catalog.html');
   ({w,calls}=await setup('#access_token=x&type=recovery'));assert.equal(calls.length,0);assert.equal(w.document.querySelector('form').hidden,true);assert.equal(w.location.hash,'');
   ({w,calls}=await setup('#access_token=x&type=invite',false));assert.equal(calls.length,1);assert.equal(w.document.querySelector('form').hidden,true);
   console.log('invite-accept182: token removal, validation and password setup passed');

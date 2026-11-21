@@ -35,7 +35,8 @@ form.addEventListener('submit',async function(event){
     const res=await fetch(base+'/auth/v1/user',{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},headers),body:JSON.stringify({password:password.value}),cache:'no-store'});
     if(!res.ok) throw new Error('Password update failed');
     password.value='';confirmation.value='';form.hidden=true;ready=false;
-    status.textContent='Password set. The administrator must finish enabling your staff access before you can use it.';
+    status.textContent='Password set. You can try signing in to the read-only staff catalog; contact the administrator if access is not yet enabled.';
+    document.getElementById('staff-link').hidden=false;
   }catch(_){status.textContent='Could not set the password. Check the connection or ask the administrator for a new invitation.';}
   finally{busy=false;form.querySelector('button').disabled=false;}
 });

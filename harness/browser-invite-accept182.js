@@ -24,6 +24,8 @@ const binary=require('@sparticuz/chromium');
   await page.getByText('Password set.',{exact:false}).waitFor();
   if(updates!==1)throw Error('Expected one password update');
   if(await page.locator('form').isVisible())throw Error('Password form remains visible');
-  console.log('Chromium: invitation fragment removed, mismatches blocked, password setup sent.');
+  if(!await page.getByRole('link',{name:'Sign in to the read-only staff catalog'}).isVisible())throw Error('Staff catalog link not shown');
+  if(await page.getByRole('link',{name:'Sign in to the read-only staff catalog'}).getAttribute('href')!=='staff-catalog.html')throw Error('Wrong staff catalog destination');
+  console.log('Chromium: invitation fragment removed, mismatches blocked, password setup sent and staff link shown.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
