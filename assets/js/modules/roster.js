@@ -924,7 +924,7 @@ function nightModal(iso){
     }});
 }
 function autoAllocate(){
-  if(!LS.auth.guard('edit')) return;
+  if(!LS.auth.can('edit')&&!LS.auth.guard('roster_generate')) return;
   const start=weekStart(), dates=S.weekDates(start), mkOf=String(start).slice(0,7);
   const rules=benchPlan();
   let posts=0, servicesFilled=0, skipped=0, reservePosts=0, cleared=0, split=0, weekendCleared=0, weekendKept=0;
@@ -1173,7 +1173,7 @@ function nightPlanFor(start){
   return {map:out, fromPlan, open, notes};
 }
 function autoNights(){
-  if(!LS.auth.guard('edit')) return;
+  if(!LS.auth.can('edit')&&!LS.auth.guard('roster_generate')) return;
   const start=weekStart();
   const {map, notes}=nightPlanFor(start);
   if(!Object.keys(map).length){
@@ -1503,7 +1503,7 @@ function revisionModal(){
  UI.modal({title:'Working-plan revision details',sub:'Record the actual revision date and reason. This does not change any shifts or publish the plan.',body:(prior.length?'<div class="hint">'+prior.map(r=>U.esc(r.date)+' · '+U.esc(r.reason)+(r.detail?' — '+U.esc(r.detail):'')).join('<br>')+'</div>':'')+'<div class="form-grid"><div class="field"><label>Revision date</label><input class="input" type="date" id="revisionDate" value="'+U.todayISO()+'"></div><div class="field"><label>Reason</label><select class="select" id="revisionReason"><option>Training requiring multiple staff</option><option>Sick leave</option><option>Other leave</option><option>Staffing change</option><option>Service coverage</option><option>Other</option></select></div><div class="field span2"><label>Details (optional)</label><input class="input" id="revisionDetail" maxlength="120" placeholder="Explain the reason"></div></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-revision-save>Record revision</button>',onMount:(el,close)=>{el.querySelector('[data-revision-save]').onclick=()=>{if(!LS.auth.guard('edit'))return;const date=el.querySelector('#revisionDate').value,reason=el.querySelector('#revisionReason').value,detail=el.querySelector('#revisionDetail').value.trim();if(!date||!reason)return UI.toast('Enter a date and reason',{type:'warn'});const current=S.db().workingPlans&&S.db().workingPlans[key]&&S.db().workingPlans[key].primary;if(!current||current!==p)return UI.toast('Plan changed; reopen revision details',{type:'warn'});S.commit(d=>{const m=d.workingPlans[key].primary.meta=d.workingPlans[key].primary.meta||{};m.revisions=m.revisions||[];m.revisions.push({date,reason,detail,by:LS.auth.user.name,recordedAt:U.nowISO()});m.revised=true;},{action:'roster.revision',entity:'workingPlans',entityId:key,detail:'Revision '+date+' · '+reason+(detail?' · '+detail:'')});close();paint();UI.toast('Revision details recorded; sync pending',{type:'ok'});};}});
 }
 async function generateMonth(){
-  if(!LS.auth.guard('edit')) return;
+  if(!LS.auth.can('edit')&&!LS.auth.guard('roster_generate')) return;
   const key=mk, existing=plan();
   const official=!!(existing&&existing.meta&&existing.meta.official);
   const ok=await UI.confirm({

@@ -83,12 +83,11 @@ A.session=null;
 
 const PERMS={
   Admin:['view','edit','approve','revenue','staff','settings','security','export','delete','patient_names'],
-  Manager:['view','edit','approve','revenue','export','patient_names'],
+  Manager:['view','edit','approve','export','patient_names'],
   /* Bench staff may see a patient name, once they have re-entered their own password. */
   Technologist:['view','edit','export','patient_names'],
-  /* Reviewers read the register and can act on what they are asked to verify —
-     they sign off assessments but never see revenue, security or settings. */
-  Reviewer:['view','edit','approve','export'],
+  /* This local gate improves the interface only; server policy must enforce roles. */
+  Reviewer:['view','roster_generate','export'],
   Viewer:['view','export'],
   'Read-only':['view']
 };
