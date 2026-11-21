@@ -23,13 +23,12 @@ is already present so `assets/` is served as-is. Deployment and Android packagin
 
 The app opens on a **public overview** — no password needed to read what the department does, and
 one button opens the register itself as a read-only visitor.
-The console's sign-in screen is not linked from it: **five clicks on the crest** or **three
-clicks on the profile button** opens it, as does `#/signin` in the address bar. Signing out
-returns to the overview, and a bookmarked console link still asks for the password.
+Staff can open the sign-in screen at `#/signin`. Signing out returns to the overview.
 
-Accounts are issued and reset by the administrator in **Security Center**. Nothing about
-an account — username, password, one-time code — is written in this repository, in the
-page source, or in the documentation.
+The current sign-in is a **browser-local gate**, not a server-verified identity system.
+The shipped application contains account identifiers, password hashes and a placeholder
+second-factor code. Account and role changes made on one browser do not provision a secure
+account on other devices. Do not use these local roles to protect confidential information.
 
 | Role | May do |
 | --- | --- |
@@ -40,7 +39,7 @@ page source, or in the documentation.
 | Viewer | read-only, PBF and district review |
 
 **A visitor needs no account.** The overview's *Open the register as a visitor* button — or a
-single tap on the profile, while three taps open the staff sign-in — enters
+profile button — enters
 the console as a Viewer: every operational module plus the staff register, with export and
 download, and three surfaces closed — **Training Revenue**, **Settings** and **Data & sync**.
 Writes are refused in the store itself, not only in the interface, and the session ends with
@@ -52,10 +51,9 @@ window shows the real samples, rosters and PBF marks rather than the sample copy
 `endpoint` there to switch that off. While Supabase anonymous sign-ins are on, that key also lets
 anyone holding it read the register directly; see *Security, stated plainly*.
 
-Passwords are stored as **SHA-256 hashes**; the sign-in form starts empty. If every
-manager account is lost, clear this site's browser data (`Settings → Data → reset to seed`)
-— the seeded manager account returns, and its password should be changed immediately in
-Security Center.
+The local gate stores password hashes on the device. Do not clear browser data to recover
+access: it may contain unsynchronised laboratory work. A secure account-recovery process
+requires server-side authentication and has not yet been implemented.
 
 ## Cloud sync (on, for the deployment)
 
@@ -190,17 +188,18 @@ keeps polling the shared copy instead of showing the snapshot it read when it en
 
 ## Security, stated plainly
 
-- This is a **browser-only console**: the register lives in the device's `localStorage`.
-  Password hashing keeps credentials out of the source; it is not server-side identity.
-  Anyone with access to the device and its developer tools can read that register.
+- The register lives in the device's `localStorage`. Seed account identifiers and password
+  hashes are shipped in the public app; hashing does not make them private or provide
+  server-side identity. Anyone with access to the device and its developer tools can read
+  the local register.
 - The seeded **2FA code is a local placeholder**, not a real second factor, until a real
   OTP provider is wired in.
 - Anonymous Supabase sessions make sync work quickly, but the publishable key is public by
   design: while *Allow anonymous sign-ins* is on, anyone holding the key could read the
   register. **Check setup** warns about it; the guide's Part 8 closes it.
-- Rotate any password that has ever been committed, screenshotted or shared in chat. Git
-  history is permanent; changing the password in Security Center is the fix, not deleting
-  the line.
+- Treat any password or code ever committed, screenshotted or shared as exposed. Git
+  history and public copies may persist after removal. Local password changes only affect
+  that browser and do not revoke the shipped account on other devices.
 
 ## Modules
 

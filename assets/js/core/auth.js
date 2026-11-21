@@ -5,10 +5,9 @@
 'use strict';
 const U=window.LSU; const A={}; window.LS=window.LS||{}; LS.auth=A;
 const SESSION_KEY='labSystems.session.v2';
-/* Passwords are stored as SHA-256 hashes, never as text. This is a local gate in a
-   browser-only console — it keeps credentials out of a public repository and out of the
-   page source, but it is not a substitute for a server-side identity provider. Rotate a
-   password in Security Center when in doubt; the hash changes, the file never does. */
+/* This browser-local gate ships account identifiers and password hashes publicly.
+   It is not a server-side identity provider. Changing a password on one device does
+   not revoke the shipped credential or update other devices. */
 function sha256(str){
   const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
   0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
