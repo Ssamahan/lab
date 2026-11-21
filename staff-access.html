@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Staff invitations · Laboratory</title>
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <style>
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;box-sizing:border-box}
+    main{width:min(100%,520px);padding:24px;border:1px solid var(--border);background:var(--surface);box-sizing:border-box}
+    label{display:block;margin-top:16px} input,select{width:100%;box-sizing:border-box;margin-top:6px} button{margin-top:20px}
+    [hidden]{display:none!important}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Staff invitations</h1>
+    <p id="status" role="status" aria-live="polite">Sign in with your administrator account to send an invitation.</p>
+    <form id="login-form">
+      <label for="admin-email">Administrator email</label>
+      <input class="input" id="admin-email" type="email" autocomplete="username" required>
+      <label for="admin-password">Administrator password</label>
+      <input class="input" id="admin-password" type="password" autocomplete="current-password" required>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+    <form id="invite-form" hidden>
+      <label for="invite-email">Staff email</label>
+      <input class="input" id="invite-email" type="email" autocomplete="off" required>
+      <label for="invite-role">Role</label>
+      <select class="select" id="invite-role"><option value="Viewer">Viewer</option><option value="Reviewer">Reviewer</option></select>
+      <button class="btn primary" type="submit">Send invitation</button>
+      <button class="btn" type="button" id="sign-out">Sign out</button>
+    </form>
+    <p><a href="./">Return to the laboratory site</a></p>
+  </main>
+  <script src="assets/js/core/shared.js"></script>
+  <script src="assets/js/core/staff-access.js"></script>
+</body>
+</html>

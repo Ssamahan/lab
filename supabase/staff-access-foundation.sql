@@ -1,6 +1,6 @@
--- Preparation only. Do not apply to production until the new staff login,
+-- Preparation only. This table alone does not restrict the existing public register
+-- policies. Do not grant staff access or change register policies until the new login,
 -- scoped data endpoints and safe cutover are complete and independently tested.
--- This table alone does not restrict the existing public register policies.
 create table if not exists public.lab_access_members (
   user_id uuid primary key references auth.users(id) on delete restrict,
   role text not null check (role in ('Admin','Manager','Technologist','Reviewer','Viewer')),

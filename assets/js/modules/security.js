@@ -185,7 +185,7 @@ function importFile(){
 M.render=function(root,params){
   rootEl=root; tab=params.tab||'posture';
   root.innerHTML='<div class="page-head"><div><h1>Security Center</h1><div class="sub">Identity, sessions, auditability and data residency — the trust layer under every screen.</div></div>'
-   +'<div class="actions"><button class="btn" data-restore-now>'+UI.ic('database',15)+' New snapshot</button><a class="btn primary" href="#/staff">'+UI.ic('users',15)+' Manage access</a></div></div>'
+   +'<div class="actions"><button class="btn" data-restore-now>'+UI.ic('database',15)+' New snapshot</button><a class="btn" href="staff-access.html">'+UI.ic('mail',15)+' Staff invitations</a><a class="btn primary" href="#/staff">'+UI.ic('users',15)+' Manage access</a></div></div>'
    +kpis()
    +'<div class="filters" style="margin-bottom:12px">'+[['posture','Posture'],['sessions','Sessions &amp; logins'],['audit','Audit trail']].map(([k,l])=>'<button class="filter-tab '+(tab===k?'on':'')+'" data-sec-tab="'+k+'">'+l+'</button>').join('')+'</div>'
    +'<div id="secBody"></div>';

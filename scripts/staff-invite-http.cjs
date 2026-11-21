@@ -15,7 +15,7 @@ async function handleInvitation(request,config){
   const answer=(status,code)=>new Response(JSON.stringify({code}),{status,headers:Object.assign({'Content-Type':'application/json'},headers)});
   if(!allowed||origin!==allowed) return answer(403,'forbidden');
   headers['Access-Control-Allow-Origin']=allowed;
-  if(request.method==='OPTIONS') return new Response(null,{status:204,headers:Object.assign({'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'authorization, content-type','Access-Control-Max-Age':'600'},headers)});
+  if(request.method==='OPTIONS') return new Response(null,{status:204,headers:Object.assign({'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'authorization, apikey, content-type','Access-Control-Max-Age':'600'},headers)});
   if(request.method!=='POST') return answer(405,'method_not_allowed');
   const auth=request.headers.get('authorization')||'';
   const match=/^Bearer ([^\s]+)$/.exec(auth);

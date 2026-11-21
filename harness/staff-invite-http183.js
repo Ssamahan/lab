@@ -12,7 +12,7 @@ const req=(body,origin='https://site.example',authorization='Bearer valid')=>new
  role='Viewer';r=await handleInvitation(req({email:'viewer@example.org',role:'Viewer'}),config);assert.equal(r.status,403);assert.equal(sent,0);role='Admin';
  r=await handleInvitation(req({email:'viewer@example.org',role:'Admin'}),config);assert.equal(r.status,400);assert.equal(sent,0);
  r=await handleInvitation(req({email:'viewer@example.org',role:'Viewer'}),config);assert.equal(r.status,200);assert.equal(sent,1);assert.equal((await r.json()).code,'sent');assert.equal(r.headers.get('access-control-allow-origin'),'https://site.example');
- r=await handleInvitation(new Request('https://service.example/invite',{method:'OPTIONS',headers:{origin:'https://site.example'}}),config);assert.equal(r.status,204);assert.equal(sent,1);
+ r=await handleInvitation(new Request('https://service.example/invite',{method:'OPTIONS',headers:{origin:'https://site.example'}}),config);assert.equal(r.status,204);assert(r.headers.get('access-control-allow-headers').includes('apikey'));assert.equal(sent,1);
  r=await handleInvitation(req({email:'a'.repeat(3000),role:'Viewer'}),config);assert.equal(r.status,413);assert.equal(sent,1);
  console.log('staff-invite-http183: origin, authentication, authorization, validation and body limit passed');
 })().catch(e=>{console.error(e);process.exit(1)});
