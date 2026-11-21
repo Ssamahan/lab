@@ -8,4 +8,15 @@ assert(!JSON.stringify(out).includes('private'));
 input.trainings[0].title='changed';assert.equal(out.trainings[0].title,'VHF training');
 assert.deepEqual(publicRegister({trainings:[null,3,{title:{secret:'bad'}}],equipment:'bad'}),{trainings:[],equipment:[]});
 assert.deepEqual(publicRegister(null),{trainings:[],equipment:[]});
-console.log('access-public181: allowlist excludes private and unexpected fields');
+// Public projections must never publish values inherited from a prototype.
+const inherited=Object.create({title:'Private inherited title',location:'Private inherited location'});
+inherited.id='t2';
+const partlyInherited=Object.create({status:'Private inherited status'});
+partlyInherited.id='e2';partlyInherited.name='Centrifuge';
+assert.deepEqual(publicRegister({trainings:[inherited],equipment:[partlyInherited]}),{
+  trainings:[],equipment:[{id:'e2',name:'Centrifuge'}]
+});
+const inheritedCollection=Object.create({trainings:[{title:'Inherited collection'}]});
+assert.deepEqual(publicRegister(inheritedCollection),{trainings:[],equipment:[]});
+
+console.log('access-public181: allowlist excludes private and inherited fields');
