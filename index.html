@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FAFAF9">
+<!-- Content-Security-Policy — GitHub Pages cannot set response headers, so this ships as
+     a meta tag. Everything the console loads is same-origin; the exceptions are listed
+     one by one: the sync project, the HIV timeliness worker, and the three map services.
+     The old watchdog script moved to assets/js/core/watchdog.js so scripts stay
+     external only, and 147 innerHTML sinks can no longer execute a remote origin. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://lkjwztvhmzhasclmlocx.supabase.co https://lab-hiv-timeliness.smhnklvn.workers.dev https://nominatim.openstreetmap.org https://router.project-osrm.org; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0B101C">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAFAF9">
 <meta name="description" content="Lab Systems — the laboratory operating console of Ruli District Hospital. Referred samples, stock, scheduling, quality and PBF evaluation in one offline-first workspace.">
 <title>Lab Systems · Ruli District Hospital</title>
 <link rel="manifest" href="manifest.json">
@@ -14,17 +21,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Lab Systems">
 <link rel="preload" href="assets/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.177">
-<link rel="stylesheet" href="assets/css/app.css?v=6.9.177">
-<link rel="stylesheet" href="assets/css/landing.css?v=6.9.177">
+<link rel="preload" href="assets/fonts/fraunces-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/tokens.css?v=6.9.178">
+<link rel="stylesheet" href="assets/css/app.css?v=6.9.178">
+<link rel="stylesheet" href="assets/css/landing.css?v=6.9.178">
 <!-- Blocking, deliberately. It was made non-blocking in 6.9.134 to save 71 KB of waiting,
      and that is exactly the sort of cleverness that produces an unstyled, unreadable
      console on a device where the deferred swap does not happen. Reliability first: the
      stylesheet is there before the first screen is drawn, every time. -->
-<link rel="stylesheet" href="assets/css/modules.css?v=6.9.177">
+<link rel="stylesheet" href="assets/css/modules.css?v=6.9.178">
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </head>
 <body>
+
+<a class="skip-link" href="#app">Skip to the console</a>
 
 <!-- ══════════════ CINEMATIC BOOT ══════════════ -->
 <div id="boot" aria-hidden="true">
@@ -49,7 +59,7 @@
   <div class="boot-sub">Ruli District Hospital · Laboratory</div>
   <div class="boot-thread"><i></i></div>
   <div class="boot-status" id="bootStatus">Calibrating QC engines…</div>
-  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.177</span></div>
+  <div class="boot-foot"><span>ISO 15189 aligned</span><span>·</span><span>Offline-first</span><span>·</span><span>v6.9.178</span></div>
 </div>
 
 
@@ -255,7 +265,7 @@
     <span>© 2026 Ruli District Hospital · Laboratory Department</span>
     <span class="row" style="gap:12px">
       <button class="land-back" type="button" id="landConsole" hidden>Back to the console</button>
-      <span class="mono">Lab Systems v6.9.177</span>
+      <span class="mono">Lab Systems v6.9.178</span>
     </span>
   </footer>
 </section>
@@ -324,17 +334,35 @@
           </div>
         </div>
         <div id="authOtpPanel" hidden>
+          <div id="authEnrollBox" hidden>
+            <div class="hint" style="margin-bottom:8px">Add this key to an authenticator app (Google Authenticator, Aegis, 2FAS…). The code proves the app reads the same 30-second clock — the key is saved only after a code matches.</div>
+            <div class="field">
+              <label for="authSecretKey">Key · type it into the app exactly</label>
+              <input class="input mono" id="authSecretKey" readonly spellcheck="false" style="font-size:.78rem;letter-spacing:.08em">
+            </div>
+            <div class="hint xs" id="authSecretUri" style="word-break:break-all;color:var(--text-faint)"></div>
+          </div>
           <div class="field">
-            <label for="authCode">6-digit one-time code</label>
+            <label for="authCode">6-digit code from the authenticator app</label>
             <input class="input mono" id="authCode" name="one-time-code" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code" style="letter-spacing:.42em;font-size:1rem">
-            <div class="hint">Codes expire after 5 minutes. Ask the laboratory manager to reset yours.</div>
+            <div class="hint">Codes rotate every 30 seconds. Ask the laboratory manager to reset yours.</div>
+          </div>
+        </div>
+        <div id="authRotatePanel" hidden>
+          <div class="hint" style="margin-bottom:10px">The old password format is being retired on this device — the console opens only after a new password exists. It must be different from the one you just used.</div>
+          <div class="field" style="margin-bottom:12px">
+            <label for="authNewPass">New password</label>
+            <input class="input mono" id="authNewPass" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+          </div>
+          <div class="field">
+            <label for="authNewPass2">Repeat the new password</label>
+            <input class="input mono" id="authNewPass2" type="password" autocomplete="new-password" placeholder="Once more">
           </div>
         </div>
         <div class="auth-row">
           <label class="row gap-sm" style="cursor:pointer"><input type="checkbox" id="authRemember" style="accent-color:#0F766E"> <span>Keep me signed in for 24h</span></label>
-          <span class="xs faint">SSO available</span>
         </div>
-        <div id="authErr" class="pill rose" style="height:auto;padding:8px 10px;display:none;line-height:1.4"></div>
+        <div id="authErr" class="pill rose" hidden style="height:auto;padding:8px 10px;line-height:1.4"></div>
         <button class="btn primary wide" type="submit" style="height:40px;margin-top:2px">Sign in to the console <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
       </form>
 
@@ -351,7 +379,7 @@
       </div>
       <div class="auth-foot">
         Accounts are issued by the laboratory manager in Security Center.<br>
-        Lab Systems v6.9.177 · © 2026 Ruli District Hospital · Laboratory Department
+        Lab Systems v6.9.178 · © 2026 Ruli District Hospital · Laboratory Department
       </div>
     </div>
   </div>
@@ -455,50 +483,31 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <noscript><div style="padding:40px;text-align:center;font-family:system-ui">Lab Systems requires JavaScript. Contact the laboratory manager for an offline APK build.</div></noscript>
 
-<script src="assets/js/core/icons.js?v=6.9.177"></script>
-<script src="assets/js/core/seed.js?v=6.9.177"></script>
-<script src="assets/data/plan-archive.js?v=6.9.177"></script>
-<script src="assets/js/core/utils.js?v=6.9.177"></script>
-<script src="assets/js/core/store.js?v=6.9.177"></script>
-<script src="assets/js/core/ui.js?v=6.9.177"></script>
-<script src="assets/js/core/charts.js?v=6.9.177"></script>
+<script src="assets/js/core/icons.js?v=6.9.178"></script>
+<script src="assets/js/core/seed.js?v=6.9.178"></script>
+<script src="assets/data/plan-archive.js?v=6.9.178"></script>
+<script src="assets/js/core/utils.js?v=6.9.178"></script>
+<script src="assets/js/core/store.js?v=6.9.178"></script>
+<script src="assets/js/core/ui.js?v=6.9.178"></script>
+<script src="assets/js/core/charts.js?v=6.9.178"></script>
 <!-- The sheet layout engine (sheets.js) is loaded with everything else, in parallel.
      6.9.109 deferred it and made thirteen screens *wait* for it before their own file
      even started: on a slow link that is an extra 91 KB of stall on every first visit to
      every screen, and if the request hangs the screen never draws at all. Back in the
      list, where a slow file only slows its own download — not the whole console. -->
-<script src="assets/js/core/sheets.js?v=6.9.177"></script>
+<script src="assets/js/core/sheets.js?v=6.9.178"></script>
 <!-- The workbook reader is still on demand (SH.ensureCore('xlsx')): nothing renders
      without it, and only an import needs it. -->
-<script src="assets/js/core/i18n.js?v=6.9.177"></script>
-<script src="assets/js/core/auth.js?v=6.9.177"></script>
-<script src="assets/js/core/landing.js?v=6.9.177"></script>
-<script src="assets/js/core/shell.js?v=6.9.177"></script>
-<script src="assets/js/core/shared.js?v=6.9.177"></script>
-<script src="assets/js/core/sync.js?v=6.9.177"></script>
-<script src="assets/js/core/private-names.js?v=6.9.177"></script>
-<script src="assets/js/core/boot.js?v=6.9.177"></script>
-<script>
-/* ——— The last line of defence ————————————————————————————————
-   Written inline, and deliberately dependent on nothing: if the console's own scripts
-   never arrive — a cache with half a build in it, a phone that dropped the connection
-   mid-update — this still runs, and it says so instead of leaving a splash turning for
-   ever, which is indistinguishable from a site that is down. */
-(function(){
-  window.setTimeout(function(){
-    if(window.__lsBooted) return;
-    var boot=document.getElementById('boot');
-    if(!boot) return;
-    boot.innerHTML='<div style="max-width:440px;text-align:center;padding:24px">'
-      +'<div style="font-family:Georgia,serif;font-size:1.4rem;color:#EFE7D6;margin-bottom:8px">The console did not load on this device</div>'
-      +'<p style="color:#B9AE99;font-size:12.5px;line-height:1.65;margin:0">A required file did not finish loading. The cause is not yet known. Do not clear browser data or reset the register.</p>'
-      +'<div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">'
-        +'<a href="check.html" style="padding:9px 14px;border-radius:8px;background:#0F766E;color:#FFFFFF;font-weight:600;font-size:13px;text-decoration:none">Connection check</a>'
-        +'<a href="" style="padding:9px 14px;border-radius:8px;color:#EFE7D6;border:1px solid #4A4335;font-size:13px;text-decoration:none">Reload</a>'
-      +'</div></div>';
-  },10000);
-})();
-</script>
+<script src="assets/js/core/crypto.js?v=6.9.178"></script>
+<script src="assets/js/core/i18n.js?v=6.9.178"></script>
+<script src="assets/js/core/auth.js?v=6.9.178"></script>
+<script src="assets/js/core/landing.js?v=6.9.178"></script>
+<script src="assets/js/core/shell.js?v=6.9.178"></script>
+<script src="assets/js/core/shared.js?v=6.9.178"></script>
+<script src="assets/js/core/sync.js?v=6.9.178"></script>
+<script src="assets/js/core/private-names.js?v=6.9.178"></script>
+<script src="assets/js/core/boot.js?v=6.9.178"></script>
+<script src="assets/js/core/watchdog.js?v=6.9.178"></script>
 <noscript><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#14120E;color:#EFE7D6;font-family:system-ui,sans-serif;padding:24px;text-align:center;z-index:400"><div><b style="font-size:1.1rem">JavaScript is switched off</b><p style="color:#B9AE99;font-size:13px;margin-top:8px">The laboratory console runs in this browser and needs JavaScript enabled. Nothing has been lost.</p></div></div></noscript>
 </body>
 </html>

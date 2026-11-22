@@ -193,8 +193,10 @@ function namesModal(){
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-unlock>'+UI.ic('eye',14)+'Show names</button>',
     onMount:(el,close)=>{
       const fail=m=>{ const x=el.querySelector('#nmErr'); x.style.display=''; x.textContent=m; };
-      const go=()=>{
-        const res=LS.auth.verifyCredentials(LS.auth.user.username,el.querySelector('#nmPass').value);
+      const go=async()=>{
+        /* The password check derives PBKDF2 now, so it answers a beat later — the
+           modal just waits for the yes or no. */
+        const res=await LS.auth.verifyCredentials(LS.auth.user.username,el.querySelector('#nmPass').value);
         if(!res.ok){
           return fail(res.reason+' If you changed your password in Security Center on an older build, it was not being saved — set it once more in Security Center, then try again.');
         }
