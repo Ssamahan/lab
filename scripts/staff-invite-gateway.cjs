@@ -14,7 +14,7 @@ function createGateway(config){
     async verify(token){
       const r=await send(endpoint+'/auth/v1/user',{method:'GET',headers:{apikey:config.publicKey,Authorization:'Bearer '+token},cache:'no-store'});
       if(!r.ok) return null;const u=await r.json();
-      return u&&typeof u.id==='string'?{id:u.id,anonymous:u.is_anonymous!==false}:null;
+      return u&&typeof u.id==='string'?{id:u.id,email:typeof u.email==='string'?u.email:'',anonymous:u.is_anonymous!==false}:null;
     },
     async role(userId){
       const url=endpoint+'/rest/v1/lab_access_members?select=role&user_id=eq.'+encodeURIComponent(userId)+'&active=eq.true&limit=1';

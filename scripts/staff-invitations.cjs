@@ -16,6 +16,9 @@ async function invite(input,gateway){
   if(role!=='Admin') return {code:'forbidden'};
   const email=typeof input.email==='string'?input.email.trim().toLowerCase():'';
   if(email.length>254||!EMAIL.test(email)||!ROLES.has(input.role)) return {code:'invalid'};
+  // An existing administrator cannot be re-invited as another role. Check
+  // before sending mail, not after delivery or membership modification.
+  if(typeof actor.email==='string'&&actor.email.trim().toLowerCase()===email) return {code:'self_invite'};
   let person;
   try{person=await gateway.send(email);}catch(_){return {code:'send_failed'};}
   if(!person||!UUID.test(person.id||'')||person.id===actor.id) return {code:'send_failed'};

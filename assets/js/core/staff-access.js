@@ -26,6 +26,7 @@ form.addEventListener('submit',async event=>{
  try{
   const res=await fetch(base+'/functions/v1/lab-staff-invite',{method:'POST',headers:Object.assign({},publicHeaders,{Authorization:'Bearer '+token}),body:JSON.stringify({email:inviteEmail.value.trim(),role:inviteRole.value}),cache:'no-store'});
   const result=await res.json();
+  if(result.code==='self_invite'){status.textContent='This administrator already has an account and cannot be invited to a different role. Test with a separate email address.';return;}
   if(result.code==='assignment_failed'){status.textContent='The email may have been sent, but the role was not assigned. Contact the administrator before retrying.';return;}
   if(!res.ok||result.code!=='sent')throw new Error('send failed');
   inviteEmail.value='';status.textContent='Invitation sent. The recipient must accept it and set a password.';

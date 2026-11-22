@@ -25,7 +25,7 @@ async function handleInvitation(request,config){
   try{body=JSON.parse(await readBody(request));}catch(e){return answer(e instanceof RangeError?413:400,e instanceof RangeError?'too_large':'invalid');}
   if(!body||typeof body!=='object'||Array.isArray(body)) return answer(400,'invalid');
   const result=await invite({token:match[1],email:body.email,role:body.role},config.gateway);
-  const status={sent:200,unauthorized:401,forbidden:403,invalid:400,send_failed:502,assignment_failed:502}[result.code]||500;
+  const status={sent:200,unauthorized:401,forbidden:403,invalid:400,self_invite:400,send_failed:502,assignment_failed:502}[result.code]||500;
   return answer(status,result.code);
 }
 module.exports={handleInvitation};

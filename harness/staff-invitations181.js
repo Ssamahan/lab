@@ -16,5 +16,7 @@ function gateway(role='Admin'){
   g=gateway();g.send=async()=>{throw Error('secret');};r=await invite({token:'valid',email:'person@example.org',role:'Viewer'},g);assert.equal(r.code,'send_failed');assert(!JSON.stringify(r).includes('secret'));
   g=gateway();g.verify=async()=>({id:ADMIN,anonymous:true});r=await invite({token:'valid',email:'person@example.org',role:'Viewer'},g);assert.equal(r.code,'unauthorized');assert(!g.calls.includes('send'));
   g=gateway();g.send=async()=>({id:ADMIN});r=await invite({token:'valid',email:'person@example.org',role:'Viewer'},g);assert.equal(r.code,'send_failed');assert(!g.calls.includes('assign'));
+  g=gateway();g.verify=async()=>({id:ADMIN,anonymous:false,email:'Admin@Example.org'});
+  r=await invite({token:'valid',email:' admin@example.org ',role:'Viewer'},g);assert.equal(r.code,'self_invite');assert(!g.calls.includes('send'));assert(!g.calls.includes('assign'));
   console.log('staff-invitations181: unauthorized, role, validation, send and fail-closed cases passed');
 })().catch(e=>{console.error(e);process.exit(1)});
