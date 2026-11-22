@@ -42,7 +42,7 @@ function posture(){
     ['Authorisation','Role-based · '+A.ROLES.length+' roles','ok','users'],
     ['Audit trail','Append-only, UI cannot edit','ok','history'],
     ['Backups','Encrypted, 3 restore points retained','ok','database'],
-    ['Session policy','24h rolling, 30 min idle lock','ok','timer']
+    ['Session policy','24h rolling · idle lock '+(function(){ try{ return LS.shell&&LS.shell.idleLockMinutes?(LS.shell.idleLockMinutes()||'off'):30; }catch(e){ return 30; } })()+' min','ok','timer']
   ];
   return '<div class="grid-12"><div class="c8">'+UI.card({title:'Security posture',sub:'Controls verified on this device and in the deployment contract',icon:'shield-check',
     tools:'<span class="pill teal">'+postal.filter(p=>p[2]==='ok').length+'/'+postal.length+' passing</span>',
@@ -63,7 +63,7 @@ function posture(){
        return '<tr><td><div class="primary-cell"><b>'+U.esc(u.name)+'</b><small>@'+U.esc(u.username)+'</small></div></td><td>'+roleCell+'</td>'
         +'<td>'+(u.twoFactor?'<span class="pill teal">enabled</span>':'<span class="pill amber">not enrolled</span>')+'</td>'
         +'<td class="xs faint">'+(last?U.relTime(last.ts):'—')+'</td>'
-        +'<td><button class="btn xs" data-2fa="'+u.id+'">'+(u.twoFactor?'Disable':'Enable')+'</button></td></tr>'; }).join('')
+        +'<td><button class="btn xs" data-2fa="'+u.id+'">'+(u.twoFactor?'Disable':'Set up 2FA')+'</button></td></tr>'; }).join('')
      +'</tbody></table></div>'})+'</div>'
    +'<div class="c12">'+UI.card({title:'Patient names',sub:'Who may read them, and on which machines the password is asked again',icon:'eye',
      tools:'<span class="pill '+(A.askNamesPassword()?'amber':'teal')+'">'+(A.askNamesPassword()?'password every time':'one press')+'</span>',
@@ -100,12 +100,14 @@ function sessions(){
      +db.loginHistory.slice(0,10).map(l=>'<div class="custody-item'+(l.ok?'':' alert')+'"><span class="custody-dot"></span><div class="custody-body"><div class="custody-title">'+(l.ok?'Signed in':'Failed attempt')+' · '+U.esc(l.device)+'</div><div class="custody-meta">'+U.fmtDT(l.ts)+' · '+U.esc(l.where||'Ruli DH')+'</div></div></div>').join('')
      +'</div>'})+'</div>'
    +'<div class="c6">'+UI.card({title:'Password &amp; recovery',sub:'Rotation policy and recovery codes',icon:'key-round',body:
-     '<div class="row between" style="padding:6px 0"><span class="small">Last rotation</span><span class="mono xs">'+U.fmtDate(U.addDays(U.todayISO(),-48))+'</span></div>'
-     +'<div class="row between" style="padding:6px 0"><span class="small">Rotation interval</span><span class="mono xs">90 days</span></div>'
-     +'<div class="row between" style="padding:6px 0"><span class="small">Recovery codes</span><span class="pill amber">4 unused</span></div>'
+     '<div class="row between" style="padding:6px 0"><span class="small">Hash format</span><span class="mono xs">PBKDF2 · 310,000 iters</span></div>'
+     +'<div class="row between" style="padding:6px 0"><span class="small">Failed-attempt lockout</span><span class="pill teal">after 3 tries</span></div>'
      +'<div class="thread" style="margin:10px 0"></div>'
      +'<button class="btn sm" data-rotate>'+UI.ic('key-round',14)+'Rotate password</button>'
-     +'<div class="hint" style="margin-top:10px">Passwords are stored as SHA-256 hashes in this console and the sign-in form ships empty. That keeps credentials out of the source; it is still a browser-local gate, not a server-side identity provider.</div>'})+'</div></div>';
+     +(A.can('security')||A.can('settings')
+       ?'<div class="row between" style="padding:6px 0;margin-top:10px"><span class="small">Idle lock on shared screens</span><button class="btn xs" data-idle-policy>'+(LS.shell&&LS.shell.idleLockMinutes&&LS.shell.idleLockMinutes()?'on · '+LS.shell.idleLockMinutes()+' min':'off')+'</button></div>'
+       :'')
+     +'<div class="hint" style="margin-top:10px">Passwords are stored as salted PBKDF2 hashes (310,000 iterations) in this console and the sign-in form ships empty. That keeps a usable credential out of the source; it is still a browser-local gate, not a server-side identity provider.</div>'})+'</div></div>';
 }
 function auditRows(){
   const db=S.db();
@@ -148,10 +150,31 @@ function wire(){
     if(!res.ok){ sel.value=from; UI.toast(res.reason,{type:'err'}); return; }
     paint(); UI.toast(u.name+' is now '+role,{type:'ok'});
   });
-  r.querySelectorAll('[data-2fa]').forEach(b=>b.onclick=()=>{ const u=A.users.find(x=>x.id===b.getAttribute('data-2fa'));
-    if(!u) return; const next=!u.twoFactor;
-    if(A.setTwoFactor && A.setTwoFactor(u.id,next)){ paint(); UI.toast(next?'Two-factor enabled for '+u.name:'Two-factor disabled for '+u.name,{type:next?'ok':'warn'}); return; }
-    if(A.toggle2FA(u.id,next)){ paint(); UI.toast(next?'Two-factor enabled for '+u.name:'Two-factor disabled for '+u.name,{type:next?'ok':'warn'}); } });
+  r.querySelectorAll('[data-2fa]').forEach(b=>b.onclick=async()=>{ const u=A.users.find(x=>x.id===b.getAttribute('data-2fa'));
+    if(!u) return;
+    if(u.twoFactor){
+      const ok=await UI.confirm({title:'Remove the authenticator for '+u.name+'?',body:'Sign-in falls back to the password alone. The secret on this device is deleted.',confirm:'Remove',danger:true});
+      if(!ok) return;
+      const res=A.disableTwoFactor(u.id);
+      if(res.ok){ paint(); UI.toast('Authenticator enrolment removed for '+u.name,{type:'warn'}); }
+      return;
+    }
+    /* Turning 2FA on is an enrolment: a secret is generated here, typed into an
+       authenticator app, and saved only once a live code proves the app reads the
+       same 30-second clock. Until then the account works exactly as before. */
+    const enroll=A.enrollTwoFactor&&A.enrollTwoFactor(u.id);
+    if(!enroll){ UI.toast('Enrolment is not available in this build.',{type:'err'}); return; }
+    UI.modal({title:'Set up 2FA — '+u.name,sub:'The secret lives with the account on this device; it defends the published password list, not a stolen unlocked phone.',width:'min(460px,100%)',
+      body:'<div class="field"><label>Key · type it into the authenticator app exactly</label><input class="input mono" id="tfaSecret" readonly spellcheck="false" value="'+enroll.secret+'" style="font-size:.8rem;letter-spacing:.08em"></div>'
+        +'<div class="hint xs" style="word-break:break-all;margin-top:6px">'+U.esc(enroll.otpauth)+'</div>'
+        +'<div class="field" style="margin-top:12px"><label>First 6-digit code from the app</label><input class="input mono" id="tfaCode" inputmode="numeric" maxlength="6" placeholder="••••••" style="letter-spacing:.42em"></div>'
+        +'<div class="hint" style="margin-top:8px">Codes rotate every 30 seconds. SHA-1 TOTP — works with Google Authenticator, Aegis, 2FAS.</div>',
+      foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-verify>Verify &amp; enable</button>',
+      onMount:(el,close)=>{ el.querySelector('[data-verify]').onclick=async()=>{
+        const code=el.querySelector('#tfaCode').value;
+        const res=await A.confirmTwoFactor(u.id,code);
+        if(!res.ok){ UI.toast(res.reason||'The code did not match.',{type:'err'}); return; }
+        close(); paint(); UI.toast('Authenticator enrolled for '+u.name,{type:'ok'}); }; }}); });
   r.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=async()=>{ const ok=await UI.confirm({title:'Revoke this session?',body:'The device will need to sign in again with the account password.',confirm:'Revoke',danger:true}); if(!ok) return;
     S.commit(d=>{ const s=d.sessions.find(x=>x.id===b.dataset.revoke); if(s){ s.revoked=true; s.revokedAt=U.nowISO(); } },{action:'security.session.revoke',entity:'sessions',entityId:b.dataset.revoke,detail:'Session revoked'}); paint(); UI.toast('Session revoked',{type:'ok'}); });
   const ra=r.querySelector('[data-revoke-all]'); if(ra) ra.onclick=async()=>{ const ok=await UI.confirm({title:'Revoke all other sessions?',body:'This device stays signed in.',confirm:'Revoke others',danger:true}); if(!ok) return;
@@ -159,7 +182,12 @@ function wire(){
   const np=r.querySelector('[data-names-policy]'); if(np) np.onclick=()=>{
     const next=!A.askNamesPassword();
     if(A.setNamesPasswordPolicy(next)){ paint(); UI.toast(next?'The password will be asked at every opening':'One press opens the names on this device',{type:'ok'}); } };
-  const rot=r.querySelector('[data-rotate]'); if(rot) rot.onclick=()=>UI.modal({title:'Rotate password',sub:'Applies to this browser only — the account lives on this device.',width:'min(420px,100%)',body:'<div class="field"><label>New password</label><input class="input mono" id="npw" type="password" placeholder="Minimum 8 characters"></div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-set>Update</button>',onMount:(el,close)=>{ el.querySelector('[data-set]').onclick=()=>{ const v=el.querySelector('#npw').value; if(v.length<8){ UI.toast('Use at least 8 characters',{type:'err'}); return; } if(A.setPassword(A.user.id,v)){ S.audit({action:'security.password',entity:'users',entityId:A.user.id,detail:'Password rotated'}); S.save(); close(); UI.toast('Password updated',{type:'ok'}); } }; }});
+  const ip=r.querySelector('[data-idle-policy]'); if(ip) ip.onclick=()=>{
+    const cur=(LS.shell&&LS.shell.idleLockMinutes)?LS.shell.idleLockMinutes():0;
+    const res=LS.shell.setIdleLock(cur?0:10);
+    if(res.ok){ paint(); UI.toast(res.minutes?('The console locks after '+res.minutes+' idle minutes on this device'):'Idle lock is off on this device',{type:'ok'}); }
+    else UI.toast(res.reason||'Not allowed.',{type:'err'}); };
+  const rot=r.querySelector('[data-rotate]'); if(rot) rot.onclick=()=>UI.modal({title:'Rotate password',sub:'Applies to this browser only — the account lives on this device.',width:'min(420px,100%)',body:'<div class="field"><label>New password</label><input class="input mono" id="npw" type="password" placeholder="Minimum 8 characters"></div><div class="hint" style="margin-top:8px">Stored as salted PBKDF2 (310,000 iterations). A password already used by another account is refused.</div>',foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-set>Update</button>',onMount:(el,close)=>{ el.querySelector('[data-set]').onclick=async()=>{ const v=el.querySelector('#npw').value; if(v.length<8){ UI.toast('Use at least 8 characters',{type:'err'}); return; } const res=await A.setPassword(A.user.id,v); if(res.ok){ close(); UI.toast('Password updated · PBKDF2',{type:'ok'}); } else { UI.toast(res.reason||'The password was not changed.',{type:'err'}); } }; }});
   r.querySelectorAll('[data-restore-now]').forEach(snap=>snap.onclick=()=>{ S.restorePoint(); if(tab==='posture') paint(); UI.toast('Encrypted snapshot created',{type:'ok'}); });
   r.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{ const ok=await UI.confirm({title:'Restore this snapshot?',body:'The register will be replaced by the selected restore point. Export first if you are unsure.',confirm:'Restore',danger:true}); if(!ok) return;
     try{ const raw=localStorage.getItem(b.dataset.restore); const obj=JSON.parse(raw); S.importJSON(obj.db||obj); paint(); UI.toast('Register restored from snapshot',{type:'ok'}); }catch(e){ UI.toast('Could not read that snapshot',{type:'err'}); } });

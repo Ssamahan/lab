@@ -33,14 +33,17 @@ const CORE = [
   './assets/js/core/ui.js?v=6.9.178',
   './assets/js/core/charts.js?v=6.9.178',
   './assets/js/core/sheets.js?v=6.9.178',
+  './assets/js/core/crypto.js?v=6.9.178',
   './assets/js/core/i18n.js?v=6.9.178',
   './assets/js/core/auth.js?v=6.9.178',
   './assets/js/core/landing.js?v=6.9.178',
   './assets/js/core/shared.js?v=6.9.178',
   './assets/js/core/shell.js?v=6.9.178',
+  './assets/js/core/admin-transport.js?v=6.9.178',
   './assets/js/core/sync.js?v=6.9.178',
   './assets/js/core/private-names.js?v=6.9.178',
   './assets/js/core/boot.js?v=6.9.178',
+  './assets/js/core/watchdog.js?v=6.9.178',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -101,6 +104,17 @@ self.addEventListener('activate', event => {
     if (self.registration.navigationPreload) {
       try { await self.registration.navigationPreload.enable(); } catch (e) {}
     }
+    // Old versions of THIS app's caches are not preserved any more: every deploy minted
+    // a fresh lab-shell-v* + lab-runtime-v* pair and nothing ever deleted the last one,
+    // so a phone updating weekly grew tens of megabytes of dead cache on exactly the
+    // low-storage devices this console serves. Only the current pair survives.
+    try {
+      const keep = [SHELL, RUNTIME];
+      const keys = await caches.keys();
+      await Promise.all(keys
+        .filter(k => /^lab-(shell|runtime)-/.test(k) && keep.indexOf(k) < 0)
+        .map(k => caches.delete(k)));
+    } catch (e) { /* A failed cleanup must never fail the activation. */ }
     await self.clients.claim();
   })());
 });
@@ -151,7 +165,10 @@ async function cacheFirst(request, cacheName) {
     if (res && res.ok) cache.put(request, res.clone());
     return res;
   }).catch(() => null);
-  if (hit) { refresh; return hit; }
+  /* The refresh runs behind the answer — but the promise must be consumed
+     explicitly. Bare `refresh;` was a no-op expression, not a schedule: ESLint's
+     no-unused-expressions exists because of exactly this line. */
+  if (hit) { void refresh; return hit; }
   const fresh = await refresh;
   if (fresh) return fresh;
   return (await caches.match(request)) || Response.error();

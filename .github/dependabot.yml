@@ -1,0 +1,23 @@
+# Dependency and action updates, opened as pull requests — reviewed like any other
+# change to a register that a hospital runs on.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # The console is a dependency-free browser app; the npm manifest only carries the
+    # Capacitor wrapper, so bumps stay small and reviewable.
+    versioning-strategy: increase
+    groups:
+      capacitor:
+        patterns:
+          - "@capacitor/*"
+  - package-ecosystem: "npm"
+    directory: "/workers/hiv-feed"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

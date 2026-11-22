@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 'use strict';
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright-core'),binary=require('@sparticuz/chromium');
@@ -24,8 +25,8 @@ const {chromium}=require('playwright-core'),binary=require('@sparticuz/chromium'
   await page.getByRole('button',{name:'Sign out'}).click();assert(!(await page.locator('#catalog').isVisible()));assert.equal(await page.locator('#catalog tbody tr').count(),0);
   await browser.close();browser=await chromium.launch({executablePath:await binary.executablePath(),args:binary.args,headless:true});
   const context=await browser.newContext();await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
-  const offline=await context.newPage();await offline.goto('http://127.0.0.1:8000/');await offline.waitForFunction(()=>window.__lsBooted===true);
-  await offline.evaluate(()=>navigator.serviceWorker.ready);await offline.waitForFunction(()=>navigator.serviceWorker.controller);await context.setOffline(true);
+  const offline=await context.newPage();await offline.goto('http://127.0.0.1:8000/');await waitFor(offline,()=>window.__lsBooted===true);
+  await offline.evaluate(()=>navigator.serviceWorker.ready);await waitFor(offline,()=>navigator.serviceWorker.controller);await context.setOffline(true);
   let failed=false;try{await offline.goto('http://127.0.0.1:8000/staff-catalog.html');}catch(_){failed=true;}
   assert(failed,'uncached staff-only page must not fall back to the private app offline');
   await context.close();console.log('Chromium: staff login, scoped catalog, sign-out and offline fallback checked against simulated provider.');

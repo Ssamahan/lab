@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 'use strict';
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright-core'),binary=require('@sparticuz/chromium');
@@ -22,8 +23,8 @@ const {chromium}=require('playwright-core'),binary=require('@sparticuz/chromium'
   const ctx=await browser.newContext();
   await ctx.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
   const offlinePage=await ctx.newPage();await offlinePage.goto('http://127.0.0.1:8000/');
-  await offlinePage.waitForFunction(()=>window.__lsBooted===true);
-  await offlinePage.evaluate(()=>navigator.serviceWorker.ready);await offlinePage.waitForFunction(()=>navigator.serviceWorker.controller);
+  await waitFor(offlinePage,()=>window.__lsBooted===true);
+  await offlinePage.evaluate(()=>navigator.serviceWorker.ready);await waitFor(offlinePage,()=>navigator.serviceWorker.controller);
   await ctx.setOffline(true);
   let failed=false;try{await offlinePage.goto('http://127.0.0.1:8000/visitor-view.html');}catch(_){failed=true;}
   assert(failed,'an uncached offline visitor page must not fall back to the full private application');

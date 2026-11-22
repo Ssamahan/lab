@@ -1,0 +1,27 @@
+# Static analysis — small, and deliberately only what ESLint already covers.
+# It would have caught the service-worker `refresh;` no-op that shipped in 6.9.176:
+# an expression statement that looks like a schedule and does nothing.
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eslint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Run ESLint on the configured set
+        run: npx --yes eslint@9.20.1 --config eslint.config.mjs assets/js/core/auth.js assets/js/core/crypto.js assets/js/core/sync.js assets/js/core/shell.js assets/js/core/store.js assets/js/core/watchdog.js assets/js/core/sheets.js assets/js/core/private-names.js assets/js/modules/report.js assets/js/modules/quality.js assets/js/modules/dash.js assets/js/modules/eqa.js assets/js/modules/roster.js assets/js/modules/samples.js assets/js/modules/security.js

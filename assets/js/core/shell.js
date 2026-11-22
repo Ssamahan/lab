@@ -156,7 +156,11 @@ function updateBadges(){
   }catch(e){}
 }
 function activeNav(id){
-  U.$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+  U.$$('.nav-item').forEach(b=>{
+    const on=b.dataset.tab===id;
+    b.classList.toggle('active',on);
+    if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+  });
   U.$$('.bnav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
 }
 
@@ -292,7 +296,13 @@ function applyTheme(){
   U.$$('[data-theme-label]').forEach(e=>e.textContent=theme==='ink'?'Ink':'Porcelain');
   U.$$('[data-theme-icon]').forEach(e=>e.innerHTML=U.ic(theme==='ink'?'moon':'sun',15));
   U.$$('[data-theme-label]').forEach(e=>e.textContent=(S.settings().theme==='auto'?'Auto · ':'')+(theme==='ink'?'Ink':'Porcelain'));
-  const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.content=theme==='ink'?'#171717':'#FAFAF9';
+  /* Two metas, one per scheme, so the phone's chrome is right before this code runs.
+     Each is updated with its own colour; the dark console no longer flashes a light bar
+     on first paint, and an explicit theme choice re-colours both. */
+  U.$$('meta[name="theme-color"]').forEach(m=>{
+    const dark=/dark/i.test(m.getAttribute('media')||'');
+    m.content=(theme==='ink')?'#0B101C':'#FAFAF9';
+  });
 }
 SH.applyTheme=applyTheme;
 SH.resolvedTheme=resolvedTheme;
@@ -1079,7 +1089,75 @@ function openMoreSheet(){
 }
 
 /* ——— Boot into shell ————————————————— */
+/* ——— Shared-device idle lock ——————————————————————————————
+   The names gate already re-asks for a password after fifteen minutes; an unattended
+   console should do the same for everything else. Roles that share bench PCs default
+   to a ten-minute lock, Admin and Manager default off, and Security Center can set
+   either way. Locking is not signing out: the register stays exactly where it was,
+   and the account resumes with its own password. */
+let idleLast=Date.now(), idleLocked=false, idleTimer=null;
+function idleLockMinutes(){
+  try{
+    const u=LS.auth&&LS.auth.user; if(!u||u.visitor) return 0;
+    const s=S.settings();
+    if(s.security&&typeof s.security.idleLockMin==='number') return s.security.idleLockMin;
+    return ['Technologist','Viewer','Reviewer'].indexOf(u.role)>=0?10:0;
+  }catch(e){ return 0; }
+}
+function idleLockConsole(){
+  if(idleLocked) return;
+  idleLocked=true;
+  const u=LS.auth&&LS.auth.user; if(!u) return;
+  const wrap=U.el('<div class="palette-scrim" id="idleLock" role="dialog" aria-modal="true" aria-label="Console locked"><div class="card pad" style="width:min(360px,92vw);text-align:center">'
+    +'<div style="display:flex;justify-content:center;margin-bottom:10px;color:var(--gold)">'+U.ic('security',30)+'</div>'
+    +'<h2 style="margin:0 0 4px">Console locked</h2>'
+    +'<p class="xs muted" style="margin:0 0 14px">'+U.esc(u.name)+' · idle too long on a shared screen</p>'
+    +'<div class="field"><input class="input mono" id="idlePass" type="password" placeholder="Account password" autocomplete="current-password"></div>'
+    +'<div class="xs rose" id="idleErr" hidden style="margin-top:8px"></div>'
+    +'<div class="row" style="gap:8px;margin-top:14px;justify-content:center">'
+    +'<button class="btn primary" id="idleUnlock" type="button">Unlock</button>'
+    +'<button class="btn" id="idleOut" type="button">Sign out</button></div></div></div>');
+  document.body.appendChild(wrap);
+  const pass=wrap.querySelector('#idlePass'), err=wrap.querySelector('#idleErr');
+  const unlock=async()=>{
+    err.hidden=true;
+    const res=await LS.auth.verifyCredentials(u.username, pass.value);
+    if(!res.ok){ err.textContent=res.reason||'Incorrect password.'; err.hidden=false; pass.value=''; pass.focus(); return; }
+    idleLocked=false; idleLast=Date.now(); wrap.remove();
+    try{ LS.ui.toast('Console unlocked',{type:'ok'}); }catch(e){}
+  };
+  wrap.querySelector('#idleUnlock').onclick=unlock;
+  pass.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); unlock(); } });
+  wrap.querySelector('#idleOut').onclick=()=>{
+    idleLocked=false; wrap.remove();
+    LS.auth.logout(); location.reload();
+  };
+  setTimeout(()=>pass.focus(),120);
+}
+function startIdleWatch(){
+  clearInterval(idleTimer);
+  ['pointermove','keydown','click','touchstart'].forEach(ev=>{
+    window.addEventListener(ev,()=>{ idleLast=Date.now(); },{passive:true,capture:true});
+  });
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) idleLast=Date.now(); });
+  idleTimer=setInterval(()=>{
+    if(idleLocked) return;
+    const min=idleLockMinutes();
+    if(!min) return;
+    if(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor()) return;
+    if(Date.now()-idleLast>min*60000) idleLockConsole();
+  },15000);
+}
+SH.idleLockMinutes=idleLockMinutes;
+SH.setIdleLock=function(min){
+  if(!LS.auth.can('security')&&!LS.auth.can('settings')) return {ok:false, reason:'Only an Admin can change this.'};
+  const value=Math.max(0,Math.min(120,Number(min)||0));
+  S.commit(d=>{ d.settings.security=d.settings.security||{}; d.settings.security.idleLockMin=value; },
+    {action:'security.idle_policy',entity:'settings',detail:'Idle lock '+(value?value+' minutes':'off')});
+  return {ok:true, minutes:value};
+};
 function afterAuth(){
+
   document.getElementById('auth').hidden=true;
   document.getElementById('app').hidden=false;
   LS.auth.renderUserChip();
@@ -1093,6 +1171,7 @@ function afterAuth(){
   if(LS.sync&&LS.sync.onSession&&LS.sync.configured&&LS.sync.configured()){
     setTimeout(()=>{ LS.sync.onSession().catch(()=>{}); },250);
   }
+  startIdleWatch();
 }
 SH.afterAuth=afterAuth;
 SH.openPalette=openPalette;

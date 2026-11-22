@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,'..');
  try{
   const page=await browser.newPage();let emails=0;
   await page.route('https://lab.smhnklvn.workers.dev/**',async route=>{
-   const file=decodeURIComponent(new URL(route.request().url()).pathname).replace(/^\//,'');
+   const file=decodeURIComponent(new URL(route.request().url()).pathname).replace(/^\//,'')||'index.html';
    const resolved=path.join(root,file);if(!resolved.startsWith(root+'/')||!fs.existsSync(resolved))return route.abort();
    const type=file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':'text/css';
    return route.fulfill({status:200,contentType:type,body:fs.readFileSync(resolved)});
@@ -17,7 +17,7 @@ const root=path.resolve(__dirname,'..');
    let body;
    if(url.includes('/auth/v1/otp')){emails++;body={};}
    else if(url.includes('/auth/v1/user')){if(req.headers().authorization!=='Bearer test-token')throw Error('token missing');body={email:'smhnklvn@gmail.com',is_anonymous:false};}
-   else if(url.includes('/rest/v1/rpc/lab_my_access_role'))body='Admin';else throw Error('unexpected endpoint');
+   else if(url.includes('/rest/v1/rpc/lab_my_access_role'))body='Admin';else return route.abort();
    return route.fulfill({status:200,headers,contentType:'application/json',body:JSON.stringify(body)});
   });
   await page.goto('https://lab.smhnklvn.workers.dev/email-login.html');
@@ -30,6 +30,11 @@ const root=path.resolve(__dirname,'..');
   await page.getByText('Administrator verified.',{exact:false}).waitFor();
   const state=await page.evaluate(()=>({hash:location.hash,session:JSON.parse(localStorage.getItem('labSystems.session.v2')),pending:localStorage.getItem('labSystems.pending.v1'),register:localStorage.getItem('test-register'),all:JSON.stringify(localStorage)}));
   if(state.hash||state.session.userId!=='u1'||state.pending!=='3'||state.register!=='preserve'||state.all.includes('test-token'))throw Error('unsafe session or data mutation');
-  console.log('Chromium: email request and Admin verification preserve offline work against simulated provider.');
+  await page.goto('https://lab.smhnklvn.workers.dev/');
+  await page.locator('#app').waitFor({state:'visible'});
+  const current=await page.evaluate(()=>({name:window.LS&&LS.auth&&LS.auth.user&&LS.auth.user.username,pending:localStorage.getItem('labSystems.pending.v1')}));
+  if(current.name!=='kelvin')throw Error('verified email did not open the Kelvin console');
+  if(current.pending!=='3')throw Error('offline queue lost on console entry');
+  console.log('Chromium: verified email opens Kelvin console and preserves offline work against simulated provider.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

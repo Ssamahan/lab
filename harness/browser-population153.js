@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 const {chromium}=require('playwright-core');
 const binary=require('@sparticuz/chromium');
 (async()=>{
@@ -7,19 +8,19 @@ const binary=require('@sparticuz/chromium');
   await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
   const page=await context.newPage();
   await page.goto('http://127.0.0.1:8000/#/dash');
-  await page.waitForFunction(()=>window.__lsBooted&&window.LS&&LS.auth&&LS.shell&&LS.store);
+  await waitFor(page,()=>window.__lsBooted&&window.LS&&LS.auth&&LS.shell&&LS.store);
   await page.evaluate(()=>{LS.sync.stopLive();LS.auth.user={id:'u1',username:'test',name:'Test manager',role:'Admin'};['auth','landing'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=true;});document.getElementById('app').hidden=false;location.hash='#/reports';});
   await page.locator('[data-new-month]').first().click();
   await page.locator('#nmKey').fill('2027-01');
   await page.locator('#nmPopulation').fill('120000');
   await page.locator('[data-save]').last().click();
-  await page.waitForFunction(()=>LS.store.reportMonth('2027-01').meta.catchment==='120000');
+  await waitFor(page,()=>LS.store.reportMonth('2027-01').meta.catchment==='120000');
   await page.locator('[data-new-month]').first().click();
   await page.locator('#nmKey').fill('2027-02');
   // Reload in the same task as the save to exercise the pending local write.
   await page.evaluate(()=>{document.querySelector('#layer [data-save]').click();location.reload();});
-  await page.waitForFunction(()=>window.__lsBooted&&window.LS&&LS.store);
-  await page.waitForFunction(()=>LS.store.reportMonth('2027-02').meta.catchment==='120000');
+  await waitFor(page,()=>window.__lsBooted&&window.LS&&LS.store);
+  await waitFor(page,()=>LS.store.reportMonth('2027-02').meta.catchment==='120000');
   console.log('Chromium: January population saved, copied to February and persisted after reload.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

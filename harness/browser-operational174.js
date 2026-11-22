@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 const {chromium}=require('playwright-core');
 const binary=require('@sparticuz/chromium');
 (async()=>{
@@ -5,7 +6,7 @@ const binary=require('@sparticuz/chromium');
  try{
   const page=await browser.newPage({reducedMotion:'reduce'});
   await page.route('**/*',r=>new URL(r.request().url()).hostname==='127.0.0.1'?r.continue():r.abort());
-  await page.goto('http://127.0.0.1:8000/');await page.waitForFunction(()=>window.__lsBooted);await page.locator('#landEnter').click();await page.waitForFunction(()=>window.LS&&LS.shell&&LS.store);
+  await page.goto('http://127.0.0.1:8000/');await waitFor(page,()=>window.__lsBooted);await page.locator('#landEnter').click();await waitFor(page,()=>window.LS&&LS.shell&&LS.store);
   for(const width of [390,1440]){
    await page.setViewportSize({width,height:900});
    await page.evaluate(()=>{LS.sync.stopLive();LS.auth.user={id:'test',name:'Test manager',role:'Admin'};LS.store.settings().theme='porcelain';LS.shell.applyTheme();location.hash='#/dash';});

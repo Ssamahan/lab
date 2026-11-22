@@ -1,3 +1,20 @@
+# v6.9.178
+
+Security corrective actions (see docs/elevation-plan.md for the audit they answer):
+
+- Passwords are hashed with salted PBKDF2 (310,000 iterations, WebCrypto) instead of a single unsalted SHA-256 pass. Every seeded account is a fresh record of a password that is not in the repository; the manager distributes them out of band. A device that still holds an old-format hash migrates it on the first sign-in and requires a new password before the console opens.
+- Staff personal emails no longer ship in the public bundle.
+- 2FA is a real TOTP factor now (RFC 6238, 6 digits every 30 seconds, ±1 step): accounts with the flag but no secret enrol at sign-in, and Security Center can enrol or remove an authenticator. The decorative fixed code is gone, along with the copy that claimed codes were "sent to your device".
+- Repeated failed sign-ins escalate a lockout (1, 2, 5, 15 minutes) and are recorded in the sign-in history; two accounts can no longer share one password.
+- Row-level security on the sync project: the publishable key may READ the register (the visitor view) and nothing else; every write requires a signed-in project user, sign-ups are disabled, and anonymous DELETE on the month vault is gone. schema.sql re-runnable as the heal script.
+- A Content-Security-Policy ships in index.html (all scripts external, origins allow-listed per service); the boot watchdog moved to its own file.
+- The public visitor view reads a redacted register: staff initials instead of names, opaque sample references, no phones, no patient identifiers, no activity feed — counts and charts untouched.
+- Dashboard deltas over an empty denominator ("+100%") render nothing instead of lying.
+- Service worker deletes superseded cache versions at activation (phones were accumulating dead caches) and a no-op `refresh;` statement is made explicit; ESLint coverage extended and a lint workflow added; Dependabot configured; the APK workflow's actions are pinned to commit SHAs with least-privilege permissions.
+- Keyboard support: a global focus ring, a skip link, aria-current on the active nav item; Fraunces preloaded to kill the display-font flash; theme-color metas per colour scheme; landing and console faint text raised to WCAG AA contrast.
+- A shared-device idle lock (default ten minutes for bench roles, off for Admin/Manager, settable in Security Center) locks the console to a password-gated resume.
+- Fixed: the sign-in error strip carried an inline `display:none`, so wrong-password messages were never visible.
+
 # v6.9.172
 
 - Hide the six user-identified fictitious non-conformances and ten example SOP codes even if previously edited; retain underlying legacy data. Allocate new incident references without reusing example numbers.

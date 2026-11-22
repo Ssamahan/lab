@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 'use strict';
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright-core'),binary=require('@sparticuz/chromium');
@@ -8,7 +9,7 @@ const {chromium}=require('playwright-core'),binary=require('@sparticuz/chromium'
   // The test must never reach or write the real project.
   await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
   await page.goto('http://127.0.0.1:8000/');
-  await page.waitForFunction(()=>window.__lsBooted&&window.LS&&LS.auth&&LS.shell&&LS.store);
+  await waitFor(page,()=>window.__lsBooted&&window.LS&&LS.auth&&LS.shell&&LS.store);
   await page.evaluate(()=>{
    LS.sync.stopLive();
    LS.auth.user={id:'test',name:'Reviewer',role:'Reviewer'};
@@ -20,7 +21,7 @@ const {chromium}=require('playwright-core'),binary=require('@sparticuz/chromium'
   await page.locator('[data-generate]').waitFor();
   await page.locator('[data-generate]').click();
   await page.getByRole('button',{name:/^(Generate draft|Archive & regenerate)$/}).last().click();
-  await page.waitForFunction(()=>LS.store.db().audit.some(x=>x.actor==='Reviewer'&&['roster.generate','roster.regenerate.official'].includes(x.action)));
+  await waitFor(page,()=>LS.store.db().audit.some(x=>x.actor==='Reviewer'&&['roster.generate','roster.regenerate.official'].includes(x.action)));
   const outcome=await page.evaluate(()=>{
    const old=JSON.stringify(LS.store.db().equipment),pending=LS.store.pendingChanges();
    const result=LS.store.commit(d=>{d.equipment=[];},{action:'equipment.remove',entity:'equipment'});
