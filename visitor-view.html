@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Public laboratory information</title>
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <style>
+    body{margin:0;padding:20px;background:var(--bg);color:var(--text)}
+    main{max-width:1100px;margin:auto} nav{display:flex;gap:20px;flex-wrap:wrap;margin:20px 0}
+    section{margin-top:32px} .scroll{overflow-x:auto} table{width:100%;border-collapse:collapse}
+    th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border);vertical-align:top}
+    th{font-weight:600} #status{min-height:1.5em}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Public laboratory information</h1>
+  <p>Read-only information reviewed for public access.</p>
+  <nav aria-label="Public information"><a href="#trainings">Training</a><a href="#equipment">Equipment</a><a href="./">Laboratory home</a></nav>
+  <p id="status" role="status" aria-live="polite">Loading the public snapshot…</p>
+  <section id="trainings"><h2>Training</h2><div class="scroll"><table><thead><tr><th>Training</th><th>Start</th><th>End</th><th>Location</th></tr></thead><tbody></tbody></table></div></section>
+  <section id="equipment"><h2>Equipment</h2><div class="scroll"><table><thead><tr><th>Equipment</th><th>Status</th></tr></thead><tbody></tbody></table></div></section>
+</main>
+<script src="assets/js/core/shared.js"></script>
+<script src="assets/js/core/visitor-view.js"></script>
+</body>
+</html>

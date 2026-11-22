@@ -33,14 +33,17 @@ const CORE = [
   './assets/js/core/ui.js?v=6.9.178',
   './assets/js/core/charts.js?v=6.9.178',
   './assets/js/core/sheets.js?v=6.9.178',
+  './assets/js/core/crypto.js?v=6.9.178',
   './assets/js/core/i18n.js?v=6.9.178',
   './assets/js/core/auth.js?v=6.9.178',
   './assets/js/core/landing.js?v=6.9.178',
   './assets/js/core/shared.js?v=6.9.178',
   './assets/js/core/shell.js?v=6.9.178',
+  './assets/js/core/admin-transport.js?v=6.9.178',
   './assets/js/core/sync.js?v=6.9.178',
   './assets/js/core/private-names.js?v=6.9.178',
   './assets/js/core/boot.js?v=6.9.178',
+  './assets/js/core/watchdog.js?v=6.9.178',
   './assets/favicon-32.png',
   './assets/favicon-192.png',
   './assets/favicon-512.png',
@@ -197,6 +200,8 @@ self.addEventListener('fetch', event => {
         if (preload) return preload;
         return await networkFirst(req, SHELL);
       } catch (e) {
+        // An uncached isolated page must not become the full app offline.
+        if (url.pathname.endsWith('/visitor-view.html') || url.pathname.endsWith('/staff-catalog.html') || url.pathname.endsWith('/email-login.html')) return Response.error();
         const cache = await caches.open(SHELL);
         return (await cache.match('./index.html')) || Response.error();
       }

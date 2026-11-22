@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const {buildSnapshot}=require('../scripts/report-source-build.cjs');
+const row=['Examination',7];row._sourceRow=12;row._formulas={1:'=3+4'};
+const sheets=[{name:'Jan 25',rows:[row]},{name:'Data',rows:[['reference']]}];
+const reader={monthFromName:n=>n==='Jan 25'?'2025-01':null,monthFromRows:()=>null,matchSheet:()=>({values:{exam:{total:7}},blood:{},sourceWarnings:[{kind:'total-mismatch'}],unmatched:[{label:'Unknown'}],matched:1})};
+const out=buildSnapshot(sheets,reader);
+assert.equal(out.months['2025-01'].values.exam.total,7);
+assert.equal(out.months['2025-01'].sourceReview[0].kind,'total-mismatch');
+assert.equal(out.months['2025-01'].unmatched[0].label,'Unknown');
+assert.deepEqual(out.workbookCells['Jan 25'][1],['B12',7,'=3+4']);
+assert.deepEqual(out.workbookCells.Data[0],['A1','reference','']);
+assert.throws(()=>buildSnapshot([sheets[0],sheets[0]],reader),/duplicate/i);
+assert.throws(()=>buildSnapshot([{name:'Feb 25',rows:[row]}],reader),/unrecognized/i);
+console.log('report-build178: constructs private source while retaining warnings, unmatched values and formulas');

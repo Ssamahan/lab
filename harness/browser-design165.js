@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 const {chromium}=require('playwright-core');
 const binary=require('@sparticuz/chromium');
 (async()=>{
@@ -11,7 +12,7 @@ const binary=require('@sparticuz/chromium');
    await page.goto('http://127.0.0.1:8000/');
    await page.evaluate(()=>{localStorage.clear();sessionStorage.clear();});
    await page.reload();
-   await page.waitForFunction(()=>window.__lsBooted);
+   await waitFor(page,()=>window.__lsBooted);
    await page.locator('#landing').waitFor({state:'visible'});
    const button=page.locator('#landEnter');
    if(!(await button.isVisible()))throw Error('Visitor entry is hidden at '+width);
@@ -21,7 +22,7 @@ const binary=require('@sparticuz/chromium');
    if(await page.evaluate(()=>document.activeElement.id)!=='landEnter')throw Error('Visitor entry is not keyboard focusable');
    await button.press('Enter');
    await page.locator('#app').waitFor({state:'visible'});
-   await page.waitForFunction(()=>window.LS&&LS.store&&LS.shell);
+   await waitFor(page,()=>window.LS&&LS.store&&LS.shell);
    if(!await page.locator('.nav-item').count())throw Error('Navigation did not render');
    console.log('Overview and keyboard visitor entry work at '+width+'px');
   }

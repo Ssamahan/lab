@@ -2021,9 +2021,12 @@ function setPending(n){ pending=Math.max(0,n|0); try{ localStorage.setItem('labS
 S.pendingChanges=()=>pending;
 S.clearPending=()=>setPending(0);
 S.commit=function(mutator, audit){
-  /* Behind the hidden buttons and disabled inputs: a read-only role — the visitor
-     view, or any Viewer account — cannot write to the register at all. */
-  if(LS.auth && LS.auth.user && !LS.auth.can('edit')){
+  /* Local guard only: server authorization is still needed for direct API calls.
+     A reviewer may run the specific roster generators, not generic edits. */
+  const generatedRoster=audit && LS.auth && LS.auth.can('roster_generate') &&
+    ((audit.entity==='workingPlans' && ['roster.generate','roster.regenerate.official'].includes(audit.action)) ||
+     (audit.entity==='unitRosters' && ['roster.allocate.auto','roster.night.auto'].includes(audit.action)));
+  if(LS.auth && LS.auth.user && !LS.auth.can('edit') && !generatedRoster){
     try{ LS.ui.toast('This is a read-only view — sign in to make changes',{type:'warn'}); }catch(e){}
     return false;
   }

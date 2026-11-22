@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 const {chromium}=require('playwright-core');
 const binary=require('@sparticuz/chromium');
 (async()=>{
@@ -5,7 +6,7 @@ const binary=require('@sparticuz/chromium');
  try{
   const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
   await page.route('**/*',r=>new URL(r.request().url()).hostname==='127.0.0.1'?r.continue():r.abort());
-  await page.goto('http://127.0.0.1:8000/');await page.waitForFunction(()=>window.__lsBooted);await page.locator('#landEnter').click();await page.waitForFunction(()=>window.LS&&LS.store&&LS.shell);
+  await page.goto('http://127.0.0.1:8000/');await waitFor(page,()=>window.__lsBooted);await page.locator('#landEnter').click();await waitFor(page,()=>window.LS&&LS.store&&LS.shell);
   await page.evaluate(()=>{
    LS.sync.stopLive();LS.auth.user={id:'u1',name:'Test manager',role:'Admin'};
    LS.privateNames.connected=()=>true;

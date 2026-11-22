@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {publicRegister}=require('../scripts/public-register.cjs');
+const input={trainings:[{id:'t1',title:'VHF training',start:'2026-01-01',end:'2026-01-02',location:'Ruli',notes:'private-notes',attendees:['private-person']}],equipment:[{id:'e1',name:'Microscope',status:'Active',serial:'private-serial'}],trainingExpenses:[{amount:999}],settings:{secret:'private-settings'},samples:[{name:'private-name'}],extra:'unexpected'};
+const out=publicRegister(input);
+assert.deepEqual(out,{trainings:[{id:'t1',title:'VHF training',start:'2026-01-01',end:'2026-01-02',location:'Ruli'}],equipment:[{id:'e1',name:'Microscope',status:'Active'}]});
+assert(!JSON.stringify(out).includes('private'));
+input.trainings[0].title='changed';assert.equal(out.trainings[0].title,'VHF training');
+assert.deepEqual(publicRegister({trainings:[null,3,{title:{secret:'bad'}}],equipment:'bad'}),{trainings:[],equipment:[]});
+assert.deepEqual(publicRegister(null),{trainings:[],equipment:[]});
+// Public projections must never publish values inherited from a prototype.
+const inherited=Object.create({title:'Private inherited title',location:'Private inherited location'});
+inherited.id='t2';
+const partlyInherited=Object.create({status:'Private inherited status'});
+partlyInherited.id='e2';partlyInherited.name='Centrifuge';
+assert.deepEqual(publicRegister({trainings:[inherited],equipment:[partlyInherited]}),{
+  trainings:[],equipment:[{id:'e2',name:'Centrifuge'}]
+});
+const inheritedCollection=Object.create({trainings:[{title:'Inherited collection'}]});
+assert.deepEqual(publicRegister(inheritedCollection),{trainings:[],equipment:[]});
+
+console.log('access-public181: allowlist excludes private and inherited fields');

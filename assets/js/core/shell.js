@@ -686,6 +686,14 @@ function commandItems(){
   S.db().samples.slice(-20).reverse().forEach(s=>items.push({group:'Samples',label:s.sampleId+' · '+U.ptName(s),meta:s.test+' · '+s.priority,icon:'flask-conical',run:()=>{ SH.go('samples',{id:s.id}); }}));
   // stock
   S.consumables().forEach(c=>items.push({group:'Inventory',label:c.name,meta:'on hand '+S.onHand(c.id)+' '+c.unit,icon:'package',run:()=>SH.go('stock',{item:c.id})}));
+  // Open the registry filtered by title rather than exposing a private record in a URL.
+  (S.db().trainings||[]).forEach(t=>{
+    if(!t.title) return;
+    const attendees=(t.attendees||[]).map(id=>(S.staffById(id)||{}).name||'').join(' ');
+    items.push({group:'Trainings',label:t.title,meta:[t.start,t.location].filter(Boolean).join(' · '),
+      search:[t.organizer,t.fundingPartner,t.location,t.facilityName,t.facilityType,attendees].filter(Boolean).join(' '),
+      icon:'graduation-cap',run:()=>SH.go('training',{tab:'registry',q:t.title})});
+  });
   return items;
 }
 function openPalette(){
@@ -698,7 +706,7 @@ function openPalette(){
   const close=()=>{ paletteOpen=false; wrap.remove(); };
   const render=(q)=>{
     q=(q||'').toLowerCase().trim();
-    const filtered=all.filter(i=>!q|| (i.label+' '+i.group+' '+(i.meta||'')).toLowerCase().indexOf(q)>=0).slice(0,40);
+    const filtered=all.filter(i=>!q|| (i.label+' '+i.group+' '+(i.meta||'')+' '+(i.search||'')).toLowerCase().indexOf(q)>=0).slice(0,40);
     paletteItems=filtered; paletteIdx=0;
     const groups=U.groupBy(filtered,i=>i.group);
     if(!filtered.length){ list.innerHTML='<div class="empty" style="padding:26px">'+UI.illus('search')+'<p class="xs muted">No command or record matches “'+U.esc(q)+'”</p></div>'; return; }

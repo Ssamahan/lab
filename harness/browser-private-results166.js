@@ -1,3 +1,4 @@
+const {waitFor}=require('./browser-wait');
 const {chromium}=require('playwright-core');
 const binary=require('@sparticuz/chromium');
 (async()=>{
@@ -7,7 +8,7 @@ const binary=require('@sparticuz/chromium');
   await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
   const page=await context.newPage();
   await page.goto('http://127.0.0.1:8000/#/dash');
-  await page.waitForFunction(()=>window.__lsBooted&&window.LS&&LS.shell);
+  await waitFor(page,()=>window.__lsBooted&&window.LS&&LS.shell);
   await page.evaluate(()=>{
    LS.sync.stopLive(); LS.auth.user={id:'u1',name:'Test manager',role:'Admin'};
    ['auth','landing'].forEach(id=>document.getElementById(id).hidden=true);
