@@ -2,6 +2,21 @@
    LAB SYSTEMS · APPLICATION SHELL + COMPONENTS
    ========================================================================== */
 
+/* ——— 0. Keyboard ———————————————————————————————————————
+   A dense, dark, sixteen-screen console is exactly where a keyboard user gets lost.
+   One rule gives every interactive element a visible ring in both themes; the skip
+   link makes the rail optional on a bench PC. */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{
+  outline:none; box-shadow:var(--focus-ring); border-radius:var(--r-xs);
+}
+.skip-link{
+  position:fixed; top:-48px; left:12px; z-index:900;
+  padding:10px 16px; border-radius:var(--r-sm);
+  background:var(--gold-500); color:#241A06; font-weight:600; font-size:.82rem;
+  text-decoration:none; transition:top var(--dur-2) var(--ease);
+}
+.skip-link:focus{ top:12px; }
+
 /* ——— 1. App frame ————————————————————————————————————— */
 .app{position:relative; z-index:1; display:grid; grid-template-columns:var(--rail-w) minmax(0,1fr); min-height:100dvh; transition:grid-template-columns var(--dur-3) var(--spring-soft)}
 .app.rail-mini{grid-template-columns:var(--rail-w-mini) minmax(0,1fr)}

@@ -1936,7 +1936,49 @@ function load(){
 }
 S.EQA_MIN=EQA_MIN; S.PBF_MIN=PBF_MIN;
 S.init=function(){ if(!DB) load(); return DB; };
-S.db=function(){ return DB||load(); };
+S.db=function(){
+  if(!DB) load();
+  /* A visitor reads the register through the redaction, never around it. */
+  const v=visitorView();
+  return v||DB;
+};
+/* ——— What a visitor may read ————————————————————————————
+   The public view is a real register at a public URL, so a stranger's screen must not
+   carry what a signed-in bench screen may: staff full names, sample reference numbers,
+   patient identifiers, transporters, and the live feed of who did what. Everything a
+   visitor reads passes through this redaction — one choke point, applied to a clone,
+   so the stored register is untouched and a later sign-in shows the whole truth.
+   Counts, charts, dates and status stay exactly as they are: redaction is not invention. */
+S.redact=function(db){
+  let c;
+  try{ c=JSON.parse(JSON.stringify(db||{})); }catch(e){ return db; }
+  const ini=name=>{
+    const parts=String(name||'').trim().split(/\s+/).filter(Boolean);
+    return parts.length?parts.map(p=>p[0].toUpperCase()+'.').join(' '):'Staff';
+  };
+  (c.staff||[]).forEach(s=>{ s.name=ini(s.name); s.phone=''; s.email=''; s.dob=''; });
+  (c.samples||[]).forEach((s,i)=>{ s.sampleId='REF-'+String(i+1).padStart(4,'0'); s.patientId=''; s.patientName='Confidential'; s.dob=''; s.transporter=s.transporter?ini(s.transporter):''; s.barcode=''; });
+  /* The working plan and unit rosters hold names as keys and cells. */
+  Object.values(c.workingPlans||{}).forEach(plan=>{
+    const p=plan&&plan.primary; if(!p) return;
+    (p.staff||[]).forEach(r=>{ r.name=ini(r.name); });
+  });
+  Object.values(c.unitRosters||{}).forEach(ur=>{
+    const a=ur&&ur.assignments; if(!a) return;
+    Object.keys(a).forEach(day=>{ const m=a[day]||{}; Object.keys(m).forEach(post=>{ m[post]=ini(m[post]); }); });
+  });
+  (c.leaves||[]).forEach(l=>{ if(l&&l.staffName) l.staffName=ini(l.staffName); });
+  /* The activity feed names who did what — the one surface a stranger must never see. */
+  c.audit=[]; c.loginHistory=[]; c.sessions=[];
+  return c;
+};
+let redactedCache=null;
+S.invalidateRedaction=function(){ redactedCache=null; };
+function visitorView(){
+  if(!(LS.auth&&LS.auth.isVisitor&&LS.auth.isVisitor())) return null;
+  return redactedCache||(redactedCache=S.redact(DB));
+}
+S.dbVisitorView=visitorView;
 S.data=S.db;
 S.settings=()=>S.db().settings;
 S._persist=function(prepared){
@@ -1955,7 +1997,7 @@ S.reloadFromStorage=function(){
   try{
     const raw=localStorage.getItem(DB_KEY); if(!raw) return false;
     const next=JSON.parse(raw);
-    DB=normalize(next); dirty=false;
+    DB=normalize(next); dirty=false; redactedCache=null;
     S.emit('tab');
     return true;
   }catch(e){ return false; }
@@ -1970,7 +2012,7 @@ function flushPendingSave(){ if(saveTimer!==null) S.save(true); }
 window.addEventListener('pagehide',flushPendingSave);
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) flushPendingSave(); });
 S.subscribe=function(fn){ listeners.push(fn); return ()=>{ listeners=listeners.filter(f=>f!==fn); }; };
-S.emit=function(reason){ listeners.forEach(f=>{ try{ f(reason); }catch(e){ console.warn('listener',e); } }); window.dispatchEvent(new CustomEvent('ls:changed',{detail:reason})); };
+S.emit=function(reason){ redactedCache=null; listeners.forEach(f=>{ try{ f(reason); }catch(e){ console.warn('listener',e); } }); window.dispatchEvent(new CustomEvent('ls:changed',{detail:reason})); };
 /* Local edits waiting to reach the shared copy. The sync layer reads this to know
    whether a pull would overwrite work that has not been pushed yet. */
 let pending=0;

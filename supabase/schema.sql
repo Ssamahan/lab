@@ -7,12 +7,15 @@
 -- phone and a PC see the same work.
 --
 -- Security model
---   * Row level security is on, with NO anonymous policies.
+--   * Row level security is on. The publishable (anon) key may READ the register —
+--     that is the public visitor view — and nothing else.
+--   * Every WRITE requires a signed-in project user (Authentication → Users). Sign-ups
+--     are disabled in the dashboard, so `authenticated` cannot be self-reached.
 --   * Every signed-in account of the laboratory project may read and write the
 --     single 'ruli-dh' register. That is deliberate: the app has its own role
 --     model, and Supabase is only the transport. If you later need per-user
---     isolation, replace the two policies below with a `lab_members` join table.
---   * Use the ANON key in the app. Never put the service_role key in a browser.
+--     isolation, replace the policies below with a `lab_members` join table.
+--   * Use the publishable key in the app. Never put the service_role key in a browser.
 -- ============================================================================
 
 create extension if not exists pgcrypto;
@@ -82,12 +85,24 @@ create policy "lab register write" on public.lab_registers
 create policy "lab register update" on public.lab_registers
   for update to authenticated using (true) with check (true);
 
--- If the laboratory would rather use a single shared passphrase than Supabase
--- Auth accounts, enable "Allow anonymous sign-ins" and swap `authenticated` for
--- `anon` in the three policies above — but understand that anyone with the anon
--- key then has the register. The default (authenticated) is the safer one.
+-- The public visitor view reads the register with the publishable key alone — that is
+-- the product, and it stays. What a stranger must never do is WRITE: the policies below
+-- give the anon role SELECT and nothing else. Earlier builds granted anon INSERT and
+-- UPDATE here, which meant anyone who found the publishable key (it ships in a public
+-- repository) could read AND overwrite the register. Writes now require a signed-in
+-- project user (Authentication → Users → Add user), and sign-ups are disabled in the
+-- dashboard so `authenticated` cannot be self-reached.
+drop policy if exists "lab register write anon"  on public.lab_registers;
+drop policy if exists "lab register update anon" on public.lab_registers;
+create policy "lab register read anon" on public.lab_registers
+  for select to anon using (true);
 
-"-- ---------------------------------------------------------- hardening -------
+grant select on public.lab_registers to anon;
+grant select, insert, update on public.lab_registers to authenticated;
+
+revoke insert, update, delete on public.lab_registers from anon;
+
+-- ---------------------------------------------------------- hardening -------
 -- Anonymous sessions are ordinary `authenticated` sessions, so the policies above already
 -- let them in. If a device was set up with "Allow anonymous sign-ins" turned on, close that
 -- door once every device has a real project user: replace the three policies so only a
@@ -140,29 +155,23 @@ create policy "report months read"  on public.lab_report_months for select to au
 create policy "report months write" on public.lab_report_months for insert to authenticated with check (true);
 create policy "report months update" on public.lab_report_months for update to authenticated using (true) with check (true);
 
--- A device that has never been set up carries the publishable key and nothing else.
--- Denying it meant a new phone could never reach the live register; the laboratory's
--- own login still decides who may use the console.
-create policy "report months read anon"   on public.lab_report_months for select to anon using (true);
-create policy "report months write anon"  on public.lab_report_months for insert to anon with check (true);
-create policy "report months update anon" on public.lab_report_months for update to anon using (true) with check (true);
+-- The month vault carries the laboratory's official returns: signed-in project users
+-- only. A stranger with the publishable key has no business reading or writing these —
+-- an anonymous DELETE here was the worst case in the old policy set, and it is gone.
+drop policy if exists "report months read anon"   on public.lab_report_months;
+drop policy if exists "report months write anon"  on public.lab_report_months;
+drop policy if exists "report months update anon" on public.lab_report_months;
+drop policy if exists "report months delete anon" on public.lab_report_months;
 
-grant select, insert, update on public.lab_report_months to anon, authenticated;
+grant select, insert, update on public.lab_report_months to authenticated;
+revoke select, insert, update, delete on public.lab_report_months from anon;
 
 -- A month opened by mistake has to be removable from the record, and a delete that only
 -- cleared one browser would be undone by the next Fetch. The rule is narrow on purpose:
 -- a row may be deleted, the table may not be truncated, and the app deletes one month at
 -- a time, by key, with an audit line left behind in the register.
-create policy "report months delete"      on public.lab_report_months for delete to authenticated using (true);
-create policy "report months delete anon" on public.lab_report_months for delete to anon using (true);
-grant delete on public.lab_report_months to anon, authenticated;
-
--- The register's own, same reasoning
-create policy "lab register read anon"   on public.lab_registers for select to anon using (true);
-create policy "lab register write anon"  on public.lab_registers for insert to anon with check (true);
-create policy "lab register update anon" on public.lab_registers for update to anon using (true) with check (true);
-
-grant select, insert, update on public.lab_registers to anon;
+create policy "report months delete" on public.lab_report_months for delete to authenticated using (true);
+grant delete on public.lab_report_months to authenticated;
 
 -- ============================================================================
 -- Every write keeps the version it replaced
@@ -183,9 +192,15 @@ create table if not exists public.lab_register_history (
 create index if not exists lab_register_history_reg_idx on public.lab_register_history (register_id, saved_at desc);
 
 alter table public.lab_register_history enable row level security;
-create policy "history read"  on public.lab_register_history for select to anon, authenticated using (true);
-create policy "history write" on public.lab_register_history for insert to anon, authenticated with check (true);
-grant select, insert on public.lab_register_history to anon, authenticated;
+-- The history trigger below is `security definer`, so it writes versions regardless of
+-- these policies; they gate direct API access. The version history is an internal
+-- record: signed-in project users only.
+drop policy if exists "history read"  on public.lab_register_history;
+drop policy if exists "history write" on public.lab_register_history;
+create policy "history read"  on public.lab_register_history for select to authenticated using (true);
+create policy "history write" on public.lab_register_history for insert to authenticated with check (true);
+grant select, insert on public.lab_register_history to authenticated;
+revoke select, insert on public.lab_register_history from anon;
 
 create or replace function public.keep_lab_register_version()
 returns trigger language plpgsql security definer as $$

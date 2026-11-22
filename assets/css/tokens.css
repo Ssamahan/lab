@@ -51,6 +51,7 @@
   /* ——— Spacing / geometry ————————————————————————————— */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px;
   --sp-6:24px; --sp-7:32px; --sp-8:40px; --sp-9:56px; --sp-10:72px;
+  --focus-ring:0 0 0 2px var(--ink-950),0 0 0 4px var(--gold-500);
   --r-xs:5px; --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px; --r-2xl:28px; --r-pill:999px;
   --rail-w:250px; --rail-w-mini:46px; --topbar-h:66px; --statusbar-h:30px; --page-max:1560px;
   --gutter:24px;
@@ -82,7 +83,7 @@
   --text:#F2EFE8;
   --text-strong:#FCFAF6;
   --text-muted:#98A2B6;
-  --text-faint:#68748B;
+  --text-faint:#767F94;
   --border:rgba(255,255,255,.075);
   --border-strong:rgba(255,255,255,.13);
   --border-gold:rgba(201,168,76,.34);
@@ -123,7 +124,7 @@
   --text:#131A28;
   --text-strong:#090E1A;
   --text-muted:#5C6779;
-  --text-faint:#8A93A5;
+  --text-faint:#667085;
   --border:rgba(9,14,26,.10);
   --border-strong:rgba(9,14,26,.17);
   --border-gold:rgba(177,143,56,.40);

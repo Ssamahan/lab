@@ -99,7 +99,11 @@ function deployment(){
 function cfg(){
   const vis=sharedForVisitor();
   if(vis) return {url:baseUrl(vis.endpoint), raw:vis.endpoint, key:String(vis.key).trim(),
-    email:'', password:'', anonAuth:true, live:true, pollMs:15000, pushMs:700,
+    email:'', password:'', anonAuth:false, live:true, pollMs:15000, pushMs:700,
+    /* A visitor is a key-alone reader by design: the publishable key in the header,
+       no session, nothing signed in. Since the project closed anonymous writes, a
+       visitor session would only be refused — and the failed sign-in attempt would
+       slow the first read for nothing. Read-only is the whole mode. */
     mode:'pull', enabled:true, visitor:true, source:'visitor'};
   const c=S.settings().cloud||{};
   const own=!!(c.endpoint&&c.anonKey);
@@ -369,6 +373,14 @@ async function request(path, opts){
   return r;
 }
 /* The one sentence a person can act on when the project refuses the key. */
+/* What a person can act on when the project refuses an anonymous write. Closing
+   anonymous writes is deliberate (anyone holding the publishable key could otherwise
+   overwrite the register), so the sentence tells them the one thing that fixes it. */
+function rlsRefusal(body){
+  if(/row-level security|42501|permission denied/i.test(body||''))
+    return 'The shared copy refused this write: the project now accepts writes only from a signed-in project user. Fill in the email and password from Supabase → Authentication → Users in Settings → Cloud sync, then press Test connection.';
+  return null;
+}
 function keyRefusal(status, body){
   const k=cfg();
   if(/invalid api key|no api key|jwt malformed/i.test(body||'')){
@@ -493,7 +505,7 @@ SY.push=async function(opts){
     body:JSON.stringify(payload),
     keepalive:!!opts.keepalive
   });
-  if(!r.ok){ const body=(await r.text())||''; const human=keyRefusal(r.status, body); throw new Error(human||('Push failed ('+r.status+') '+body.slice(0,160))); }
+  if(!r.ok){ const body=(await r.text())||''; const human=keyRefusal(r.status, body)||rlsRefusal(body); throw new Error(human||('Push failed ('+r.status+') '+body.slice(0,160))); }
   const rows=await r.json();
   const row=rows[0]||{};
   setState({lastPushAt:U.nowISO(), lastRevision:row.revision||null, pushedRevision:row.revision||null,

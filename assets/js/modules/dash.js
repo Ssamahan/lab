@@ -9,9 +9,13 @@ let timers=[];
 function clearTimers(){ timers.forEach(t=>clearInterval(t)); timers=[]; }
 
 function trend(values){
-  if(values.length<4) return 0;
+  /* A percentage over an empty denominator is a lie the register did not tell:
+     "+100%" on a worklist that was zero last week reads like a malfunction. When the
+     earlier half of the window has no recorded activity, say nothing instead. */
+  if(values.length<4) return null;
   const half=Math.floor(values.length/2);
-  const a=U.avg(values.slice(0,half))||1, b=U.avg(values.slice(half));
+  const a=U.avg(values.slice(0,half)), b=U.avg(values.slice(half));
+  if(!a) return null;
   return Math.round((b-a)/a*1000)/10;
 }
 

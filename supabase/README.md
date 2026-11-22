@@ -33,16 +33,20 @@ console is built with its coordinates in `assets/js/core/shared.js`:
   publishes every change, and checks for other devices every 2.5 s. Nothing has to be typed
   into Settings on each device — that screen now only exists to point one device somewhere
   else.
-- **No Supabase session is required to sync.** Row-level security grants `anon`
-  (the publishable key) read and write on `lab_registers`, `lab_report_months` and
-  `lab_register_history`. The alternative — a project user with a password in the build —
-  is no more secret, and anonymous sign-ins are switched off on this project, so a key
-  alone is the only route that works everywhere.
-- **What that costs, said plainly:** the publishable key is in a public repository, so
-  anyone who finds it can read, and could write to, this register. The laboratory's own
-  login still decides who may use the console, and every overwritten copy is kept in
-  `lab_register_history` (last fifty) so a bad write can be put back. If the register ever
-  holds names, move to a project with real accounts and turn the `anon` policies off.
+- **The publishable key reads; only a project user writes.** Row-level security grants
+  `anon` (the publishable key) SELECT on `lab_registers` and nothing else — that is what
+  puts the live register in front of a visitor with no account. Every write — register,
+  month vault, history — requires a signed-in project user (Authentication → Users), and
+  public sign-ups are switched off in the dashboard, so the `authenticated` role cannot
+  be self-reached.
+- **What changed and why, said plainly:** earlier builds granted `anon` INSERT, UPDATE
+  and even DELETE on these tables. The publishable key ships in a public repository, so
+  anyone who found it could have read AND overwritten the register (the month vault
+  could have been deleted). That door is closed. The cost is one: a device must hold a
+  project user's email and password (Settings → Cloud sync) before it can push. A device
+  without one still reads the shared register and still works offline; its pushes are
+  refused with a message that says exactly what to fill in. Every overwritten copy stays
+  recoverable in `lab_register_history` (last fifty).
 - **The months are separate.** `lab_report_months` holds one row per monthly return, so
   the history does not depend on the register document surviving: a cleared browser, a new
   phone or a register started again cannot take it away.
@@ -55,9 +59,10 @@ console is built with its coordinates in `assets/js/core/shared.js`:
 | `lab_report_months` | one row per monthly HMIS return, keyed by `ym` (`2024-10`) |
 | `lab_register_history` | the copy each write replaced, last fifty, written by a trigger |
 
-The policies in `schema.sql` grant the table to the `authenticated` role, so the API
-key on its own is not enough: the console signs in with the account from step 3 and
-sends that access token, refreshing it when it expires.
+The policies in `schema.sql` grant writes to the `authenticated` role only, so the API
+key on its own is not enough to write: the console signs in with the account from step 3
+and sends that access token, refreshing it when it expires. The key alone is enough to
+READ — the visitor view depends on it.
 
 Key shapes matter. A publishable key (`sb_publishable_…`) is **not a JWT** and must go
 in the `apikey` header only — Supabase rejects it as a Bearer token with *Invalid JWT*.
