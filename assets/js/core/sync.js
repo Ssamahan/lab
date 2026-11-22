@@ -841,6 +841,43 @@ function applyRemote(remote){
   refreshScreen();
   return true;
 }
+/* Explicit migration path: no legacy table fallback and no automatic overwrite of
+   a device's pre-cutover queue. Only a server-verified Admin token can use the RPCs.
+   This does not enable the cutover or replace the existing sync cycle yet. */
+SY.secureAdminSync=async function(token){
+  if(busy) return {ok:false,reason:'busy'};
+  const c=cfg();
+  if(!window.LSAdminTransport||!c.url||!c.key) throw new Error('Secure sync is not configured');
+  const transport=window.LSAdminTransport.createAdminTransport({endpoint:c.url,key:c.key,fetch:window.fetch.bind(window)});
+  busy=true;
+  try{
+    const pending=S.pendingChanges?S.pendingChanges():0;
+    if(pending){
+      const base=state().secureBaseRevision;
+      if(!Number.isSafeInteger(base)||base<1) return {ok:false,reason:'needs_reconciliation'};
+      const snapshot=JSON.stringify(S.db());
+      const data=JSON.parse(snapshot);
+      if((data.samples||[]).some(x=>x&&x.patientName&&x.patientName!==U.CONFIDENTIAL))
+        throw new Error('Patient names must be moved to private storage before sync.');
+      const revision=await transport.write(token,base,data,deviceId());
+      // Only acknowledge the exact snapshot sent, never edits made in flight.
+      if(S.clearPending&&S.pendingChanges()===pending&&JSON.stringify(S.db())===snapshot) S.clearPending();
+      setState({secureBaseRevision:revision,lastRevision:revision,lastPushAt:U.nowISO(),lastError:null});
+      return {ok:true,action:'written',revision};
+    }
+    const before=JSON.stringify(S.db());
+    const remote=await transport.read(token);
+    if((S.pendingChanges&&S.pendingChanges())||JSON.stringify(S.db())!==before)
+      return {ok:false,reason:'local_changed'};
+    // An empty queue alone does not prove this device has every remote record.
+    // Do not choose either document until a human-safe reconciliation exists.
+    if(JSON.stringify(remote.data)!==before) return {ok:false,reason:'needs_reconciliation'};
+    applyRemote(remote);
+    setState({secureBaseRevision:remote.revision});
+    return {ok:true,action:'read',revision:remote.revision};
+  }finally{busy=false;}
+};
+
 /* A pulled change should be on screen at once — but never under the user's fingers.
    If a field has focus, the redraw waits for the field to lose it. */
 let pendingRender=false;
