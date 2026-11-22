@@ -16,7 +16,9 @@ async function boot(fragment='',role='Admin',email='smhnklvn@gmail.com',page='/e
  w.document.querySelector('#send').click();await wait();
  assert.equal(calls.length,1);assert(calls[0].url.includes('/auth/v1/otp?redirect_to='));
  assert.equal(JSON.parse(calls[0].options.body).email,'smhnklvn@gmail.com');assert.equal(JSON.parse(calls[0].options.body).create_user,false);
- assert.equal(w.localStorage.getItem('labSystems.session.v2'),null);dom.window.close();
+ assert.equal(w.localStorage.getItem('labSystems.session.v2'),null);
+ w.document.querySelector('#admin-email').value='unknown@example.org';w.document.querySelector('#send').click();await wait();
+ assert.equal(calls.length,1,'unregistered email must not trigger account creation or email');dom.window.close();
  ({w,calls,dom}=await boot('#access_token=SECRET&refresh_token=REFRESH&type=magiclink'));
  assert.equal(w.location.hash,'');assert.equal(calls.length,2);assert.equal(calls[0].options.headers.Authorization,'Bearer SECRET');
  const session=JSON.parse(w.localStorage.getItem('labSystems.session.v2'));assert.equal(session.userId,'u1');assert.equal(session.persist,true);

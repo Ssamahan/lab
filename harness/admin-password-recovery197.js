@@ -22,6 +22,7 @@ async function setup(role='Admin'){
  w.document.querySelector('#confirm-password').value='long enough password';
  w.document.querySelector('#reset-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait();
  const roles=JSON.parse(w.localStorage.getItem('labSystems.roles.v1')),attempts=JSON.parse(w.localStorage.getItem('labSystems.attempts.v1'));
+ assert.equal(w.document.querySelector('#reset-form').hidden,true);assert.equal(w.document.querySelector('#reset-success').hidden,false);
  assert.equal(roles.u1.passHash,'pbkdf2$test');assert.equal(roles.u1.twoFactor,true);assert.equal(roles.u1.totpSecret,'SECRET');assert.equal(roles.u2.role,'Viewer');
  assert.equal(attempts.kelvin,undefined);assert.equal(attempts.other.count,1);assert.equal(w.localStorage.getItem('labSystems.pending.v1'),'4');
  dom.window.close();
@@ -29,5 +30,6 @@ async function setup(role='Admin'){
  w.document.querySelector('#new-password').value='long enough password';w.document.querySelector('#confirm-password').value='long enough password';
  w.document.querySelector('#reset-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait();
  assert.equal(JSON.parse(w.localStorage.getItem('labSystems.roles.v1')).u1.passHash,undefined,'revoked Admin must not reset');
+ assert.match(w.document.querySelector('#reset-status').textContent,/verification expired/);
  dom.window.close();console.log('admin-password-recovery197: verified Admin only, private local reset, preserved settings and queue');
 })().catch(e=>{console.error(e);process.exit(1)});
