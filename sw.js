@@ -201,7 +201,7 @@ self.addEventListener('fetch', event => {
         return await networkFirst(req, SHELL);
       } catch (e) {
         // An uncached isolated page must not become the full app offline.
-        if (url.pathname.endsWith('/visitor-view.html') || url.pathname.endsWith('/staff-catalog.html') || url.pathname.endsWith('/email-login.html')) return Response.error();
+        if (url.pathname.endsWith('/visitor-view.html') || url.pathname.endsWith('/staff-catalog.html') || url.pathname.endsWith('/email-login.html') || url.pathname.endsWith('/email-login')) return Response.error();
         const cache = await caches.open(SHELL);
         return (await cache.match('./index.html')) || Response.error();
       }
