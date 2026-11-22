@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Administrator email sign-in</title>
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <style>body{padding:24px}main{max-width:620px;margin:auto}button{margin:12px 0}p{line-height:1.5}</style>
+</head>
+<body>
+<main>
+  <h1>Administrator email sign-in</h1>
+  <p>Send a sign-in link to the laboratory administrator. Open the email link on this same browser to access its existing register and offline work.</p>
+  <p>This opens the existing local console for 24 hours; it does not secure the shared register or sign in to cloud sync.</p>
+  <p id="status" role="status" aria-live="polite"></p>
+  <button id="send" type="button" class="btn primary">Send sign-in email</button>
+  <p><a href="./">Return to the laboratory site</a></p>
+</main>
+<script src="assets/js/core/shared.js"></script>
+<script src="assets/js/core/email-login.js"></script>
+</body>
+</html>
