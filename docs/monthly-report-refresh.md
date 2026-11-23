@@ -1,0 +1,13 @@
+# Protected monthly-report refresh
+
+This job reads the designated XLSX file through the Google Drive API using a dedicated read-only service account. It combines the workbook with the existing private snapshot and never writes to the shared register. Existing values win conflicts; disagreements are retained for review. It does not back up device-only edits or write changes back to Drive.
+
+## Setup (repository and Google Cloud administrators)
+
+1. Enable the Google Drive API in the service account's Google Cloud project. Create a dedicated service account and share only the designated workbook with its service-account email as **Viewer**. Do not give it broader Drive access. Organization policies may prohibit service-account keys; if so, use an approved keyless identity design rather than weakening the policy.
+2. Create a JSON key for that service account through Google Cloud. In the GitHub repository **Settings → Secrets and variables → Actions**, create the repository secret `REPORT_DRIVE_SERVICE_ACCOUNT` containing the entire JSON. Never commit or paste it into issues or logs; protect and remove any local downloaded copy after securely saving it. Rotate/revoke compromised keys. The importer accepts only a service-account JSON and uses the fixed Google token endpoint and read-only Drive scope.
+3. Configure `REPORT_PUBLISHER_SECRET` as the private publisher credential whose SHA-256 digest is stored in the private project's `private.report_publisher_key`. The private publisher functions must already exist. Never share the value in chat or check it into the repository.
+4. Keep the variable `REPORT_PUBLISHER_ENABLED` absent or `false` until a private-source dry run, authorization checks and reconciliation review are complete. The workflow currently runs on main only, and GitHub schedules may be delayed. Manually dispatch the workflow on main with the default **dry run** checked: it reads and merges in memory, reports only its status, and cannot write. A non-dry run requires the enable variable and can change the protected snapshot; do not enable it merely to test credentials.
+5. Remove any public-link access to the workbook only with the owner's approval, preserving individually granted access. Verify the service account can still read after the change; retaining public-link access would expose the file to anyone with the link.
+
+Existing snapshots are backed up on a successful changed write, and a compare-and-swap protects concurrent publisher changes. No report content or credentials are intended in workflow logs. The report data stays in the separate private Supabase project and requires the separate private session in the app.

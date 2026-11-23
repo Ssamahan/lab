@@ -3,6 +3,12 @@
 name: Protected monthly report refresh
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Check and merge in memory without saving'
+        type: boolean
+        default: true
+        required: true
   schedule:
     - cron: '17 */6 * * *'
 permissions:
@@ -12,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   refresh:
-    if: github.ref == 'refs/heads/main' && vars.REPORT_PUBLISHER_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.dry_run) || vars.REPORT_PUBLISHER_ENABLED == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -27,5 +33,7 @@ jobs:
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
       - name: Refresh protected history
         env:
+          REPORT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           REPORT_PUBLISHER_SECRET: ${{ secrets.REPORT_PUBLISHER_SECRET }}
+          REPORT_DRIVE_SERVICE_ACCOUNT: ${{ secrets.REPORT_DRIVE_SERVICE_ACCOUNT }}
         run: node scripts/report-runner.cjs
