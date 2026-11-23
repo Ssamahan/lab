@@ -6,10 +6,11 @@ const ENDPOINT='https://xakoyknvkktpcmyecoxx.supabase.co/rest/v1/rpc';
 const PUBLISHABLE_KEY='sb_publishable_LP464vGRnwj3g-i6FtgxcA_WOU1R3k7';
 async function run({fetch,env,log}){
   if(!env.REPORT_PUBLISHER_SECRET) throw Error('Report publisher credential not configured');
-  const bytes=await downloadWorkbook(fetch);
+  if(!env.REPORT_DRIVE_SERVICE_ACCOUNT) throw Error('Private Drive credentials not configured');
+  const bytes=await downloadWorkbook(fetch,env.REPORT_DRIVE_SERVICE_ACCOUNT);
   const candidate=await parseWorkbook(bytes);
   const transport=makeTransport({fetch,endpoint:ENDPOINT,apiKey:PUBLISHABLE_KEY,secret:env.REPORT_PUBLISHER_SECRET});
-  const result=await publishOnce({read:transport.read,write:transport.write,parse:async()=>candidate});
+  const result=await publishOnce({read:transport.read,write:transport.write,parse:async()=>candidate,dryRun:env.REPORT_DRY_RUN==='true'});
   log('Protected monthly report refresh: '+result.status);
   return result;
 }
