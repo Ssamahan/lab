@@ -5,7 +5,7 @@
 'use strict';
 const U=window.LSU, UI=LS.ui, C=LS.charts, S=LS.store;
 const M={}; LS.modules.revenue=M;
-let rootEl=null;
+let rootEl=null, revenueTab='combined';
 const EXPENSE_CATS=['Transport','Per-diem','Materials','Meal','Housing','Communication','Equipment','Other'];
 const catLabel=e=>{ const c=e&&(e.cat||'Other'); return e&&e.custom?'Other — '+c:c; };
 const activeExpenses=t=>(t.expenses||[]).filter(e=>!e.deleted);
@@ -499,8 +499,8 @@ function travelView(){
   records=records.slice().sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
   return '<div class="card table-card" style="margin:16px 0"><div class="toolbar"><div class="grow"><h2>Travel clearances</h2><span class="xs faint">Mission register · separate from training sessions and FIFO</span></div><button class="btn primary sm" data-travel-add>'+UI.ic('plus',13)+' Add mission</button></div>'
     +'<p class="hint" style="margin:12px">Saved only on this browser and device; not backed up or synced to other devices. Do not clear browser data. Do not enter patient names or specimen identifiers.</p>'
-    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Purpose</th><th>Traveller</th><th>Route</th><th>Dates</th><th>Cost (RWF)</th><th>Expected reimbursement (RWF)</th><th></th></tr></thead><tbody>'
-    +(records.map(t=>'<tr><td>'+U.esc(t.purpose||'')+'</td><td>'+U.esc(t.traveller||'')+'</td><td>'+U.esc(t.origin||'')+' → '+U.esc(t.destination||'')+'</td><td>'+U.esc(t.start||'')+(t.end&&t.end!==t.start?' – '+U.esc(t.end):'')+'</td><td>'+((t.cost===null||t.cost===undefined)?'—':U.esc(String(t.cost)))+'</td><td>'+((t.expectedReimbursement===null||t.expectedReimbursement===undefined)?'—':U.esc(String(t.expectedReimbursement)))+'</td><td><button class="btn xs" data-travel-edit="'+U.esc(t.id)+'">Edit</button> <button class="btn xs" data-travel-delete="'+U.esc(t.id)+'">Delete</button></td></tr>').join('')||'<tr><td colspan="7">No missions recorded yet.</td></tr>')
+    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Purpose</th><th>Traveller</th><th>Route</th><th>Dates</th><th>Cost (RWF)</th><th>Expected reimbursement (RWF)</th><th>Received (RWF)</th><th></th></tr></thead><tbody>'
+    +(records.map(t=>'<tr><td>'+U.esc(t.purpose||'')+'</td><td>'+U.esc(t.traveller||'')+'</td><td>'+U.esc(t.origin||'')+' → '+U.esc(t.destination||'')+'</td><td>'+U.esc(t.start||'')+(t.end&&t.end!==t.start?' – '+U.esc(t.end):'')+'</td><td>'+((t.cost===null||t.cost===undefined)?'—':U.esc(String(t.cost)))+'</td><td>'+((t.expectedReimbursement===null||t.expectedReimbursement===undefined)?'—':U.esc(String(t.expectedReimbursement)))+'</td><td>'+((t.actualReimbursement===null||t.actualReimbursement===undefined)?'—':U.esc(String(t.actualReimbursement)))+'</td><td><button class="btn xs" data-travel-edit="'+U.esc(t.id)+'">Edit</button> <button class="btn xs" data-travel-delete="'+U.esc(t.id)+'">Delete</button></td></tr>').join('')||'<tr><td colspan="8">No missions recorded yet.</td></tr>')
     +'</tbody></table></div><p class="hint" style="margin:12px">A record is not an approval or signed travel authorization.</p></div>';
 }
 function travelForm(id){
@@ -518,19 +518,21 @@ function travelForm(id){
       +'<div class="field"><label for="tcEnd">Return date</label><input class="input" id="tcEnd" type="date" value="'+v('end')+'"></div>'
       +'<div class="field"><label for="tcCost">Travel cost in RWF (optional)</label><input class="input" id="tcCost" type="number" min="0" step="1" value="'+v('cost')+'"></div>'
       +'<div class="field"><label for="tcExpected">Total expected reimbursement in RWF (optional)</label><input class="input" id="tcExpected" type="number" min="0" step="1" value="'+v('expectedReimbursement')+'"></div>'
+      +'<div class="field"><label for="tcActual">Total reimbursement received in RWF (optional)</label><input class="input" id="tcActual" type="number" min="0" step="1" value="'+v('actualReimbursement')+'"></div>'
       +'<div class="field"><label for="tcNote">Notes (optional)</label><input class="input" id="tcNote" value="'+v('note')+'" placeholder="Do not enter patient or specimen identifiers"></div></div>'
       +'<p class="hint">Saved only on this browser; not synced or backed up.</p><p role="alert" data-travel-error></p>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-travel-save>Save mission</button>',onMount:(el,close)=>{
       el.querySelector('[data-travel-save]').onclick=()=>{
         if(!LS.auth.guard('revenue'))return;
         const val=id=>el.querySelector('#'+id).value.trim();
-        const traveller=val('tcTraveller'),purpose=val('tcPurpose'),origin=val('tcOrigin'),destination=val('tcDestination'),start=val('tcStart'),end=val('tcEnd'),costRaw=val('tcCost'),expectedRaw=val('tcExpected');
+        const traveller=val('tcTraveller'),purpose=val('tcPurpose'),origin=val('tcOrigin'),destination=val('tcDestination'),start=val('tcStart'),end=val('tcEnd'),costRaw=val('tcCost'),expectedRaw=val('tcExpected'),actualRaw=val('tcActual');
         const error=el.querySelector('[data-travel-error]');
         if(!traveller||!purpose||!origin||!destination||!start){error.textContent='Enter the traveller, purpose, route and departure date.';return;}
         if(end&&end<start){error.textContent='Return date cannot be before departure.';return;}
         if(costRaw!==''&&(!Number.isSafeInteger(Number(costRaw))||Number(costRaw)<0)){error.textContent='Enter a whole, non-negative cost in RWF.';return;}
         if(expectedRaw!==''&&(!Number.isSafeInteger(Number(expectedRaw))||Number(expectedRaw)<0)){error.textContent='Enter a whole, non-negative expected reimbursement in RWF.';return;}
-        const row={id:t?t.id:U.uid('tc'),traveller,purpose,origin,destination,start,end:end||start,cost:costRaw===''?null:Number(costRaw),expectedReimbursement:expectedRaw===''?null:Number(expectedRaw),note:val('tcNote')};
+        if(actualRaw!==''&&(!Number.isSafeInteger(Number(actualRaw))||Number(actualRaw)<0)){error.textContent='Enter a whole, non-negative reimbursement received in RWF.';return;}
+        const row={id:t?t.id:U.uid('tc'),traveller,purpose,origin,destination,start,end:end||start,cost:costRaw===''?null:Number(costRaw),expectedReimbursement:expectedRaw===''?null:Number(expectedRaw),actualReimbursement:actualRaw===''?null:Number(actualRaw),note:val('tcNote')};
         try{
           const current=readTravel(),index=current.findIndex(x=>x.id===row.id);
           if(t&&index<0)throw Error('Missing mission');
@@ -553,6 +555,26 @@ function mountTravel(root){
     UI.toast('Mission deleted on this browser.',{type:'ok'});LS.shell.refresh();
   });
 }
+// Missing amounts are not zeros: show the number of missions represented.
+function travelSummary(){
+  let records;try{records=readTravel();}catch(_){return null;}
+  const metric=key=>{const values=records.map(r=>r[key]).filter(v=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0);return {sum:values.reduce((a,b)=>a+b,0),count:values.length};};
+  return {count:records.length,cost:metric('cost'),expected:metric('expectedReimbursement'),received:metric('actualReimbursement')};
+}
+function financeDashboard(combined){
+ const t=travelSummary(),d=data();
+ if(!t)return '<div class="card pad" role="alert">Travel records cannot be read; totals are unavailable. No records were changed.</div>';
+ const fmt=x=>U.fmtRWF(x.sum)+' <span class="xs faint">('+x.count+'/'+t.count+' missions recorded)</span>';
+ const line=(label,value)=>'<tr><th scope="row">'+label+'</th><td>'+value+'</td></tr>';
+ let rows=line('Travel expenses',fmt(t.cost))+line('Travel reimbursement expected',fmt(t.expected))+line('Travel reimbursement received',fmt(t.received));
+ if(combined)rows=line('Training expenses',U.fmtRWF(d.exp))+line('Training reimbursement received',U.fmtRWF(d.reimb))+rows
+   +line('Combined recorded expenses',U.fmtRWF(d.exp+t.cost.sum))+line('Combined reimbursement received',U.fmtRWF(d.reimb+t.received.sum))
+   +line('Received minus recorded expenses',U.fmtRWF(d.reimb+t.received.sum-d.exp-t.cost.sum));
+ else if(t.count&&t.cost.count===t.count&&t.received.count===t.count)rows+=line('Received minus expenses',U.fmtRWF(t.received.sum-t.cost.sum));
+ return '<div class="card pad" style="margin:16px 0"><h2>'+(combined?'Combined overview':'Travel mission analysis')+'</h2>'
+  +'<p class="hint">'+(combined?'Training and travel are separate records. Avoid recording the same cost in both or it will be counted twice. ':'')+'Travel figures include only amounts entered on this browser; missing amounts are not zero. Combined figures may be incomplete. Expected amounts are not money received. Training expected amounts are not recorded here.</p>'
+  +'<div class="dt-scroll"><table class="dt"><tbody>'+rows+'</tbody></table></div></div>';
+}
 M.render=function(root,params){
   rootEl=root;
   if(!LS.auth.can('revenue')){
@@ -560,10 +582,12 @@ M.render=function(root,params){
     root.querySelector('[data-go]').onclick=()=>LS.shell.go('dash'); return;
   }
   const d=data();
-  root.innerHTML='<div class="page-head"><div><h1>Training revenue</h1><div class="sub">The honest ledger behind competency: every session, expense and reimbursement reconciled to the training registry.</div></div>'
-   +'<div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn primary" data-add>'+UI.ic('plus',15)+' Log session</button></div></div>'
-   +travelView()+kpis()+'<div id="revenueMaps"><div class="hint">Loading training maps…</div></div>'+table();
-  mountTravel(root);
+  root.innerHTML='<div class="page-head"><div><h1>Training and travel finance</h1><div class="sub">Separate records with a combined overview.</div></div></div>'
+   +'<div class="row" role="group" aria-label="Finance views" style="gap:8px;flex-wrap:wrap">'+[['combined','Combined dashboard'],['training','Training dashboard'],['travel','Travel dashboard']].map(([id,label])=>'<button class="btn '+(revenueTab===id?'primary':'')+'" data-finance-tab="'+id+'" aria-pressed="'+(revenueTab===id)+'">'+label+'</button>').join('')+'</div>'
+   +(revenueTab==='combined'?financeDashboard(true):revenueTab==='travel'?financeDashboard(false)+travelView():'<div class="page-head"><div><h2>Training revenue</h2><div class="sub">Training sessions, expenses and reimbursements.</div></div><div class="actions"><button class="btn" data-export>'+UI.ic('download',15)+' Export</button><button class="btn primary" data-add>'+UI.ic('plus',15)+' Log session</button></div></div>'+kpis()+'<div id="revenueMaps"><div class="hint">Loading training maps…</div></div>'+table());
+  root.querySelectorAll('[data-finance-tab]').forEach(b=>b.onclick=()=>{revenueTab=b.dataset.financeTab;M.render(root,params);});
+  if(revenueTab==='travel'){mountTravel(root);return;}
+  if(revenueTab!=='training')return;
   mountMaps(root);
   root.querySelector('[data-add]').onclick=addSession;
   root.querySelector('[data-export]').onclick=()=>{
