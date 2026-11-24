@@ -499,8 +499,8 @@ function travelView(){
   records=records.slice().sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
   return '<div class="card table-card" style="margin:16px 0"><div class="toolbar"><div class="grow"><h2>Travel clearances</h2><span class="xs faint">Mission register · separate from training sessions and FIFO</span></div><button class="btn primary sm" data-travel-add>'+UI.ic('plus',13)+' Add mission</button></div>'
     +'<p class="hint" style="margin:12px">Saved only on this browser and device; not backed up or synced to other devices. Do not clear browser data. Do not enter patient names or specimen identifiers.</p>'
-    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Purpose</th><th>Traveller</th><th>Route</th><th>Dates</th><th>Cost (RWF)</th><th></th></tr></thead><tbody>'
-    +(records.map(t=>'<tr><td>'+U.esc(t.purpose||'')+'</td><td>'+U.esc(t.traveller||'')+'</td><td>'+U.esc(t.origin||'')+' → '+U.esc(t.destination||'')+'</td><td>'+U.esc(t.start||'')+(t.end&&t.end!==t.start?' – '+U.esc(t.end):'')+'</td><td>'+((t.cost===null||t.cost===undefined)?'—':U.esc(String(t.cost)))+'</td><td><button class="btn xs" data-travel-edit="'+U.esc(t.id)+'">Edit</button> <button class="btn xs" data-travel-delete="'+U.esc(t.id)+'">Delete</button></td></tr>').join('')||'<tr><td colspan="6">No missions recorded yet.</td></tr>')
+    +'<div class="dt-scroll"><table class="dt"><thead><tr><th>Purpose</th><th>Traveller</th><th>Route</th><th>Dates</th><th>Cost (RWF)</th><th>Expected reimbursement (RWF)</th><th></th></tr></thead><tbody>'
+    +(records.map(t=>'<tr><td>'+U.esc(t.purpose||'')+'</td><td>'+U.esc(t.traveller||'')+'</td><td>'+U.esc(t.origin||'')+' → '+U.esc(t.destination||'')+'</td><td>'+U.esc(t.start||'')+(t.end&&t.end!==t.start?' – '+U.esc(t.end):'')+'</td><td>'+((t.cost===null||t.cost===undefined)?'—':U.esc(String(t.cost)))+'</td><td>'+((t.expectedReimbursement===null||t.expectedReimbursement===undefined)?'—':U.esc(String(t.expectedReimbursement)))+'</td><td><button class="btn xs" data-travel-edit="'+U.esc(t.id)+'">Edit</button> <button class="btn xs" data-travel-delete="'+U.esc(t.id)+'">Delete</button></td></tr>').join('')||'<tr><td colspan="7">No missions recorded yet.</td></tr>')
     +'</tbody></table></div><p class="hint" style="margin:12px">A record is not an approval or signed travel authorization.</p></div>';
 }
 function travelForm(id){
@@ -510,25 +510,27 @@ function travelForm(id){
   const v=(key,fallback='')=>U.esc(t&&t[key]!=null?String(t[key]):fallback);
   UI.modal({title:t?'Edit travel clearance':'Add travel clearance',sub:'Record the mission; this is not a signed or approved authorization.',width:'min(680px,100%)',
     body:'<div class="form-grid">'
-      +'<div class="field"><label for="tcTraveller">Traveller(s)</label><input class="input" id="tcTraveller" value="'+v('traveller')+'" placeholder="Names of staff travelling"></div>'
+      +'<div class="field"><label for="tcTraveller">Traveller</label><input class="input" id="tcTraveller" value="'+v('traveller')+'" placeholder="Your name"></div>'
       +'<div class="field"><label for="tcPurpose">Purpose</label><input class="input" id="tcPurpose" value="'+v('purpose')+'" placeholder="Sample transportation"></div>'
       +'<div class="field"><label for="tcOrigin">From</label><input class="input" id="tcOrigin" value="'+v('origin')+'" placeholder="Ruli District Hospital"></div>'
       +'<div class="field"><label for="tcDestination">Destination</label><input class="input" id="tcDestination" value="'+v('destination')+'" placeholder="Kigali · National Reference Laboratory"></div>'
       +'<div class="field"><label for="tcStart">Departure date</label><input class="input" id="tcStart" type="date" value="'+v('start')+'"></div>'
       +'<div class="field"><label for="tcEnd">Return date</label><input class="input" id="tcEnd" type="date" value="'+v('end')+'"></div>'
       +'<div class="field"><label for="tcCost">Travel cost in RWF (optional)</label><input class="input" id="tcCost" type="number" min="0" step="1" value="'+v('cost')+'"></div>'
+      +'<div class="field"><label for="tcExpected">Total expected reimbursement in RWF (optional)</label><input class="input" id="tcExpected" type="number" min="0" step="1" value="'+v('expectedReimbursement')+'"></div>'
       +'<div class="field"><label for="tcNote">Notes (optional)</label><input class="input" id="tcNote" value="'+v('note')+'" placeholder="Do not enter patient or specimen identifiers"></div></div>'
       +'<p class="hint">Saved only on this browser; not synced or backed up.</p><p role="alert" data-travel-error></p>',
     foot:'<button class="btn" data-close>Cancel</button><button class="btn primary" data-travel-save>Save mission</button>',onMount:(el,close)=>{
       el.querySelector('[data-travel-save]').onclick=()=>{
         if(!LS.auth.guard('revenue'))return;
         const val=id=>el.querySelector('#'+id).value.trim();
-        const traveller=val('tcTraveller'),purpose=val('tcPurpose'),origin=val('tcOrigin'),destination=val('tcDestination'),start=val('tcStart'),end=val('tcEnd'),costRaw=val('tcCost');
+        const traveller=val('tcTraveller'),purpose=val('tcPurpose'),origin=val('tcOrigin'),destination=val('tcDestination'),start=val('tcStart'),end=val('tcEnd'),costRaw=val('tcCost'),expectedRaw=val('tcExpected');
         const error=el.querySelector('[data-travel-error]');
         if(!traveller||!purpose||!origin||!destination||!start){error.textContent='Enter the traveller, purpose, route and departure date.';return;}
         if(end&&end<start){error.textContent='Return date cannot be before departure.';return;}
         if(costRaw!==''&&(!Number.isSafeInteger(Number(costRaw))||Number(costRaw)<0)){error.textContent='Enter a whole, non-negative cost in RWF.';return;}
-        const row={id:t?t.id:U.uid('tc'),traveller,purpose,origin,destination,start,end:end||start,cost:costRaw===''?null:Number(costRaw),note:val('tcNote')};
+        if(expectedRaw!==''&&(!Number.isSafeInteger(Number(expectedRaw))||Number(expectedRaw)<0)){error.textContent='Enter a whole, non-negative expected reimbursement in RWF.';return;}
+        const row={id:t?t.id:U.uid('tc'),traveller,purpose,origin,destination,start,end:end||start,cost:costRaw===''?null:Number(costRaw),expectedReimbursement:expectedRaw===''?null:Number(expectedRaw),note:val('tcNote')};
         try{
           const current=readTravel(),index=current.findIndex(x=>x.id===row.id);
           if(t&&index<0)throw Error('Missing mission');
