@@ -561,6 +561,27 @@ function travelSummary(){
   const metric=key=>{const values=records.map(r=>r[key]).filter(v=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0);return {sum:values.reduce((a,b)=>a+b,0),count:values.length};};
   return {count:records.length,cost:metric('cost'),expected:metric('expectedReimbursement'),received:metric('actualReimbursement')};
 }
+function combinedCharts(training,travel){
+ const cost=training.exp+travel.cost.sum,received=training.reimb+travel.received.sum;
+ const costComplete=travel.cost.count===travel.count,receivedComplete=travel.received.count===travel.count;
+ const coverage=(metric)=>metric.count+'/'+travel.count+' missions recorded';
+ const entries=[
+  {label:'Training expenses',amount:training.exp,available:training.list.length>0,detail:training.list.length+' training sessions',tone:'#c77717'},
+  {label:'Training reimbursement received',amount:training.reimb,available:training.list.length>0,detail:training.list.length+' training sessions',tone:'#0f766e'},
+  {label:'Travel expenses',amount:travel.cost.sum,available:travel.cost.count>0,detail:coverage(travel.cost),tone:'#c77717'},
+  {label:'Travel reimbursement received',amount:travel.received.sum,available:travel.received.count>0,detail:coverage(travel.received),tone:'#0f766e'}
+ ];
+ const maximum=Math.max(1,...entries.filter(x=>x.available).map(x=>x.amount));
+ const bars=entries.map(x=>'<div style="margin:14px 0"><div class="row between" style="gap:8px;flex-wrap:wrap"><strong>'+x.label+'</strong><span class="mono">'+(x.available?U.fmtRWF(x.amount):'Not recorded')+'</span></div><div class="xs faint">'+x.detail+'</div><div aria-hidden="true" style="height:14px;background:var(--surface-2,#eee);border-radius:7px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+Math.min(100,100*x.amount/maximum)+'%;background:'+x.tone+'"></div></div></div>').join('');
+ let analysis;
+ if(!costComplete||!receivedComplete)analysis='The comparison is incomplete: some travel expenses or reimbursements received have not been entered. The recorded balance and bars are partial, not a final claim.';
+ else if(!training.list.length&&!travel.count)analysis='Add a training session or travel mission to see an expense and reimbursement comparison.';
+ else if(cost===0)analysis='No recorded expenses to compare. A recovery percentage cannot be calculated.';
+ else analysis='Recorded reimbursements received are '+U.fmtNum(Math.round(received/cost*1000)/10)+'% of recorded expenses. The recorded balance is '+U.fmtRWF(received-cost)+' (received minus expenses).';
+ const expected=travel.expected.count?U.fmtRWF(travel.expected.sum):'Not recorded';
+ return '<div class="grid-12" style="margin-bottom:16px"><section class="card pad c8" aria-label="Expense and reimbursement comparison"><h2>Expenses vs reimbursements received</h2><p class="hint">All recorded amounts in RWF, grouped by record type. Bars share one scale; travel totals may be incomplete.</p>'+bars+'</section>'
+  +'<section class="card pad c4" aria-label="Combined analysis"><h2>Combined analysis</h2><p>'+analysis+'</p><p><strong>Travel reimbursement expected:</strong> '+expected+' <span class="xs faint">('+coverage(travel.expected)+')</span></p><p class="hint">Expected amounts are not received funds and are not included in the received comparison. Training expected amounts are not recorded. Totals include only this browser’s travel missions; avoid duplicate expenses across training and travel.</p></section></div>';
+}
 function financeDashboard(combined){
  const t=travelSummary(),d=data();
  if(!t)return '<div class="card pad" role="alert">Travel records cannot be read; totals are unavailable. No records were changed.</div>';
@@ -573,7 +594,7 @@ function financeDashboard(combined){
  else if(t.count&&t.cost.count===t.count&&t.received.count===t.count)rows+=line('Received minus expenses',U.fmtRWF(t.received.sum-t.cost.sum));
  return '<div class="card pad" style="margin:16px 0"><h2>'+(combined?'Combined overview':'Travel mission analysis')+'</h2>'
   +'<p class="hint">'+(combined?'Training and travel are separate records. Avoid recording the same cost in both or it will be counted twice. ':'')+'Travel figures include only amounts entered on this browser; missing amounts are not zero. Combined figures may be incomplete. Expected amounts are not money received. Training expected amounts are not recorded here.</p>'
-  +'<div class="dt-scroll"><table class="dt"><tbody>'+rows+'</tbody></table></div></div>';
+  +'<div class="dt-scroll"><table class="dt"><tbody>'+rows+'</tbody></table></div></div>'+(combined?combinedCharts(d,t):'');
 }
 M.render=function(root,params){
   rootEl=root;
