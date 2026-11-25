@@ -328,6 +328,9 @@ function shiftWeek(delta){
   const d=U.parseISO(weekStart()); wk=U.isoLocal(new Date(d.getFullYear(),d.getMonth(),d.getDate()+7*delta));
   paint();
 }
+// Keep historical entries intact, but never roster temperature monitoring as a service.
+function isTemperatureTask(name){ return /^temperature\s+monitoring$/i.test(String(name||'').trim()); }
+function rosterServices(){ return S.services().filter(sv=>!isTemperatureTask(sv.name)); }
 function allocationOf(start){ const w=S.db().unitRosters&&S.db().unitRosters[start]; return (w&&w.assignments)||{}; }
 
 /* ——— what the working plan says about a day ————————————————————————————
@@ -361,7 +364,7 @@ function temperatureWeek(dates,alloc){
   const result={};
   dates.forEach(iso=>{
     const available=names(iso);
-    if(weekendish(iso)){ result[iso]=available.join(' · '); return; }
+    if(weekendish(iso)){ result[iso]=available[0]||''; return; }
     if(weekly){ result[iso]=weekly; return; }
     const candidates=available.filter(n=>!excluded(n));
     result[iso]=(candidates.includes(parasitology(iso))?parasitology(iso):candidates[0]) || available.find(isKelvin) || available[0] || '';
@@ -396,7 +399,7 @@ function sheetView(){
     +'<div class="card-foot"><span>Same layout is used for PNG, PDF, XLSX and print — one A4 landscape page</span><span class="mono">'+(p?p.dates.length+' days · '+p.staff.length+' staff':'—')+'</span></div></div>';
 }
 function weekView(){
-  const start=weekStart(), dates=S.weekDates(start), svcs=S.services(), alloc=allocationOf(start);
+  const start=weekStart(), dates=S.weekDates(start), svcs=rosterServices(), alloc=allocationOf(start);
   const p=plan();
   const cellStaff=(iso,svc)=>alloc[iso]&&alloc[iso][svc]?alloc[iso][svc]:'';
   const temperature=temperatureWeek(dates,alloc);
@@ -488,7 +491,7 @@ function weekView(){
     +'<button class="btn sm primary" data-week-sheet>'+UI.ic('file-down',13)+' Sheet</button></div></div>'
     +'<div class="grid-12"><div class="c9"><div class="card table-card"><div class="dt-scroll" style="max-height:none"><table class="cal"><thead>'+head.slice(7)+'<tbody>'+body+'</tbody>'
     +'<tfoot>'
-    +'<tr data-temperature-row><td class="staff-cell"><div class="nm">Temperature monitoring</div><div class="rl">Day · night attendant monitors at night</div></td>'
+    +'<tr data-temperature-row><td class="staff-cell"><div class="nm">Temperature monitoring · additional task</div><div class="rl">Suggested day-duty staff reads and records on log sheets · not a service</div></td>'
     +dates.map(iso=>'<td class="day '+(weekendish(iso)?'wkend':'')+'">'+(temperature[iso]?'<span class="small pn-wrap">'+temperature[iso].split(' · ').map(n=>U.nameHTML(n,{cls:'weekly-name'})).join('<br>')+'</span>':'<span class="xs faint">—</span>')+'</td>').join('')+'</tr>'
     +'<tr class="night-row"><td class="staff-cell"><div class="nm">Night</div><div class="rl">17:00–08:00</div></td>'
     +dates.map(iso=>{ const n=S.nightCover(iso); const nm=n.name||'';
@@ -607,7 +610,7 @@ function benchRulesModal(name){
   if(!LS.auth.guard('edit')) return;
   const st=S.staffByName(name); if(!st) return;
   const r=rulesOf(name);
-  const svcs=S.services().map(sv=>sv.name);
+  const svcs=rosterServices().map(sv=>sv.name);
   const sel=(cur,id)=>'<select class="select" id="'+id+'"><option value="">— none —</option>'+svcs.map(b=>'<option'+(b===cur?' selected':'')+'>'+U.esc(b)+'</option>').join('')+'</select>';
   const checks=(list,id)=>'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 10px">'+svcs.map(b=>
     '<label class="row gap-sm" style="cursor:pointer"><input type="checkbox" data-'+id+'="'+U.esc(b)+'"'+(list.indexOf(b)>=0?' checked':'')+' style="accent-color:var(--gold)"><span class="small">'+U.esc(b)+'</span></label>').join('')+'</div>';
@@ -646,7 +649,7 @@ function benchRulesModal(name){
     }});
 }
 function servicesView(){
-  const svcs=S.services();
+  const svcs=rosterServices();
   const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start);
   const used={}; dates.forEach(iso=>Object.keys(alloc[iso]||{}).forEach(sv=>{ used[sv]=(used[sv]||0)+1; }));
   return '<div class="grid-12"><div class="c12"><div class="card table-card"><div class="toolbar"><div><div class="card-title">'+UI.ic('flask-conical',14,'ic')+'Laboratory services</div><div class="card-sub">The service menu staff are rostered against — reception, benches, blood bank, molecular</div></div><span class="grow"></span><button class="btn sm" data-add-svc>'+UI.ic('plus',13)+'Add service</button></div>'
@@ -677,6 +680,7 @@ function serviceModal(id){
       el.querySelector('[data-save]').onclick=()=>{
         const name=el.querySelector('#svName').value.trim();
         if(!name) return UI.toast('Service name required',{type:'warn'});
+        if(isTemperatureTask(name)) return UI.toast('Temperature monitoring is an additional day-duty task, not a laboratory service.',{type:'warn'});
         const rec={id:sv?sv.id:U.uid('svc'),name,code:(el.querySelector('#svCode').value||'').trim().toUpperCase()||name.slice(0,3).toUpperCase(),min:Math.max(1,parseInt(el.querySelector('#svMin').value,10)||1),note:el.querySelector('#svNote').value.trim()};
         S.commit(d=>{ d.services=d.services||S.services().slice(); if(sv){ const i=d.services.findIndex(x=>x.id===sv.id); if(i>=0) d.services[i]=rec; } else d.services.push(rec); },
           {action:'roster.service.'+(sv?'edit':'add'),entity:'services',entityId:rec.id,detail:rec.name});
@@ -837,7 +841,7 @@ function shortBench(b){ return b==='TB/Molecular'?'TB':b; }
 function postLabel(services){ return services.map(shortBench).join(' + '); }
 function postGroupsFor(n){
   const m=postModel();
-  const reg=S.services().map(x=>x.name);
+  const reg=rosterServices().map(x=>x.name);
   let groups=POST_BASE
     .map(g=>({key:g.key, services:g.services.filter(b=>reg.indexOf(b)>=0)}))
     .filter(g=>g.services.length);
@@ -945,10 +949,11 @@ function autoAllocate(){
         const day=w.assignments[iso]||{};
         const prev=w.auto[iso]||{};
         Object.keys(day).forEach(b=>{
+          if(isTemperatureTask(b)) return;
           if(prev[b]===day[b]&&!(w.overrides[iso]||{})[b]){ delete day[b]; weekendCleared++; }
           else weekendKept++;
         });
-        w.auto[iso]={};
+        w.auto[iso]=Object.fromEntries(Object.entries(prev).filter(([b])=>isTemperatureTask(b)));
         return;
       }
       const {duty,core,alone}=dutyContext(iso);
@@ -960,9 +965,9 @@ function autoAllocate(){
       /* A re-run reflects today's post list: the previous automatic pass is taken
          back, while manual allocations and recorded overrides stay put. */
       const prevAuto=w.auto[iso]||{};
-      Object.keys(prevAuto).forEach(b=>{ if(day[b]===prevAuto[b] && !ovr[b]){ delete day[b]; cleared++; } });
-      w.auto[iso]={};
-      const held=()=>U.uniq(Object.keys(day).map(b=>day[b]).filter(Boolean));
+      Object.keys(prevAuto).forEach(b=>{ if(!isTemperatureTask(b)&&day[b]===prevAuto[b] && !ovr[b]){ delete day[b]; cleared++; } });
+      w.auto[iso]=Object.fromEntries(Object.entries(prevAuto).filter(([b])=>isTemperatureTask(b)));
+      const held=()=>U.uniq(Object.keys(day).filter(b=>!isTemperatureTask(b)).map(b=>day[b]).filter(Boolean));
       const placedOn=bench=>day[bench]||'';
       const gateFor=(name,bench)=>gate(rules[name],bench,{alone,override:!!ovr[bench]});
       const mayWorkAll=(name,services)=>services.every(b=>gateFor(name,b).ok);
@@ -1003,7 +1008,7 @@ function autoAllocate(){
         const person=duty.filter(x=>x.name===name)[0];
         if(!person) return;
         const plan=orient[name];
-        const allowed=plan.benches.filter(b=>S.services().some(sv=>sv.name===b)&&!placedOn(b));
+        const allowed=plan.benches.filter(b=>rosterServices().some(sv=>sv.name===b)&&!placedOn(b));
         allowed.forEach(b=>write(b,person));
         w.orientation=w.orientation||{}; w.orientation[iso]=w.orientation[iso]||{};
         w.orientation[iso][name]={week:plan.week,label:plan.weekLabel,benches:plan.benches};
@@ -1056,7 +1061,7 @@ function autoAllocate(){
       }
       /* 3 — the manager never sits on a day that carries more than his threshold. */
       Object.keys(day).forEach(bench=>{
-        const who=day[bench]; if(!who||ovr[bench]) return;
+        const who=day[bench]; if(isTemperatureTask(bench)||!who||ovr[bench]) return;
         if(reserveOf(who)&&n>postModel().reserveMax){ delete day[bench]; delete w.auto[iso][bench]; cleared++; }
       });
       /* ——— every bench gets a name ———
@@ -1067,8 +1072,8 @@ function autoAllocate(){
          allowed to work is left open, and then it is named in the message rather
          than counted as a silent skip. */
       const benchCount={};
-      Object.keys(day).forEach(b=>{ const n=day[b]; if(n) benchCount[n]=(benchCount[n]||0)+1; });
-      S.services().forEach(sv=>{
+      Object.keys(day).forEach(b=>{ if(isTemperatureTask(b))return; const n=day[b]; if(n) benchCount[n]=(benchCount[n]||0)+1; });
+      rosterServices().forEach(sv=>{
         if(placedOn(sv.name)) return;
         const cand=duty.filter(x=>mayBeOnPlan(x)&&gateFor(x.name,sv.name).ok)
           .sort((a,b)=>(benchCount[a.name]||0)-(benchCount[b.name]||0)
@@ -1078,7 +1083,7 @@ function autoAllocate(){
         if(who){ write(sv.name,who); benchCount[who.name]=(benchCount[who.name]||0)+1; servicesFilled++; }
         else openNames.push(sv.name+' · '+U.DOWL[U.dow(iso)]+' '+U.parseISO(iso).getDate());
       });
-      skipped+=S.services().filter(sv=>!placedOn(sv.name)).length;
+      skipped+=rosterServices().filter(sv=>!placedOn(sv.name)).length;
     });
   },{action:'roster.allocate.auto',entity:'unitRosters',entityId:start,
      detail:'Auto-allocation by post (Reception · Phleb+Hem · Bio+Ser · Para+TB), week of '+start});
@@ -1453,7 +1458,7 @@ function weekData(){
   dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
   dates.forEach(iso=>{ const d=dayDutyOf(iso); if(d.length) day[iso]=d; if(weekendish(iso)) weekend[iso]=weekendLabel(iso); });
   const wRec=(S.db().unitRosters||{})[start]||{};
-  return {weekStart:start,dates,services:S.services(),alloc,night,dayDuty:day,weekend,temperature:temperatureWeek(dates,alloc),
+  return {weekStart:start,dates,services:rosterServices(),alloc,night,dayDuty:day,weekend,temperature:temperatureWeek(dates,alloc),
     overrides:wRec.overrides||{},orientation:wRec.orientation||{},planLabel:planMonthLabel(dates)};
 }
 /* Kept as the one call the sheet builders use; the plan does the deciding. */
