@@ -230,6 +230,13 @@ const RW_HOLIDAYS={
   ['08-15','Assumption Day'],['08-16','Assumption Day observed'],['12-25','Christmas Day'],['12-26','Boxing Day'],['12-27','Christmas and Boxing Day observed']
  ]
 };
+/* The reference calendar is visual guidance, not an automatic roster mutation. */
+function displayHoliday(iso){
+ const local=S.holiday(iso); if(local) return local;
+ const rows=RW_HOLIDAYS[String(iso).slice(0,4)]||[];
+ const row=rows.find(item=>item[0]===String(iso).slice(5));
+ return row?{date:iso,name:row[1]+(/tentative/.test(row[1])?' · verify official notice':' · reference date')}:null;
+}
 function holidayReview(){
  const year=String(mk||U.monthKey()).slice(0,4),ref=RW_HOLIDAYS[year],p=plan();
  const dates=ref?ref.map(([date,name])=>({date:year+'-'+date,name,source:'reference'})):[];
@@ -241,7 +248,7 @@ function holidayReview(){
  +(chosen.length?'<div class="dt-scroll"><table class="dt"><thead><tr><th>Date</th><th>Holiday</th><th>Planned work (D / N / DN)</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p class="hint">'+(ref?'No reference or locally entered holiday in this month.':'No reference calendar is available for this year; locally entered holidays still appear.')+'</p>')+'</section>';
 }
 function legend(){
-  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00 next day</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Annual leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
+  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00 next day</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Annual leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Holiday columns are rose · weekend columns are neutral · drag a shift or click to edit</span></div>';
 }
 function gridView(){
   const p=plan();
@@ -251,14 +258,14 @@ function gridView(){
       +(S.planMonths().filter(k=>k!==mk).length?'<div class="row wrap gap-sm" style="justify-content:center;margin-top:14px"><span class="xs faint">Stored plans:</span>'+S.planMonths().filter(k=>k!==mk).map(k=>'<button class="btn xs" data-open-month="'+k+'">'+U.ic('calendar-days',12)+U.esc(U.monthLabel(k))+'</button>').join('')+'</div>':'')})+'</div>';
   const cov=coverage(p), rq=req();
   const head='<thead><tr><th class="staff-cell" style="z-index:4">Staff / day</th>'+p.dates.map(iso=>{
-    const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
+    const dow=U.dow(iso), today=iso===U.todayISO(), hol=displayHoliday(iso);
     return '<th class="'+(dow>=5||hol?'wkend':'')+(hol?' holiday':'')+'" '+(hol?'data-tip="'+U.esc(hol.name)+'"':'')+' style="'+(today?'color:var(--gold)':'')+'">'+U.DOW1[dow]+'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div></th>';
   }).join('')+'</tr></thead>';
   const body=rowOrder(p).map(({s,si})=>{
     const st=S.staffByName(s.name)||{};
     return '<tr><td class="staff-cell"><div class="nm pn-wrap" title="'+U.esc(s.name)+'">'+U.nameHTML(s.name)+'</div><div class="rl">'+U.esc(st.role||'')+'</div>'+reqBadge(s.name)+'</td>'
      +p.dates.map((iso,di)=>{
-        const c=s.codes[di]||''; const dow=U.dow(iso), today=iso===U.todayISO(), hol=S.holiday(iso);
+        const c=s.codes[di]||''; const dow=U.dow(iso), today=iso===U.todayISO(), hol=displayHoliday(iso);
         const lv=S.leaveCodeFor(s.name,iso);
         const show=lv&&!(S.isLeaveCode(c)||c==='TR')?lv:c;
         /* a hatched cell is a day before the person was employed — it is not a rest day
@@ -280,7 +287,7 @@ function gridView(){
   const covCell=(iso)=>{
     const c=cov[iso], r=required(iso), dow=U.dow(iso), we=isRest(iso);
     const shortD=c.day<r.day, shortN=c.night<r.night;
-    return '<div class="cov-cell'+(we?' wkend':'')+(shortD||shortN?' low':'')+'" data-tip="'+U.esc(iso)+' · day '+c.day+' of '+r.day+' · night '+c.night+' of '+r.night+'">'
+    return '<div class="cov-cell'+(we?' wkend':'')+(displayHoliday(iso)?' holiday':'')+(shortD||shortN?' low':'')+'" data-tip="'+U.esc(iso)+' · day '+c.day+' of '+r.day+' · night '+c.night+' of '+r.night+'">'
       +'<span class="cd">'+U.parseISO(iso).getDate()+'<em>'+U.DOW1[dow]+'</em></span>'
       +'<span class="cn"><b class="'+(shortD?'crit':'ok')+'">'+c.day+'</b><i>/</i><b class="'+(shortN?'crit':'ok')+'">'+c.night+'</b></span>'
       +'</div>';
@@ -461,10 +468,10 @@ function weekView(){
     if(!g.ok) breaches.push({iso,svc:sv.name,staff:n,why:g.why});
   }));
   const head='<thead><tr><th class="staff-cell" style="z-index:4">Service</th>'+dates.map(iso=>{
-    const dow=U.dow(iso), today=iso===U.todayISO(), we=weekendish(iso);
-    return '<th class="'+(we?'wkend':'')+'" style="'+(today?'color:var(--gold)':'')+'" title="'+U.esc(we?weekendLabel(iso)+' — one duty for the whole unit':U.fmtDate(iso))+'">'+U.DOWL[dow]
+    const dow=U.dow(iso), today=iso===U.todayISO(), we=weekendish(iso), hol=displayHoliday(iso);
+    return '<th class="'+(we?'wkend':'')+(hol?' holiday':'')+'" style="'+(today?'color:var(--gold)':'')+'" title="'+U.esc(hol?hol.name:we?weekendLabel(iso)+' — one duty for the whole unit':U.fmtDate(iso))+'">'+U.DOWL[dow]
       +'<div style="font-family:var(--font-mono);font-size:10.5px;color:'+(today?'var(--gold)':'var(--text-muted)')+'">'+U.parseISO(iso).getDate()+'</div>'
-      +(weekendish(iso)?'<div style="font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold)">'+U.esc(holidayAt(iso)?'holiday':'unit duty')+'</div>':'')+'</th>';
+      +(we||hol?'<div style="font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold)">'+U.esc(hol?'holiday':'unit duty')+'</div>':'')+'</th>';
   }).join('')+'</tr></thead>';
   const body=svcs.map((sv,serviceIndex)=>'<tr><td class="staff-cell"><div class="nm">'+U.esc(sv.name)+'</div><div class="rl mono">'+U.esc(sv.code)+' · min '+sv.min+'</div></td>'
     +dates.map(iso=>{
@@ -478,7 +485,7 @@ function weekView(){
         if(serviceIndex) return '';
         const duty=dayDutyOf(iso);
         const tip=weekendLabel(iso)+' — day duty for all services, from the working plan';
-        return '<td class="day wkend unit-duty" data-unit-duty="'+iso+'" rowspan="'+svcs.length+'" data-tip="'+U.esc(tip)+'">'
+        return '<td class="day wkend unit-duty'+(displayHoliday(iso)?' holiday':'')+'" data-unit-duty="'+iso+'" rowspan="'+svcs.length+'" data-tip="'+U.esc(tip)+'">'
           +(duty.length?duty.map(n=>'<span class="small pn-wrap">'+U.nameHTML(n,{cls:'weekly-name'})+'</span>').join(''):'<span class="xs faint">—</span>')+'</td>';
       }
       let g=name?gate(ctx.rules[name],sv.name,{alone:ctx.alone,override:!!ov}):{ok:true};
@@ -489,7 +496,7 @@ function weekView(){
       }
       const breach=!!name&&!g.ok;
       const tip=danger?st.label+' — not on duty that day':breach?g.why:'';
-      return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(tip?' data-tip="'+U.esc(tip)+'"':'')+'>'
+      return '<td class="day '+(U.dow(iso)>=5?'wkend':'')+' '+(displayHoliday(iso)?'holiday':'')+' '+(iso===U.todayISO()?'today':'')+'" data-wcell="'+iso+'|'+U.esc(sv.name)+'" style="cursor:pointer;min-width:104px"'+(tip?' data-tip="'+U.esc(tip)+'"':'')+'>'
         +(name?'<span class="small pn-wrap'+(danger||breach?' warn-name':'')+'" style="display:block;line-height:1.3">'+U.nameHTML(String(name),{cls:'weekly-name'})+'</span>'
           :'<span class="xs faint">—</span>')
         +(()=>{ const covers=name?Object.keys(alloc[iso]||{}).filter(b=>alloc[iso][b]===name).length:0;
