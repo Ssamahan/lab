@@ -1232,7 +1232,8 @@ SH.weeklySVG=function(data,opts){
 
   const ty=top+headH+dateH+services.length*rowH;
   g+=rect(pad,ty,labelW,dayH,'#FFFFFF');
-  g+=text(pad+24,ty+dayH/2+9,'Temperature monitoring',{size:27,weight:700,fill:'#12203C'});
+  g+=text(pad+24,ty+dayH/2-5,'Temperature monitoring',{size:27,weight:700,fill:'#12203C'});
+  g+=text(pad+24,ty+dayH/2+24,'Additional day task · record on log sheets',{size:16,fill:'#3D4759'});
   dates.forEach((iso,i)=>{
     const x=gridX+i*colW, who=(data.temperature||{})[iso]||'';
     g+=rect(x,ty,colW,dayH,isWeekend(iso)?C.creamBand:'#FFFFFF');
@@ -1597,7 +1598,7 @@ SH.weeklyXLSX=function(data){
     });
     out.push({h:34,cells});
   });
-  const trow=[{c:0,v:'Temperature monitoring',s:3}];
+  const trow=[{c:0,v:'Temperature monitoring — additional day task (record on log sheets)',s:3}];
   cols.forEach(iso=>trow.push({c:trow.length,v:((data.temperature||{})[iso]||'').split(' · ').filter(Boolean).map(formatted).join('\n'),s:14}));
   out.push({h:34,cells:trow});
   const nrow=[{c:0,v:'Night Shift',s:2}];
