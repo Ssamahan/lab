@@ -1313,25 +1313,49 @@ function shiftPicker(si,di){
   UI.modal({title:s.name,sub:U.fmtDateLong(U.parseISO(p.dates[di]))+' · current shift '+(cur||'—'),
     body:'<div class="row wrap gap-sm" style="margin-bottom:10px">'
       +quick.map(([c,n,l])=>'<button class="btn xs" data-run="'+c+'" data-n="'+n+'"><span class="shift-code '+c+'" style="margin-right:5px">'+c+'</span>'+l+'</button>').join('')
-      +'</div>'
-      +'<div class="xs faint" style="margin-bottom:8px">One click writes the whole run from this day forward. Annual leave fills fifteen days at a time, so a ten, twenty or thirty-day block is a click plus an adjustment.</div>'
+      +'<button class="btn xs" data-off-run="2">OFF · 2 consecutive days</button><button class="btn xs" data-off-run="3">OFF · 3 consecutive days</button>'
+      +'</div><div data-off-review hidden style="margin-bottom:12px;padding:12px;border:1px solid var(--border);border-radius:8px"><p data-off-details></p><p class="hint">Review coverage before saving. Existing shifts shown above will be replaced; leave is protected.</p><button class="btn primary sm" data-off-confirm>Confirm offs</button> <button class="btn sm" data-off-cancel>Cancel offs</button></div><p role="alert" data-off-error></p>'
+      +'<div class="xs faint" style="margin-bottom:8px">Other quick runs write the whole run from this day forward. Annual leave fills fifteen days at a time, so a ten, twenty or thirty-day block is a click plus an adjustment.</div>'
       +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">'
         +'<button class="choice '+(cur?'':'on')+'" data-code=""><span class="shift-code" style="color:var(--text-faint);background:transparent;border-color:var(--border)">·</span><span class="grow"><span class="ct">Blank · at home, nothing written</span></span></button>'
         +CODES.map(([c,l])=>'<button class="choice '+(cur===c?'on':'')+'" data-code="'+c+'"><span class="shift-code '+c+'">'+c+'</span><span class="grow"><span class="ct">'+l+'</span></span></button>').join('')+'</div>'
       +'<div class="hint" style="margin-top:10px">A blank cell says the person is at home and leaves the square clean — use it to take a name off a weekend without writing anything that is not a rest day.</div>'
-      +'<div class="hint" style="margin-top:12px">Assignments are validated against consecutive-night caps, leave and minimum coverage. Every change is written to the audit trail.</div>',
+      +'<div class="hint" style="margin-top:12px">Review the working plan and coverage after editing. Changes are recorded in the audit trail.</div>',
     foot:'<button class="btn" data-close>Close</button>',
-    onMount:(el,close)=>{
-      el.querySelectorAll('[data-run]').forEach(b=>b.onclick=()=>{ fillRun(si,di,b.dataset.run,+b.dataset.n); close(); });
+    onMount:(el)=>{
+      let offReview=null;
+      const review=el.querySelector('[data-off-review]'),error=el.querySelector('[data-off-error]');
+      el.querySelectorAll('[data-off-run]').forEach(b=>b.onclick=()=>{
+        error.textContent='';review.hidden=true;offReview=null;
+        const count=Number(b.dataset.offRun),current=plan();
+        if(!LS.auth.guard('edit')||!current||!current.staff[si]||current.staff[si].name!==s.name)return;
+        if(di+count>current.dates.length){error.textContent='These consecutive days cross the end of this monthly plan. Edit the next month separately.';return;}
+        const dates=current.dates.slice(di,di+count),codes=current.staff[si].codes.slice(di,di+count);
+        if(dates.some((date,i)=>i>0&&date!==U.addDays(dates[i-1],1))){error.textContent='The plan does not contain consecutive dates; no changes were made.';return;}
+        if(dates.some((date,i)=>S.leaveCodeFor(s.name,date)||['AL','ML','PL','SL','CL','BE'].includes(codes[i]))){error.textContent='A selected day contains leave or is before employment. No changes were made.';return;}
+        offReview={month:mk,dates,codes};
+        el.querySelector('[data-off-details]').innerHTML='<strong>Set '+count+' consecutive OFF days for '+U.esc(s.name)+'?</strong><br>'+dates.map((date,i)=>U.esc(U.fmtDate(date))+' · '+U.esc(codes[i]||'blank')+' → OFF').join('<br>');
+        review.hidden=false;
+      });
+      el.querySelector('[data-off-cancel]').onclick=()=>{offReview=null;review.hidden=true;};
+      el.querySelector('[data-off-confirm]').onclick=()=>{
+        const current=plan(),saved=offReview;
+        if(!saved||!LS.auth.guard('edit'))return;
+        if(mk!==saved.month||!current||!current.staff[si]||current.staff[si].name!==s.name||saved.dates.some((date,i)=>current.dates[di+i]!==date||current.staff[si].codes[di+i]!==saved.codes[i]||S.leaveCodeFor(s.name,date))){error.textContent='The plan or leave changed. Reopen the shift and review again; nothing was changed.';review.hidden=true;offReview=null;return;}
+        S.commit(d=>{const pl=d.workingPlans[saved.month].primary;saved.dates.forEach((_,i)=>{pl.staff[si].codes[di+i]='OFF';});pl.meta.draft=true;pl.meta.edited=U.nowISO();},
+          {action:'roster.assign.run',entity:'workingPlans',entityId:saved.month,detail:s.name+' · '+saved.dates.length+' consecutive OFF days from '+saved.dates[0]});
+        UI.closeTop();paint();UI.toast(saved.dates.length+' consecutive OFF days saved · review coverage',{type:'ok'});
+      };
+      el.querySelectorAll('[data-run]').forEach(b=>b.onclick=()=>{ fillRun(si,di,b.dataset.run,+b.dataset.n); UI.closeTop(); });
       el.querySelectorAll('[data-code]').forEach(b=>b.onclick=()=>{
         const code=b.dataset.code;
         /* An annual leave is never one cell: the department takes it in blocks, so
            tapping AL writes the next fifteen days and the block is then trimmed or
            extended. If the plan cannot be read, this is the fallback that still
            leaves a complete block on the sheet. */
-        if(code==='AL'){ fillRun(si,di,'AL',15); close(); UI.toast('Annual leave · 15 days filled from '+U.fmtDate(p.dates[di]),{type:'ok'}); return; }
-        if(!code){ assign(si,di,''); close(); UI.toast('Cell cleared · at home, nothing written',{type:'ok'}); return; }
-        assign(si,di,code); close(); UI.toast('Shift updated · coverage recalculated',{type:'ok'});
+        if(code==='AL'){ fillRun(si,di,'AL',15); UI.closeTop(); UI.toast('Annual leave · 15 days filled from '+U.fmtDate(p.dates[di]),{type:'ok'}); return; }
+        if(!code){ assign(si,di,''); UI.closeTop(); UI.toast('Cell cleared · at home, nothing written',{type:'ok'}); return; }
+        assign(si,di,code); UI.closeTop(); UI.toast('Shift updated · coverage recalculated',{type:'ok'});
       });
     }});
 }
