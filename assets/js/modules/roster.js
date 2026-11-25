@@ -59,21 +59,24 @@ function reqBadge(name){
 function coverage(p){
   const out={};
   (p?p.dates:[]).forEach((iso,di)=>{
-    let day=0,night=0;
-    /* UO is a rest day that was worked, so the person is on the bench that day
-       and the day cover must say so — it is a code, not an absence */
-    (p.staff||[]).forEach((s,si)=>{ const c=s.codes[di]; if(c==='D'||c==='DN'||c==='UO') day++; if(c==='N'||c==='DN') night++; });
+    let day=0,night=0; const seen=new Set();
+    (p.staff||[]).forEach(s=>{
+      const name=String(s.name||'').trim(), key=name.toLowerCase();
+      if(!key||seen.has(key)) return; seen.add(key);
+      const c=(s.codes||[])[di];
+      /* Approved leave is overlaid on the grid, even if the stored shift remains. */
+      if(S.leaveCodeFor(name,iso)) return;
+      if(c==='D'||c==='DN'||c==='UO') day++;
+      if(c==='N'||c==='DN') night++;
+    });
     out[iso]={day,night};
   });
   return out;
 }
-/* What the department actually requires. A weekday carries the day bench and one
-   name on the night; a weekend carries one person on the days and one on the
-   nights — the weekend technologist alone on day + night counts as both. */
-function req(){ const s=S.settings(); return {day:s.coverWeekdayDay||3,night:s.coverWeekdayNight||1,wkDay:s.coverWeekendDay||1,wkNight:s.coverWeekendNight||1}; }
-/* A public holiday is rostered as a weekend, so it carries a weekend's
-   requirement: one name on the days, one on the nights. */
-function isRest(iso){ return U.dow(iso)>=5 || !!S.holiday(iso); }
+/* Day staffing is a departmental minimum, not an instruction to rewrite shifts.
+   Night coverage remains a separate existing requirement. */
+function req(){ const s=S.settings(); return {day:4,night:s.coverWeekdayNight||1,wkDay:1,wkNight:s.coverWeekendNight||1}; }
+function isRest(iso){ return U.dow(iso)>=5 || !!displayHoliday(iso); }
 function required(iso){ const r=req(); return isRest(iso)?{day:r.wkDay,night:r.wkNight}:{day:r.day,night:r.night}; }
 
 /* ——— rest owed after nights ————————————————————————————————
@@ -247,6 +250,22 @@ function holidayReview(){
  return '<section class="card pad" data-holiday-review style="margin-bottom:14px"><h2>Public holidays · '+U.esc(U.monthLabel(mk||U.monthKey()))+'</h2><p class="hint">Reference dates and shifts already written in this browser’s plan. Read-only: no shifts or holiday settings are changed. Observed days are calculated and must be checked against current official notices. Eid dates are tentative when shown; unannounced Eid dates and one-off holidays are not predicted. Locally entered holidays also appear. <a href="https://www.southafrica.embassy.gov.rw/about-rwanda/holidays-in-rwanda.html" target="_blank" rel="noopener noreferrer">Rwanda holiday rules</a> · <a href="https://rse.rw/public-holidays" target="_blank" rel="noopener noreferrer">2026 reference</a>.</p>'
  +(chosen.length?'<div class="dt-scroll"><table class="dt"><thead><tr><th>Date</th><th>Holiday</th><th>Planned work (D / N / DN)</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p class="hint">'+(ref?'No reference or locally entered holiday in this month.':'No reference calendar is available for this year; locally entered holidays still appear.')+'</p>')+'</section>';
 }
+function coverageReview(){
+ const p=plan(); if(!p) return '';
+ const cov=coverage(p), dates=(p.dates||[]), short=dates.filter(d=>cov[d].day<required(d).day), night=dates.filter(d=>cov[d].night<required(d).night);
+ const previousMonths=S.planMonths().filter(m=>m<monthKeyOf()).slice(-6); const previous=previousMonths[previousMonths.length-1];
+ const stats=(q,month)=>{const c=coverage(q), ds=(q.dates||[]).filter(d=>d.slice(0,7)===month), ordinary=ds.filter(d=>!isRest(d));
+   return {days:ds.length,ordinary:ordinary.length,short:ordinary.filter(d=>c[d].day<4).length,two:ordinary.filter(d=>c[d].day===2).length,avg:ordinary.length?ordinary.reduce((a,d)=>a+c[d].day,0)/ordinary.length:null};};
+ const now=stats(p,monthKeyOf()), old=previous?stats(S.planForMonth(previous),previous):null;
+ const summary=(x)=>x.ordinary?x.ordinary+' ordinary weekdays · average '+x.avg.toFixed(1)+' day staff · '+x.short+' below 4 · '+x.two+' with exactly 2': 'no ordinary weekdays recorded';
+ const details=short.length?'<ul>'+short.map(d=>'<li>'+U.esc(U.fmtDate(d))+' — '+cov[d].day+' of '+required(d).day+' day staff'+(displayHoliday(d)?' · '+U.esc(displayHoliday(d).name):U.dow(d)>=5?' · weekend':'')+'</li>').join('')+'</ul>':'<p class="small">No day-duty shortages in the dates covered by this plan.</p>';
+ return '<section class="card pad" data-coverage-review style="margin-bottom:14px"><h2>Day coverage and comparison</h2><p class="hint">Ordinary weekdays: at least 4 day staff, including the manager when rostered. Weekends and public holidays: at least 1. D, DN and worked UO count; approved leave is excluded. Blank cells are not counted. Holiday reference dates, including tentative dates, should be verified.</p>'
+ +'<details open><summary><b>'+short.length+' day'+(short.length===1?'':'s')+' under-covered — show dates</b></summary>'+details+'</details>'
+ +'<p class="small">Night coverage is checked separately: '+night.length+' date'+(night.length===1?'':'s')+' below the existing night requirement'+(night.length?' ('+night.map(d=>U.esc(U.fmtDateShort(d))).join(', ')+')':'')+'.</p>'
+ +'<div class="small" data-coverage-comparison><b>Evolution · calendar months only</b><br>'+U.esc(U.monthLabel(monthKeyOf()))+': '+summary(now)+' ('+now.days+' plan dates)'
+ +(old?previousMonths.slice().reverse().map(m=>{const x=stats(S.planForMonth(m),m);return '<br>'+U.esc(U.monthLabel(m))+': '+summary(x)+' ('+x.days+' plan dates)';}).join('')+(now.avg!==null&&old.avg!==null?'<br>Average change versus '+U.esc(U.monthLabel(previous))+': '+((now.avg-old.avg)>=0?'+':'')+(now.avg-old.avg).toFixed(1)+' day staff per ordinary weekday.':''):'<br>No earlier stored working plan available for comparison.')
+ +'<div class="hint">Up to six earlier stored plans are shown; missing months are not estimated. Only dates present in each stored plan are included; partial plans and blanks can affect the comparison. Overlapping days outside each calendar month are excluded. The same current rules are applied retrospectively, not historical staffing requirements.</div></div></section>';
+}
 function legend(){
   return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00 next day</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Annual leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Holiday columns are rose · weekend columns are neutral · drag a shift or click to edit</span></div>';
 }
@@ -279,7 +298,7 @@ function gridView(){
    +p.dates.map(iso=>{ const c=cov[iso], r=required(iso); return '<td class="'+(c.day<r.day?'low':'')+'" data-tip="'+c.day+' of '+r.day+' required">'+c.day+'</td>'; }).join('')+'</tr>'
    +'<tr class="cov-footer"><td class="staff-cell" style="background:var(--surface-inset);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)">Night cover</td>'
    +p.dates.map(iso=>{ const c=cov[iso], r=required(iso); return '<td class="'+(c.night<r.night?'low':'')+'" data-tip="'+c.night+' of '+r.night+' required">'+c.night+'</td>'; }).join('')+'</tr></tfoot>';
-  const under=p.dates.filter(iso=>cov[iso].day<required(iso).day||cov[iso].night<required(iso).night);
+  const under=p.dates.filter(iso=>cov[iso].day<required(iso).day);
   /* The table fits the page: every day of the run, from the first date the plan
      covers to the last, with no sideways scrolling and no second column of names
      left floating over the grid. Coverage and balance sit underneath it, side by
@@ -287,7 +306,7 @@ function gridView(){
   const covCell=(iso)=>{
     const c=cov[iso], r=required(iso), dow=U.dow(iso), we=isRest(iso);
     const shortD=c.day<r.day, shortN=c.night<r.night;
-    return '<div class="cov-cell'+(we?' wkend':'')+(displayHoliday(iso)?' holiday':'')+(shortD||shortN?' low':'')+'" data-tip="'+U.esc(iso)+' · day '+c.day+' of '+r.day+' · night '+c.night+' of '+r.night+'">'
+    return '<div class="cov-cell'+(we?' wkend':'')+(displayHoliday(iso)?' holiday':'')+(shortD?' low':'')+'" data-tip="'+U.esc(iso)+' · day '+c.day+' of '+r.day+' · night '+c.night+' of '+r.night+'">'
       +'<span class="cd">'+U.parseISO(iso).getDate()+'<em>'+U.DOW1[dow]+'</em></span>'
       +'<span class="cn"><b class="'+(shortD?'crit':'ok')+'">'+c.day+'</b><i>/</i><b class="'+(shortN?'crit':'ok')+'">'+c.night+'</b></span>'
       +'</div>';
@@ -296,11 +315,11 @@ function gridView(){
    +'<div class="card table-card plan-fit"><div class="dt-scroll"><table class="cal">'+head+'<tbody>'+body+'</tbody>'+footer+'</table></div>'
    +'<div class="card-foot"><span>'+(p.meta&&p.meta.official?'Official published plan — edits are audited':p.meta&&p.meta.transcribed?'Transcribed record of the paper plan — not published':p.meta&&p.meta.generated?'Draft generated from staff patterns':'Edited plan')+' · '+p.dates.length+' days'
      +(p.meta&&p.meta.carriedFrom?' · takes over from '+U.fmtDateShort(p.meta.carriedFrom)+' (previous month)':'')
-     +' · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered':'Coverage complete')+'</span></div></div>'
+     +' · '+(p.meta&&p.meta.label?U.esc(p.meta.label):'')+'</span><span class="pill '+(under.length?'amber':'teal')+'">'+(under.length?under.length+' days under-covered (day duty)':'Day coverage complete')+'</span></div></div>'
    +'<div class="plan-pair">'
      +UI.card({title:'Coverage',sub:'Required vs assigned, every day on the plan',icon:'gauge',body:function(){
         return '<div class="cov-grid">'+p.dates.map(covCell).join('')+'</div>'
-          +'<div class="hint" style="margin-top:10px">Each tile: date · weekday, then day staff and night staff against what the department requires. A day below the requirement is marked in red.</div>';
+          +'<div class="hint" style="margin-top:10px">Each tile: date · weekday, then day and night staff against their requirements. Red marks a day-duty shortage; night shortfalls are shown separately.</div>';
       }()})
      +UI.card({title:'Balance',sub:'Night · weekend · holiday load, name by name',icon:'scale',body:balanceBody(p)})
    +'</div>'
@@ -1265,7 +1284,7 @@ function paint(){ sheetSVG=null;
   const head=rootEl.querySelector('#roHead');
   if(head) head.innerHTML=header();
   const host=rootEl.querySelector('#roBody'); if(!host) return;
-  host.innerHTML=holidayReview()+trainingImpactCard()+(view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView());
+  host.innerHTML=holidayReview()+coverageReview()+trainingImpactCard()+(view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView());
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
   wireBody();
 }
