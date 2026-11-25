@@ -1457,11 +1457,12 @@ function swapModal(){
 /* ——— Official sheet: preview and export (PNG · PDF · XLSX) ————————— */
 function monthSheetPlan(){
   const p=plan();
-  if(p) return p;
-  // No stored plan: render the empty sheet honestly rather than inventing shifts.
   const key=mk||U.monthKey();
-  return {label:U.monthLabel(key),dates:U.monthRange(key),staff:S.activeStaff().map(s=>({name:s.name,id:s.id,codes:[]})),
+  // Attach visual reference metadata without writing it into the stored plan.
+  const source=p||{label:U.monthLabel(key),dates:U.monthRange(key),staff:S.activeStaff().map(s=>({name:s.name,id:s.id,codes:[]})),
     meta:{period:U.monthLabel(key),date:U.todayISO(),fy:U.fyLabel(),official:false,draft:true}};
+  const holidays={}; (source.dates||[]).forEach(iso=>{const h=displayHoliday(iso);if(h) holidays[iso]=h.name;});
+  return Object.assign({},source,{displayHolidays:holidays});
 }
 function monthSheetName(){
   const p=plan();
@@ -1472,7 +1473,7 @@ function openMonthSheet(){
   const p=plan();
   const svg=SH.monthlySVG(monthSheetPlan());
   const filename=monthSheetName();
-  UI.modal({title:'Working plan sheet — '+(p?(p.meta&&p.meta.period)||p.label:'no plan stored'),sub:'Exactly what PNG, PDF, XLSX and print produce — one A4 landscape page.',width:'min(1180px,96vw)',
+  UI.modal({title:'Working plan sheet — '+(p?(p.meta&&p.meta.period)||p.label:'no plan stored'),sub:'PNG, PDF and print follow this A4 preview. XLSX uses spreadsheet styling.',width:'min(1180px,96vw)',
     body:'<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;background:#fff;max-height:60vh">'+fitSVG(svg)+'</div>'
       +(p?'':'<div class="hint" style="margin-top:8px">This month has no stored plan, so the sheet shows the staff register with empty days. Create or import a plan first if you need it signed.</div>'),
     foot:'<button class="btn" data-close>Close</button><button class="btn" data-export-png>'+UI.ic('image',15)+' PNG</button>'
@@ -1503,8 +1504,8 @@ async function exportSheet(fmt,svg,filename){
 function openWeekSheet(){
   const data=weekData();
   const svg=SH.weeklySVG(data);
-  const filename='unit-roster-'+start;
-  UI.modal({title:'Weekly unit roster — week of '+U.fmtDateShort(start),sub:'Allocated units, weekend shading and the night shift row, on one A4 landscape page.',width:'min(1180px,96vw)',
+  const filename='unit-roster-'+data.weekStart;
+  UI.modal({title:'Weekly unit roster — week of '+U.fmtDateShort(data.weekStart),sub:'Allocated units, weekend shading and the night shift row, on one A4 landscape page.',width:'min(1180px,96vw)',
     body:'<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;background:#fff;max-height:60vh">'+svg+'</div>'
       +'<div class="hint" style="margin-top:8px">Night shift names are read from the working plan (a night code or a day+night code); a night entered by hand overrides the plan and is marked as such.</div>',
     foot:'<button class="btn" data-close>Close</button><button class="btn" data-wpng>'+UI.ic('image',15)+' PNG</button>'
@@ -1530,11 +1531,12 @@ async function exportWeek(fmt,svg,filename,data){
   }catch(e){ UI.toast('Export failed · '+(e&&e.message||e),{type:'err',duration:7000}); }
 }
 function weekData(){
-  const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={}, day={}, weekend={};
+  const start=weekStart(), dates=S.weekDates(start), alloc=allocationOf(start), night={}, day={}, weekend={}, displayHolidays={};
+  dates.forEach(iso=>{const h=displayHoliday(iso);if(h) displayHolidays[iso]=h.name;});
   dates.forEach(iso=>{ const n=S.nightCover(iso).name; if(n) night[iso]=n; });
   dates.forEach(iso=>{ const d=dayDutyOf(iso); if(d.length) day[iso]=d; if(weekendish(iso)) weekend[iso]=weekendLabel(iso); });
   const wRec=(S.db().unitRosters||{})[start]||{};
-  return {weekStart:start,dates,services:rosterServices(),alloc,night,dayDuty:day,weekend,temperature:temperatureWeek(dates,alloc),
+  return {weekStart:start,dates,services:rosterServices(),alloc,night,dayDuty:day,weekend,displayHolidays,temperature:temperatureWeek(dates,alloc),
     overrides:wRec.overrides||{},orientation:wRec.orientation||{},planLabel:planMonthLabel(dates)};
 }
 /* Kept as the one call the sheet builders use; the plan does the deciding. */
@@ -1546,7 +1548,7 @@ function planForDate(iso){
 function printRoster(){
   const p=plan();
   if(!p) return UI.toast('Nothing to print — this month has no working plan',{type:'warn'});
-  SH.printSVG(SH.monthlySVG(p),{title:'Working plan — '+(p.meta&&p.meta.period||p.label||'')});
+  SH.printSVG(SH.monthlySVG(monthSheetPlan()),{title:'Working plan — '+(p.meta&&p.meta.period||p.label||'')});
   S.audit({action:'roster.print',entity:'workingPlans',entityId:mk,detail:'Printed roster '+p.label}); S.save();
 }
 /* A draft only becomes the plan in force when the department says so. Publishing
