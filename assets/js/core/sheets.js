@@ -564,7 +564,6 @@ SH.monthlySVG=function(plan,opts){
      second telling of the rules. */
   let y=gridBottom+GRID_GAP;
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
-  if(cols.some(c=>c.holiday)) g+=text(pad+115,y,'Red columns: public holiday / reference date — verify tentative dates',{size:20,fill:'#8C2338'});
   const keysTop=y+30;                       /* heading baseline -> the first key row */
   const keys=SH.keyOrder.map(c=>CODE[c].key);
   const keyCols=KEY_COLS, keyW=(W-pad*2)/keyCols, keyH=KEY_H;

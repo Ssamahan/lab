@@ -14,7 +14,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const svg=doc.querySelector('#sheetHost svg');assert(svg);
   for(const date of ['2026-12-25','2026-12-26','2026-12-28','2026-12-29']) assert(svg.querySelector('[data-holiday-date="'+date+'"]'),date);
   assert(!svg.querySelector('[data-holiday-date="2026-12-27"]'));
-  assert.equal(svg.querySelector('[data-holiday-date="2026-12-28"] rect').getAttribute('fill'),'#F4CED3');assert(svg.outerHTML.includes('#BB5265'));assert(svg.textContent.includes('verify tentative dates'));
+  assert.equal(svg.querySelector('[data-holiday-date="2026-12-28"] rect').getAttribute('fill'),'#F4CED3');assert(svg.outerHTML.includes('#BB5265'));assert(!svg.textContent.includes('Red columns: public holiday'));
   const seen=[];SH.toPNG=async s=>{seen.push(['png',s]);return new w.Blob();};SH.toPDF=async s=>{seen.push(['pdf',s]);return new w.Blob();};U.download=()=>{};
   doc.querySelector('[data-sheet-png]').click();doc.querySelector('[data-sheet-pdf]').click();await wait(30);
   assert.deepEqual(seen.map(x=>x[0]),['png','pdf']);for(const item of seen) assert(item[1].includes('data-holiday-date="2026-12-28"'));
