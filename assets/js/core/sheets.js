@@ -340,7 +340,7 @@ function monthCols(plan){
   const dates=plan.dates||[];
   return dates.map((iso,i)=>{
     const d=U.parseISO(iso);
-    return {iso, i, dow:d.getDay(), day:d.getDate(), weekend:d.getDay()===0||d.getDay()===6,
+    return {iso, i, dow:d.getDay(), day:d.getDate(), holiday:(plan.displayHolidays||{})[iso]||'', weekend:d.getDay()===0||d.getDay()===6,
       month:d.getMonth(), dividerBefore:i>0 && U.parseISO(dates[i-1]).getMonth()!==d.getMonth()};
   });
 }
@@ -457,12 +457,14 @@ SH.monthlySVG=function(plan,opts){
   g+=rect(pad,gridTop,labelW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
   cols.forEach((c,i)=>{
     const x=gridX+i*colW;
-    const fill=c.weekend?'#F6EAD0':'#FFFFFF';
+    const fill=c.holiday?'#F4CED3':c.weekend?'#F6EAD0':'#FFFFFF';
+    if(c.holiday) g+='<g data-holiday-date="'+esc(c.iso)+'"><title>'+esc(c.holiday)+'</title>';
     g+=rect(x,gridTop,colW,bandH,fill);
-    g+=rect(x,gridTop+bandH,colW,dateH,c.weekend?'#FBF1DA':'#F4F6FA');
+    g+=rect(x,gridTop+bandH,colW,dateH,c.holiday?'#FBE5E8':c.weekend?'#FBF1DA':'#F4F6FA');
     g+=rect(x,gridTop,colW,bandH+dateH,'none',{stroke:'#DFE4EC',sw:1});
-    g+=text(x+colW/2,gridTop+bandH/2+10,SH.dowLetter(c.dow),{size:cellSize+2,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C'});
-    g+=text(x+colW/2,gridTop+bandH+dateH/2+9,String(c.day),{size:cellSize,weight:700,anchor:'middle',fill:c.weekend?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,gridTop+bandH/2+10,SH.dowLetter(c.dow),{size:cellSize+2,weight:700,anchor:'middle',fill:c.holiday?'#8C2338':c.weekend?C.alInk:'#12203C'});
+    g+=text(x+colW/2,gridTop+bandH+dateH/2+9,String(c.day),{size:cellSize,weight:700,anchor:'middle',fill:c.holiday?'#8C2338':c.weekend?C.alInk:'#12203C',mono:true});
+    if(c.holiday) g+='</g>';
   });
 
 
@@ -517,7 +519,7 @@ SH.monthlySVG=function(plan,opts){
         if(lv){ code=lv; st=styleOf(lv); }
       }
       const x=gridX+i*colW;
-      const bg=st?st.bg:(c.weekend?C.creamBand:'#FFFFFF');
+      const bg=st?st.bg:(c.holiday?'#FBE5E8':c.weekend?C.creamBand:'#FFFFFF');
       g+=rect(x,y,colW,rowH,bg);
       /* a hatched cell carries no letter at all — the diagonal rules are the code,
          and a blank cell keeps its own meaning (at home) */
@@ -531,7 +533,7 @@ SH.monthlySVG=function(plan,opts){
         }
         g+=rect(x+1.5,y+1.5,colW-3,rowH-3,'none',{stroke:'#B9C0CC',sw:1.5,dash:'7 5'});
       }
-      g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
+      g+=rect(x,y,colW,rowH,'none',{stroke:c.holiday?'#BB5265':C.line,sw:c.holiday?2:1});
       if(st && code && !st.hatch){
         /* The letter is set at the size of the staff names, so the grid and the names
            read as one table. It is never wider than its own day column, which the
@@ -561,6 +563,7 @@ SH.monthlySVG=function(plan,opts){
      second telling of the rules. */
   let y=gridBottom+GRID_GAP;
   g+=text(pad,y,'Keys:',{size:26,weight:700,fill:'#12203C'});
+  if(cols.some(c=>c.holiday)) g+=text(pad+115,y,'Red columns: public holiday / reference date — verify tentative dates',{size:20,fill:'#8C2338'});
   const keysTop=y+30;                       /* heading baseline -> the first key row */
   const keys=SH.keyOrder.map(c=>CODE[c].key);
   const keyCols=KEY_COLS, keyW=(W-pad*2)/keyCols, keyH=KEY_H;
@@ -1163,7 +1166,7 @@ SH.weeklySVG=function(data,opts){
      named by the plan sits in its own row, and a Saturday, a Sunday or a public
      holiday prints as the one duty it is rather than as seven empty benches. */
   const dayDuty=data.dayDuty||{};
-  const weekend=data.weekend||{};
+  const weekend=data.weekend||{}, holidays=data.displayHolidays||{};
   const labelW=560, gridX=pad+labelW;
   const colW=(W-pad*2-labelW)/Math.max(1,dates.length);
   const headH=48, dateH=36, rowH=92, dayH=80, nightH=80;
@@ -1192,13 +1195,15 @@ SH.weeklySVG=function(data,opts){
   g+=rect(pad,top,labelW,headH+dateH,'none',{stroke:C.line,sw:1});
   const isWeekend=iso=>!!weekend[iso]||U.dow(iso)>=5;
   dates.forEach((iso,i)=>{
-    const we=isWeekend(iso);
+    const we=isWeekend(iso), hol=holidays[iso];
     const x=gridX+i*colW;
-    g+=rect(x,top,colW,headH,we?C.creamBand:'#FFFFFF');
-    g+=rect(x,top+headH,colW,dateH,we?'#F7E9C9':'#F4F6FA');
+    if(hol) g+='<g data-holiday-date="'+esc(iso)+'"><title>'+esc(hol)+'</title>';
+    g+=rect(x,top,colW,headH,hol?'#F4CED3':we?C.creamBand:'#FFFFFF');
+    g+=rect(x,top+headH,colW,dateH,hol?'#FBE5E8':we?'#F7E9C9':'#F4F6FA');
     g+=rect(x,top,colW,headH+dateH,'none',{stroke:C.line,sw:1});
-    g+=text(x+colW/2,top+headH/2+10,U.DOWL[U.dow(iso)],{size:28,weight:700,anchor:'middle',fill:we?C.alInk:'#12203C'});
-    g+=text(x+colW/2,top+headH+dateH/2+9,String(U.parseISO(iso).getDate()),{size:26,weight:600,anchor:'middle',fill:we?C.alInk:'#12203C',mono:true});
+    g+=text(x+colW/2,top+headH/2+10,U.DOWL[U.dow(iso)],{size:28,weight:700,anchor:'middle',fill:hol?'#8C2338':we?C.alInk:'#12203C'});
+    g+=text(x+colW/2,top+headH+dateH/2+9,String(U.parseISO(iso).getDate()),{size:26,weight:600,anchor:'middle',fill:hol?'#8C2338':we?C.alInk:'#12203C',mono:true});
+    if(hol) g+='</g>';
   });
 
   services.forEach((sv,ri)=>{
@@ -1210,7 +1215,7 @@ SH.weeklySVG=function(data,opts){
       if(we){
         if(ri) return;
         const height=rowH*services.length, names=dayDuty[iso]||[];
-        g+=rect(x,y,colW,height,C.creamBand);
+        g+=rect(x,y,colW,height,holidays[iso]?'#FBE5E8':C.creamBand);
         g+=rect(x,y,colW,height,'none',{stroke:C.line,sw:1});
         const label=weekend[iso]||(U.dow(iso)===5?'Saturday':'Sunday');
         g+=text(x+colW/2,y+28,String(label).toUpperCase(),{size:16,weight:700,anchor:'middle',fill:C.alInk});
@@ -1218,8 +1223,8 @@ SH.weeklySVG=function(data,opts){
         if(!names.length) g+=text(x+colW/2,y+height/2,'—',{size:24,anchor:'middle',fill:'#98A2B3'});
         return;
       }
-      g+=rect(x,y,colW,rowH,'#FFFFFF');
-      g+=rect(x,y,colW,rowH,'none',{stroke:C.line,sw:1});
+      g+=rect(x,y,colW,rowH,holidays[iso]?'#FBE5E8':'#FFFFFF');
+      g+=rect(x,y,colW,rowH,'none',{stroke:holidays[iso]?'#BB5265':C.line,sw:1});
       const who=(alloc[iso]&&alloc[iso][sv.name])||'';
       if(who){
         g+=nameBlock(x+colW/2,y+rowH/2,colW-20,who,{pref:34,min:19,anchor:'middle',forceLines:true});
@@ -1236,7 +1241,7 @@ SH.weeklySVG=function(data,opts){
   g+=text(pad+24,ty+dayH/2+24,'Additional day task · record on log sheets',{size:16,fill:'#3D4759'});
   dates.forEach((iso,i)=>{
     const x=gridX+i*colW, who=(data.temperature||{})[iso]||'';
-    g+=rect(x,ty,colW,dayH,isWeekend(iso)?C.creamBand:'#FFFFFF');
+    g+=rect(x,ty,colW,dayH,holidays[iso]?'#FBE5E8':isWeekend(iso)?C.creamBand:'#FFFFFF');
     g+=rect(x,ty,colW,dayH,'none',{stroke:C.line,sw:1});
     if(who) who.split(' · ').forEach((name,j,all)=>{ g+=nameBlock(x+colW/2,ty+dayH/2+(j-(all.length-1)/2)*36,colW-20,name,{pref:28,min:16,anchor:'middle',forceLines:true}); });
   });
@@ -1266,6 +1271,7 @@ SH.weeklySVG=function(data,opts){
     orient.forEach((ln,i)=>{ g+=text(pad,noteY+i*29,ln,{size:19,fill:'#3D4759'}); });
   }
 
+  if(Object.keys(holidays).length) g+=text(pad,H-95,'Red columns: public holiday / reference date — verify tentative dates',{size:19,fill:'#8C2338'});
   g+=text(W/2,H-60,'Week of '+U.fmtDateShort(data.weekStart)+' · Day shift 08:00–17:00 · Night shift 17:00–08:00 the next day · plan: '+(data.planLabel||'working plan')+' · Generated '+U.todayISO(),{size:23,anchor:'middle',fill:'#3D4759'});
   return svgDoc(W,H,g);
 };
