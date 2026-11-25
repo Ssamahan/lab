@@ -145,6 +145,7 @@
 .cov-cell.holiday{background:color-mix(in srgb, var(--surface) 77%, #e3727c); border-color:#b53f5c; color:var(--text)}
 .cal .day.drag-over{background:rgba(201,168,76,.14); box-shadow:inset 0 0 0 1px var(--gold)}
 .shift-code{display:inline-flex; align-items:center; justify-content:center; min-width:23px; height:19px; padding:0 4px; border-radius:4px; font-family:var(--font-mono); font-size:9.6px; font-weight:600; letter-spacing:.02em; border:1px solid transparent; cursor:grab}
+.shift-code[class~="2C"]{color:var(--warn);background:var(--warn-soft);border-color:var(--warn-border)}
 .shift-code.D{color:var(--gold-bright); background:rgba(201,168,76,.13); border-color:rgba(201,168,76,.22)}
 .shift-code.N{color:var(--info); background:var(--info-soft); border-color:var(--info-border)}
 .shift-code.OFF{color:var(--text-faint); background:var(--surface-inset); border-color:var(--border)}
