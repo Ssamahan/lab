@@ -9,7 +9,7 @@ let rootEl=null, mk=null, view='grid', drag=null, suppressClick=false, wk=null;
 /* The letters on the sheet. Leave and absence use the department's standard
    abbreviations: AL annual · ML maternal · PL paternal · SL sick · CL circumstantial ·
    AA authorised · H public holiday · WD work desertion / unauthorised absence. */
-const CODES=[['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],
+const CODES=[['2C','Second call · at home, close to hospital'],['D','Day · 08:00–17:00'],['N','Night · 17:00–08:00 next day'],['DN','Day + night'],
   ['OFF','At home (not on shift) · the days a night block is repaid'],
   ['UO','UO · Unattended off'],['RBW','Off duty · rest before work'],['TR','Training'],
   ['AL','AL · Annual leave'],['ML','ML · Maternal leave'],['PL','PL · Paternal leave'],
@@ -266,8 +266,57 @@ function coverageReview(){
  +(old?previousMonths.slice().reverse().map(m=>{const x=stats(S.planForMonth(m),m);return '<br>'+U.esc(U.monthLabel(m))+': '+summary(x)+' ('+x.days+' plan dates)';}).join('')+(now.avg!==null&&old.avg!==null?'<br>Average change versus '+U.esc(U.monthLabel(previous))+': '+((now.avg-old.avg)>=0?'+':'')+(now.avg-old.avg).toFixed(1)+' day staff per ordinary weekday.':''):'<br>No earlier stored working plan available for comparison.')
  +'<div class="hint">Up to six earlier stored plans are shown; missing months are not estimated. Only dates present in each stored plan are included; partial plans and blanks can affect the comparison. Overlapping days outside each calendar month are excluded. The same current rules are applied retrospectively, not historical staffing requirements.</div></div></section>';
 }
+/* Suggestions rotate through actual past 2C assignments and earlier suggestions.
+   Only D is convertible: replacing DN would silently remove night cover, and UO
+   is a recorded worked-rest decision. No data are changed until reviewed. */
+function secondCallSuggestions(p){
+ const key=monthKeyOf(),last={},plans=S.db().workingPlans||{};
+ Object.keys(plans).sort().filter(m=>m<=key).forEach(m=>{
+  const q=plans[m]&&plans[m].primary;if(!q)return;
+  (q.dates||[]).forEach((date,i)=>{if(date.slice(0,7)!==m)return;
+   (q.staff||[]).forEach(st=>{if((st.codes||[])[i]==='2C' && date<key+'-01')last[String(st.name||'').trim().toLowerCase()]=date;});});
+ });
+ const results=[],cov=coverage(p);
+ (p.dates||[]).forEach((date,di)=>{
+  if(date.slice(0,7)!==key)return;
+  const existing=(p.staff||[]).filter(st=>(st.codes||[])[di]==='2C');
+  existing.forEach(st=>{last[String(st.name||'').trim().toLowerCase()]=date;});
+  if(existing.length){results.push({date,existing:existing.map(st=>st.name)});return;}
+  if(isRest(date)||cov[date].day<=5)return;
+  const candidates=(p.staff||[]).map((st,si)=>({st,si})).filter(({st})=>{
+    if((st.codes||[])[di]!=='D'||S.leaveCodeFor(st.name,date))return false;
+    const person=S.staffById(st.id)||S.staffByName(st.name);
+    if(!person||person.status!=='active')return false;
+    return !(S.db().trainings||[]).some(t=>!t.deleted&&!/^(cancelled|canceled|postponed)$/i.test(t.status||'')&&t.start&&date>=t.start&&date<=String(t.end||t.start)&&person&&(t.attendees||[]).includes(person.id));
+  });
+  candidates.sort((a,b)=>String(last[String(a.st.name||'').trim().toLowerCase()]||'').localeCompare(String(last[String(b.st.name||'').trim().toLowerCase()]||''))||String(a.st.name).localeCompare(String(b.st.name)));
+  if(!candidates.length){results.push({date,unavailable:true});return;}
+  const pick=candidates[0];last[String(pick.st.name||'').trim().toLowerCase()]=date;
+  results.push({date,si:pick.si,name:pick.st.name,count:cov[date].day});
+ });
+ return results;
+}
+function secondCallCard(){
+ const p=plan();if(!p)return '';
+ const items=secondCallSuggestions(p);
+ return '<section class="card pad" data-second-call style="margin-bottom:14px"><h2>Second call · 2C</h2><p class="hint">At home but close to the hospital, available as backup; not counted as day staff. Suggestions appear on ordinary weekdays with more than five day staff, including the manager. A D shift is suggested; DN and worked rest (UO) are protected. The rotation uses recorded earlier 2C assignments and previews earlier suggestions. Review each suggestion before saving; you can choose another person in the shift editor. The plan is never changed automatically.</p>'
+ +(items.length?'<ul>'+items.map(x=>'<li>'+U.esc(U.fmtDate(x.date))+' · '+(x.existing?'2C assigned: '+x.existing.map(U.esc).join(', '):x.unavailable?'No eligible D shift to suggest':U.esc(x.name)+' suggested · '+x.count+' day staff → '+(x.count-1)+' on site <button class="btn xs" data-second-call-review="'+x.si+'" data-date="'+x.date+'">Review 2C</button>')+'</li>').join('')+'</ul>':'<p class="small">No eligible dates or recorded second calls in this month.</p>')
+ +'<p class="hint">Suggestions cover this calendar month only; dates carried into the next plan are reviewed there. History is limited to plans available on this device. Holidays, leave and training should be verified.</p></section>';
+}
+async function reviewSecondCall(si,date){
+ if(!LS.auth.guard('edit'))return;
+ const month=monthKeyOf(),p=plan(),suggestion=p&&secondCallSuggestions(p).find(x=>x.date===date&&x.si===si),di=p?(p.dates||[]).indexOf(date):-1;
+ if(!suggestion||di<0)return UI.toast('The plan changed; review the refreshed suggestion.',{type:'warn'});
+ const name=suggestion.name,count=suggestion.count;
+ const ok=await UI.confirm({title:'Set second call?',body:'<p>'+U.esc(name)+' · '+U.esc(U.fmtDate(date))+'</p><p>Change D to 2C: the person will be at home near the hospital. Day staff on site: '+count+' → '+(count-1)+'. Check service allocations and coverage.</p>',confirm:'Set 2C'});
+ if(!ok)return;
+ const current=plan(),next=current&&monthKeyOf()===month&&secondCallSuggestions(current).find(x=>x.date===date&&x.si===si&&x.name===name&&x.count===count);
+ if(!next||current.dates[di]!==date)return UI.toast('The plan, leave or suggestion changed; review again. Nothing was changed.',{type:'warn'});
+ S.commit(d=>{const pl=d.workingPlans[month].primary;pl.staff[si].codes[di]='2C';pl.meta=pl.meta||{};pl.meta.draft=true;pl.meta.edited=U.nowISO();},{action:'roster.second_call',entity:'workingPlans',entityId:month,detail:name+' · '+date+' D → 2C (second call)'});
+ paint();UI.toast('Second call saved · review any existing service assignments',{type:'ok'});
+}
 function legend(){
-  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00 next day</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Annual leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Holiday columns are rose · weekend columns are neutral · drag a shift or click to edit</span></div>';
+  return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00 next day</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Annual leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span class="shift-code 2C">2C</span><span class="xs faint">Second call · at home nearby</span><span style="margin-left:auto" class="xs faint">Holiday columns are rose · weekend columns are neutral · drag a shift or click to edit</span></div>';
 }
 function gridView(){
   const p=plan();
@@ -473,7 +522,7 @@ function weekView(){
     const n=cellStaff(iso,sv.name); if(!n) return;
     if(weekendish(iso)){ weekendCells.push({iso,svc:sv.name,staff:n}); return; }
     const st=statusOf(iso,n);
-    if(st && (st.kind==='off'||st.kind==='leave'||st.kind==='exited')) conflicts.push({iso,svc:sv.name,staff:n,state:st});
+    if(st && (st.kind==='off'||st.kind==='secondcall'||st.kind==='leave'||st.kind==='exited')) conflicts.push({iso,svc:sv.name,staff:n,state:st});
     /* a hard block, or the reserve on a busy plan, without a recorded override
        is a rule breach — not a preference */
     const ctx=ctxOf(iso), ov=!!((overrides[iso]||{})[sv.name]);
@@ -495,7 +544,7 @@ function weekView(){
   const body=svcs.map((sv,serviceIndex)=>'<tr><td class="staff-cell"><div class="nm">'+U.esc(sv.name)+'</div><div class="rl mono">'+U.esc(sv.code)+' · min '+sv.min+'</div></td>'
     +dates.map(iso=>{
       const name=cellStaff(iso,sv.name); const st=name?statusOf(iso,name):null;
-      const danger=st&&(st.kind==='off'||st.kind==='leave'||st.kind==='exited');
+      const danger=st&&(st.kind==='off'||st.kind==='secondcall'||st.kind==='leave'||st.kind==='exited');
       /* The shift code belongs on the working plan, not repeated in every service
          cell. Here a name is all the roster needs; a conflict is shown by colour. */
       const ov=(overrides[iso]||{})[sv.name];
@@ -1284,7 +1333,7 @@ function paint(){ sheetSVG=null;
   const head=rootEl.querySelector('#roHead');
   if(head) head.innerHTML=header();
   const host=rootEl.querySelector('#roBody'); if(!host) return;
-  host.innerHTML=holidayReview()+coverageReview()+trainingImpactCard()+(view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView());
+  host.innerHTML=holidayReview()+coverageReview()+secondCallCard()+trainingImpactCard()+(view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView());
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
   wireBody();
 }
@@ -1399,12 +1448,21 @@ function shiftPicker(si,di){
         UI.closeTop();paint();UI.toast(saved.dates.length+' consecutive OFF days saved · review coverage',{type:'ok'});
       };
       el.querySelectorAll('[data-run]').forEach(b=>b.onclick=()=>{ fillRun(si,di,b.dataset.run,+b.dataset.n); UI.closeTop(); });
-      el.querySelectorAll('[data-code]').forEach(b=>b.onclick=()=>{
+      el.querySelectorAll('[data-code]').forEach(b=>b.onclick=async()=>{
         const code=b.dataset.code;
         /* An annual leave is never one cell: the department takes it in blocks, so
            tapping AL writes the next fifteen days and the block is then trimmed or
            extended. If the plan cannot be read, this is the fallback that still
            leaves a complete block on the sheet. */
+        if(code==='2C'){
+          const date=p.dates[di],before=cur,month=mk;
+          if(S.leaveCodeFor(s.name,date)||['AL','ML','PL','SL','CL','AA','WD','TR','BE'].includes(before)){error.textContent='Leave, training or before-employment entries cannot be replaced with 2C here.';return;}
+          const others=(p.staff||[]).filter((row,i)=>i!==si&&(row.codes||[])[di]==='2C').map(row=>row.name);
+          const ok=await UI.confirm({title:'Set second call?',body:'<p>'+U.esc(s.name)+' · '+U.esc(U.fmtDate(date))+' · '+U.esc(before||'blank')+' → 2C</p><p>At home near the hospital, not day cover. This is a manual override; review staffing, night shifts and service allocations.</p>'+(others.length?'<p>Already marked 2C on this date: '+others.map(U.esc).join(', ')+'. This will add another second call, not replace them.</p>':''),confirm:'Set 2C'});
+          if(!ok)return;const now=plan();
+          if(mk!==month||!now||now.dates[di]!==date||!now.staff[si]||now.staff[si].name!==s.name||now.staff[si].codes[di]!==before||S.leaveCodeFor(s.name,date)){error.textContent='The plan or leave changed; reopen the shift and review again.';return;}
+          assign(si,di,'2C');UI.closeTop();UI.toast('Second call saved · review coverage',{type:'ok'});return;
+        }
         if(code==='AL'){ fillRun(si,di,'AL',15); UI.closeTop(); UI.toast('Annual leave · 15 days filled from '+U.fmtDate(p.dates[di]),{type:'ok'}); return; }
         if(!code){ assign(si,di,''); UI.closeTop(); UI.toast('Cell cleared · at home, nothing written',{type:'ok'}); return; }
         assign(si,di,code); UI.closeTop(); UI.toast('Shift updated · coverage recalculated',{type:'ok'});
@@ -1428,9 +1486,9 @@ function patternsModal(){
         S.commit(d=>{
           const pl=d.workingPlans[mk].primary; if(!pl) return;
           pl.staff.forEach(s=>{ if(who!=='__all'&&s.name!==who) return;
-            /* a pattern never paints over a leave, a training or a day recorded as
+            /* a pattern never paints over a leave, a training, a second call or a day recorded as
                an unattended off — those are decisions somebody made */
-            s.codes=s.codes.map((c,i)=>{ if(S.isLeaveCode(c)||c==='TR'||c==='UO') return c; return codes[i%codes.length]; });
+            s.codes=s.codes.map((c,i)=>{ if(S.isLeaveCode(c)||c==='TR'||c==='UO'||c==='2C') return c; return codes[i%codes.length]; });
           });
           pl.meta.generated=false; pl.meta.pattern=tpl;
         },{action:'roster.pattern',entity:'workingPlans',entityId:mk,detail:'Applied pattern '+tpl+' to '+(who==='__all'?'entire unit':who)});
@@ -1637,6 +1695,7 @@ function wireBody(){
   });
   r.querySelectorAll('[data-wknav]').forEach(b=>b.onclick=()=>{ const d=+b.dataset.wknav; if(d===0){ wk=S.weekStart(U.todayISO()); paint(); } else shiftWeek(d); });
   r.querySelectorAll('[data-wcell]').forEach(td=>td.onclick=()=>{ const [iso,svc]=td.dataset.wcell.split('|'); servicePicker(iso,svc); });
+  r.querySelectorAll('[data-second-call-review]').forEach(b=>b.onclick=()=>reviewSecondCall(+b.dataset.secondCallReview,b.dataset.date));
   r.querySelectorAll('[data-night]').forEach(td=>td.onclick=()=>nightModal(td.dataset.night));
   r.querySelectorAll('[data-auto-week]').forEach(b=>b.onclick=autoAllocate);
   r.querySelectorAll('[data-auto-nights]').forEach(b=>b.onclick=autoNights);

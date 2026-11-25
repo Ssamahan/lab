@@ -21,6 +21,7 @@ const C={
 SH.colors=C;
 const FONT={ body:'Helvetica, Arial, sans-serif', serif:'Georgia, Times New Roman, serif', mono:'DejaVu Sans Mono, Menlo, Consolas, monospace' };
 const CODE={
+  '2C': {bg:'#FFF0D7', fg:'#805000', label:'2C', key:'2C — Second call (at home nearby)'},
   D:   {bg:C.pale,      fg:C.paleInk, label:'D',   key:'D — Day 08:00–17:00'},
   N:   {bg:C.navy,      fg:'#FFFFFF', label:'N',   key:'N — Night 17:00–08:00 next day'},
   DN:  {bg:C.dn,        fg:'#101828', label:'DN',  key:'DN — Day+Night'},
@@ -48,7 +49,7 @@ const CODE={
 };
 SH.codes=Object.keys(CODE);
 /* printed register order: shifts, rest, leave, then the rest */
-SH.keyOrder=['D','N','DN','OFF','UO','RBW','AL','ML','SL','CL','AA','TR','W','ABS','H'].filter(c=>CODE[c]);
+SH.keyOrder=['D','N','DN','2C','OFF','UO','RBW','AL','ML','SL','CL','AA','TR','W','ABS','H'].filter(c=>CODE[c]);
 SH.keyOrder=SH.keyOrder.concat(SH.codes.filter(c=>SH.keyOrder.indexOf(c)<0));
 const styleOf=c=>CODE[c]||null;
 SH.styleOf=styleOf;

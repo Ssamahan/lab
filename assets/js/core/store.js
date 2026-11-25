@@ -3687,6 +3687,7 @@ S.shiftState=function(who, iso){
     tone:lv.status==='Pending'?'amber':'blue',source:'leave',requestId:lv.id};
   const code=S.codeFor(staff,iso);
   if(code){
+    if(code==='2C') return {code,kind:'secondcall',label:'Second call · at home near hospital',tone:'amber',source:'plan'};
     if(code==='D')  return {code,kind:'day',label:'On duty · day 08:00–17:00',tone:'teal',source:'plan'};
     if(code==='N')  return {code,kind:'night',label:'On duty · night 17:00–08:00 next day',tone:'blue',source:'plan'};
     if(code==='DN') return {code,kind:'daynight',label:'On duty · day + night',tone:'teal',source:'plan'};
