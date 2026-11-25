@@ -138,7 +138,11 @@
 .cal .day.off{background:repeating-linear-gradient(135deg,transparent,transparent 5px,rgba(255,255,255,.022) 5px,rgba(255,255,255,.022) 6px)}
 .cal .day.today{box-shadow:inset 0 0 0 1px rgba(201,168,76,.55)}
 .cal .day.today::after{content:""; position:absolute; top:2px; right:2px; width:4px; height:4px; border-radius:50%; background:var(--gold)}
-.cal .day.holiday{background:rgba(227,114,124,.05)}
+.cal th.holiday{background:color-mix(in srgb, var(--surface-2) 65%, #e3727c); color:var(--text); box-shadow:inset 0 -3px #b53f5c}
+.cal th.holiday div{color:var(--text) !important}
+.cal .day.holiday{background:color-mix(in srgb, var(--surface) 77%, #e3727c)}
+.cal .day.holiday.off{background:repeating-linear-gradient(135deg,color-mix(in srgb, var(--surface) 77%, #e3727c),color-mix(in srgb, var(--surface) 77%, #e3727c) 5px,color-mix(in srgb, var(--surface) 64%, #e3727c) 5px,color-mix(in srgb, var(--surface) 64%, #e3727c) 6px)}
+.cov-cell.holiday{background:color-mix(in srgb, var(--surface) 77%, #e3727c); border-color:#b53f5c; color:var(--text)}
 .cal .day.drag-over{background:rgba(201,168,76,.14); box-shadow:inset 0 0 0 1px var(--gold)}
 .shift-code{display:inline-flex; align-items:center; justify-content:center; min-width:23px; height:19px; padding:0 4px; border-radius:4px; font-family:var(--font-mono); font-size:9.6px; font-weight:600; letter-spacing:.02em; border:1px solid transparent; cursor:grab}
 .shift-code.D{color:var(--gold-bright); background:rgba(201,168,76,.13); border-color:rgba(201,168,76,.22)}
