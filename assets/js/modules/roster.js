@@ -214,6 +214,32 @@ function header(){
    +'</div></div>'
    +'<div class="filters" style="margin-bottom:12px">'+[['sheet','Official sheet'],['grid','Shift grid'],['week','Weekly roster'],['services','Lab services'],['fairness','Fairness'],['swaps','Swap requests']].map(([k,l])=>'<button class="filter-tab '+(view===k?'on':'')+'" data-view="'+k+'">'+l+'</button>').join('')+'</div>';
 }
+/* Read-only reference for the two planning years. Dates and substitute days can
+   change by official notice. Islamic holidays are intentionally not guessed. */
+const RW_HOLIDAYS={
+ '2026':[
+  ['01-01','New Year’s Day'],['01-02','Day after New Year'],['02-01','National Heroes’ Day'],['02-02','Heroes’ Day observed'],['03-20','Eid al-Fitr (tentative)'],
+  ['04-03','Good Friday'],['04-06','Easter Monday'],['04-07','Genocide against the Tutsi Memorial Day'],['05-01','Labour Day'],['05-27','Eid al-Adha (tentative)'],
+  ['07-01','Independence Day'],['07-04','Liberation Day'],['07-06','Liberation Day observed'],['08-07','Umuganura Day'],
+  ['08-15','Assumption Day'],['08-17','Assumption Day observed'],['12-25','Christmas Day'],['12-26','Boxing Day'],['12-28','Boxing Day observed']
+ ],
+ '2027':[
+  ['01-01','New Year’s Day'],['01-02','Day after New Year'],['01-04','Day after New Year observed'],['02-01','National Heroes’ Day'],
+  ['03-26','Good Friday'],['03-29','Easter Monday'],['04-07','Genocide against the Tutsi Memorial Day'],['05-01','Labour Day'],['05-03','Labour Day observed'],
+  ['07-01','Independence Day'],['07-04','Liberation Day'],['07-05','Liberation Day observed'],['08-06','Umuganura Day'],
+  ['08-15','Assumption Day'],['08-16','Assumption Day observed'],['12-25','Christmas Day'],['12-26','Boxing Day'],['12-27','Christmas and Boxing Day observed']
+ ]
+};
+function holidayReview(){
+ const year=String(mk||U.monthKey()).slice(0,4),ref=RW_HOLIDAYS[year],p=plan();
+ const dates=ref?ref.map(([date,name])=>({date:year+'-'+date,name,source:'reference'})):[];
+ (S.db().holidays||[]).forEach(h=>{if(!h||typeof h.date!=='string'||h.date.slice(0,4)!==year)return;const existing=dates.find(x=>x.date===h.date);if(existing){existing.local=true;if(h.name&&h.name!==existing.name)existing.localName=h.name;}else dates.push({date:h.date,name:h.name||'Public holiday',source:'local',local:true});});
+ const chosen=dates.filter(x=>x.date.slice(0,7)===(mk||U.monthKey())).sort((a,b)=>a.date.localeCompare(b.date));
+ const rows=chosen.map(h=>{const index=p?p.dates.indexOf(h.date):-1;const shifts=index>=0?p.staff.filter(st=>['D','N','DN'].includes((st.codes||[])[index])).map(st=>U.esc(st.name)+' ('+U.esc(st.codes[index])+')'):[];
+  return '<tr><td>'+U.esc(U.fmtDate(h.date))+'</td><td>'+U.esc(h.name)+(h.localName?' · local: '+U.esc(h.localName):'')+' <span class="xs faint">'+(h.source==='local'?'locally entered':(/tentative/.test(h.name)||year==='2027'&&/observed/.test(h.name))?'verify official notice':'reference')+'</span></td><td>'+(p?(index<0?'Date not in this plan':shifts.length?shifts.join(' · '):'No D, N or DN shift recorded'):'No working plan on this browser')+'</td></tr>';}).join('');
+ return '<section class="card pad" data-holiday-review style="margin-bottom:14px"><h2>Public holidays · '+U.esc(U.monthLabel(mk||U.monthKey()))+'</h2><p class="hint">Reference dates and shifts already written in this browser’s plan. Read-only: no shifts or holiday settings are changed. Observed days are calculated and must be checked against current official notices. Eid dates are tentative when shown; unannounced Eid dates and one-off holidays are not predicted. Locally entered holidays also appear. <a href="https://www.southafrica.embassy.gov.rw/about-rwanda/holidays-in-rwanda.html" target="_blank" rel="noopener noreferrer">Rwanda holiday rules</a> · <a href="https://rse.rw/public-holidays" target="_blank" rel="noopener noreferrer">2026 reference</a>.</p>'
+ +(chosen.length?'<div class="dt-scroll"><table class="dt"><thead><tr><th>Date</th><th>Holiday</th><th>Planned work (D / N / DN)</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p class="hint">'+(ref?'No reference or locally entered holiday in this month.':'No reference calendar is available for this year; locally entered holidays still appear.')+'</p>')+'</section>';
+}
 function legend(){
   return '<div class="row wrap gap-sm" style="margin-bottom:10px"><span class="shift-code D">D</span><span class="xs faint">Day 08:00–17:00</span><span class="shift-code N">N</span><span class="xs faint">Night 17:00–08:00 next day</span><span class="shift-code DN">DN</span><span class="xs faint">Day + night</span><span class="shift-code AL">AL</span><span class="xs faint">Annual leave</span><span class="shift-code TR">TR</span><span class="xs faint">Training</span><span class="shift-code OFF">OFF</span><span class="xs faint">At home</span><span style="margin-left:auto" class="xs faint">Drag a shift to another day · click to edit</span></div>';
 }
@@ -1232,7 +1258,7 @@ function paint(){ sheetSVG=null;
   const head=rootEl.querySelector('#roHead');
   if(head) head.innerHTML=header();
   const host=rootEl.querySelector('#roBody'); if(!host) return;
-  host.innerHTML=trainingImpactCard()+(view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView());
+  host.innerHTML=holidayReview()+trainingImpactCard()+(view==='sheet'?sheetView():view==='grid'?gridView():view==='week'?weekView():view==='services'?servicesView():view==='fairness'?fairnessView():swapsView());
   U.$$('[data-view]',rootEl).forEach(b=>b.classList.toggle('on',b.dataset.view===view));
   wireBody();
 }
